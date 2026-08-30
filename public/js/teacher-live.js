@@ -48,6 +48,7 @@ let cameraStream;
 // Extra state used to make negotiation and cleanup predictable.
 const pendingIceCandidates = Object.create(null);
 const attendeeElements = new Map();
+const attendeeStudents = new Map();
 const studentAudioElements = new Map();
 // This is the local authoritative mirror of the server's current teacher
 // approvals. A received student track is never mixed for the class unless its
@@ -1431,25 +1432,47 @@ function displayInitials(name) {
 }
 
 /** Resolve all supported participant payload shapes to one safe display name. */
-function getStudentDisplayName(student = {}) {
+function getStudentDisplayName(student = {}, existingStudent = null) {
   if (typeof student === "string") return student.trim() || "تلميذ";
-  const studentDisplayName = student.studentName || student.name || student.fullName || "تلميذ";
+  const studentDisplayName =
+    student.studentName ||
+    student.name ||
+    student.fullName ||
+    existingStudent?.studentName ||
+    existingStudent?.name ||
+    existingStudent?.fullName ||
+    "تلميذ";
   return String(studentDisplayName).trim() || "تلميذ";
 }
 
 /** Add or refresh a student item without exposing their socket ID visibly. */
 function upsertAttendee(socketId, student = {}, participationCount = 0) {
-  const studentDisplayName = getStudentDisplayName(student);
+  const existingStudent = attendeeStudents.get(socketId) || null;
+  const displayName = getStudentDisplayName(student, existingStudent);
+  const avatarText =
+    student.avatarText ||
+    existingStudent?.avatarText ||
+    (displayName !== "تلميذ" ? displayName.substring(0, 2) : "ت");
   let item = attendeeElements.get(socketId);
   const storedStudentName = item?.dataset.studentName || "";
-  const displayName = studentDisplayName === "تلميذ" && storedStudentName
+  const stableDisplayName = storedStudentName && storedStudentName !== "تلميذ"
     ? storedStudentName
-    : studentDisplayName;
+    : displayName;
+  const stableAvatarText = item?.dataset.avatarText || avatarText;
+  attendeeStudents.set(socketId, {
+    ...existingStudent,
+    ...student,
+    studentName: stableDisplayName,
+    name: stableDisplayName,
+    fullName: stableDisplayName,
+    avatarText: stableAvatarText,
+  });
 
   if (item) {
-    item.dataset.studentName = displayName;
-    item.querySelector(".attendee-name").textContent = displayName;
-    item.querySelector(".attendee-avatar").textContent = displayInitials(displayName);
+    item.dataset.studentName = stableDisplayName;
+    item.dataset.avatarText = stableAvatarText;
+    item.querySelector(".attendee-name").textContent = stableDisplayName;
+    item.querySelector(".attendee-avatar").textContent = stableAvatarText;
     const participation = item.querySelector(".attendee-participation");
     if (participation && Number.isFinite(Number(participationCount))) participation.textContent = `المشاركات: ${Math.max(0, Number(participationCount))}`;
     return item;
@@ -1458,19 +1481,17 @@ function upsertAttendee(socketId, student = {}, participationCount = 0) {
   item = document.createElement("li");
   item.className = "attendee-item";
   item.dataset.socketId = socketId;
-  item.dataset.studentName = displayName;
-
+  item.dataset.studentName = stableDisplayName;
+  item.dataset.avatarText = stableAvatarText;
   const avatar = document.createElement("span");
   avatar.className = "attendee-avatar";
   avatar.setAttribute("aria-hidden", "true");
-  avatar.textContent = displayInitials(displayName);
-
+  avatar.textContent = stableAvatarText;
   const details = document.createElement("div");
   details.className = "attendee-details";
-
   const name = document.createElement("strong");
   name.className = "attendee-name";
-  name.textContent = displayName;
+  name.textContent = stableDisplayName;
 
   const state = document.createElement("span");
   state.className = "attendee-state";
@@ -1504,6 +1525,7 @@ function removeAttendee(socketId) {
   if (item) {
     item.remove();
     attendeeElements.delete(socketId);
+    attendeeStudents.delete(socketId);
     updateAttendeeCount();
   }
 }
@@ -1511,6 +1533,7 @@ function removeAttendee(socketId) {
 function clearAttendees() {
   attendeeElements.forEach((item) => item.remove());
   attendeeElements.clear();
+  attendeeStudents.clear();
   updateAttendeeCount();
 }
 
@@ -2521,10 +2544,32 @@ function syncStudentMicButton(attendee, socketId, enabled = false) {
 }
 
 function markHandRaised(socketId, student = {}) {
-  // Raising a hand changes only interaction state. Never rehydrate or rewrite
-  // an existing card from the hand-raise payload, because its name came from
-  // the authenticated student_joined/recovery payload.
-  const attendee = attendeeElements.get(socketId) || upsertAttendee(socketId, student);
+  const existingStudent = attendeeStudents.get(socketId) || null;
+  const displayName =
+    student.studentName ||
+    student.name ||
+    student.fullName ||
+    (existingStudent && (existingStudent.studentName || existingStudent.name)) ||
+    "تلميذ";
+  const avatarText =
+    student.avatarText ||
+    existingStudent?.avatarText ||
+    (displayName !== "تلميذ" ? displayName.substring(0, 2) : "ت");
+  // Raising a hand changes only interaction state. If a card already exists,
+  // keep its joined-room identity and never re-render its name from this event.
+  const attendee = attendeeElements.get(socketId) || upsertAttendee(socketId, {
+    ...student,
+    studentName: displayName,
+    name: displayName,
+    fullName: displayName,
+    avatarText,
+  });
+  if (attendee.dataset.studentName === "تلميذ" && displayName !== "تلميذ") {
+    attendee.dataset.studentName = displayName;
+    attendee.dataset.avatarText = avatarText;
+    attendee.querySelector(".attendee-name").textContent = displayName;
+    attendee.querySelector(".attendee-avatar").textContent = avatarText;
+  }
   attendee.classList.add("is-hand-raised");
 
   if (!attendee.querySelector(".attendee-hand")) {
