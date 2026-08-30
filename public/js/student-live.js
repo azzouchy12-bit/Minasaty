@@ -245,7 +245,15 @@ function readStoredStudent() {
   };
 }
 
-const { studentId, studentName, level } = readStoredStudent();
+const storedStudent = readStoredStudent();
+const studentId = storedStudent.studentId;
+const studentName = storedStudent.studentName;
+const level = {
+  "السنة الأولى متوسط": "السنة الأولى",
+  "السنة الثانية متوسط": "السنة الثانية",
+  "السنة الثالثة متوسط": "السنة الثالثة",
+  "السنة الرابعة متوسط": "السنة الرابعة",
+}[storedStudent.level] || storedStudent.level;
 // The classroom is entered from the parent dashboard. Once identity is known,
 // keep the viewer hands-free even after a teacher ends and later restarts class.
 initialAutoJoinPending = initialAutoJoinPending || Boolean(studentId && level);
@@ -2464,7 +2472,13 @@ socket.on("student_account_status_updated", handleLiveAccessActivation);
 socket.on("student_payment_receipt_updated", handleLiveAccessActivation);
 
 socket.on("teacher_absence_updated", (data = {}) => {
-  if (!data.level || data.level !== level) return;
+  const eventLevel = {
+    "السنة الأولى متوسط": "السنة الأولى",
+    "السنة الثانية متوسط": "السنة الثانية",
+    "السنة الثالثة متوسط": "السنة الثالثة",
+    "السنة الرابعة متوسط": "السنة الرابعة",
+  }[String(data.level || "").trim()] || String(data.level || "").trim();
+  if (!eventLevel || eventLevel !== level) return;
   renderTeacherAbsenceNotice(data.isAbsent === true);
 });
 

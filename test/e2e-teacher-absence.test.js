@@ -4,7 +4,9 @@ const http = require("node:http");
 const { Server } = require("socket.io");
 const { io: connectClient } = require("socket.io-client");
 
-const LEVEL = "السنة الأولى";
+const LEVEL = "السنة الثانية";
+const LEVEL_ALIAS = "السنة الثانية متوسط";
+const LEVEL_ALIASES = { [LEVEL_ALIAS]: LEVEL };
 const STUDENT_COUNT = 100;
 const EVENT = "teacher_absence_updated";
 
@@ -34,12 +36,13 @@ test("E2E: all connected students receive teacher absence in the same broadcast"
 
   io.on("connection", (socket) => {
     socket.on("student_join_room", ({ level } = {}, acknowledgement) => {
-      if (level !== LEVEL) {
+      const normalizedLevel = LEVEL_ALIASES[level] || level;
+      if (normalizedLevel !== LEVEL) {
         acknowledgement?.({ ok: false });
         return;
       }
-      socket.join(level);
-      acknowledgement?.({ ok: true, room: level });
+      socket.join(normalizedLevel);
+      acknowledgement?.({ ok: true, room: normalizedLevel });
     });
   });
 
@@ -71,7 +74,8 @@ test("E2E: all connected students receive teacher absence in the same broadcast"
 
   await Promise.all(clients.map((client) => new Promise((resolve, reject) => {
     client.once("connect", () => {
-      client.emit("student_join_room", { level: LEVEL }, (response) => {
+      // The browser may hold the display alias; the server must canonicalize it.
+      client.emit("student_join_room", { level: LEVEL_ALIAS }, (response) => {
         if (!response?.ok) reject(new Error("Student failed to join level room."));
         else resolve();
       });

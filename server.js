@@ -490,6 +490,12 @@ const MAX_CHAT_MESSAGE_LENGTH = 800;
 const MAX_CHAT_IMAGE_DATA_URL_LENGTH = 1_100_000;
 const UNIVERSITY_LEVEL = "طالب جامعي";
 const GLOBAL_FREE_LEVEL = "FREE";
+const LEVEL_ALIASES = Object.freeze({
+  "السنة الأولى متوسط": "السنة الأولى",
+  "السنة الثانية متوسط": "السنة الثانية",
+  "السنة الثالثة متوسط": "السنة الثالثة",
+  "السنة الرابعة متوسط": "السنة الرابعة",
+});
 const SCHOOL_SUBJECTS = new Set(["MATH", "PHYSICS", "FREE"]);
 const UNIVERSITY_SUBSCRIPTION_TYPES = new Set(["PAID", "FREE"]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -500,6 +506,11 @@ const DISALLOWED_PUBLIC_NAMES = new Set(["guest", "student", "anonymous", "ضي�
 /** Return a trimmed string, or an empty string for a non-string input. */
 function normalizeText(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function canonicalLevel(value) {
+  const level = normalizeText(value);
+  return LEVEL_ALIASES[level] || level;
 }
 
 function getLiveSubjectLabel(subject) {
@@ -1175,7 +1186,7 @@ io.on("connection", (socket) => {
    */
   socket.on("join_level_lobby", async (data = {}, acknowledgement) => {
     try {
-      const level = normalizeText(data.level);
+      const level = canonicalLevel(data.level);
       if (!(await requireParentMessengerSocketSession(socket, "join_level_lobby", acknowledgement))) return;
 
       if (!isValidLevel(level) || level === GLOBAL_FREE_LEVEL) {
@@ -1441,7 +1452,7 @@ io.on("connection", (socket) => {
    */
   socket.on("student_join_room", async (data = {}, acknowledgement) => {
     try {
-      const level = normalizeText(data.level);
+      const level = canonicalLevel(data.level);
       const studentId = normalizeText(data.studentId);
       if (!(await requireParentMessengerSocketSession(socket, "student_join_room", acknowledgement))) return;
 
@@ -1470,7 +1481,7 @@ io.on("connection", (socket) => {
         },
       });
 
-      if (!student || student.level !== level || !isValidStudentName(student.studentName)) {
+      if (!student || canonicalLevel(student.level) !== level || !isValidStudentName(student.studentName)) {
         return emitClassroomError(
           socket,
           "student_join_room",

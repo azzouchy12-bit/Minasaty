@@ -655,6 +655,16 @@ const LEVEL_SCHEDULE_IMAGES = Object.freeze({
   "السنة الرابعة": "./assets/level-schedules/year-4.png",
 });
 
+function canonicalLevel(level) {
+  const value = String(level || "").trim();
+  return {
+    "السنة الأولى متوسط": "السنة الأولى",
+    "السنة الثانية متوسط": "السنة الثانية",
+    "السنة الثالثة متوسط": "السنة الثالثة",
+    "السنة الرابعة متوسط": "السنة الرابعة",
+  }[value] || value;
+}
+
 function displayLevelLabel(level) {
   return LEVEL_DISPLAY_LABELS[level] || level || "—";
 }
@@ -2057,9 +2067,10 @@ function emitLobbyJoin(level) {
     return;
   }
 
-  currentLobbyLevel = level;
+  const normalizedLevel = canonicalLevel(level);
+  currentLobbyLevel = normalizedLevel;
 
-  socket.emit("join_level_lobby", { level }, (response) => {
+  socket.emit("join_level_lobby", { level: normalizedLevel }, (response) => {
     if (!response?.ok) {
       showError(
         response?.message || response?.error || "تعذر متابعة حالة الحصة المباشرة."
@@ -2547,7 +2558,7 @@ function initializeLobbySocket() {
   });
 
   socket.on("teacher_absence_updated", (data = {}) => {
-    if (!currentStudent || data.level !== currentStudent.level) {
+    if (!currentStudent || canonicalLevel(data.level) !== canonicalLevel(currentStudent.level)) {
       return;
     }
 
