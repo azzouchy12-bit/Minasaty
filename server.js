@@ -1892,7 +1892,8 @@ io.on("connection", (socket) => {
   /**
    * A student raises a hand. The level and name in the client payload are not
    * trusted; the server uses the level/name saved at join time instead.
-   * Payload: { level, studentName } (accepted for frontend compatibility)
+   * Payload: { level, studentName, name } (accepted for frontend compatibility).
+   * The relay always uses the authenticated name captured when the student joined.
    */
   socket.on("student_raise_hand", (data = {}, acknowledgement) => {
     const level = socket.data.roomLevel;
@@ -1915,8 +1916,7 @@ io.on("connection", (socket) => {
       );
     }
 
-    const studentDisplayName =
-      socket.data.studentName || data.studentName || data.name || data.fullName || "تلميذ";
+    const studentDisplayName = socket.data.studentName || "تلميذ";
     io.to(teacherSocketId).emit("hand_raised", {
       socketId: socket.id,
       studentName: studentDisplayName,

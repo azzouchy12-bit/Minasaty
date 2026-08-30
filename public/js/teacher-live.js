@@ -2521,7 +2521,10 @@ function syncStudentMicButton(attendee, socketId, enabled = false) {
 }
 
 function markHandRaised(socketId, student = {}) {
-  const attendee = upsertAttendee(socketId, student);
+  // Raising a hand changes only interaction state. Never rehydrate or rewrite
+  // an existing card from the hand-raise payload, because its name came from
+  // the authenticated student_joined/recovery payload.
+  const attendee = attendeeElements.get(socketId) || upsertAttendee(socketId, student);
   attendee.classList.add("is-hand-raised");
 
   if (!attendee.querySelector(".attendee-hand")) {
