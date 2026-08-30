@@ -1449,16 +1449,16 @@ function getStudentDisplayName(student = {}, existingStudent = null) {
 function upsertAttendee(socketId, student = {}, participationCount = 0) {
   const existingStudent = attendeeStudents.get(socketId) || null;
   const displayName = getStudentDisplayName(student, existingStudent);
-  const avatarText =
+  const avatarInitial =
     student.avatarText ||
     existingStudent?.avatarText ||
-    (displayName !== "تلميذ" ? displayName.substring(0, 2) : "ت");
+    (displayName !== "تلميذ" ? displayName : "ت")[0];
   let item = attendeeElements.get(socketId);
   const storedStudentName = item?.dataset.studentName || "";
   const stableDisplayName = storedStudentName && storedStudentName !== "تلميذ"
     ? storedStudentName
     : displayName;
-  const stableAvatarText = item?.dataset.avatarText || avatarText;
+  const stableAvatarText = item?.dataset.avatarText || avatarInitial;
   attendeeStudents.set(socketId, {
     ...existingStudent,
     ...student,
@@ -2543,33 +2543,45 @@ function syncStudentMicButton(attendee, socketId, enabled = false) {
   return button;
 }
 
+function moveAttendeeToTop(attendee) {
+  const attendeesList = elements.attendeesList;
+  if (!attendee || !attendeesList || attendeesList.firstElementChild === attendee) return;
+  // Reorder the existing DOM node instead of rebuilding a card. This preserves
+  // the joined-room identity, avatar, controls, and any other card state.
+  attendeesList.prepend(attendee);
+}
+
 function markHandRaised(socketId, student = {}) {
   const existingStudent = attendeeStudents.get(socketId) || null;
+  const existingAttendee = attendeeElements.get(socketId) || null;
   const displayName =
     student.studentName ||
     student.name ||
     student.fullName ||
     (existingStudent && (existingStudent.studentName || existingStudent.name)) ||
+    existingAttendee?.dataset.studentName ||
     "تلميذ";
-  const avatarText =
+  const avatarInitial =
     student.avatarText ||
     existingStudent?.avatarText ||
-    (displayName !== "تلميذ" ? displayName.substring(0, 2) : "ت");
+    existingAttendee?.dataset.avatarText ||
+    (displayName !== "تلميذ" ? displayName : "ت")[0];
   // Raising a hand changes only interaction state. If a card already exists,
   // keep its joined-room identity and never re-render its name from this event.
-  const attendee = attendeeElements.get(socketId) || upsertAttendee(socketId, {
+  const attendee = existingAttendee || upsertAttendee(socketId, {
     ...student,
     studentName: displayName,
     name: displayName,
     fullName: displayName,
-    avatarText,
+    avatarText: avatarInitial,
   });
   if (attendee.dataset.studentName === "تلميذ" && displayName !== "تلميذ") {
     attendee.dataset.studentName = displayName;
-    attendee.dataset.avatarText = avatarText;
+    attendee.dataset.avatarText = avatarInitial;
     attendee.querySelector(".attendee-name").textContent = displayName;
-    attendee.querySelector(".attendee-avatar").textContent = avatarText;
+    attendee.querySelector(".attendee-avatar").textContent = avatarInitial;
   }
+  moveAttendeeToTop(attendee);
   attendee.classList.add("is-hand-raised");
 
   if (!attendee.querySelector(".attendee-hand")) {
