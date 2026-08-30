@@ -53,6 +53,7 @@ let screenShareActive = false;
 let lastScreenShareRevision = 0;
 let screenShareRefreshScheduled = false;
 let globalFreeClass = false;
+let teacherAbsentRealtime = false;
 const pendingRemoteAudioTracks = [];
 
 let teacherSocketId = null;
@@ -1019,6 +1020,42 @@ function hideConnectionOverlay() {
   const overlay = document.getElementById("connection-loss-overlay");
   if (overlay) {
     overlay.hidden = true;
+  }
+}
+
+function renderTeacherAbsenceNotice(isAbsent) {
+  teacherAbsentRealtime = isAbsent === true;
+  const videoFrame = elements.remoteVideo?.closest(".video-frame");
+  if (!videoFrame) return;
+
+  let overlay = document.getElementById("teacher-absence-overlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "teacher-absence-overlay";
+    overlay.setAttribute("role", "alert");
+    overlay.setAttribute("aria-live", "assertive");
+    Object.assign(overlay.style, {
+      position: "absolute",
+      inset: "0",
+      zIndex: "5",
+      display: "grid",
+      placeItems: "center",
+      padding: "1.5rem",
+      color: "#fff",
+      background: "rgba(127, 29, 29, 0.94)",
+      fontWeight: "800",
+      fontSize: "clamp(1rem, 2.4vw, 1.35rem)",
+      textAlign: "center",
+      lineHeight: "1.9",
+      backdropFilter: "blur(5px)",
+    });
+    videoFrame.append(overlay);
+  }
+
+  overlay.hidden = !teacherAbsentRealtime;
+  if (teacherAbsentRealtime) {
+    overlay.textContent = "الأستاذ غائب اليوم\nسيتم إعلامك فور تحديث برنامج الحصة.";
+    setPlaceholder("الأستاذ غائب اليوم", "تم تحديث الحالة مباشرة من لوحة الأستاذ.");
   }
 }
 
@@ -2425,6 +2462,11 @@ function handleLiveAccessActivation(data = {}) {
 socket.on("student_live_access_updated", handleLiveAccessActivation);
 socket.on("student_account_status_updated", handleLiveAccessActivation);
 socket.on("student_payment_receipt_updated", handleLiveAccessActivation);
+
+socket.on("teacher_absence_updated", (data = {}) => {
+  if (!data.level || data.level !== level) return;
+  renderTeacherAbsenceNotice(data.isAbsent === true);
+});
 
 socket.on("screen_share_state", (data = {}) => {
   if (!globalFreeClass && data.level !== level) return;

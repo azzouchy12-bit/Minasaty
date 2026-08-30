@@ -162,11 +162,15 @@ async function notifyScheduleChange(req, level, action = "SCHEDULE_UPDATED") {
 
 async function notifyAbsenceChange(req, absence) {
   const io = req.app.get("io");
-  io?.to(`${absence.level}_lobby`).emit("teacher_absence_updated", {
+  const payload = {
     level: absence.level,
     isAbsent: absence.isAbsent,
     updatedAt: absence.updatedAt,
-  });
+  };
+  // Parents listen in the lobby; students already inside the live class listen
+  // in the level room. Broadcast to both so the change is instantaneous in both views.
+  io?.to(`${absence.level}_lobby`).emit("teacher_absence_updated", payload);
+  io?.to(absence.level).emit("teacher_absence_updated", payload);
   if (absence.isAbsent) {
     const students = await prisma.student.findMany({ where: { level: absence.level }, select: { id: true, parentPhone: true } });
     await prisma.notification.createMany({ data: students.map((student) => ({ studentId: student.id, recipientRole: "parent", recipientId: student.parentPhone, type: "ABSENCE", title: "إعلان غياب الأستاذ", body: "الأستاذ غائب اليوم لظروف خاصة.", link: "./parent-dashboard.html" })) }).catch(() => {});
@@ -422,12 +426,14 @@ async function updateGlobalTeacherAbsence(req, res) {
     const io = req.app.get("io");
 
     for (const absence of absences) {
-      io?.to(`${absence.level}_lobby`).emit("teacher_absence_updated", {
+      const payload = {
         level: absence.level,
         isAbsent,
         isGlobal: true,
         updatedAt: absence.updatedAt,
-      });
+      };
+      io?.to(`${absence.level}_lobby`).emit("teacher_absence_updated", payload);
+      io?.to(absence.level).emit("teacher_absence_updated", payload);
     }
 
     if (isAbsent) {
