@@ -3204,7 +3204,7 @@ function syncStudentMicButton(attendee, socketId, enabled = false) {
 }
 
 function markHandRaised(socketId, studentName) {
-  const attendee = upsertAttendee(socketId, studentName);
+  const attendee = upsertAttendee(socketId, null, studentName);
   attendee.classList.add("is-hand-raised");
 
   if (!attendee.querySelector(".attendee-hand")) {
