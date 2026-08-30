@@ -1916,11 +1916,21 @@ io.on("connection", (socket) => {
       );
     }
 
-    const studentDisplayName = socket.data.studentName || "تلميذ";
+    const studentDisplayName = String(socket.data.studentName || "").trim();
+    if (!studentDisplayName) {
+      return emitClassroomError(
+        socket,
+        "student_raise_hand",
+        "تعذر التحقق من اسم التلميذ. أعد الانضمام إلى الحصة.",
+        acknowledgement
+      );
+    }
     io.to(teacherSocketId).emit("hand_raised", {
       socketId: socket.id,
+      studentId: socket.data.studentId,
       studentName: studentDisplayName,
       name: studentDisplayName,
+      fullName: studentDisplayName,
       level,
     });
     void sendTelegramNotification({

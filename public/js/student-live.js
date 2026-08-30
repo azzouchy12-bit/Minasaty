@@ -261,9 +261,10 @@ function canonicalLevel(value) {
 }
 
 const storedStudent = readStoredStudent();
-const studentId = storedStudent.studentId;
-const studentName = storedStudent.studentName;
-const level = canonicalLevel(storedStudent.level);
+const currentStudent = storedStudent;
+const studentId = currentStudent.studentId;
+const studentName = currentStudent.studentName;
+const level = canonicalLevel(currentStudent.level);
 // The classroom is entered from the parent dashboard. Once identity is known,
 // keep the viewer hands-free even after a teacher ends and later restarts class.
 initialAutoJoinPending = initialAutoJoinPending || Boolean(studentId && level);
@@ -2380,11 +2381,12 @@ function raiseHand() {
   setViewerStatus("تم إرسال طلب التحدث إلى الأستاذ.", "warning");
 
   const studentDisplayName =
-    storedStudent.studentName || storedStudent.name || storedStudent.fullName || studentName || "تلميذ";
+    currentStudent?.studentName || currentStudent?.name || currentStudent?.fullName || studentName;
   socket.emit("student_raise_hand", {
     level,
     studentName: studentDisplayName,
     name: studentDisplayName,
+    studentId: currentStudent?.id || studentId,
   }, (response) => {
     if (!response?.ok) {
       setRaisedHandState({ waiting: false });
