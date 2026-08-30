@@ -1915,9 +1915,12 @@ io.on("connection", (socket) => {
       );
     }
 
+    const studentDisplayName =
+      socket.data.studentName || data.studentName || data.name || data.fullName || "تلميذ";
     io.to(teacherSocketId).emit("hand_raised", {
       socketId: socket.id,
-      studentName: socket.data.studentName,
+      studentName: studentDisplayName,
+      name: studentDisplayName,
       level,
     });
     void sendTelegramNotification({

@@ -1430,13 +1430,26 @@ function displayInitials(name) {
     .join("") || "ت";
 }
 
+/** Resolve all supported participant payload shapes to one safe display name. */
+function getStudentDisplayName(student = {}) {
+  if (typeof student === "string") return student.trim() || "تلميذ";
+  const studentDisplayName = student.studentName || student.name || student.fullName || "تلميذ";
+  return String(studentDisplayName).trim() || "تلميذ";
+}
+
 /** Add or refresh a student item without exposing their socket ID visibly. */
-function upsertAttendee(socketId, studentName = "تلميذ", participationCount = 0) {
+function upsertAttendee(socketId, student = {}, participationCount = 0) {
+  const studentDisplayName = getStudentDisplayName(student);
   let item = attendeeElements.get(socketId);
+  const storedStudentName = item?.dataset.studentName || "";
+  const displayName = studentDisplayName === "تلميذ" && storedStudentName
+    ? storedStudentName
+    : studentDisplayName;
 
   if (item) {
-    item.querySelector(".attendee-name").textContent = studentName;
-    item.querySelector(".attendee-avatar").textContent = displayInitials(studentName);
+    item.dataset.studentName = displayName;
+    item.querySelector(".attendee-name").textContent = displayName;
+    item.querySelector(".attendee-avatar").textContent = displayInitials(displayName);
     const participation = item.querySelector(".attendee-participation");
     if (participation && Number.isFinite(Number(participationCount))) participation.textContent = `المشاركات: ${Math.max(0, Number(participationCount))}`;
     return item;
@@ -1445,18 +1458,19 @@ function upsertAttendee(socketId, studentName = "تلميذ", participationCount
   item = document.createElement("li");
   item.className = "attendee-item";
   item.dataset.socketId = socketId;
+  item.dataset.studentName = displayName;
 
   const avatar = document.createElement("span");
   avatar.className = "attendee-avatar";
   avatar.setAttribute("aria-hidden", "true");
-  avatar.textContent = displayInitials(studentName);
+  avatar.textContent = displayInitials(displayName);
 
   const details = document.createElement("div");
   details.className = "attendee-details";
 
   const name = document.createElement("strong");
   name.className = "attendee-name";
-  name.textContent = studentName;
+  name.textContent = displayName;
 
   const state = document.createElement("span");
   state.className = "attendee-state";
@@ -2506,8 +2520,8 @@ function syncStudentMicButton(attendee, socketId, enabled = false) {
   return button;
 }
 
-function markHandRaised(socketId, studentName) {
-  const attendee = upsertAttendee(socketId, studentName);
+function markHandRaised(socketId, student = {}) {
+  const attendee = upsertAttendee(socketId, student);
   attendee.classList.add("is-hand-raised");
 
   if (!attendee.querySelector(".attendee-hand")) {
@@ -2587,13 +2601,13 @@ socket.on("room_ready", (data) => {
 });
 
 socket.on("student_joined", async (data = {}) => {
-  const { socketId, studentName, participationCount } = data;
+  const { socketId, participationCount } = data;
 
   if (!classActive || !socketId) {
     return;
   }
 
-  const attendee = upsertAttendee(socketId, studentName || "تلميذ", participationCount);
+  const attendee = upsertAttendee(socketId, data, participationCount);
   syncStudentMicButton(attendee, socketId, false);
   await createAndSendOffer(socketId);
 });
@@ -2620,7 +2634,7 @@ socket.on("recovery_students", async (data = {}) => {
       continue;
     }
 
-    const attendee = upsertAttendee(student.socketId, student.studentName || "تلميذ", student.participationCount);
+    const attendee = upsertAttendee(student.socketId, student, student.participationCount);
     syncStudentMicButton(attendee, student.socketId, Boolean(student.micEnabled));
     applyStudentMicrophoneState(student.socketId, Boolean(student.micEnabled));
     await createAndSendOffer(student.socketId);
@@ -2717,7 +2731,7 @@ socket.on("hand_raised", (data = {}) => {
     return;
   }
 
-  markHandRaised(data.socketId, data.studentName || "تلميذ");
+  markHandRaised(data.socketId, data);
   setStudioStatus("هناك طلب جديد للتحدث.", "live");
 });
 
@@ -2752,8 +2766,9 @@ socket.on("student_message_received", async (data = {}) => {
     }
   }
 
+  const studentDisplayName = getStudentDisplayName(data);
   appendTeacherChatMessage({
-    sender: data.studentName || "تلميذ",
+    sender: studentDisplayName,
     message: fallbackMessage,
     kind: "student",
     imageUrl,

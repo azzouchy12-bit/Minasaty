@@ -2379,7 +2379,13 @@ function raiseHand() {
   setRaisedHandState({ waiting: true });
   setViewerStatus("تم إرسال طلب التحدث إلى الأستاذ.", "warning");
 
-  socket.emit("student_raise_hand", { level, studentName }, (response) => {
+  const studentDisplayName =
+    storedStudent.studentName || storedStudent.name || storedStudent.fullName || studentName || "تلميذ";
+  socket.emit("student_raise_hand", {
+    level,
+    studentName: studentDisplayName,
+    name: studentDisplayName,
+  }, (response) => {
     if (!response?.ok) {
       setRaisedHandState({ waiting: false });
       setViewerStatus(
