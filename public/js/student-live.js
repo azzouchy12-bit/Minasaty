@@ -245,15 +245,25 @@ function readStoredStudent() {
   };
 }
 
-const storedStudent = readStoredStudent();
-const studentId = storedStudent.studentId;
-const studentName = storedStudent.studentName;
-const level = {
+const LIVE_LEVEL_ALIASES = Object.freeze({
   "السنة الأولى متوسط": "السنة الأولى",
   "السنة الثانية متوسط": "السنة الثانية",
   "السنة الثالثة متوسط": "السنة الثالثة",
   "السنة الرابعة متوسط": "السنة الرابعة",
-}[storedStudent.level] || storedStudent.level;
+  "1am": "السنة الأولى",
+  "2am": "السنة الثانية",
+  "3am": "السنة الثالثة",
+  "4am": "السنة الرابعة",
+});
+function canonicalLevel(value) {
+  const level = String(value || "").trim();
+  return LIVE_LEVEL_ALIASES[level] || LIVE_LEVEL_ALIASES[level.toLowerCase()] || level;
+}
+
+const storedStudent = readStoredStudent();
+const studentId = storedStudent.studentId;
+const studentName = storedStudent.studentName;
+const level = canonicalLevel(storedStudent.level);
 // The classroom is entered from the parent dashboard. Once identity is known,
 // keep the viewer hands-free even after a teacher ends and later restarts class.
 initialAutoJoinPending = initialAutoJoinPending || Boolean(studentId && level);
@@ -271,6 +281,25 @@ function consumeDirectClassEntry() {
   }
 }
 
+async function syncTeacherAbsence() {
+  if (!parentSessionToken || !level) return;
+  try {
+    const response = await fetch(`/api/schedules/${encodeURIComponent(level)}`, {
+      headers: { Authorization: `Bearer ${parentSessionToken}`, Accept: "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || canonicalLevel(payload.level || level) !== level) return;
+    renderTeacherAbsenceNotice(payload.teacherAbsent === true);
+  } catch (error) {
+    console.info("Unable to load teacher absence state:", error?.message || error);
+  }
+}
+
+function applyLobbyAbsenceState(response = {}) {
+  if (canonicalLevel(response.level || level) !== level) return;
+  renderTeacherAbsenceNotice(response.teacherAbsent === true);
+}
+
 function waitForNextLiveClass(message = "بانتظار بدء الأستاذ للحصة التالية…") {
   waitingForNextClass = true;
   initialAutoJoinPending = false;
@@ -283,6 +312,7 @@ function waitForNextLiveClass(message = "بانتظار بدء الأستاذ ل
 
   if (socket.connected && level) {
     socket.emit("join_level_lobby", { level }, (response) => {
+      applyLobbyAbsenceState(response);
       if (waitingForNextClass && response?.isClassLive) {
         waitingForNextClass = false;
         void joinClass({ prepareMicrophone: true });
@@ -2377,6 +2407,7 @@ function lowerHand() {
 // --- Socket.io classroom and direct signaling events. ---
 
 socket.on("connect", () => {
+  void syncTeacherAbsence();
   if (didLoseSocketConnection) {
     didLoseSocketConnection = false;
     if (joinedClass || isRecoveringStream) {
@@ -2472,12 +2503,7 @@ socket.on("student_account_status_updated", handleLiveAccessActivation);
 socket.on("student_payment_receipt_updated", handleLiveAccessActivation);
 
 socket.on("teacher_absence_updated", (data = {}) => {
-  const eventLevel = {
-    "السنة الأولى متوسط": "السنة الأولى",
-    "السنة الثانية متوسط": "السنة الثانية",
-    "السنة الثالثة متوسط": "السنة الثالثة",
-    "السنة الرابعة متوسط": "السنة الرابعة",
-  }[String(data.level || "").trim()] || String(data.level || "").trim();
+  const eventLevel = canonicalLevel(data.level);
   if (!eventLevel || eventLevel !== level) return;
   renderTeacherAbsenceNotice(data.isAbsent === true);
 });

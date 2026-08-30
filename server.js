@@ -495,6 +495,10 @@ const LEVEL_ALIASES = Object.freeze({
   "السنة الثانية متوسط": "السنة الثانية",
   "السنة الثالثة متوسط": "السنة الثالثة",
   "السنة الرابعة متوسط": "السنة الرابعة",
+  "1am": "السنة الأولى",
+  "2am": "السنة الثانية",
+  "3am": "السنة الثالثة",
+  "4am": "السنة الرابعة",
 });
 const SCHOOL_SUBJECTS = new Set(["MATH", "PHYSICS", "FREE"]);
 const UNIVERSITY_SUBSCRIPTION_TYPES = new Set(["PAID", "FREE"]);
@@ -510,7 +514,7 @@ function normalizeText(value) {
 
 function canonicalLevel(value) {
   const level = normalizeText(value);
-  return LEVEL_ALIASES[level] || level;
+  return LEVEL_ALIASES[level] || LEVEL_ALIASES[level.toLowerCase()] || level;
 }
 
 function getLiveSubjectLabel(subject) {
@@ -1221,6 +1225,10 @@ io.on("connection", (socket) => {
       );
       const isClassLive = Boolean(teacherSocket && isInLevelRoom(teacherSocket, level));
       const isClassRecovering = pendingTeacherRecoveryByLevel.has(level);
+      const teacherAbsence = await prisma.teacherAbsence.findUnique({
+        where: { level },
+        select: { isAbsent: true, updatedAt: true },
+      });
 
       const subject = activeSubjectByLevel.get(level) || null;
       const lobbyClassPayload = {
@@ -1255,6 +1263,8 @@ io.on("connection", (socket) => {
         isClassLive: isClassLive || isGlobalFreeLive,
         isClassRecovering: isClassRecovering || pendingTeacherRecoveryByLevel.has(GLOBAL_FREE_LEVEL),
         globalFree: isGlobalFreeLive,
+        teacherAbsent: Boolean(teacherAbsence?.isAbsent),
+        absenceUpdatedAt: teacherAbsence?.updatedAt || null,
       });
     } catch (error) {
       console.error("[Socket.io] join_level_lobby failed:", error);

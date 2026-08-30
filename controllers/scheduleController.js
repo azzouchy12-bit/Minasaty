@@ -17,6 +17,10 @@ const LEVEL_ALIASES = Object.freeze({
   "السنة الثانية متوسط": "السنة الثانية",
   "السنة الثالثة متوسط": "السنة الثالثة",
   "السنة الرابعة متوسط": "السنة الرابعة",
+  "1am": "السنة الأولى",
+  "2am": "السنة الثانية",
+  "3am": "السنة الثالثة",
+  "4am": "السنة الرابعة",
 });
 const SECONDARY_TYPES = new Set(["MATH", "PHYSICS"]);
 const UNIVERSITY_TYPES = new Set(["PAID", "FREE"]);
@@ -32,7 +36,7 @@ function normalizeText(value) {
 
 function canonicalLevel(value) {
   const level = normalizeText(value);
-  return LEVEL_ALIASES[level] || level;
+  return LEVEL_ALIASES[level] || LEVEL_ALIASES[level.toLowerCase()] || level;
 }
 
 function isValidLevel(level) {

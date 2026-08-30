@@ -657,12 +657,17 @@ const LEVEL_SCHEDULE_IMAGES = Object.freeze({
 
 function canonicalLevel(level) {
   const value = String(level || "").trim();
-  return {
+  const aliases = {
     "السنة الأولى متوسط": "السنة الأولى",
     "السنة الثانية متوسط": "السنة الثانية",
     "السنة الثالثة متوسط": "السنة الثالثة",
     "السنة الرابعة متوسط": "السنة الرابعة",
-  }[value] || value;
+    "1am": "السنة الأولى",
+    "2am": "السنة الثانية",
+    "3am": "السنة الثالثة",
+    "4am": "السنة الرابعة",
+  };
+  return aliases[value] || aliases[value.toLowerCase()] || value;
 }
 
 function displayLevelLabel(level) {
@@ -1234,7 +1239,9 @@ function renderParentSchedule() {
     }
   }
   const isAbsenceForCurrentStudent = Boolean(
-    parentTeacherAbsent && currentStudent && teacherAbsenceLevel === currentStudent.level
+    parentTeacherAbsent &&
+    currentStudent &&
+    canonicalLevel(teacherAbsenceLevel) === canonicalLevel(currentStudent.level)
   );
   if (elements.teacherAbsenceNotice) {
     elements.teacherAbsenceNotice.hidden = !isAbsenceForCurrentStudent;
@@ -1306,17 +1313,19 @@ async function loadParentSchedule(level) {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || "تعذر تحميل برنامج الحصص.");
-    if (!currentStudent || currentStudent.level !== level) return;
+    if (!currentStudent || canonicalLevel(currentStudent.level) !== canonicalLevel(level)) return;
 
     parentScheduledClasses = Array.isArray(payload.scheduledClasses) ? payload.scheduledClasses : [];
     parentTeacherAbsent = payload.teacherAbsent === true;
-    teacherAbsenceLevel = parentTeacherAbsent ? level : null;
+    teacherAbsenceLevel = parentTeacherAbsent
+      ? canonicalLevel(payload.level || level)
+      : null;
     parentScheduleLoading = false;
     parentScheduleError = "";
     renderParentSchedule();
   } catch (error) {
     console.error("Unable to load parent schedule:", error);
-    if (currentStudent && currentStudent.level === level) {
+    if (currentStudent && canonicalLevel(currentStudent.level) === canonicalLevel(level)) {
       parentScheduleLoading = false;
       parentScheduleError = "تعذر تحميل برنامج الحصص.";
       renderParentSchedule();
@@ -2082,6 +2091,11 @@ function emitLobbyJoin(level) {
     // it current while the parent remains on this dashboard.
     activeLiveClassType = response.isClassLive ? response.subject || null : null;
     globalFreeClassActive = Boolean(response.globalFree);
+    if (currentStudent && canonicalLevel(currentStudent.level) === normalizedLevel) {
+      parentTeacherAbsent = response.teacherAbsent === true;
+      teacherAbsenceLevel = parentTeacherAbsent ? normalizedLevel : null;
+      renderParentSchedule();
+    }
     setLiveClassVisible(Boolean(response.isClassLive), response);
   });
 }
@@ -2557,13 +2571,13 @@ function initializeLobbySocket() {
     void loadParentSchedule(currentStudent.level);
   });
 
-  socket.on("teacher_absence_updated", (data = {}) => {
-    if (!currentStudent || canonicalLevel(data.level) !== canonicalLevel(currentStudent.level)) {
+    socket.on("teacher_absence_updated", (data = {}) => {
+    const eventLevel = canonicalLevel(data.level);
+    if (!currentStudent || !eventLevel || eventLevel !== canonicalLevel(currentStudent.level)) {
       return;
     }
-
     parentTeacherAbsent = data.isAbsent === true;
-    teacherAbsenceLevel = parentTeacherAbsent ? data.level : null;
+    teacherAbsenceLevel = parentTeacherAbsent ? eventLevel : null;
     renderParentSchedule();
   });
 
