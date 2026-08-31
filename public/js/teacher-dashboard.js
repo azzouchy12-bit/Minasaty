@@ -3630,8 +3630,14 @@ function renderOnlineUsers(users = []) {
   onlineUsers.forEach((user) => {
     const item = document.createElement("article");
     item.className = "online-user-item";
-    const name = document.createElement("strong");
+    const studentId = user.studentId || currentStudents.find((student) => student.studentName === user.name && (!user.level || student.level === user.level))?.id;
+    const name = document.createElement(studentId && user.role === "student" ? "a" : "strong");
     name.textContent = user.name || "مستخدم";
+    if (studentId && user.role === "student") {
+      name.href = `./teacher-chat.html?studentId=${encodeURIComponent(studentId)}`;
+      name.className = "online-user-link";
+      name.title = "فتح المحادثة";
+    }
     const meta = document.createElement("span");
     const roleLabels = { student: "طالب", teacher: "أستاذ", admin: "إدارة" };
     meta.textContent = `${roleLabels[user.role] || "مستخدم"}${user.level ? ` · ${user.level}` : ""}`;

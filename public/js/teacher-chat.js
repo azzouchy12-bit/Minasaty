@@ -26,6 +26,7 @@ let teacherConversations = [];
 let activeConversation = null;
 let teacherChatSocket = null;
 let renderedMessageIds = new Set();
+const requestedStudentId = new URLSearchParams(window.location.search).get("studentId");
 
 async function teacherChatFetch(url, options = {}) {
   const response = await fetch(url, {
@@ -144,6 +145,10 @@ async function loadConversations() {
     if (!response.ok) throw new Error(payload.error || "تعذر تحميل قائمة المحادثات.");
     teacherConversations = payload.conversations || [];
     renderConversations();
+    if (requestedStudentId) {
+      const requestedConversation = teacherConversations.find((conversation) => conversation.id === requestedStudentId);
+      if (requestedConversation) void openConversation(requestedStudentId);
+    }
   } catch (error) {
     showTeacherChatError(error.message || "تعذر تحميل الرسائل.");
   }
