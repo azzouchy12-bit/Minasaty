@@ -2268,6 +2268,7 @@ body.teacher-modal-open {
 }
 
 .teacher-dashboard-page .teacher-presence,
+.teacher-dashboard-page .topbar-online-users,
 .teacher-dashboard-page .topbar-studio-link,
 .teacher-dashboard-page .topbar-messages-link,
 .teacher-dashboard-page .topbar-public-invite,
@@ -2284,6 +2285,16 @@ body.teacher-modal-open {
   background: #ecfdf3;
   border: 1px solid #bbf7d0;
 }
+
+.teacher-dashboard-page .topbar-online-users {
+  color: #1e3a8a;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  cursor: pointer;
+}
+
+.teacher-dashboard-page .topbar-online-users:hover { background: #e0e7ff; }
+.teacher-dashboard-page .topbar-online-users b { margin-right: .25rem; color: #4338ca; }
 
 .teacher-dashboard-page .topbar-studio-link {
   color: #ffffff;
@@ -2303,6 +2314,13 @@ body.teacher-modal-open {
   background: #fff7f7;
   border: 1px solid #fecaca;
 }
+
+.online-users-card { width: min(30rem, calc(100vw - 2rem)); }
+.online-users-summary { color: var(--text-muted); margin: 0 0 1rem; }
+.online-users-list { display: grid; gap: .55rem; max-height: min(55vh, 28rem); overflow-y: auto; }
+.online-user-item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem .85rem; border: 1px solid var(--border-color); border-radius: .7rem; background: #f8fafc; }
+.online-user-item strong { color: var(--text-main); }
+.online-user-item span, .online-users-empty { color: var(--text-muted); font-size: .82rem; }
 
 .teacher-dashboard-page .teacher-workspace {
   gap: .55rem;

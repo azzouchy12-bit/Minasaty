@@ -21,7 +21,7 @@
 <div class="teacher-page-heading"><span class="teacher-page-kicker">مساحة الإدارة</span><strong id="teacher-page-title">لوحة التحكم</strong></div>
 </div>
 <div class="teacher-topbar-actions">
-<span class="teacher-presence"><i aria-hidden="true"></i>جاهز للإدارة</span>
+<span class="teacher-presence"><i aria-hidden="true"></i>جاهز للإدارة</span><button aria-controls="online-users-modal" aria-expanded="false" class="topbar-online-users" id="online-users-button" type="button">👥 المتصلون الآن <b aria-label="عدد المستخدمين المتصلين" id="online-users-count">0</b></button>
 <a class="topbar-studio-link" href="./teacher-live.html">بدء حصة مباشرة</a>
 <div class="teacher-global-absence-control" role="group" aria-label="الإعلان العام عن غياب الأستاذ">
 <button aria-pressed="false" class="teacher-global-absence-btn" id="teacher-global-absence-btn" type="button">الإعلان عن الغياب</button>
@@ -136,6 +136,7 @@
 <div aria-labelledby="document-feedback-title" aria-modal="true" class="document-feedback-modal" hidden="" id="document-feedback-modal" role="dialog"><section class="document-feedback-dialog"><div class="document-feedback-head"><span aria-hidden="true" class="document-feedback-icon">!</span><div><h2 id="document-feedback-title">تعذر إتمام العملية</h2><p>راجع وثيقة الدفع وحاول مرة أخرى.</p></div></div><div class="document-feedback-body" id="document-feedback-message"></div><button class="document-feedback-close" id="document-feedback-close" type="button">إغلاق</button></section></div>
 <div aria-labelledby="teacher-submissions-title" aria-modal="true" class="modal teacher-submissions-modal" hidden="" id="teacher-submissions-modal" role="dialog"><div class="modal-card teacher-submissions-card"><button aria-label="إغلاق" class="modal-close" id="teacher-submissions-modal-close" type="button">×</button><p class="eyebrow">حلول التلاميذ</p><h2 id="teacher-submissions-title">أرى الحلول</h2><p class="teacher-submissions-assignment-title" id="teacher-submissions-assignment-title"></p><div aria-live="polite" class="teacher-submissions-list" id="teacher-submissions-list"></div></div></div>
 <div class="toast" hidden="" id="toast"></div>
+<div aria-labelledby="online-users-title" aria-modal="true" class="modal online-users-modal" hidden="" id="online-users-modal" role="dialog"><div class="modal-card online-users-card"><button aria-label="إغلاق" class="modal-close" id="online-users-modal-close" type="button">×</button><p class="eyebrow">الحضور اللحظي</p><h2 id="online-users-title">المتصلون الآن</h2><p class="online-users-summary" id="online-users-summary" aria-live="polite">جارٍ تحميل القائمة…</p><div aria-live="polite" class="online-users-list" id="online-users-list"></div></div></div>
 <script defer="" id="google-identity-services" src="https://accounts.google.com/gsi/client"></script>
 <script defer="" id="google-picker-api" src="https://apis.google.com/js/api.js"></script>
 <script src="/socket.io/socket.io.js"></script>

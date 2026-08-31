@@ -418,6 +418,21 @@ const TEACHER_RECOVERY_GRACE_MS = 180_000;
  * Value shape: { role: "teacher" | "student", level: string, name: string }
  */
 const users = new Map();
+const onlinePresenceUsers = new Map();
+
+function onlinePresenceSnapshot() {
+  const uniqueUsers = new Map();
+  onlinePresenceUsers.forEach((user) => {
+    const key = `${user.sessionId || user.socketId}:${user.role}:${user.name}:${user.level || ""}`;
+    if (!uniqueUsers.has(key)) uniqueUsers.set(key, user);
+  });
+  return Array.from(uniqueUsers.values()).map(({ socketId, sessionId, ...user }) => user);
+}
+
+function broadcastOnlinePresence() {
+  const users = onlinePresenceSnapshot();
+  io.to("online_presence_viewers").emit("online_users_updated", { count: users.length, users });
+}
 // Independent public invite rooms. They have no student registration, level,
 // payment, or subject information and exist only while the host is connected.
 const publicInviteRooms = new Map();
@@ -894,6 +909,34 @@ io.on("connection", (socket) => {
   socket.data.notificationRole = null;
   socket.data.notificationRecipientId = null;
   socket.data.notificationSessionId = null;
+  socket.data.onlinePresenceSessionId = null;
+
+  socket.on("register_online_presence", async (data = {}, acknowledgement) => {
+    try {
+      const token = typeof data.token === "string" ? data.token.trim() : "";
+      if (!token) throw new Error("AUTH_REQUIRED");
+      const user = await verifySessionToken(token);
+      const role = String(user?.role || "").toLowerCase();
+      if (!role || !["teacher", "admin", "parent"].includes(role)) throw new Error("FORBIDDEN");
+      const sessionId = String(user.sessionId || socket.id).trim();
+      let profiles = [];
+      if (role === "parent") {
+        const students = await prisma.student.findMany({ where: { parentPhone: String(user.phone || "") }, select: { studentName: true, level: true } });
+        profiles = students.map((student) => ({ name: student.studentName, role: "student", level: student.level, sessionId }));
+      } else {
+        profiles = [{ name: role === "admin" ? (user.name || "الإدارة") : (process.env.TEACHER_NAME || "الأستاذ"), role, level: null, sessionId }];
+      }
+      onlinePresenceUsers.forEach((_profile, key) => { if (key.startsWith(`${socket.id}:`)) onlinePresenceUsers.delete(key); });
+      profiles.forEach((profile) => onlinePresenceUsers.set(`${socket.id}:${profile.name}`, { ...profile, socketId: socket.id }));
+      socket.data.onlinePresenceSessionId = sessionId;
+      if (role === "teacher" || role === "admin") await socket.join("online_presence_viewers");
+      const snapshot = onlinePresenceSnapshot();
+      acknowledgement?.({ ok: true, count: snapshot.length, users: snapshot });
+      broadcastOnlinePresence();
+    } catch (error) {
+      acknowledgement?.({ ok: false, error: "لا تملك صلاحية الاطلاع على المتصلين الآن." });
+    }
+  });
 
   socket.on("register_notification_socket", async (data = {}, acknowledgement) => {
     try {
@@ -2396,6 +2439,11 @@ io.on("connection", (socket) => {
 
     const user = users.get(socket.id);
     users.delete(socket.id);
+    const hadOnlinePresence = Array.from(onlinePresenceUsers.keys()).some((key) => key.startsWith(`${socket.id}:`));
+    if (hadOnlinePresence) {
+      onlinePresenceUsers.forEach((_profile, key) => { if (key.startsWith(`${socket.id}:`)) onlinePresenceUsers.delete(key); });
+      broadcastOnlinePresence();
+    }
     console.info(`[Socket.io] Client disconnected: ${socket.id} (${reason})`);
 
     if (!user) {

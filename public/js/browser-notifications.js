@@ -54,6 +54,7 @@
   }
 
   function registerSocket() {
+    notificationSocket.emit("register_online_presence", { token });
     notificationSocket.emit("register_notification_socket", { token }, (result = {}) => {
       if (!result.ok) console.info("Browser notification socket registration unavailable.");
     });
