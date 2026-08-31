@@ -2487,7 +2487,7 @@ function closePeerConnection(socketId) {
   }
 
   delete pendingIceCandidates[socketId];
-  teacherVideoQualityProfiles.delete(socketId);
+  teacherQosAllocations.delete(socketId);
   removeStudentAudio(socketId);
   removeClassroomAudioSource(socketId);
   removeStudentAudioDestination(socketId);
@@ -2507,35 +2507,67 @@ function closeAllPeerConnections() {
 /** Apply conservative per-peer quality limits so screen sharing stays smooth
  * under changing bandwidth rather than building a growing latency buffer. */
 const teacherQosLast = new Map();
-const teacherVideoQualityProfiles = new Map();
+const teacherQosAllocations = new Map();
+const AUDIO_BITRATE_FLOOR = 24_000;
+const AUDIO_BITRATE_CEILING = 96_000;
+const VIDEO_BITRATE_FLOOR = 40_000;
+const VIDEO_BITRATE_CEILING = 6_000_000;
 
-function getAdaptiveVideoQualityProfile({ rtt = null, loss = 0 } = {}) {
-  if ((rtt != null && rtt > 700) || loss > 12) {
-    return { name: "low", scaleResolutionDownBy: 2.5, maxBitrate: 700_000, maxFramerate: 15 };
+// Allocate bandwidth continuously, reserving audio before assigning video.
+function computeContinuousBandwidthAllocation(totalAvailableBitrate) {
+  const total = Math.max(0, Number(totalAvailableBitrate) || 0);
+  if (total <= AUDIO_BITRATE_FLOOR) {
+    return { audioBitrate: total, videoBitrate: 0 };
   }
-  if ((rtt != null && rtt > 300) || loss > 5) {
-    return { name: "medium", scaleResolutionDownBy: 1.5, maxBitrate: 2_500_000, maxFramerate: 30 };
+
+  const audioRange = AUDIO_BITRATE_CEILING - AUDIO_BITRATE_FLOOR;
+  const audioBitrate = Math.min(
+    AUDIO_BITRATE_CEILING,
+    Math.round(AUDIO_BITRATE_FLOOR + audioRange * Math.min(1, (total - AUDIO_BITRATE_FLOOR) / VIDEO_BITRATE_CEILING))
+  );
+  let videoBitrate = Math.min(VIDEO_BITRATE_CEILING, Math.max(0, total - audioBitrate));
+  if (videoBitrate < VIDEO_BITRATE_FLOOR) {
+    return { audioBitrate: Math.min(AUDIO_BITRATE_CEILING, total), videoBitrate: 0 };
   }
-  return { name: "high", scaleResolutionDownBy: 1, maxBitrate: 6_000_000, maxFramerate: 60 };
+
+  return {
+    audioBitrate: Math.min(audioBitrate, total),
+    videoBitrate: Math.min(videoBitrate, Math.max(0, total - audioBitrate)),
+  };
 }
 
-async function applyAdaptiveVideoQuality(studentSocketId, peerConnection, profile) {
+async function applyAdaptiveVideoQuality(studentSocketId, peerConnection, allocation) {
   const videoSender = peerConnection?.getSenders?.().find((sender) => sender.__classroomVideoTrack === true);
   if (!videoSender || typeof videoSender.setParameters !== "function") return;
-  if (teacherVideoQualityProfiles.get(studentSocketId) === profile.name) return;
-
-  teacherVideoQualityProfiles.set(studentSocketId, profile.name);
   try {
     const parameters = videoSender.getParameters();
     parameters.encodings = parameters.encodings?.length ? parameters.encodings : [{}];
-    parameters.encodings[0].scaleResolutionDownBy = profile.scaleResolutionDownBy;
-    parameters.encodings[0].maxBitrate = profile.maxBitrate;
-    parameters.encodings[0].maxFramerate = profile.maxFramerate;
+    const videoBitrate = allocation.videoBitrate;
+    // Keep the shared source track intact; a tiny cap is safer than disabling it.
+    parameters.encodings[0].maxBitrate = videoBitrate || 10_000;
+    parameters.encodings[0].maxFramerate = videoBitrate >= 4_000_000 ? 60 : videoBitrate >= 1_000_000 ? 30 : 15;
+    parameters.encodings[0].scaleResolutionDownBy = videoBitrate
+      ? Math.min(2.5, Math.max(1, Math.sqrt(VIDEO_BITRATE_CEILING / videoBitrate)))
+      : 2.5;
     parameters.degradationPreference = "balanced";
     await videoSender.setParameters(parameters);
   } catch (error) {
-    teacherVideoQualityProfiles.delete(studentSocketId);
     console.debug("Adaptive video quality was not applied:", error);
+  }
+}
+
+async function applyAdaptiveAudioQuality(peerConnection, allocation) {
+  const audioSender = getStudentAudioSender(peerConnection);
+  if (!audioSender || typeof audioSender.setParameters !== "function") return;
+  try {
+    const parameters = audioSender.getParameters();
+    parameters.encodings = parameters.encodings?.length ? parameters.encodings : [{}];
+    parameters.encodings[0].maxBitrate = allocation.audioBitrate;
+    parameters.encodings[0].priority = "high";
+    parameters.encodings[0].networkPriority = "high";
+    await audioSender.setParameters(parameters);
+  } catch (error) {
+    console.debug("Adaptive audio quality was not applied:", error);
   }
 }
 
@@ -2548,9 +2580,13 @@ async function refreshTeacherQos() {
       const report = await peerConnection.getStats();
       let outboundVideo = null;
       let remoteInbound = null;
+      let candidatePair = null;
       report.forEach((entry) => {
         if (entry.type === "outbound-rtp" && entry.kind === "video") outboundVideo = entry;
         if (entry.type === "remote-inbound-rtp" && entry.kind === "video") remoteInbound = entry;
+        if (entry.type === "candidate-pair" && entry.state === "succeeded" && Number.isFinite(entry.availableOutgoingBitrate)) {
+          if (!candidatePair || entry.availableOutgoingBitrate > candidatePair.availableOutgoingBitrate) candidatePair = entry;
+        }
       });
       const previous = teacherQosLast.get(studentSocketId);
       const now = performance.now();
@@ -2561,12 +2597,20 @@ async function refreshTeacherQos() {
       const packetsReceived = remoteInbound?.packetsReceived ?? 0;
       const loss = packetsLost + packetsReceived ? (packetsLost / (packetsLost + packetsReceived)) * 100 : 0;
       const rtt = remoteInbound?.roundTripTime ? Math.round(remoteInbound.roundTripTime * 1000) : null;
+      // Prefer the browser's candidate-pair estimate; fall back to RTT/loss.
+      const fallbackBitrate = Math.round(4_000_000 / (1 + (rtt || 0) / 400) / (1 + loss / 8));
+      const totalAvailableBitrate = Math.max(0, Math.round(candidatePair?.availableOutgoingBitrate || fallbackBitrate));
+      const allocation = computeContinuousBandwidthAllocation(totalAvailableBitrate);
+      const allocationKey = `${allocation.audioBitrate}:${allocation.videoBitrate}`;
+      if (teacherQosAllocations.get(studentSocketId) !== allocationKey) {
+        teacherQosAllocations.set(studentSocketId, allocationKey);
+        void applyAdaptiveVideoQuality(studentSocketId, peerConnection, allocation);
+        void applyAdaptiveAudioQuality(peerConnection, allocation);
+      }
       let state = "جيدة";
       let stateClass = "good";
       if ((rtt && rtt > 300) || loss > 5) { state = "متوسطة"; stateClass = "warn"; }
       if ((rtt && rtt > 700) || loss > 12) { state = "ضعيفة"; stateClass = "bad"; }
-      const qualityProfile = getAdaptiveVideoQualityProfile({ rtt, loss });
-      void applyAdaptiveVideoQuality(studentSocketId, peerConnection, qualityProfile);
       const qos = attendee.querySelector(".attendee-qos");
       if (qos) {
         qos.className = `attendee-qos ${stateClass}`;
@@ -2590,11 +2634,11 @@ async function tuneOutboundSender(sender, kind) {
       // Let WebRTC's congestion controller adapt bitrate, resolution, and frame
       // rate per learner. The source targets 1080p/60, while the browser may
       // scale down toward a low resolution when bandwidth or CPU is limited.
-      parameters.encodings[0].maxBitrate = 6_000_000;
+      parameters.encodings[0].maxBitrate = VIDEO_BITRATE_CEILING;
       parameters.encodings[0].maxFramerate = 60;
       parameters.degradationPreference = "balanced";
     } else {
-      parameters.encodings[0].maxBitrate = 96_000;
+      parameters.encodings[0].maxBitrate = AUDIO_BITRATE_CEILING;
       parameters.encodings[0].priority = "high";
       parameters.encodings[0].networkPriority = "high";
     }
