@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma");
+const { sendEmail } = require("../services/emailService");
 
 let lastWeeklyReportKey = "";
 
@@ -18,31 +19,68 @@ function weekKey(date = new Date()) {
 }
 
 async function sendClassReminders(now = new Date()) {
-  const from = new Date(now.getTime() + 55 * 60 * 1000);
-  const to = new Date(now.getTime() + 65 * 60 * 1000);
-  const classes = await prisma.scheduledClass.findMany({ where: { scheduledAt: { gte: from, lte: to } }, take: 100 });
-  for (const scheduledClass of classes) {
-    const students = await prisma.student.findMany({ where: { level: scheduledClass.level }, select: { id: true, parentPhone: true } });
-    if (!students.length) continue;
-    const reminderBody = `تبدأ حصة ${scheduledClass.subject} خلال ساعة تقريبًا.`;
-    await prisma.notification.createMany({
-      data: students.map((student) => ({
-        studentId: student.id,
-        recipientRole: "parent",
-        recipientId: student.parentPhone,
-        type: "CLASS_REMINDER",
-        title: "تذكير بالحصة",
-        body: reminderBody,
-        link: "./parent-dashboard.html",
-        dedupeKey: `CLASS_REMINDER:${scheduledClass.id}:${student.id}`,
-      })),
-      skipDuplicates: true,
-    });
-    await Promise.allSettled(students.map((student) => sendOptionalPush("parent", student.parentPhone, {
-      title: "تذكير بالحصة",
-      body: reminderBody,
-      link: "./parent-dashboard.html",
-    })));
+  const reminderWindows = [
+    { key: "120m", fromMinutes: 115, toMinutes: 125, label: "ساعتين تقريبًا" },
+    { key: "60m", fromMinutes: 55, toMinutes: 65, label: "ساعة تقريبًا" },
+  ];
+
+  for (const reminderWindow of reminderWindows) {
+    const from = new Date(now.getTime() + reminderWindow.fromMinutes * 60 * 1000);
+    const to = new Date(now.getTime() + reminderWindow.toMinutes * 60 * 1000);
+    const classes = await prisma.scheduledClass.findMany({ where: { scheduledAt: { gte: from, lte: to } }, take: 100 });
+    for (const scheduledClass of classes) {
+      const students = await prisma.student.findMany({ where: { level: scheduledClass.level }, select: { id: true, parentPhone: true, studentName: true } });
+      if (!students.length) continue;
+      const classTime = new Date(scheduledClass.scheduledAt).toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" });
+      const reminderBody = `تبدأ حصة ${scheduledClass.subject} خلال ${reminderWindow.label}.`;
+      await Promise.allSettled(students.map(async (student) => {
+        const dedupeKey = reminderWindow.key === "60m"
+          ? `CLASS_REMINDER:${scheduledClass.id}:${student.id}`
+          : `CLASS_REMINDER:${scheduledClass.id}:${student.id}:${reminderWindow.key}`;
+        let notificationCreated = false;
+        try {
+          await prisma.notification.create({
+            data: {
+              studentId: student.id,
+              recipientRole: "parent",
+              recipientId: student.parentPhone,
+              type: "CLASS_REMINDER",
+              title: "تذكير بالحصة",
+              body: reminderBody,
+              link: "./parent-dashboard.html",
+              dedupeKey,
+            },
+          });
+          notificationCreated = true;
+        } catch (error) {
+          if (error?.code !== "P2002") throw error;
+        }
+
+        if (notificationCreated) {
+          const credential = await prisma.parentCredential.findUnique({
+            where: { parentPhone: student.parentPhone },
+            select: { email: true, emailVerifiedAt: true },
+          }).catch(() => null);
+          if (credential?.email && credential.emailVerifiedAt) {
+            const baseUrl = String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "");
+            await sendEmail({
+              to: credential.email,
+              subject: `تذكير بحصة ${scheduledClass.subject}`,
+              text: `التلميذ: ${student.studentName || "التلميذ"}\nالحصة: ${scheduledClass.subject}\nالوقت: ${classTime}\nالتذكير: ${reminderBody}\nالدخول إلى المنصة: ${baseUrl}/parent-dashboard.html`,
+              html: `<p><strong>التلميذ:</strong> ${student.studentName || "التلميذ"}</p><p><strong>الحصة:</strong> ${scheduledClass.subject}</p><p><strong>الوقت:</strong> ${classTime}</p><p>${reminderBody}</p><p><a href="${baseUrl}/parent-dashboard.html">الدخول إلى المنصة</a></p>`,
+            }).catch((error) => {
+              console.warn("Class reminder email failed:", error.message);
+            });
+          }
+        }
+
+        await sendOptionalPush("parent", student.parentPhone, {
+          title: "تذكير بالحصة",
+          body: reminderBody,
+          link: "./parent-dashboard.html",
+        });
+      }));
+    }
   }
 }
 
