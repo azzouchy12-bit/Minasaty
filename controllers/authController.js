@@ -8,6 +8,9 @@ const { ensureReferralProfile, buildReferralLink } = require("../utils/referral"
 const prisma = require("../lib/prisma");
 const { issueSession, JWT_EXPIRES_IN, revokeSessionByTokenId } = require("../utils/sessionAuth");
 const { normalizeEmail } = require("../utils/email");
+const { sendEmail } = require("../services/emailService");
+const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
+const EMAIL_CODE_MAX_ATTEMPTS = 5;
 
 const LEVEL_ALIASES = Object.freeze({
   "السنة الأولى": "السنة الأولى متوسط",
@@ -455,6 +458,66 @@ async function issueTemporaryParentPin(req, res) {
   }
 }
 
+function hashEmailCode(code) {
+  return crypto.createHash("sha256").update(String(code)).digest("hex");
+}
+
+async function sendParentEmailVerificationCode(parentPhone, email) {
+  const code = String(crypto.randomInt(100000, 1000000));
+  const expiresAt = new Date(Date.now() + EMAIL_CODE_TTL_MS);
+  const now = new Date();
+  await prisma.parentEmailVerificationCode.updateMany({ where: { parentPhone, usedAt: null }, data: { usedAt: now } });
+  const challenge = await prisma.parentEmailVerificationCode.create({
+    data: { parentPhone, email, codeHash: hashEmailCode(code), expiresAt },
+  });
+  try {
+    const result = await sendEmail({
+      to: email,
+      subject: "رمز التحقق من البريد الإلكتروني",
+      text: `رمز التحقق الخاص بك هو: ${code}. الرمز صالح لمدة 10 دقائق.`,
+      html: `<p>رمز التحقق الخاص بك هو:</p><p style="font-size:24px;font-weight:700;letter-spacing:4px">${code}</p><p>الرمز صالح لمدة 10 دقائق.</p>`,
+    });
+    if (!result.sent) throw new Error(result.reason || "EMAIL_SEND_SKIPPED");
+    return { expiresAt };
+  } catch (error) {
+    await prisma.parentEmailVerificationCode.delete({ where: { id: challenge.id } }).catch(() => {});
+    throw error;
+  }
+}
+
+async function sendParentEmailCode(req, res) {
+  if (req.user?.role !== "parent" || !req.user.phone) return res.status(403).json({ error: "هذه العملية متاحة للولي فقط." });
+  const credential = await prisma.parentCredential.findUnique({ where: { parentPhone: req.user.phone }, select: { email: true } });
+  if (!credential?.email) return res.status(400).json({ error: "أضف بريدًا إلكترونيًا أولًا." });
+  try {
+    const result = await sendParentEmailVerificationCode(req.user.phone, credential.email);
+    return res.json({ status: "success", data: { email: credential.email, expiresAt: result.expiresAt }, message: "تم إرسال رمز التحقق إلى بريدك الإلكتروني." });
+  } catch (error) {
+    console.error("Parent email verification code send failed:", error);
+    return res.status(503).json({ error: "تعذر إرسال رمز التحقق حاليًا. تحقق من إعدادات البريد." });
+  }
+}
+
+async function verifyParentEmailCode(req, res) {
+  if (req.user?.role !== "parent" || !req.user.phone) return res.status(403).json({ error: "هذه العملية متاحة للولي فقط." });
+  const code = String(req.body?.code || "").trim();
+  if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: "أدخل رمز التحقق المكوّن من 6 أرقام." });
+  const credential = await prisma.parentCredential.findUnique({ where: { parentPhone: req.user.phone }, select: { email: true } });
+  if (!credential?.email) return res.status(400).json({ error: "لا يوجد بريد إلكتروني للتحقق منه." });
+  const challenge = await prisma.parentEmailVerificationCode.findFirst({ where: { parentPhone: req.user.phone, email: credential.email, usedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: "desc" } });
+  if (!challenge) return res.status(400).json({ error: "رمز التحقق غير موجود أو انتهت صلاحيته." });
+  if (challenge.attempts >= EMAIL_CODE_MAX_ATTEMPTS) return res.status(429).json({ error: "تم تجاوز عدد المحاولات. اطلب رمزًا جديدًا." });
+  if (hashEmailCode(code) !== challenge.codeHash) {
+    const attempts = challenge.attempts + 1;
+    await prisma.parentEmailVerificationCode.update({ where: { id: challenge.id }, data: { attempts, ...(attempts >= EMAIL_CODE_MAX_ATTEMPTS ? { usedAt: new Date() } : {}) } });
+    return res.status(400).json({ error: "رمز التحقق غير صحيح." });
+  }
+  const claimed = await prisma.parentEmailVerificationCode.updateMany({ where: { id: challenge.id, usedAt: null }, data: { usedAt: new Date() } });
+  if (!claimed.count) return res.status(400).json({ error: "رمز التحقق غير صالح أو مستخدم." });
+  await prisma.parentCredential.update({ where: { parentPhone: req.user.phone }, data: { emailVerifiedAt: new Date() } });
+  return res.json({ status: "success", data: { email: credential.email, emailVerifiedAt: new Date() }, message: "تم التحقق من البريد الإلكتروني." });
+}
+
 async function getParentEmail(req, res) {
   if (req.user?.role !== "parent" || !req.user.phone) return res.status(403).json({ error: "هذه العملية متاحة للولي فقط." });
   const credential = await prisma.parentCredential.findUnique({ where: { parentPhone: req.user.phone }, select: { email: true, emailVerifiedAt: true } });
@@ -472,7 +535,15 @@ async function updateParentEmail(req, res) {
       data: { email: email || null, emailVerifiedAt: null },
       select: { email: true, emailVerifiedAt: true },
     });
-    return res.json({ status: "success", data: credential, message: email ? "تم حفظ البريد الإلكتروني." : "تم حذف البريد الإلكتروني." });
+    if (email) {
+      try {
+        await sendParentEmailVerificationCode(req.user.phone, email);
+      } catch (error) {
+        console.error("Parent email verification code send failed after update:", error);
+        return res.status(503).json({ error: "تم حفظ البريد، لكن تعذر إرسال رمز التحقق. حاول الإرسال مرة أخرى." });
+      }
+    }
+    return res.json({ status: "success", data: credential, message: email ? "تم حفظ البريد وإرسال رمز التحقق." : "تم حذف البريد الإلكتروني." });
   } catch (error) {
     if (error?.code === "P2002") return res.status(409).json({ error: "هذا البريد الإلكتروني مرتبط بحساب آخر." });
     console.error("Parent email update failed:", error);
@@ -508,4 +579,6 @@ module.exports = {
   issueTemporaryParentPin,
   getParentEmail,
   updateParentEmail,
+  sendParentEmailCode,
+  verifyParentEmailCode,
 };

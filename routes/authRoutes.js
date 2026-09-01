@@ -4,6 +4,8 @@ const {
   parentLogin,
   getParentEmail,
   updateParentEmail,
+  sendParentEmailCode,
+  verifyParentEmailCode,
   logout,
   sessionStatus,
   listSessions,
@@ -32,5 +34,7 @@ router.delete("/sessions/:id", verifyToken, revokeSession);
 router.put("/parent/pin", verifyToken, changeParentPin);
 router.get("/parent/email", verifyToken, getParentEmail);
 router.put("/parent/email", verifyToken, updateParentEmail);
+router.post("/parent/email/send-code", verifyToken, sendParentEmailCode);
+router.post("/parent/email/verify-code", verifyToken, verifyParentEmailCode);
 
 module.exports = router;

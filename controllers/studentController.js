@@ -15,6 +15,7 @@ const { removeImageFile } = require("./liveChatController");
 const { logAudit } = require("../utils/audit");
 const { normalizeReferralCode, ensureReferralProfile, awardReferralCommission } = require("../utils/referral");
 const { sendPushToRecipient } = require("../utils/push");
+const { sendParentEmailVerificationCode } = require("./authController");
 const { notificationRoom } = require("../utils/socketNotifications");
 const { notifyTelegram, sendTelegramToParent } = require("../services/telegramService");
 
@@ -359,12 +360,22 @@ async function registerStudent(req, res) {
       return createdStudent;
     });
 
+    let emailVerificationSent = false;
+    if (email && (!existingCredential || !existingCredential.email)) {
+      try {
+        await sendParentEmailVerificationCode(parentPhone, email);
+        emailVerificationSent = true;
+      } catch (error) {
+        console.error("Parent email verification code send failed after registration:", error);
+      }
+    }
+
     void notifyTelegram(req, {
       title: "تسجيل جديد",
       body: `تم تسجيل تلميذ جديد.\nالاسم: ${student.studentName}\nرقم الولي: ${student.parentPhone}\nالمستوى: ${student.level}`,
     });
     notifyTeacherRosterChanged(req, student.level, "created");
-    return res.status(201).json({ status: "success", data: student });
+    return res.status(201).json({ status: "success", data: { ...student, emailVerificationSent } });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       if (uploadedCardFile?.filename) await removeUploadedCard(uploadedCardFile.filename);
