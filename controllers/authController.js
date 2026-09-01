@@ -7,6 +7,7 @@ const { normalizeParentPin, hashParentPin, verifyParentPin } = require("../utils
 const { ensureReferralProfile, buildReferralLink } = require("../utils/referral");
 const prisma = require("../lib/prisma");
 const { issueSession, JWT_EXPIRES_IN, revokeSessionByTokenId } = require("../utils/sessionAuth");
+const { normalizeEmail } = require("../utils/email");
 
 const LEVEL_ALIASES = Object.freeze({
   "السنة الأولى": "السنة الأولى متوسط",
@@ -454,6 +455,31 @@ async function issueTemporaryParentPin(req, res) {
   }
 }
 
+async function getParentEmail(req, res) {
+  if (req.user?.role !== "parent" || !req.user.phone) return res.status(403).json({ error: "هذه العملية متاحة للولي فقط." });
+  const credential = await prisma.parentCredential.findUnique({ where: { parentPhone: req.user.phone }, select: { email: true, emailVerifiedAt: true } });
+  return res.json({ status: "success", data: { email: credential?.email || "", emailVerifiedAt: credential?.emailVerifiedAt || null } });
+}
+
+async function updateParentEmail(req, res) {
+  if (req.user?.role !== "parent" || !req.user.phone) return res.status(403).json({ error: "هذه العملية متاحة للولي فقط." });
+  const rawEmail = String(req.body?.email || "").trim();
+  const email = normalizeEmail(rawEmail);
+  if (rawEmail && !email) return res.status(400).json({ error: "أدخل بريدًا إلكترونيًا صحيحًا." });
+  try {
+    const credential = await prisma.parentCredential.update({
+      where: { parentPhone: req.user.phone },
+      data: { email: email || null, emailVerifiedAt: null },
+      select: { email: true, emailVerifiedAt: true },
+    });
+    return res.json({ status: "success", data: credential, message: email ? "تم حفظ البريد الإلكتروني." : "تم حذف البريد الإلكتروني." });
+  } catch (error) {
+    if (error?.code === "P2002") return res.status(409).json({ error: "هذا البريد الإلكتروني مرتبط بحساب آخر." });
+    console.error("Parent email update failed:", error);
+    return res.status(500).json({ error: "تعذر تحديث البريد الإلكتروني حاليًا." });
+  }
+}
+
 async function sessionStatus(req, res) {
   return res.json({ status: "success", active: true });
 }
@@ -480,4 +506,6 @@ module.exports = {
   requestParentPinReset,
   listParentPinResetRequests,
   issueTemporaryParentPin,
+  getParentEmail,
+  updateParentEmail,
 };

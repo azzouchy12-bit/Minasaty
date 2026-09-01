@@ -1506,6 +1506,16 @@
         </div>
         <button id="change-student-button" class="change-student-button" type="button">تغيير التلميذ</button>
       </section>
+      <section class="overview-card parent-email-card" aria-labelledby="parent-email-title">
+        <h2 id="parent-email-title">البريد الإلكتروني</h2>
+        <p class="muted">أضف بريدًا اختياريًا إلى حساب ولي الأمر.</p>
+        <form id="parent-email-form" class="stack-form">
+          <label for="parent-account-email">البريد الإلكتروني</label>
+          <input id="parent-account-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="example@email.com">
+          <p id="parent-email-status" class="form-message" role="status" aria-live="polite" hidden></p>
+          <button class="cta-button cta-primary" type="submit">حفظ البريد</button>
+        </form>
+      </section>
       <section id="parent-schedule-card" class="parent-schedule-card parent-next-class-card" hidden aria-labelledby="parent-schedule-title">
         <header class="parent-schedule-head">
           <div>

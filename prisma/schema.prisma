@@ -251,6 +251,8 @@ model TeacherAbsence {
 
 model ParentCredential {
   parentPhone             String   @id
+  email                   String?  @unique
+  emailVerifiedAt         DateTime?
   pinHash                 String
   mustChangePin           Boolean  @default(false)
   temporaryPinIssuedAt    DateTime?

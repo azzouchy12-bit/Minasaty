@@ -14,6 +14,7 @@ const registerAnotherBtn = document.getElementById("register-another-btn");
 const goToDashboardBtn = document.getElementById("go-to-dashboard-btn");
 const nameInput = document.getElementById("student-name");
 const phoneInput = document.getElementById("parent-phone");
+const emailInput = document.getElementById("parent-email");
 const parentPinInput = document.getElementById("parent-pin");
 const confirmParentPinInput = document.getElementById("confirm-parent-pin");
 const levelInput = document.getElementById("student-level");
@@ -112,6 +113,7 @@ function initializeRegistration() {
     const payload = {
       studentName: String(formData.get("studentName") || "").trim(),
       parentPhone: normalizeDigits(formData.get("parentPhone"), 10),
+      email: String(formData.get("email") || "").trim().toLowerCase(),
       parentPin: normalizeDigits(formData.get("parentPin"), 4),
       confirmParentPin: normalizeDigits(formData.get("confirmParentPin"), 4),
       level: String(formData.get("level") || "").trim(),
@@ -121,6 +123,7 @@ function initializeRegistration() {
     parentPinInput.value = payload.parentPin;
     confirmParentPinInput.value = payload.confirmParentPin;
     formData.set("parentPhone", payload.parentPhone);
+    formData.set("email", payload.email);
     formData.set("parentPin", payload.parentPin);
     if (referralCode) formData.set("referralCode", referralCode);
     formData.delete("confirmParentPin");
@@ -130,6 +133,12 @@ function initializeRegistration() {
 
     if (!payload.studentName || !payload.parentPhone || !payload.parentPin || !payload.confirmParentPin || !payload.level) {
       showRegistrationError("يرجى إدخال الاسم ورقم الهاتف وكلمة المرور وتأكيدها واختيار المستوى الدراسي.");
+      return;
+    }
+
+    if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+      showRegistrationError("أدخل بريدًا إلكترونيًا صحيحًا أو اترك الحقل فارغًا.");
+      emailInput?.focus();
       return;
     }
 

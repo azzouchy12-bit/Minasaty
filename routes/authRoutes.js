@@ -2,6 +2,8 @@ const express = require("express");
 const {
   teacherLogin,
   parentLogin,
+  getParentEmail,
+  updateParentEmail,
   logout,
   sessionStatus,
   listSessions,
@@ -28,5 +30,7 @@ router.get("/sessions", verifyToken, listSessions);
 router.delete("/sessions/others", verifyToken, revokeOtherSessions);
 router.delete("/sessions/:id", verifyToken, revokeSession);
 router.put("/parent/pin", verifyToken, changeParentPin);
+router.get("/parent/email", verifyToken, getParentEmail);
+router.put("/parent/email", verifyToken, updateParentEmail);
 
 module.exports = router;

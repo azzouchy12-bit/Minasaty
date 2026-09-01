@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { Prisma } = require("@prisma/client");
 const { normalizeParentPhone } = require("../utils/phone");
+const { normalizeEmail } = require("../utils/email");
 const {
   normalizeParentPin,
   hashParentPin,
@@ -260,7 +261,13 @@ async function registerStudent(req, res) {
     const studentName = normalizeText(req.body?.studentName);
     const parentPhone = normalizeParentPhone(req.body?.parentPhone);
     const parentPin = normalizeParentPin(req.body?.parentPin);
+    const emailInput = String(req.body?.email || "").trim();
+    const email = normalizeEmail(emailInput);
     const level = normalizeText(req.body?.level);
+    if (emailInput && !email) {
+      if (uploadedCardFile?.filename) await removeUploadedCard(uploadedCardFile.filename);
+      return res.status(400).json({ error: "أدخل بريدًا إلكترونيًا صحيحًا." });
+    }
     const referralCode = normalizeReferralCode(req.body?.referralCode);
 
     if (!studentName || !parentPhone || !parentPin || !level) {
@@ -293,7 +300,7 @@ async function registerStudent(req, res) {
 
     const existingCredential = await prisma.parentCredential.findUnique({
       where: { parentPhone },
-      select: { pinHash: true },
+      select: { pinHash: true, email: true },
     });
 
     if (existingCredential) {
@@ -309,8 +316,10 @@ async function registerStudent(req, res) {
     const student = await prisma.$transaction(async (tx) => {
       if (!existingCredential) {
         await tx.parentCredential.create({
-          data: { parentPhone, pinHash: await hashParentPin(parentPin) },
+          data: { parentPhone, email: email || null, pinHash: await hashParentPin(parentPin) },
         });
+      } else if (email && !existingCredential.email) {
+        await tx.parentCredential.update({ where: { parentPhone }, data: { email, emailVerifiedAt: null } });
       }
 
       const createdStudent = await tx.student.create({
