@@ -136,9 +136,6 @@ const elements = {
   parentSidebarToggle: document.getElementById("parent-sidebar-toggle"),
   parentSidebarClose: document.getElementById("parent-sidebar-close"),
   parentSidebarLogout: document.getElementById("parent-sidebar-logout"),
-  parentEmailForm: document.getElementById("parent-email-form"),
-  parentAccountEmail: document.getElementById("parent-account-email"),
-  parentEmailStatus: document.getElementById("parent-email-status"),
   parentNavLinks: Array.from(document.querySelectorAll(".parent-nav-link")),
   documentFeedbackModal: document.getElementById("document-feedback-modal"),
   documentFeedbackTitle: document.getElementById("document-feedback-title"),
@@ -2475,52 +2472,7 @@ async function uploadReplacementCard() {
   }
 }
 
-function setParentEmailStatus(message = "", isError = false) {
-  if (!elements.parentEmailStatus) return;
-  elements.parentEmailStatus.textContent = message;
-  elements.parentEmailStatus.hidden = !message;
-  elements.parentEmailStatus.classList.toggle("is-error", isError);
-}
 
-async function loadParentEmail() {
-  if (!elements.parentAccountEmail) return;
-  try {
-    const response = await parentFetch("/api/auth/parent/email", { headers: { Accept: "application/json" } });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || "تعذر تحميل البريد الإلكتروني.");
-    elements.parentAccountEmail.value = payload.data?.email || "";
-  } catch (error) {
-    if (!/انتهت جلسة/.test(error.message)) setParentEmailStatus(error.message || "تعذر تحميل البريد الإلكتروني.", true);
-  }
-}
-
-async function updateParentEmail(event) {
-  event.preventDefault();
-  const email = String(elements.parentAccountEmail?.value || "").trim().toLowerCase();
-  if (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
-    setParentEmailStatus("أدخل بريدًا إلكترونيًا صحيحًا أو اترك الحقل فارغًا.", true);
-    elements.parentAccountEmail?.focus();
-    return;
-  }
-  const button = elements.parentEmailForm?.querySelector("button[type='submit']");
-  if (button) button.disabled = true;
-  setParentEmailStatus();
-  try {
-    const response = await parentFetch("/api/auth/parent/email", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || "تعذر تحديث البريد الإلكتروني.");
-    elements.parentAccountEmail.value = payload.data?.email || "";
-    setParentEmailStatus(payload.message || "تم حفظ البريد الإلكتروني.");
-  } catch (error) {
-    if (!/انتهت جلسة/.test(error.message)) setParentEmailStatus(error.message || "تعذر تحديث البريد الإلكتروني.", true);
-  } finally {
-    if (button) button.disabled = false;
-  }
-}
 
 function logout() {
   void window.revokeServerSession?.();
@@ -2694,7 +2646,6 @@ if (!getParentToken()) {
     void uploadReplacementCard();
   });
   elements.logoutButton?.addEventListener("click", logout);
-  elements.parentEmailForm?.addEventListener("submit", updateParentEmail);
   elements.parentSidebarLogout?.addEventListener("click", logout);
   elements.changeStudentButton?.addEventListener("click", openStudentPicker);
   elements.studentSwitcherClose?.addEventListener("click", closeStudentPicker);
@@ -2802,7 +2753,6 @@ if (!getParentToken()) {
   });
   initializeLobbySocket();
   void loadDashboard().then(() => {
-    void loadParentEmail();
     checkSofizPayReturn();
     window.dispatchEvent(new Event("parent-dashboard-ready"));
   });
