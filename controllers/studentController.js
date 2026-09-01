@@ -18,6 +18,7 @@ const { sendPushToRecipient } = require("../utils/push");
 const { sendParentEmailVerificationCode } = require("./authController");
 const { notificationRoom } = require("../utils/socketNotifications");
 const { notifyTelegram, sendTelegramToParent } = require("../services/telegramService");
+const { sendEmail } = require("../services/emailService");
 
 const uploadDirectory =
   process.env.UPLOAD_DIR || path.join(__dirname, "..", "public", "uploads");
@@ -528,6 +529,7 @@ async function notifyParentPaymentReceiptDecision(req, { student, approved, reas
   const link = `/parent-dashboard.html?studentId=${encodeURIComponent(student.id)}&paymentReceipt=${approved ? "approved" : "rejected"}`;
   const dedupeKey = `PAYMENT_RECEIPT_DECISION:${student.id}:${student.paymentReceiptSubmittedAt?.getTime?.() || Date.now()}:${approved ? "APPROVED" : "REJECTED"}`;
   let notificationId = null;
+  let notificationCreated = false;
 
   try {
     const notification = await prisma.notification.create({
@@ -544,12 +546,35 @@ async function notifyParentPaymentReceiptDecision(req, { student, approved, reas
       select: { id: true },
     });
     notificationId = notification.id;
+    notificationCreated = true;
   } catch (error) {
     if (error?.code === "P2002") {
       const existing = await prisma.notification.findUnique({ where: { dedupeKey }, select: { id: true } }).catch(() => null);
       notificationId = existing?.id || null;
     } else {
       console.warn("Payment receipt decision notification persistence failed:", error.message);
+    }
+  }
+
+  if (notificationCreated) {
+    const credential = await prisma.parentCredential.findUnique({
+      where: { parentPhone },
+      select: { email: true, emailVerifiedAt: true },
+    }).catch(() => null);
+    if (credential?.email && credential.emailVerifiedAt) {
+      const baseUrl = String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "");
+      const status = approved ? "تم قبول الدفع" : "تم رفض الدفع";
+      const details = approved
+        ? "تم قبول وصل الدفع وتفعيل الاشتراك."
+        : `تم رفض وصل الدفع. ${reason || "يمكنك رفع وصل صحيح من جديد."}`;
+      await sendEmail({
+        to: credential.email,
+        subject: `تحديث حالة الدفع للتلميذ ${student.studentName || "التلميذ"}`,
+        text: `التلميذ: ${student.studentName || "التلميذ"}\nالحالة: ${status}\nالتفاصيل: ${details}\nالدخول إلى المنصة: ${baseUrl}/parent-dashboard.html`,
+        html: `<p><strong>التلميذ:</strong> ${student.studentName || "التلميذ"}</p><p><strong>الحالة:</strong> ${status}</p><p>${details}</p><p><a href="${baseUrl}/parent-dashboard.html">الدخول إلى المنصة</a></p>`,
+      }).catch((emailError) => {
+        console.warn("Payment email notification failed:", emailError.message);
+      });
     }
   }
 
