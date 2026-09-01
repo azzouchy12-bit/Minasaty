@@ -3,6 +3,7 @@
 const prisma = require("../lib/prisma");
 const { sendPushToRecipient } = require("../utils/push");
 const { notifyTelegram } = require("../services/telegramService");
+const { sendEmail } = require("../services/emailService");
 
 const MAX_MESSAGE_LENGTH = 4_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -164,6 +165,23 @@ async function sendMessage(req, res) {
         link: roles.receiverRole === "teacher" ? "./teacher-chat.html" : "./student-chat.html",
       },
     });
+    if (roles.senderRole === "teacher" && roles.receiverRole === "student") {
+      void prisma.parentCredential.findUnique({
+        where: { parentPhone: student.parentPhone },
+        select: { email: true, emailVerifiedAt: true },
+      }).then((credential) => {
+        if (!credential?.email || !credential.emailVerifiedAt) return null;
+        const baseUrl = String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "");
+        return sendEmail({
+          to: credential.email,
+          subject: "رسالة جديدة من الأستاذ",
+          text: `الأستاذ أرسل رسالة جديدة بخصوص التلميذ ${student.studentName}.\nادخل إلى المنصة: ${baseUrl}/parent-dashboard.html`,
+          html: `<p>الأستاذ أرسل رسالة جديدة بخصوص التلميذ <strong>${student.studentName}</strong>.</p><p><a href="${baseUrl}/parent-dashboard.html">الدخول إلى المنصة</a></p>`,
+        });
+      }).catch((error) => {
+        console.error("Parent message email notification failed:", error);
+      });
+    }
     emitMessage(req, message, student);
     if (roles.receiverRole === "teacher") {
       void notifyTelegram(req, {
