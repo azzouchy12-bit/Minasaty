@@ -3634,9 +3634,14 @@ function renderOnlineUsers(users = []) {
     const name = document.createElement(studentId && user.role === "student" ? "a" : "strong");
     name.textContent = user.name || "مستخدم";
     if (studentId && user.role === "student") {
-      name.href = `./teacher-chat.html?studentId=${encodeURIComponent(studentId)}`;
+      const chatUrl = `./teacher-chat.html?studentId=${encodeURIComponent(studentId)}`;
+      name.href = chatUrl;
       name.className = "online-user-link";
       name.title = "فتح المحادثة";
+      name.addEventListener("click", (event) => {
+        event.preventDefault();
+        window.location.assign(chatUrl);
+      });
     }
     const meta = document.createElement("span");
     const roleLabels = { student: "طالب", teacher: "أستاذ", admin: "إدارة" };
