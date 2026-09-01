@@ -3630,17 +3630,30 @@ function renderOnlineUsers(users = []) {
   onlineUsers.forEach((user) => {
     const item = document.createElement("article");
     item.className = "online-user-item";
-    const studentId = user.studentId || currentStudents.find((student) => student.studentName === user.name && (!user.level || student.level === user.level))?.id;
-    const name = document.createElement(studentId && user.role === "student" ? "a" : "strong");
+    const isStudent = user.role === "student";
+    const name = document.createElement(isStudent ? "a" : "strong");
     name.textContent = user.name || "مستخدم";
-    if (studentId && user.role === "student") {
-      const chatUrl = `./teacher-chat.html?studentId=${encodeURIComponent(studentId)}`;
-      name.href = chatUrl;
+    if (isStudent) {
+      name.href = "#";
       name.className = "online-user-link";
       name.title = "فتح المحادثة";
-      name.addEventListener("click", (event) => {
+      name.addEventListener("click", async (event) => {
         event.preventDefault();
-        window.location.assign(chatUrl);
+        const studentId = user.studentId || currentStudents.find((student) => student.studentName === user.name && (!user.level || student.level === user.level))?.id;
+        if (studentId) {
+          window.location.assign(`./teacher-chat.html?studentId=${encodeURIComponent(studentId)}`);
+          return;
+        }
+        if (!user.level) return;
+        try {
+          const response = await teacherFetch(`/api/students/level/${encodeURIComponent(user.level)}?page=1&limit=100`, { headers: { Accept: "application/json" } });
+          const payload = await response.json().catch(() => ({}));
+          const students = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+          const matchedStudent = students.find((student) => student.studentName === user.name);
+          if (matchedStudent?.id) window.location.assign(`./teacher-chat.html?studentId=${encodeURIComponent(matchedStudent.id)}`);
+        } catch (error) {
+          console.warn("Unable to resolve online student chat:", error?.message || error);
+        }
       });
     }
     const meta = document.createElement("span");
