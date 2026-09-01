@@ -27,6 +27,7 @@ const { ensurePublicArchive, recordPublicAttendance, finishPublicArchive, append
 const { verifySessionToken, setSessionTakeoverNotifier } = require("./utils/sessionAuth");
 const { sendPushToSession } = require("./utils/push");
 const { sendTelegramNotification, configureTelegramWebhook } = require("./services/telegramService");
+const { sendVerifiedParentEmail } = require("./services/parentEmailEvents");
 const { createSocketNotificationSender, notificationRoom, notificationSessionRoom } = require("./utils/socketNotifications");
 const siteAnalyticsRoutes = require("./routes/siteAnalyticsRoutes");
 const referralRoutes = require("./routes/referralRoutes");
@@ -836,6 +837,45 @@ async function getClassParticipation(studentId, sessionKey) {
   }
 }
 
+async function sendAttendanceEmail({ student, subject, status, when }) {
+  const baseUrl = String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "");
+  const className = subject || "الحصة المباشرة";
+  return sendVerifiedParentEmail({
+    parentPhone: student.parentPhone,
+    subject: `تحديث حضور التلميذ ${student.studentName || "التلميذ"}`,
+    text: `التلميذ: ${student.studentName || "التلميذ"}\nالحصة: ${className}\nالتاريخ: ${when}\nالحالة: ${status}\nالدخول إلى المنصة: ${baseUrl}/parent-dashboard.html`,
+    html: `<p><strong>التلميذ:</strong> ${student.studentName || "التلميذ"}</p><p><strong>الحصة:</strong> ${className}</p><p><strong>التاريخ:</strong> ${when}</p><p><strong>حالة الحضور:</strong> ${status}</p><p><a href="${baseUrl}/parent-dashboard.html">الدخول إلى المنصة</a></p>`,
+  });
+}
+
+async function sendAbsentStudentEmails({ level, subject, sessionKey }) {
+  if (!sessionKey || !isValidRecoveryToken(sessionKey) || level === GLOBAL_FREE_LEVEL) return;
+  const [students, attendances] = await Promise.all([
+    prisma.student.findMany({ where: { level }, select: { studentName: true, parentPhone: true, id: true } }),
+    prisma.attendance.findMany({ where: { sessionKey }, select: { studentId: true } }),
+  ]);
+  const attended = new Set(attendances.map((attendance) => attendance.studentId));
+  const when = new Date().toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" });
+  await Promise.allSettled(students.filter((student) => !attended.has(student.id)).map((student) => sendAttendanceEmail({
+    student,
+    subject,
+    status: "غاب التلميذ عن الحصة",
+    when,
+  }).catch((error) => console.warn("Absence email failed:", error.message))));
+}
+
+async function sendLiveClassStartEmails({ level, subject, startedAt }) {
+  const students = await prisma.student.findMany({ where: { level }, select: { studentName: true, parentPhone: true } });
+  const baseUrl = String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "");
+  const when = new Date(startedAt).toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" });
+  await Promise.allSettled(students.map((student) => sendVerifiedParentEmail({
+    parentPhone: student.parentPhone,
+    subject: `بدأت الحصة المباشرة: ${subject || "الحصة"}`,
+    text: `الحصة: ${subject || "الحصة المباشرة"}\nالوقت: ${when}\nالأستاذ: ${process.env.TEACHER_NAME || "الأستاذ"}\nالدخول إلى الحصة: ${baseUrl}/parent-dashboard.html`,
+    html: `<p><strong>الحصة:</strong> ${subject || "الحصة المباشرة"}</p><p><strong>الوقت:</strong> ${when}</p><p><strong>الأستاذ:</strong> ${process.env.TEACHER_NAME || "الأستاذ"}</p><p><a href="${baseUrl}/parent-dashboard.html">الدخول إلى الحصة</a></p>`,
+  }).catch((error) => console.warn("Live class email failed:", error.message))));
+}
+
 async function recordClassParticipation({ studentId, level, subject, sessionKey }) {
   if (!isValidStudentId(studentId) || !isValidLevel(level) || !isValidActiveClassType(level, subject) || !isValidRecoveryToken(sessionKey)) return null;
   try {
@@ -861,6 +901,9 @@ function isValidRecoveryToken(value) {
  */
 async function closeClassroom(level, reason) {
   const participants = await io.in(level).fetchSockets();
+  const classSubject = activeSubjectByLevel.get(level) || null;
+  const teacherParticipant = participants.find((participant) => participant.data.role === "teacher");
+  void sendAbsentStudentEmails({ level, subject: classSubject, sessionKey: teacherParticipant?.data?.classResumeToken }).catch((error) => console.warn("Absence email job failed:", error.message));
 
   // Revoke authority first so no signaling event can be accepted while the
   // room is being cleaned up asynchronously.
@@ -1464,6 +1507,9 @@ io.on("connection", (socket) => {
         globalFree: isGlobalFreeClass,
         startedAt: new Date().toISOString(),
       };
+      if (!isResuming) {
+        void sendLiveClassStartEmails(liveClassPayload).catch((error) => console.warn("Live class start email job failed:", error.message));
+      }
 
       if (isResuming) {
         io.to(level).emit("teacher_reconnected", { level, subject, globalFree: isGlobalFreeClass });
@@ -1523,6 +1569,7 @@ io.on("connection", (socket) => {
         select: {
           id: true,
           studentName: true,
+          parentPhone: true,
           level: true,
           liveAccessEnabled: true,
           paymentStatus: true,
@@ -1663,6 +1710,12 @@ io.on("connection", (socket) => {
           data: { studentId: student.id, level: student.level, sessionKey },
         });
         socket.data.attendanceId = attendance.id;
+        void sendAttendanceEmail({
+          student,
+          subject: activeSubjectByLevel.get(classroomLevel),
+          status: "حضر التلميذ الحصة",
+          when: new Date().toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" }),
+        }).catch((error) => console.warn("Attendance email failed:", error.message));
       }
       socket.data.joinedAt = Date.now();
 

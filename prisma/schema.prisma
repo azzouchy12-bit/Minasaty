@@ -391,6 +391,7 @@ model ParentEmailVerificationCode {
   id           String   @id @default(uuid()) @db.Uuid
   parentPhone  String
   email        String
+  purpose      String   @default("EMAIL_VERIFICATION")
   codeHash     String
   expiresAt    DateTime
   attempts     Int      @default(0)
@@ -399,7 +400,7 @@ model ParentEmailVerificationCode {
 
   parentCredential ParentCredential @relation(fields: [parentPhone], references: [parentPhone], onDelete: Cascade)
 
-  @@index([parentPhone, email, usedAt, expiresAt])
+  @@index([parentPhone, email, purpose, usedAt, expiresAt])
 }
 
 model PasswordResetRequest {

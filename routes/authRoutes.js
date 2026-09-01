@@ -6,6 +6,8 @@ const {
   updateParentEmail,
   sendParentEmailCode,
   verifyParentEmailCode,
+  sendParentPinEmailCode,
+  resetParentPinWithEmail,
   logout,
   sessionStatus,
   listSessions,
@@ -24,6 +26,8 @@ const router = express.Router();
 router.post("/teacher", authRateLimit, teacherLogin);
 router.post("/parent", authRateLimit, parentLogin);
 router.post("/parent/forgot", authRateLimit, requestParentPinReset);
+router.post("/parent/pin/email/send-code", authRateLimit, sendParentPinEmailCode);
+router.post("/parent/pin/email/reset", authRateLimit, resetParentPinWithEmail);
 router.get("/parent/forgot-requests", verifyToken, isTeacher, listParentPinResetRequests);
 router.put("/parent/forgot-requests/:id/issue", verifyToken, isTeacher, issueTemporaryParentPin);
 router.post("/logout", verifyToken, logout);

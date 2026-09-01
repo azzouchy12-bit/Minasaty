@@ -19,6 +19,7 @@ const { sendParentEmailVerificationCode } = require("./authController");
 const { notificationRoom } = require("../utils/socketNotifications");
 const { notifyTelegram, sendTelegramToParent } = require("../services/telegramService");
 const { sendEmail } = require("../services/emailService");
+const { sendVerifiedParentEmail } = require("../services/parentEmailEvents");
 
 const uploadDirectory =
   process.env.UPLOAD_DIR || path.join(__dirname, "..", "public", "uploads");
@@ -1226,6 +1227,8 @@ async function updateStudentContact(req, res) {
             data: {
               parentPhone,
               pinHash: credential.pinHash,
+              email: credential.email,
+              emailVerifiedAt: credential.emailVerifiedAt,
               mustChangePin: credential.mustChangePin,
               temporaryPinIssuedAt: credential.temporaryPinIssuedAt,
               temporaryPinExpiresAt: credential.temporaryPinExpiresAt,
@@ -1298,8 +1301,16 @@ async function updateStudentContact(req, res) {
         phoneChanged,
       }),
     });
-    notifyTeacherRosterChanged(req, [currentStudent.level, updatedStudent.level], "contact-updated");
-
+        notifyTeacherRosterChanged(req, [currentStudent.level, updatedStudent.level], "contact-updated");
+    const changedFields = [];
+    if (currentStudent.studentName !== updatedStudent.studentName) changedFields.push("اسم التلميذ");
+    if (oldParentPhone !== updatedStudent.parentPhone) changedFields.push("رقم الهاتف");
+    void sendVerifiedParentEmail({
+      parentPhone: updatedStudent.parentPhone,
+      subject: "تم تحديث بيانات الحساب",
+      text: `تم تحديث ${changedFields.join(" و") || "بيانات الحساب"} في ${new Date().toLocaleString("ar-DZ")} .\nالدخول إلى المنصة: ${String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "")}/parent-dashboard.html`,
+      html: `<p>تم تحديث ${changedFields.join(" و") || "بيانات الحساب"}.</p><p>وقت التغيير: ${new Date().toLocaleString("ar-DZ")}</p><p><a href="${String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "")}/parent-dashboard.html">الدخول إلى المنصة</a></p>`,
+    }).catch((error) => console.warn("Parent account change email failed:", error.message));
     return res.status(200).json({
       status: "success",
       message: phoneChanged
