@@ -921,8 +921,8 @@ io.on("connection", (socket) => {
       const sessionId = String(user.sessionId || socket.id).trim();
       let profiles = [];
       if (role === "parent") {
-        const students = await prisma.student.findMany({ where: { parentPhone: String(user.phone || "") }, select: { studentName: true, level: true } });
-        profiles = students.map((student) => ({ name: student.studentName, role: "student", level: student.level, sessionId }));
+        const students = await prisma.student.findMany({ where: { parentPhone: String(user.phone || "") }, select: { id: true, studentName: true, level: true } });
+        profiles = students.map((student) => ({ name: student.studentName, role: "student", level: student.level, studentId: student.id, sessionId }));
       } else {
         profiles = [{ name: role === "admin" ? (user.name || "الإدارة") : (process.env.TEACHER_NAME || "الأستاذ"), role, level: null, sessionId }];
       }
