@@ -8,6 +8,8 @@
     : null;
   const bell = document.querySelector("[data-message-bell]");
   const badge = document.querySelector("[data-message-badge]");
+  const bellIcon = bell?.querySelector("[data-message-bell-icon], .message-bell-icon");
+  const bellLabel = bell?.querySelector("[data-message-bell-label], .message-bell-label");
   if (!token || !bell) return;
 
   let unreadCount = 0;
@@ -79,6 +81,10 @@
 
   window.addEventListener("private-messages-read", () => { void loadUnreadCount(); });
   bell.addEventListener("click", () => {
+    bell.classList.add("is-contact-active");
+    bell.setAttribute("aria-label", "مراسلة الأستاذ");
+    if (bellIcon) bellIcon.hidden = true;
+    if (bellLabel) bellLabel.hidden = false;
     if (typeof window.enablePushNotifications === "function" && "Notification" in window && Notification.permission !== "denied") {
       window.enablePushNotifications().catch(() => {});
     }

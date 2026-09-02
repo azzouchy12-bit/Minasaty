@@ -167,6 +167,9 @@
 .chat-inline-error { position: fixed; right: 1rem; bottom: 1rem; z-index: 10; max-width: min(90vw, 30rem); padding: .8rem 1rem; color: #991b1b; background: #fff1f2; border: 1px solid #fecdd3; border-radius: .75rem; box-shadow: 0 10px 28px rgba(127, 29, 29, .14); font-size: .74rem; font-weight: 800; }
 .message-notification-toast { position: fixed; right: 1rem; bottom: 1rem; z-index: 30; max-width: min(90vw, 22rem); padding: .82rem 1rem; color: #fff; background: #1877f2; border-radius: .75rem; box-shadow: 0 14px 30px rgba(8, 102, 255, .25); font-size: .74rem; font-weight: 800; opacity: 0; transform: translateY(.65rem); transition: opacity 180ms ease, transform 180ms ease; }
 .message-notification-toast.is-visible { opacity: 1; transform: translateY(0); }
+.message-bell { display: inline-flex; align-items: center; justify-content: center; gap: .28rem; min-width: 2.35rem; padding: 0 .6rem; color: #dbeafe; background: rgba(37, 99, 235, .22); border: 1px solid rgba(147, 197, 253, .45); border-radius: .65rem; font-size: .7rem; font-weight: 800; text-decoration: none; transition: color .22s ease, background .22s ease, border-color .22s ease, transform .22s ease; }
+.message-bell:hover, .message-bell.is-contact-active { color: #fff; background: #2563eb; border-color: #93c5fd; transform: translateY(-1px); }
+.message-bell-label { white-space: nowrap; }
 
 .topbar-messages-link, .parent-messages-link { display: inline-flex; align-items: center; min-height: 2.35rem; padding: .45rem .7rem; color: #dbeafe; border: 1px solid rgba(191, 219, 254, .32); border-radius: .65rem; font-size: .72rem; font-weight: 800; text-decoration: none; }
 .topbar-messages-link:hover, .parent-messages-link:hover { color: #fff; background: rgba(255, 255, 255, .12); }
