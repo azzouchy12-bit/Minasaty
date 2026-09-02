@@ -1427,586 +1427,16 @@
       .parent-dashboard-page.has-multiple-students #live-classes-entry-card {
         order: 2;
       }
-
-      @media screen and (max-width: 768px) {
-        /* Fix Payment Amount Truncation (No "..." ellipsis) */
-        .unified-subscription-summary {
-          display: grid !important;
-          grid-template-columns: 1fr 1fr !important;
-          gap: 0.5rem !important;
-        }
-
-        .unified-subscription-item strong,
-        #secondary-payment-state strong,
-        #payment-status {
-          white-space: normal !important;
-          word-break: break-word !important;
-          line-height: 1.4 !important;
-          font-size: 0.82rem !important;
-          display: block !important;
-          text-overflow: clip !important;
-        }
-
-        /* Stack Children Vertically (One Under Another) */
-        .student-switcher-list {
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 0.75rem !important;
-        }
-
-        .student-switcher-card {
-          width: 100% !important;
-          padding: 0.85rem 1rem !important;
-          border-radius: 1rem !important;
-          border: 1.5px solid #dbeafe !important;
-        }
-      }
-
-      @media screen and (max-width: 768px) {
-        /* Hide main feed components when in registry mode */
-        body.mobile-registry-active #live-classes-entry-card,
-        body.mobile-registry-active .student-overview,
-        body.mobile-registry-active #secondary-payment-upgrade,
-        body.mobile-registry-active .parent-kpi-grid,
-        body.mobile-registry-active #student-homework-card,
-        body.mobile-registry-active #student-certificates-card,
-        body.mobile-registry-active #lesson-repository-card,
-        body.mobile-registry-active #referral-earnings,
-        body.mobile-registry-active #level-schedule-card {
-          display: none !important;
-        }
-
-        /* Expand registry screen smoothly */
-        body.mobile-registry-active #class-registry-student {
-          display: block !important;
-          margin: 0 !important;
-          padding: 1rem !important;
-          background: #ffffff !important;
-          border-radius: 1.15rem !important;
-          border: 1px solid #dbeafe !important;
-          box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05) !important;
-        }
-
-        /* Force content visibility directly without second click */
-        body.mobile-registry-active #class-registry-controls {
-          display: block !important;
-          padding-top: 0.8rem !important;
-        }
-
-        /* Turn toggle button into a static section title */
-        body.mobile-registry-active .class-registry-toggle {
-          cursor: default !important;
-          pointer-events: none !important;
-          padding: 0 !important;
-          border-bottom: 1px solid #e2e8f0 !important;
-          padding-bottom: 0.75rem !important;
-        }
-
-        body.mobile-registry-active #class-registry-toggle-icon {
-          display: none !important;
-        }
-
-        /* Back Button styling */
-        .mobile-close-view-btn {
-          display: inline-flex !important;
-          align-items: center !important;
-          gap: 0.4rem !important;
-          margin-bottom: 0.8rem !important;
-          background: #eff6ff !important;
-          color: #1d4ed8 !important;
-          border: 1px solid #bfdbfe !important;
-          border-radius: 0.65rem !important;
-          padding: 0.5rem 0.85rem !important;
-          font-size: 0.82rem !important;
-          font-weight: 800 !important;
-          cursor: pointer !important;
-        }
-
-        /* In Sub-View: Hide header and main cards entirely */
-        body.in-subview .parent-header,
-        body.in-subview #live-classes-entry-card,
-        body.in-subview .student-overview,
-        body.in-subview .dashboard-welcome,
-        body.in-subview .parent-kpi-grid {
-          display: none !important;
-        }
-
-        /* Back Button Style */
-        .subview-back-button {
-          display: none;
-          width: 100% !important;
-          min-height: 2.6rem !important;
-          background: #0f172a !important;
-          color: #ffffff !important;
-          font-weight: 800 !important;
-          font-size: 0.85rem !important;
-          border: none !important;
-          border-radius: 0.75rem !important;
-          margin-bottom: 1rem !important;
-          cursor: pointer !important;
-          text-align: center !important;
-        }
-
-        body.in-subview .subview-back-button {
-          display: block !important;
-        }
-      }
     </style>
     <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=receipt-decision-2" />
     <link rel="stylesheet" href="./css/live-classes-entry.css?v=live-entry-1" />
-    <!-- ================================================================= -->
-    <!-- MINASATY BESPOKE HANDCRAFTED MOBILE DASHBOARD (SCREENS <= 768px)  -->
-    <!-- ================================================================= -->
-    <style>
-      @media screen and (max-width: 768px) {
-        /* 1. إصلاح الترويسة العلوية ومنع تسرب ونفاذ البطاقات خلفها */
-        .parent-header {
-          position: sticky !important;
-          top: 0 !important;
-          z-index: 1100 !important;
-          background: #ffffff !important;
-          border-bottom: 1px solid #e2e8f0 !important;
-          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05) !important;
-          min-height: 2.6rem !important;
-          height: 2.6rem !important;
-          padding: 0.2rem 0.6rem !important;
-        }
-
-        .parent-header-content {
-          min-height: 2.6rem !important;
-          height: 2.6rem !important;
-          padding: 0.5rem 1rem !important;
-          width: 100% !important;
-        }
-
-        .parent-brand-mark {
-          width: 1.9rem !important;
-          height: 1.9rem !important;
-          border-radius: 0.5rem !important;
-        }
-
-        .parent-brand-mark svg {
-          width: 1.1rem !important;
-          height: 1.1rem !important;
-        }
-
-        .parent-brand-copy strong {
-          color: #0f172a !important;
-          font-size: 0.8rem !important;
-        }
-
-        .parent-brand-copy small {
-          display: none !important;
-        }
-
-        .parent-menu-toggle {
-          display: grid !important;
-          place-items: center !important;
-          width: 2rem !important;
-          height: 2rem !important;
-          background: #f1f5f9 !important;
-          color: #1e3a8a !important;
-          border: 1px solid #cbd5e1 !important;
-          border-radius: 0.7rem !important;
-          font-size: 1rem !important;
-        }
-
-        .logout-button {
-          color: #dc2626 !important;
-          background: #fef2f2 !important;
-          border: 1px solid #fecaca !important;
-          min-height: 1.9rem !important;
-          padding: 0.2rem 0.5rem !important;
-          font-size: 0.68rem !important;
-        }
-
-        /* 2. تحويل بطاقة الحصة المباشرة إلى تحفة بصرية أصلية */
-        #live-classes-entry-card.live-classes-entry-card {
-          background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
-          border-radius: 1.15rem !important;
-          border: none !important;
-          padding: 1.1rem !important;
-          color: #ffffff !important;
-          box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.35) !important;
-          margin-bottom: 1rem !important;
-        }
-
-        .live-classes-entry-head h2,
-        .live-classes-entry-head p,
-        .live-classes-entry-kicker {
-          color: #ffffff !important;
-        }
-
-        .live-classes-entry-button {
-          background: #ffffff !important;
-          color: #1e3a8a !important;
-          border: none !important;
-          font-weight: 800 !important;
-          border-radius: 0.75rem !important;
-          width: 100% !important;
-          min-height: 3rem !important;
-          margin-top: 0.8rem !important;
-          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12) !important;
-          font-size: 0.9rem !important;
-          cursor: pointer !important;
-        }
-
-        /* 3. تنظيف بطاقة التلميذ وإلغاء الصناديق المتداخلة */
-        .student-overview .overview-card.student-card {
-          border-radius: 1.15rem !important;
-          border: 1px solid #e2e8f0 !important;
-          padding: 1rem !important;
-          background: #ffffff !important;
-          box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04) !important;
-        }
-
-        .unified-subscription-summary {
-          display: grid !important;
-          grid-template-columns: repeat(2, 1fr) !important;
-          gap: 0.5rem !important;
-          margin-top: 0.8rem !important;
-        }
-
-        .unified-subscription-item {
-          background: #f8fafc !important;
-          border: 1px solid #e2e8f0 !important;
-          border-radius: 0.65rem !important;
-          padding: 0.5rem 0.65rem !important;
-        }
-
-        /* 4. تحويل العدادات الـ 5 المكدسة إلى شبكة مدمجة 2x2 */
-        .parent-kpi-grid.activity-kpi-grid {
-          display: grid !important;
-          grid-template-columns: repeat(2, 1fr) !important;
-          gap: 0.65rem !important;
-          margin: 1rem 0 !important;
-        }
-
-        .parent-kpi-card {
-          display: flex !important;
-          align-items: center !important;
-          gap: 0.6rem !important;
-          padding: 0.75rem !important;
-          background: #ffffff !important;
-          border: 1px solid #e2e8f0 !important;
-          border-radius: 0.85rem !important;
-          box-shadow: 0 2px 6px rgba(15, 23, 42, 0.02) !important;
-        }
-
-        .parent-kpi-card:last-child {
-          grid-column: span 2 !important;
-        }
-
-        .parent-kpi-icon {
-          display: grid !important;
-          place-items: center !important;
-          width: 2.2rem !important;
-          height: 2.2rem !important;
-          flex: 0 0 auto !important;
-          background: #eff6ff !important;
-          color: #2563eb !important;
-          border-radius: 0.6rem !important;
-          font-size: 1rem !important;
-        }
-
-        .parent-kpi-card strong {
-          display: block !important;
-          font-size: 1.1rem !important;
-          color: #0f172a !important;
-        }
-
-        .parent-kpi-card small {
-          font-size: 0.7rem !important;
-          color: #64748b !important;
-        }
-
-        /* 5. دمج وتنسيق بيانات التحويل البريدي (CCP & BaridiMob) */
-        .parent-payment-details {
-          display: grid !important;
-          grid-template-columns: 1fr !important;
-          gap: 0.4rem !important;
-          background: #f8fafc !important;
-          border: 1px solid #e2e8f0 !important;
-          border-radius: 0.85rem !important;
-          padding: 0.75rem !important;
-        }
-
-        .parent-payment-details div {
-          display: flex !important;
-          justify-content: space-between !important;
-          align-items: center !important;
-          padding: 0.45rem 0.5rem !important;
-          background: transparent !important;
-          border: none !important;
-          border-bottom: 1px dashed #cbd5e1 !important;
-        }
-
-        .parent-payment-details div:last-child {
-          border-bottom: none !important;
-        }
-
-        /* 6. صقل القوائم المنسدلة وسجل الدروس */
-        .parent-feedback-card,
-        .lesson-repository-card,
-        .class-registry-student {
-          border: 1px solid #e2e8f0 !important;
-          border-radius: 0.95rem !important;
-          background: #ffffff !important;
-          margin-bottom: 0.75rem !important;
-          box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03) !important;
-        }
-
-        .student-homework-toggle,
-        .student-certificates-toggle,
-        .lesson-repository-toggle,
-        .class-registry-toggle {
-          display: flex !important;
-          align-items: center !important;
-          justify-content: space-between !important;
-          width: 100% !important;
-          padding: 0.85rem 1rem !important;
-          background: transparent !important;
-          border: 0 !important;
-          cursor: pointer !important;
-        }
-
-        .student-homework-toggle-icon,
-        .student-certificates-toggle-icon,
-        .lesson-repository-toggle-icon,
-        .class-registry-toggle-icon {
-          display: grid !important;
-          place-items: center !important;
-          width: 2rem !important;
-          height: 2rem !important;
-          background: #f1f5f9 !important;
-          border-radius: 0.5rem !important;
-          color: #475569 !important;
-          font-size: 1rem !important;
-          margin-right: auto !important;
-        }
-
-        /* 7. تنظيم قسم برنامج الإحالة */
-        .referral-stats-grid {
-          display: grid !important;
-          grid-template-columns: repeat(3, 1fr) !important;
-          gap: 0.5rem !important;
-        }
-
-        .referral-stat-card {
-          padding: 0.65rem 0.4rem !important;
-          text-align: center !important;
-          border-radius: 0.75rem !important;
-          background: #f8fafc !important;
-          border: 1px solid #e2e8f0 !important;
-        }
-
-        .referral-stat-card strong {
-          font-size: 0.95rem !important;
-          color: #059669 !important;
-        }
-
-        /* 8. Minimalist Mobile Home Feed: hide clutter by default */
-        body:not(.in-subview) .parent-kpi-grid,
-        body:not(.in-subview) #student-homework-card,
-        body:not(.in-subview) #student-certificates-card,
-        body:not(.in-subview) #lesson-repository-card,
-        body:not(.in-subview) #class-registry-student,
-        body:not(.in-subview) #referral-earnings,
-        body:not(.in-subview) #level-schedule-card {
-          display: none !important;
-        }
-
-        /* 9. Dedicated Full-Screen Sub-View Architecture */
-        body.in-subview .parent-header,
-        body.in-subview #live-classes-entry-card,
-        body.in-subview .student-overview,
-        body.in-subview .dashboard-welcome,
-        body.in-subview .parent-kpi-grid {
-          display: none !important;
-        }
-
-        body.in-subview #class-registry-student,
-        body.in-subview #level-schedule-card,
-        body.in-subview #student-homework-card,
-        body.in-subview #lesson-repository-card,
-        body.in-subview #student-certificates-card,
-        body.in-subview #secondary-payment-upgrade,
-        body.in-subview #referral-earnings {
-          display: block !important;
-          margin: 0 !important;
-          padding: 1rem !important;
-          background: #ffffff !important;
-          border-radius: 1.15rem !important;
-          border: 1px solid #dbeafe !important;
-          box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05) !important;
-        }
-
-        body.in-subview #class-registry-controls,
-        body.in-subview #student-homework-content,
-        body.in-subview #student-certificates-content,
-        body.in-subview #lesson-repository-controls,
-        body.in-subview #secondary-payment-transfer {
-          display: block !important;
-        }
-
-        body.in-subview .class-registry-toggle,
-        body.in-subview .student-homework-toggle,
-        body.in-subview .student-certificates-toggle,
-        body.in-subview .lesson-repository-toggle {
-          cursor: default !important;
-          pointer-events: none !important;
-          padding: 0 !important;
-          border-bottom: 1px solid #e2e8f0 !important;
-          padding-bottom: 0.75rem !important;
-        }
-
-        body.in-subview .class-registry-toggle-icon,
-        body.in-subview .student-homework-toggle-icon,
-        body.in-subview .student-certificates-toggle-icon,
-        body.in-subview .lesson-repository-toggle-icon {
-          display: none !important;
-        }
-
-        body.in-subview .parent-payment-details {
-          display: grid !important;
-          grid-template-columns: 1fr !important;
-          gap: 0.4rem !important;
-        }
-
-        body.in-subview .parent-payment-details div {
-          display: flex !important;
-          justify-content: space-between !important;
-          align-items: center !important;
-          padding: 0.45rem 0.5rem !important;
-          background: transparent !important;
-          border: none !important;
-          border-bottom: 1px dashed #cbd5e1 !important;
-        }
-
-        body.in-subview .parent-payment-details div:last-child {
-          border-bottom: none !important;
-        }
-
-        body.in-subview .unified-subscription-summary {
-          display: grid !important;
-          grid-template-columns: 1fr 1fr !important;
-          gap: 0.5rem !important;
-        }
-
-        body.in-subview .unified-subscription-item strong,
-        body.in-subview #secondary-payment-state strong,
-        body.in-subview #payment-status {
-          white-space: normal !important;
-          word-break: break-word !important;
-          line-height: 1.4 !important;
-          font-size: 0.82rem !important;
-          display: block !important;
-          text-overflow: clip !important;
-        }
-
-        /* 10. Vertical Student Switcher Modal */
-        .student-switcher-list {
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 0.75rem !important;
-        }
-
-        .student-switcher-card {
-          width: 100% !important;
-          padding: 0.85rem 1rem !important;
-          border-radius: 1rem !important;
-          border: 1.5px solid #dbeafe !important;
-        }
-
-        /* 11. Mobile Upgrade CTA Button */
-        .mobile-upgrade-cta {
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          gap: 0.4rem !important;
-          width: 100% !important;
-          min-height: 2.85rem !important;
-          margin-top: 0.8rem !important;
-          padding: 0.62rem 0.95rem !important;
-          color: #ffffff !important;
-          background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
-          border: none !important;
-          border-radius: 0.72rem !important;
-          font-size: 0.82rem !important;
-          font-weight: 800 !important;
-          cursor: pointer !important;
-          box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25) !important;
-        }
-
-        .mobile-upgrade-cta:hover {
-          filter: brightness(1.06) !important;
-        }
-
-        /* 12. Back Button styling */
-        .mobile-close-view-btn {
-          display: inline-flex !important;
-          align-items: center !important;
-          gap: 0.4rem !important;
-          margin-bottom: 0.8rem !important;
-          background: #eff6ff !important;
-          color: #1d4ed8 !important;
-          border: 1px solid #bfdbfe !important;
-          border-radius: 0.65rem !important;
-          padding: 0.5rem 0.85rem !important;
-          font-size: 0.82rem !important;
-          font-weight: 800 !important;
-          cursor: pointer !important;
-        }
-
-        /* Back Button Style */
-        .subview-back-button {
-          display: none;
-          width: 100% !important;
-          min-height: 2.6rem !important;
-          background: #0f172a !important;
-          color: #ffffff !important;
-          font-weight: 800 !important;
-          font-size: 0.85rem !important;
-          border: none !important;
-          border-radius: 0.75rem !important;
-          margin-bottom: 1rem !important;
-          cursor: pointer !important;
-          text-align: center !important;
-        }
-
-        body.in-subview .subview-back-button {
-          display: block !important;
-        }
-      }
-    </style>
 </head>
   <body class="parent-dashboard-page">
     <div id="parent-sidebar-backdrop" class="parent-sidebar-backdrop" hidden></div>
     <aside id="parent-sidebar" class="parent-sidebar" aria-label="القائمة الجانبية">
       <div class="parent-sidebar-brand"><div class="parent-brand"><span class="parent-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 8 12 3.75 20.5 8 12 12.25 3.5 8Z" /><path d="M6.5 9.5v5.9c3.1 2.25 7.9 2.25 11 0V9.5" /></svg></span><span class="parent-brand-copy"><strong>أكاديمية التفوق</strong><small>بوابة الولي</small></span></div><button id="parent-sidebar-close" class="parent-sidebar-close" type="button" aria-label="إغلاق القائمة">×</button></div>
       <div class="parent-profile-card"><span class="parent-profile-avatar" aria-hidden="true">و</span><span><strong>حساب الولي</strong><small>متابعة الأبناء</small></span><i aria-hidden="true"></i></div>
-      <nav class="parent-sidebar-nav" aria-label="تنقل بوابة الولي">
-        <!-- 1. الصفحة الرئيسية -->
-        <a class="parent-nav-link is-active" href="javascript:void(0)" onclick="returnToMobileHome()"><span aria-hidden="true">⌂</span>الصفحة الرئيسية</a>
-        <!-- 2. اختيار أبنائي -->
-        <a class="parent-nav-link" href="javascript:void(0)" onclick="document.getElementById('student-switcher').removeAttribute('hidden'); document.getElementById('parent-sidebar').classList.remove('is-open');"><span aria-hidden="true">👥</span>اختيار أبنائي</a>
-        <!-- 3. جدول وتوقيت الحصص -->
-        <a class="parent-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('level-schedule-card')"><span aria-hidden="true">📅</span>جدول وتوقيت الحصص</a>
-        <!-- 4. سجل الحصص والدروس المسجلة -->
-        <a class="parent-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('class-registry-student')"><span aria-hidden="true">📚</span>سجل الحصص والدروس المسجلة</a>
-        <!-- 5. النشاط الدراسي والواجبات -->
-        <a class="parent-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('student-homework-card')"><span aria-hidden="true">📝</span>النشاط الدراسي والواجبات</a>
-        <!-- 6. فيديوهات مكملة ودعم -->
-        <a class="parent-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('lesson-repository-card')"><span aria-hidden="true">🎥</span>فيديوهات مكملة ودعم</a>
-        <!-- 7. إنجازات التلميذ وشهاداته -->
-        <a class="parent-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('student-certificates-card')"><span aria-hidden="true">🏆</span>إنجازات التلميذ وشهاداته</a>
-        <!-- 8. الفواتير والاشتراكات -->
-        <a class="parent-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('secondary-payment-upgrade')"><span aria-hidden="true">💳</span>الفواتير والاشتراكات</a>
-        <!-- 9. أرباحي -->
-        <a class="parent-nav-link referral-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('referral-earnings')"><span aria-hidden="true">↗</span>أرباحي</a>
-        <!-- 10. الإعدادات والأمان -->
-        <a class="parent-nav-link" href="./account-center.html"><span aria-hidden="true">⚙</span>الإعدادات والأمان</a>
-      </nav>
+      <nav class="parent-sidebar-nav" aria-label="تنقل بوابة الولي"><a class="parent-nav-link is-active" href="#dashboard-content"><span aria-hidden="true">⌂</span>لوحة المتابعة</a><a class="parent-nav-link" href="#student-switcher"><span aria-hidden="true">♙</span>أبنائي</a><a class="parent-nav-link" href="#parent-schedule-card"><span aria-hidden="true">▣</span>جدول الحصص</a><a class="parent-nav-link" href="#secondary-payment-upgrade"><span aria-hidden="true">▤</span>الفواتير والاشتراكات</a><a class="parent-nav-link" href="./account-center.html"><span aria-hidden="true">⚙</span>الإعدادات</a><a class="parent-nav-link referral-nav-link" href="#referral-earnings"><span aria-hidden="true">↗</span>أرباحي</a></nav>
       <div class="parent-sidebar-footer"><a href="./academic-center.html">المركز الأكاديمي</a><button id="parent-sidebar-logout" type="button">↪ تسجيل الخروج</button></div>
     </aside>
     <div class="parent-dashboard-shell">
@@ -2091,10 +1521,7 @@
         <div id="parent-schedule-list" class="parent-schedule-list" aria-live="polite"></div>
       </section>
 
-      <section id="secondary-payment-upgrade" class="university-payment-upgrade secondary-payment-upgrade" hidden aria-live="polite">
-        <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
-          ← العودة إلى الصفحة الرئيسية
-        </button>
+<section id="secondary-payment-upgrade" class="university-payment-upgrade secondary-payment-upgrade" hidden aria-live="polite">
          <div id="secondary-payment-waiting" class="payment-upgrade-waiting" hidden role="status">جاري تأكيد الدفع من إدارة المنصة</div>
          <h2>ترقية حسابي</h2>
         <p>اختر المواد التي تريد الاشتراك فيها، ثم ارفع وصل الدفع للتمتع بالحصص المباشرة ومقاطع الدروس المسجلة.</p>
@@ -2160,9 +1587,6 @@
       </section>
 
       <section id="level-schedule-card" class="level-schedule-card" hidden aria-labelledby="level-schedule-title">
-        <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
-          ← العودة إلى الصفحة الرئيسية
-        </button>
         <div class="level-schedule-heading">
           <div>
             <span class="level-schedule-kicker">دليل المستوى الدراسي</span>
@@ -2229,7 +1653,6 @@
                   <strong>—</strong>
                 </div>
               </div>
-              <button id="mobile-upgrade-cta" class="mobile-upgrade-cta" type="button" onclick="openMobileUpgradeView()">⚡ ترقية حسابي (الاشتراك والدفع)</button>
             </div>
           </article>
         </div>
@@ -2241,9 +1664,6 @@
           <article class="parent-kpi-card"><span class="parent-kpi-icon">★</span><div><small>التقييم العام</small><strong id="parent-kpi-rating">في انتظار التقييم</strong><em>لا يوجد تقييم مسجل بعد</em></div></article>
         </section>
         <section id="student-homework-card" class="student-homework-card parent-feedback-card" aria-labelledby="student-homework-title">
-          <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
-            ← العودة إلى الصفحة الرئيسية
-          </button>
           <button id="student-homework-toggle" class="student-homework-toggle" type="button" aria-expanded="false" aria-controls="student-homework-content">
             <span class="student-homework-toggle-copy"><span>النشاط الدراسي</span><strong id="student-homework-title">الواجبات المدرسية والحلول</strong><small>اضغط لعرض الواجبات المطلوبة ورفع الحلول</small></span>
             <span id="student-homework-toggle-icon" class="student-homework-toggle-icon" aria-hidden="true">⌄</span>
@@ -2254,9 +1674,6 @@
         </section>
 
         <section id="student-certificates-card" class="student-certificates-card parent-feedback-card" aria-labelledby="student-certificates-title">
-          <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
-            ← العودة إلى الصفحة الرئيسية
-          </button>
           <button id="student-certificates-toggle" class="student-certificates-toggle" type="button" aria-expanded="false" aria-controls="student-certificates-content">
             <span class="student-certificates-toggle-copy"><span>عامل تحفيزي</span><strong id="student-certificates-title">إنجازات التلميذ وشهاداته</strong><small>اضغط لعرض الشهادات التي حصل عليها التلميذ</small></span>
             <span id="student-certificates-toggle-icon" class="student-certificates-toggle-icon" aria-hidden="true">⌄</span>
@@ -2267,9 +1684,6 @@
           </div>
         </section>
         <section id="lesson-repository-card" class="lesson-repository-card" aria-labelledby="lesson-repository-parent-title">
-          <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
-            ← العودة إلى الصفحة الرئيسية
-          </button>
           <header class="lesson-repository-head">
             <button id="lesson-repository-toggle" class="lesson-repository-toggle" type="button" aria-expanded="false" aria-controls="lesson-repository-controls">
               <span class="lesson-repository-toggle-copy">
@@ -2287,9 +1701,6 @@
         </section>
 
         <section id="class-registry-student" class="class-registry-student" aria-labelledby="class-registry-student-title">
-          <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
-            ← العودة إلى الصفحة الرئيسية
-          </button>
           <button id="class-registry-toggle" class="class-registry-toggle" type="button" aria-expanded="false" aria-controls="class-registry-controls">
             <span class="class-registry-toggle-copy"><span>متابعة الحصص</span><strong id="class-registry-student-title">سجل الحصص والدروس المسجلة</strong><small>اضغط لعرض الفصول والأشهر والمواد والحصص</small></span>
             <span id="class-registry-toggle-icon" class="class-registry-toggle-icon" aria-hidden="true">⌄</span>
@@ -2366,9 +1777,6 @@
         </section>
 
         <section id="referral-earnings" class="referral-earnings-card" aria-labelledby="referral-earnings-title">
-          <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
-            ← العودة إلى الصفحة الرئيسية
-          </button>
           <header class="referral-earnings-header">
             <div>
               <span class="referral-earnings-kicker">برنامج الإحالة</span>
@@ -2519,113 +1927,5 @@
     <script src="./js/browser-notifications.js?v=session-takeover-1"></script>
     <script src="./js/class-registry-parent.js?v=panel-scroll-1"></script>
   <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
-  <script>
-    function openMobileRegistryView() {
-      // 1. Close the sidebar drawer
-      const sidebar = document.getElementById('parent-sidebar');
-      const backdrop = document.getElementById('parent-sidebar-backdrop');
-      if (sidebar) sidebar.classList.remove('is-open');
-      if (backdrop) backdrop.setAttribute('hidden', '');
-
-      // 2. Activate dedicated registry view
-      document.body.classList.remove('mobile-upgrade-active');
-      document.body.classList.add('mobile-registry-active');
-
-      // 3. Show registry section and its inner controls directly
-      const regSec = document.getElementById('class-registry-student');
-      const controls = document.getElementById('class-registry-controls');
-      const toggleBtn = document.getElementById('class-registry-toggle');
-      const backBtn = document.getElementById('mobile-close-registry-btn');
-
-      if (regSec) regSec.removeAttribute('hidden');
-      if (backBtn) backBtn.style.display = 'inline-flex';
-
-      // 4. Ensure contents are expanded automatically (trigger click if hidden to fire any JS data loaders)
-      if (controls && controls.hasAttribute('hidden')) {
-        if (toggleBtn) {
-          toggleBtn.click();
-        } else {
-          controls.removeAttribute('hidden');
-        }
-      }
-
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function openDedicatedMobileView(sectionId) {
-      // 1. Close Sidebar
-      const sidebar = document.getElementById('parent-sidebar');
-      const backdrop = document.getElementById('parent-sidebar-backdrop');
-      if (sidebar) sidebar.classList.remove('is-open');
-      if (backdrop) backdrop.setAttribute('hidden', '');
-
-      // 2. Hide Main Elements
-      document.body.classList.add('in-subview');
-
-      // 3. Hide all potential sub-sections first
-      const sections = [
-        'class-registry-student', 
-        'level-schedule-card', 
-        'student-homework-card', 
-        'lesson-repository-card', 
-        'student-certificates-card', 
-        'secondary-payment-upgrade', 
-        'referral-earnings'
-      ];
-      sections.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          el.style.setProperty('display', 'none', 'important');
-        }
-      });
-
-      // 4. Show Target Section
-      const target = document.getElementById(sectionId);
-      if (target) {
-        target.removeAttribute('hidden');
-        target.style.setProperty('display', 'block', 'important');
-        
-        // Auto-expand any inner collapsible controls inside it
-        const innerControls = target.querySelectorAll('[id$="-controls"], [id$="-content"], [id$="-transfer"]');
-        innerControls.forEach(c => {
-          c.removeAttribute('hidden');
-          c.style.setProperty('display', 'block', 'important');
-        });
-        
-        // Hide internal accordion toggle arrow to keep header static
-        const toggleIcons = target.querySelectorAll('[id$="-toggle-icon"]');
-        toggleIcons.forEach(i => i.style.display = 'none');
-        
-        // Trigger the section's own open logic if it has a toggle button
-        const toggleBtn = target.querySelector('[id$="-toggle"]');
-        if (toggleBtn && toggleBtn.getAttribute('aria-expanded') === 'false') {
-          toggleBtn.click();
-        }
-      }
-
-      // 5. Scroll to top
-      window.scrollTo({ top: 0, behavior: 'instant' });
-    }
-
-    function returnToMobileHome() {
-      document.body.classList.remove('in-subview');
-      const sections = [
-        'class-registry-student', 
-        'level-schedule-card', 
-        'student-homework-card', 
-        'lesson-repository-card', 
-        'student-certificates-card', 
-        'secondary-payment-upgrade', 
-        'referral-earnings'
-      ];
-      sections.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          el.style.display = '';
-        }
-      });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  </script>
 </body>
 </html>
