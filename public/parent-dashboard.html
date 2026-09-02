@@ -1461,6 +1461,67 @@
           border: 1.5px solid #dbeafe !important;
         }
       }
+
+      @media screen and (max-width: 768px) {
+        /* Hide main feed components when in registry mode */
+        body.mobile-registry-active #live-classes-entry-card,
+        body.mobile-registry-active .student-overview,
+        body.mobile-registry-active #secondary-payment-upgrade,
+        body.mobile-registry-active .parent-kpi-grid,
+        body.mobile-registry-active #student-homework-card,
+        body.mobile-registry-active #student-certificates-card,
+        body.mobile-registry-active #lesson-repository-card,
+        body.mobile-registry-active #referral-earnings,
+        body.mobile-registry-active #level-schedule-card {
+          display: none !important;
+        }
+
+        /* Expand registry screen smoothly */
+        body.mobile-registry-active #class-registry-student {
+          display: block !important;
+          margin: 0 !important;
+          padding: 1rem !important;
+          background: #ffffff !important;
+          border-radius: 1.15rem !important;
+          border: 1px solid #dbeafe !important;
+          box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05) !important;
+        }
+
+        /* Force content visibility directly without second click */
+        body.mobile-registry-active #class-registry-controls {
+          display: block !important;
+          padding-top: 0.8rem !important;
+        }
+
+        /* Turn toggle button into a static section title */
+        body.mobile-registry-active .class-registry-toggle {
+          cursor: default !important;
+          pointer-events: none !important;
+          padding: 0 !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          padding-bottom: 0.75rem !important;
+        }
+
+        body.mobile-registry-active #class-registry-toggle-icon {
+          display: none !important;
+        }
+
+        /* Back Button styling */
+        .mobile-close-view-btn {
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 0.4rem !important;
+          margin-bottom: 0.8rem !important;
+          background: #eff6ff !important;
+          color: #1d4ed8 !important;
+          border: 1px solid #bfdbfe !important;
+          border-radius: 0.65rem !important;
+          padding: 0.5rem 0.85rem !important;
+          font-size: 0.82rem !important;
+          font-weight: 800 !important;
+          cursor: pointer !important;
+        }
+      }
     </style>
     <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=receipt-decision-2" />
     <link rel="stylesheet" href="./css/live-classes-entry.css?v=live-entry-1" />
@@ -1711,7 +1772,7 @@
 
         <!-- 2. المحتوى والنشاط الأكاديمي -->
         <a class="parent-nav-link" href="#student-homework-card"><span aria-hidden="true">📝</span>النشاط الدراسي والواجبات</a>
-        <a class="parent-nav-link" href="#class-registry-student"><span aria-hidden="true">📚</span>سجل الحصص والدروس المسجلة</a>
+        <a class="parent-nav-link" href="javascript:void(0)" onclick="openMobileRegistryView()"><span aria-hidden="true">📚</span>سجل الحصص والدروس المسجلة</a>
         <a class="parent-nav-link" href="#lesson-repository-card"><span aria-hidden="true">🎥</span>فيديوهات مكملة ودعم</a>
         <a class="parent-nav-link" href="#student-certificates-card"><span aria-hidden="true">🏆</span>إنجازات التلميذ وشهاداته</a>
 
@@ -1984,6 +2045,9 @@
         </section>
 
         <section id="class-registry-student" class="class-registry-student" aria-labelledby="class-registry-student-title">
+          <button id="mobile-close-registry-btn" type="button" class="mobile-close-view-btn" onclick="closeMobileRegistryView()" style="display:none;">
+            ← العودة إلى لوحة المتابعة
+          </button>
           <button id="class-registry-toggle" class="class-registry-toggle" type="button" aria-expanded="false" aria-controls="class-registry-controls">
             <span class="class-registry-toggle-copy"><span>متابعة الحصص</span><strong id="class-registry-student-title">سجل الحصص والدروس المسجلة</strong><small>اضغط لعرض الفصول والأشهر والمواد والحصص</small></span>
             <span id="class-registry-toggle-icon" class="class-registry-toggle-icon" aria-hidden="true">⌄</span>
@@ -2210,5 +2274,45 @@
     <script src="./js/browser-notifications.js?v=session-takeover-1"></script>
     <script src="./js/class-registry-parent.js?v=panel-scroll-1"></script>
   <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
+  <script>
+    function openMobileRegistryView() {
+      // 1. Close the sidebar drawer
+      const sidebar = document.getElementById('parent-sidebar');
+      const backdrop = document.getElementById('parent-sidebar-backdrop');
+      if (sidebar) sidebar.classList.remove('is-open');
+      if (backdrop) backdrop.setAttribute('hidden', '');
+
+      // 2. Activate dedicated registry view
+      document.body.classList.remove('mobile-upgrade-active');
+      document.body.classList.add('mobile-registry-active');
+
+      // 3. Show registry section and its inner controls directly
+      const regSec = document.getElementById('class-registry-student');
+      const controls = document.getElementById('class-registry-controls');
+      const toggleBtn = document.getElementById('class-registry-toggle');
+      const backBtn = document.getElementById('mobile-close-registry-btn');
+
+      if (regSec) regSec.removeAttribute('hidden');
+      if (backBtn) backBtn.style.display = 'inline-flex';
+
+      // 4. Ensure contents are expanded automatically (trigger click if hidden to fire any JS data loaders)
+      if (controls && controls.hasAttribute('hidden')) {
+        if (toggleBtn) {
+          toggleBtn.click();
+        } else {
+          controls.removeAttribute('hidden');
+        }
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function closeMobileRegistryView() {
+      document.body.classList.remove('mobile-registry-active');
+      const backBtn = document.getElementById('mobile-close-registry-btn');
+      if (backBtn) backBtn.style.display = 'none';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
 </body>
 </html>
