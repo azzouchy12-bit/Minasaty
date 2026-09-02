@@ -1430,6 +1430,239 @@
     </style>
     <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=receipt-decision-2" />
     <link rel="stylesheet" href="./css/live-classes-entry.css?v=live-entry-1" />
+    <!-- ================================================================= -->
+    <!-- MINASATY BESPOKE HANDCRAFTED MOBILE DASHBOARD (SCREENS <= 768px)  -->
+    <!-- ================================================================= -->
+    <style>
+      @media screen and (max-width: 768px) {
+        /* 1. إصلاح الترويسة العلوية ومنع تسرب ونفاذ البطاقات خلفها */
+        .parent-header {
+          position: sticky !important;
+          top: 0 !important;
+          z-index: 1100 !important;
+          background: #ffffff !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05) !important;
+        }
+
+        .parent-header-content {
+          min-height: 4rem !important;
+          padding: 0.5rem 1rem !important;
+          width: 100% !important;
+        }
+
+        .parent-brand-copy strong {
+          color: #0f172a !important;
+        }
+
+        .parent-brand-copy small {
+          color: #64748b !important;
+        }
+
+        .parent-menu-toggle {
+          display: grid !important;
+          place-items: center !important;
+          width: 2.5rem !important;
+          height: 2.5rem !important;
+          background: #f1f5f9 !important;
+          color: #1e3a8a !important;
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 0.7rem !important;
+          font-size: 1.2rem !important;
+        }
+
+        .logout-button {
+          color: #dc2626 !important;
+          background: #fef2f2 !important;
+          border: 1px solid #fecaca !important;
+        }
+
+        /* 2. تحويل بطاقة الحصة المباشرة إلى تحفة بصرية أصلية */
+        #live-classes-entry-card.live-classes-entry-card {
+          background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
+          border-radius: 1.15rem !important;
+          border: none !important;
+          padding: 1.1rem !important;
+          color: #ffffff !important;
+          box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.35) !important;
+          margin-bottom: 1rem !important;
+        }
+
+        .live-classes-entry-head h2,
+        .live-classes-entry-head p,
+        .live-classes-entry-kicker {
+          color: #ffffff !important;
+        }
+
+        .live-classes-entry-button {
+          background: #ffffff !important;
+          color: #1e3a8a !important;
+          border: none !important;
+          font-weight: 800 !important;
+          border-radius: 0.75rem !important;
+          width: 100% !important;
+          min-height: 3rem !important;
+          margin-top: 0.8rem !important;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12) !important;
+          font-size: 0.9rem !important;
+          cursor: pointer !important;
+        }
+
+        /* 3. تنظيف بطاقة التلميذ وإلغاء الصناديق المتداخلة */
+        .student-overview .overview-card.student-card {
+          border-radius: 1.15rem !important;
+          border: 1px solid #e2e8f0 !important;
+          padding: 1rem !important;
+          background: #ffffff !important;
+          box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04) !important;
+        }
+
+        .unified-subscription-summary {
+          display: grid !important;
+          grid-template-columns: repeat(2, 1fr) !important;
+          gap: 0.5rem !important;
+          margin-top: 0.8rem !important;
+        }
+
+        .unified-subscription-item {
+          background: #f8fafc !important;
+          border: 1px solid #e2e8f0 !important;
+          border-radius: 0.65rem !important;
+          padding: 0.5rem 0.65rem !important;
+        }
+
+        /* 4. تحويل العدادات الـ 5 المكدسة إلى شبكة مدمجة 2x2 */
+        .parent-kpi-grid.activity-kpi-grid {
+          display: grid !important;
+          grid-template-columns: repeat(2, 1fr) !important;
+          gap: 0.65rem !important;
+          margin: 1rem 0 !important;
+        }
+
+        .parent-kpi-card {
+          display: flex !important;
+          align-items: center !important;
+          gap: 0.6rem !important;
+          padding: 0.75rem !important;
+          background: #ffffff !important;
+          border: 1px solid #e2e8f0 !important;
+          border-radius: 0.85rem !important;
+          box-shadow: 0 2px 6px rgba(15, 23, 42, 0.02) !important;
+        }
+
+        .parent-kpi-card:last-child {
+          grid-column: span 2 !important;
+        }
+
+        .parent-kpi-icon {
+          display: grid !important;
+          place-items: center !important;
+          width: 2.2rem !important;
+          height: 2.2rem !important;
+          flex: 0 0 auto !important;
+          background: #eff6ff !important;
+          color: #2563eb !important;
+          border-radius: 0.6rem !important;
+          font-size: 1rem !important;
+        }
+
+        .parent-kpi-card strong {
+          display: block !important;
+          font-size: 1.1rem !important;
+          color: #0f172a !important;
+        }
+
+        .parent-kpi-card small {
+          font-size: 0.7rem !important;
+          color: #64748b !important;
+        }
+
+        /* 5. دمج وتنسيق بيانات التحويل البريدي (CCP & BaridiMob) */
+        .parent-payment-details {
+          display: grid !important;
+          grid-template-columns: 1fr !important;
+          gap: 0.4rem !important;
+          background: #f8fafc !important;
+          border: 1px solid #e2e8f0 !important;
+          border-radius: 0.85rem !important;
+          padding: 0.75rem !important;
+        }
+
+        .parent-payment-details div {
+          display: flex !important;
+          justify-content: space-between !important;
+          align-items: center !important;
+          padding: 0.45rem 0.5rem !important;
+          background: transparent !important;
+          border: none !important;
+          border-bottom: 1px dashed #cbd5e1 !important;
+        }
+
+        .parent-payment-details div:last-child {
+          border-bottom: none !important;
+        }
+
+        /* 6. صقل القوائم المنسدلة وسجل الدروس */
+        .parent-feedback-card,
+        .lesson-repository-card,
+        .class-registry-student {
+          border: 1px solid #e2e8f0 !important;
+          border-radius: 0.95rem !important;
+          background: #ffffff !important;
+          margin-bottom: 0.75rem !important;
+          box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03) !important;
+        }
+
+        .student-homework-toggle,
+        .student-certificates-toggle,
+        .lesson-repository-toggle,
+        .class-registry-toggle {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          width: 100% !important;
+          padding: 0.85rem 1rem !important;
+          background: transparent !important;
+          border: 0 !important;
+          cursor: pointer !important;
+        }
+
+        .student-homework-toggle-icon,
+        .student-certificates-toggle-icon,
+        .lesson-repository-toggle-icon,
+        .class-registry-toggle-icon {
+          display: grid !important;
+          place-items: center !important;
+          width: 2rem !important;
+          height: 2rem !important;
+          background: #f1f5f9 !important;
+          border-radius: 0.5rem !important;
+          color: #475569 !important;
+          font-size: 1rem !important;
+          margin-right: auto !important;
+        }
+
+        /* 7. تنظيم قسم برنامج الإحالة */
+        .referral-stats-grid {
+          display: grid !important;
+          grid-template-columns: repeat(3, 1fr) !important;
+          gap: 0.5rem !important;
+        }
+
+        .referral-stat-card {
+          padding: 0.65rem 0.4rem !important;
+          text-align: center !important;
+          border-radius: 0.75rem !important;
+          background: #f8fafc !important;
+          border: 1px solid #e2e8f0 !important;
+        }
+
+        .referral-stat-card strong {
+          font-size: 0.95rem !important;
+          color: #059669 !important;
+        }
+      }
+    </style>
 </head>
   <body class="parent-dashboard-page">
     <div id="parent-sidebar-backdrop" class="parent-sidebar-backdrop" hidden></div>
