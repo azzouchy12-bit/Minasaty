@@ -1567,14 +1567,14 @@
           background: #ffffff !important;
           border-bottom: 1px solid #e2e8f0 !important;
           box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05) !important;
-          min-height: 2.7rem !important;
-          height: 2.7rem !important;
+          min-height: 2.6rem !important;
+          height: 2.6rem !important;
           padding: 0.2rem 0.6rem !important;
         }
 
         .parent-header-content {
-          min-height: 2.7rem !important;
-          height: 2.7rem !important;
+          min-height: 2.6rem !important;
+          height: 2.6rem !important;
           padding: 0.5rem 1rem !important;
           width: 100% !important;
         }
@@ -1612,12 +1612,11 @@
         }
 
         .logout-button {
-          color: #dc2626 !important;
-          background: #fef2f2 !important;
-          border: 1px solid #fecaca !important;
-          min-height: 1.9rem !important;
-          padding: 0.2rem 0.5rem !important;
-          font-size: 0.68rem !important;
+          display: none !important;
+        }
+
+        .parent-header-actions {
+          display: none !important;
         }
 
         /* 2. تحويل بطاقة الحصة المباشرة إلى تحفة بصرية أصلية */
@@ -1806,30 +1805,40 @@
         }
 
         /* 8. Minimalist Mobile Home Feed: hide clutter by default */
-        body:not(.mobile-registry-active):not(.mobile-upgrade-active) .parent-kpi-grid,
-        body:not(.mobile-registry-active):not(.mobile-upgrade-active) #student-homework-card,
-        body:not(.mobile-registry-active):not(.mobile-upgrade-active) #student-certificates-card,
-        body:not(.mobile-registry-active):not(.mobile-upgrade-active) #lesson-repository-card,
-        body:not(.mobile-registry-active):not(.mobile-upgrade-active) #class-registry-student,
-        body:not(.mobile-registry-active):not(.mobile-upgrade-active) #referral-earnings,
-        body:not(.mobile-registry-active):not(.mobile-upgrade-active) #level-schedule-card {
+        body:not(.in-subview) .parent-kpi-grid,
+        body:not(.in-subview) #student-homework-card,
+        body:not(.in-subview) #student-certificates-card,
+        body:not(.in-subview) #lesson-repository-card,
+        body:not(.in-subview) #class-registry-student,
+        body:not(.in-subview) #referral-earnings,
+        body:not(.in-subview) #level-schedule-card,
+        body:not(.in-subview) #secondary-payment-upgrade {
           display: none !important;
         }
 
-        /* 9. Dedicated Full-Screen Upgrade & Payment View */
-        body.mobile-upgrade-active #live-classes-entry-card,
-        body.mobile-upgrade-active .student-overview,
-        body.mobile-upgrade-active .parent-kpi-grid,
-        body.mobile-upgrade-active #student-homework-card,
-        body.mobile-upgrade-active #student-certificates-card,
-        body.mobile-upgrade-active #lesson-repository-card,
-        body.mobile-upgrade-active #class-registry-student,
-        body.mobile-upgrade-active #referral-earnings,
-        body.mobile-upgrade-active #level-schedule-card {
+        /* 9. Dedicated Full-Screen Sub-View Architecture */
+        body.in-subview .parent-header,
+        body.in-subview #live-classes-entry-card,
+        body.in-subview .student-overview,
+        body.in-subview .dashboard-welcome,
+        body.in-subview .parent-kpi-grid,
+        body.in-subview #student-homework-card,
+        body.in-subview #student-certificates-card,
+        body.in-subview #lesson-repository-card,
+        body.in-subview #class-registry-student,
+        body.in-subview #referral-earnings,
+        body.in-subview #level-schedule-card,
+        body.in-subview #secondary-payment-upgrade {
           display: none !important;
         }
 
-        body.mobile-upgrade-active #secondary-payment-upgrade {
+        body.in-subview #class-registry-student,
+        body.in-subview #level-schedule-card,
+        body.in-subview #student-homework-card,
+        body.in-subview #lesson-repository-card,
+        body.in-subview #student-certificates-card,
+        body.in-subview #secondary-payment-upgrade,
+        body.in-subview #referral-earnings {
           display: block !important;
           margin: 0 !important;
           padding: 1rem !important;
@@ -1839,17 +1848,39 @@
           box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05) !important;
         }
 
-        body.mobile-upgrade-active #secondary-payment-transfer {
+        body.in-subview #class-registry-controls,
+        body.in-subview #student-homework-content,
+        body.in-subview #student-certificates-content,
+        body.in-subview #lesson-repository-controls,
+        body.in-subview #secondary-payment-transfer {
           display: block !important;
         }
 
-        body.mobile-upgrade-active .parent-payment-details {
+        body.in-subview .class-registry-toggle,
+        body.in-subview .student-homework-toggle,
+        body.in-subview .student-certificates-toggle,
+        body.in-subview .lesson-repository-toggle {
+          cursor: default !important;
+          pointer-events: none !important;
+          padding: 0 !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          padding-bottom: 0.75rem !important;
+        }
+
+        body.in-subview .class-registry-toggle-icon,
+        body.in-subview .student-homework-toggle-icon,
+        body.in-subview .student-certificates-toggle-icon,
+        body.in-subview .lesson-repository-toggle-icon {
+          display: none !important;
+        }
+
+        body.in-subview .parent-payment-details {
           display: grid !important;
           grid-template-columns: 1fr !important;
           gap: 0.4rem !important;
         }
 
-        body.mobile-upgrade-active .parent-payment-details div {
+        body.in-subview .parent-payment-details div {
           display: flex !important;
           justify-content: space-between !important;
           align-items: center !important;
@@ -1859,19 +1890,19 @@
           border-bottom: 1px dashed #cbd5e1 !important;
         }
 
-        body.mobile-upgrade-active .parent-payment-details div:last-child {
+        body.in-subview .parent-payment-details div:last-child {
           border-bottom: none !important;
         }
 
-        body.mobile-upgrade-active .unified-subscription-summary {
+        body.in-subview .unified-subscription-summary {
           display: grid !important;
           grid-template-columns: 1fr 1fr !important;
           gap: 0.5rem !important;
         }
 
-        body.mobile-upgrade-active .unified-subscription-item strong,
-        body.mobile-upgrade-active #secondary-payment-state strong,
-        body.mobile-upgrade-active #payment-status {
+        body.in-subview .unified-subscription-item strong,
+        body.in-subview #secondary-payment-state strong,
+        body.in-subview #payment-status {
           white-space: normal !important;
           word-break: break-word !important;
           line-height: 1.4 !important;
@@ -1932,15 +1963,6 @@
           font-size: 0.82rem !important;
           font-weight: 800 !important;
           cursor: pointer !important;
-        }
-
-        /* In Sub-View: Hide header and main cards entirely */
-        body.in-subview .parent-header,
-        body.in-subview #live-classes-entry-card,
-        body.in-subview .student-overview,
-        body.in-subview .dashboard-welcome,
-        body.in-subview .parent-kpi-grid {
-          display: none !important;
         }
 
         /* Back Button Style */
