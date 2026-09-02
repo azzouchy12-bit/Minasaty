@@ -2595,6 +2595,12 @@
         // Hide internal accordion toggle arrow to keep header static
         const toggleIcons = target.querySelectorAll('[id$="-toggle-icon"]');
         toggleIcons.forEach(i => i.style.display = 'none');
+        
+        // Trigger the section's own open logic if it has a toggle button
+        const toggleBtn = target.querySelector('[id$="-toggle"]');
+        if (toggleBtn && toggleBtn.getAttribute('aria-expanded') === 'false') {
+          toggleBtn.click();
+        }
       }
 
       // 5. Scroll to top
