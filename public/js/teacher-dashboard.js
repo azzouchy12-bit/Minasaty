@@ -165,6 +165,12 @@ const elements = {
   teacherAbsenceStatus: document.getElementById("teacher-absence-status"),
   globalAbsenceButton: document.getElementById("teacher-global-absence-btn"),
   globalAbsenceStatus: document.getElementById("teacher-global-absence-status"),
+  onlineUsersButton: document.getElementById("online-users-button"),
+  onlineUsersCount: document.getElementById("online-users-count"),
+  onlineUsersModal: document.getElementById("online-users-modal"),
+  onlineUsersModalClose: document.getElementById("online-users-modal-close"),
+  onlineUsersSummary: document.getElementById("online-users-summary"),
+  onlineUsersList: document.getElementById("online-users-list"),
   lessonVideoForm: document.getElementById("lesson-video-form"),
   lessonVideoType: document.getElementById("lesson-video-type"),
   lessonVideoTypeHelp: document.getElementById("lesson-video-type-help"),
@@ -3608,6 +3614,88 @@ function startForgotPinPolling() {
   }, 15_000);
 }
 
+function renderOnlineUsers(users = []) {
+  const onlineUsers = Array.isArray(users) ? users : [];
+  if (elements.onlineUsersCount) elements.onlineUsersCount.textContent = String(onlineUsers.length);
+  if (elements.onlineUsersSummary) elements.onlineUsersSummary.textContent = `${onlineUsers.length} مستخدم متصل حاليًا`;
+  if (!elements.onlineUsersList) return;
+  elements.onlineUsersList.replaceChildren();
+  if (!onlineUsers.length) {
+    const empty = document.createElement("p");
+    empty.className = "online-users-empty";
+    empty.textContent = "لا يوجد مستخدمون متصلون حاليًا.";
+    elements.onlineUsersList.append(empty);
+    return;
+  }
+  onlineUsers.forEach((user) => {
+    const item = document.createElement("article");
+    item.className = "online-user-item";
+    const isStudent = user.role === "student";
+    const name = document.createElement(isStudent ? "a" : "strong");
+    name.textContent = user.name || "مستخدم";
+    if (isStudent) {
+      name.href = "#";
+      name.className = "online-user-link";
+      name.title = "فتح المحادثة";
+      name.addEventListener("click", async (event) => {
+        event.preventDefault();
+        const studentId = user.studentId || currentStudents.find((student) => student.studentName === user.name && (!user.level || student.level === user.level))?.id;
+        if (studentId) {
+          window.location.assign(`./teacher-chat.html?studentId=${encodeURIComponent(studentId)}`);
+          return;
+        }
+        if (!user.level) return;
+        try {
+          const response = await teacherFetch(`/api/students/level/${encodeURIComponent(user.level)}?page=1&limit=100`, { headers: { Accept: "application/json" } });
+          const payload = await response.json().catch(() => ({}));
+          const students = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+          const matchedStudent = students.find((student) => student.studentName === user.name);
+          if (matchedStudent?.id) window.location.assign(`./teacher-chat.html?studentId=${encodeURIComponent(matchedStudent.id)}`);
+        } catch (error) {
+          console.warn("Unable to resolve online student chat:", error?.message || error);
+        }
+      });
+    }
+    const meta = document.createElement("span");
+    const roleLabels = { student: "طالب", teacher: "أستاذ", admin: "إدارة" };
+    meta.textContent = `${roleLabels[user.role] || "مستخدم"}${user.level ? ` · ${user.level}` : ""}`;
+    item.append(name, meta);
+    elements.onlineUsersList.append(item);
+  });
+}
+
+function initializeOnlineUsers() {
+  if (!elements.onlineUsersButton || typeof window.io !== "function") return;
+  const token = getTeacherToken();
+  if (!token) return;
+  const onlineSocket = window.io({ auth: { token }, transports: ["websocket", "polling"] });
+  const openOnlineUsers = () => {
+    elements.onlineUsersModal.hidden = false;
+    elements.onlineUsersButton.setAttribute("aria-expanded", "true");
+  };
+  const closeOnlineUsers = () => {
+    elements.onlineUsersModal.hidden = true;
+    elements.onlineUsersButton.setAttribute("aria-expanded", "false");
+  };
+  elements.onlineUsersButton.addEventListener("click", openOnlineUsers);
+  elements.onlineUsersModalClose?.addEventListener("click", closeOnlineUsers);
+  elements.onlineUsersModal.addEventListener("click", (event) => {
+    if (event.target === elements.onlineUsersModal) closeOnlineUsers();
+  });
+  onlineSocket.on("online_users_updated", (payload = {}) => renderOnlineUsers(payload.users));
+  onlineSocket.on("connect", () => {
+    onlineSocket.emit("register_online_presence", { token }, (result = {}) => {
+      if (result.ok) renderOnlineUsers(result.users);
+    });
+  });
+  onlineSocket.on("connect_error", () => {
+    if (elements.onlineUsersSummary) elements.onlineUsersSummary.textContent = "تعذر تحديث قائمة المتصلين حاليًا.";
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !elements.onlineUsersModal.hidden) closeOnlineUsers();
+  });
+}
+
 function initializeDashboardTabs() {
   document.querySelectorAll(".teacher-tab-button[data-dashboard-tab]").forEach((button) => {
     button.addEventListener("click", () => setDashboardTab(button.dataset.dashboardTab));
@@ -4025,6 +4113,7 @@ if (!getTeacherToken()) {
   elements.jumpToRosterButton?.addEventListener("click", jumpToRoster);
 
   initializeDashboardTabs();
+  initializeOnlineUsers();
   initializeTeacherNotifications();
   updateDashboardDate();
   renderGlobalTeacherAbsence();

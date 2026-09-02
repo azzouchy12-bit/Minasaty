@@ -27,6 +27,7 @@ const { ensurePublicArchive, recordPublicAttendance, finishPublicArchive, append
 const { verifySessionToken, setSessionTakeoverNotifier } = require("./utils/sessionAuth");
 const { sendPushToSession } = require("./utils/push");
 const { sendTelegramNotification, configureTelegramWebhook } = require("./services/telegramService");
+const { sendVerifiedParentEmail } = require("./services/parentEmailEvents");
 const { createSocketNotificationSender, notificationRoom, notificationSessionRoom } = require("./utils/socketNotifications");
 const siteAnalyticsRoutes = require("./routes/siteAnalyticsRoutes");
 const referralRoutes = require("./routes/referralRoutes");
@@ -418,6 +419,21 @@ const TEACHER_RECOVERY_GRACE_MS = 180_000;
  * Value shape: { role: "teacher" | "student", level: string, name: string }
  */
 const users = new Map();
+const onlinePresenceUsers = new Map();
+
+function onlinePresenceSnapshot() {
+  const uniqueUsers = new Map();
+  onlinePresenceUsers.forEach((user) => {
+    const key = `${user.sessionId || user.socketId}:${user.role}:${user.name}:${user.level || ""}`;
+    if (!uniqueUsers.has(key)) uniqueUsers.set(key, user);
+  });
+  return Array.from(uniqueUsers.values()).map(({ socketId, sessionId, ...user }) => user);
+}
+
+function broadcastOnlinePresence() {
+  const users = onlinePresenceSnapshot();
+  io.to("online_presence_viewers").emit("online_users_updated", { count: users.length, users });
+}
 // Independent public invite rooms. They have no student registration, level,
 // payment, or subject information and exist only while the host is connected.
 const publicInviteRooms = new Map();
@@ -821,6 +837,45 @@ async function getClassParticipation(studentId, sessionKey) {
   }
 }
 
+async function sendAttendanceEmail({ student, subject, status, when }) {
+  const baseUrl = String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "");
+  const className = subject || "الحصة المباشرة";
+  return sendVerifiedParentEmail({
+    parentPhone: student.parentPhone,
+    subject: `تحديث حضور التلميذ ${student.studentName || "التلميذ"}`,
+    text: `التلميذ: ${student.studentName || "التلميذ"}\nالحصة: ${className}\nالتاريخ: ${when}\nالحالة: ${status}\nالدخول إلى المنصة: ${baseUrl}/parent-dashboard.html`,
+    html: `<p><strong>التلميذ:</strong> ${student.studentName || "التلميذ"}</p><p><strong>الحصة:</strong> ${className}</p><p><strong>التاريخ:</strong> ${when}</p><p><strong>حالة الحضور:</strong> ${status}</p><p><a href="${baseUrl}/parent-dashboard.html">الدخول إلى المنصة</a></p>`,
+  });
+}
+
+async function sendAbsentStudentEmails({ level, subject, sessionKey }) {
+  if (!sessionKey || !isValidRecoveryToken(sessionKey) || level === GLOBAL_FREE_LEVEL) return;
+  const [students, attendances] = await Promise.all([
+    prisma.student.findMany({ where: { level }, select: { studentName: true, parentPhone: true, id: true } }),
+    prisma.attendance.findMany({ where: { sessionKey }, select: { studentId: true } }),
+  ]);
+  const attended = new Set(attendances.map((attendance) => attendance.studentId));
+  const when = new Date().toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" });
+  await Promise.allSettled(students.filter((student) => !attended.has(student.id)).map((student) => sendAttendanceEmail({
+    student,
+    subject,
+    status: "غاب التلميذ عن الحصة",
+    when,
+  }).catch((error) => console.warn("Absence email failed:", error.message))));
+}
+
+async function sendLiveClassStartEmails({ level, subject, startedAt }) {
+  const students = await prisma.student.findMany({ where: { level }, select: { studentName: true, parentPhone: true } });
+  const baseUrl = String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "");
+  const when = new Date(startedAt).toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" });
+  await Promise.allSettled(students.map((student) => sendVerifiedParentEmail({
+    parentPhone: student.parentPhone,
+    subject: `بدأت الحصة المباشرة: ${subject || "الحصة"}`,
+    text: `الحصة: ${subject || "الحصة المباشرة"}\nالوقت: ${when}\nالأستاذ: ${process.env.TEACHER_NAME || "الأستاذ"}\nالدخول إلى الحصة: ${baseUrl}/parent-dashboard.html`,
+    html: `<p><strong>الحصة:</strong> ${subject || "الحصة المباشرة"}</p><p><strong>الوقت:</strong> ${when}</p><p><strong>الأستاذ:</strong> ${process.env.TEACHER_NAME || "الأستاذ"}</p><p><a href="${baseUrl}/parent-dashboard.html">الدخول إلى الحصة</a></p>`,
+  }).catch((error) => console.warn("Live class email failed:", error.message))));
+}
+
 async function recordClassParticipation({ studentId, level, subject, sessionKey }) {
   if (!isValidStudentId(studentId) || !isValidLevel(level) || !isValidActiveClassType(level, subject) || !isValidRecoveryToken(sessionKey)) return null;
   try {
@@ -846,6 +901,9 @@ function isValidRecoveryToken(value) {
  */
 async function closeClassroom(level, reason) {
   const participants = await io.in(level).fetchSockets();
+  const classSubject = activeSubjectByLevel.get(level) || null;
+  const teacherParticipant = participants.find((participant) => participant.data.role === "teacher");
+  void sendAbsentStudentEmails({ level, subject: classSubject, sessionKey: teacherParticipant?.data?.classResumeToken }).catch((error) => console.warn("Absence email job failed:", error.message));
 
   // Revoke authority first so no signaling event can be accepted while the
   // room is being cleaned up asynchronously.
@@ -894,6 +952,34 @@ io.on("connection", (socket) => {
   socket.data.notificationRole = null;
   socket.data.notificationRecipientId = null;
   socket.data.notificationSessionId = null;
+  socket.data.onlinePresenceSessionId = null;
+
+  socket.on("register_online_presence", async (data = {}, acknowledgement) => {
+    try {
+      const token = typeof data.token === "string" ? data.token.trim() : "";
+      if (!token) throw new Error("AUTH_REQUIRED");
+      const user = await verifySessionToken(token);
+      const role = String(user?.role || "").toLowerCase();
+      if (!role || !["teacher", "admin", "parent"].includes(role)) throw new Error("FORBIDDEN");
+      const sessionId = String(user.sessionId || socket.id).trim();
+      let profiles = [];
+      if (role === "parent") {
+        const students = await prisma.student.findMany({ where: { parentPhone: String(user.phone || "") }, select: { id: true, studentName: true, level: true } });
+        profiles = students.map((student) => ({ name: student.studentName, role: "student", level: student.level, studentId: student.id, sessionId }));
+      } else {
+        profiles = [{ name: role === "admin" ? (user.name || "الإدارة") : (process.env.TEACHER_NAME || "الأستاذ"), role, level: null, sessionId }];
+      }
+      onlinePresenceUsers.forEach((_profile, key) => { if (key.startsWith(`${socket.id}:`)) onlinePresenceUsers.delete(key); });
+      profiles.forEach((profile) => onlinePresenceUsers.set(`${socket.id}:${profile.name}`, { ...profile, socketId: socket.id }));
+      socket.data.onlinePresenceSessionId = sessionId;
+      if (role === "teacher" || role === "admin") await socket.join("online_presence_viewers");
+      const snapshot = onlinePresenceSnapshot();
+      acknowledgement?.({ ok: true, count: snapshot.length, users: snapshot });
+      broadcastOnlinePresence();
+    } catch (error) {
+      acknowledgement?.({ ok: false, error: "لا تملك صلاحية الاطلاع على المتصلين الآن." });
+    }
+  });
 
   socket.on("register_notification_socket", async (data = {}, acknowledgement) => {
     try {
@@ -1421,6 +1507,9 @@ io.on("connection", (socket) => {
         globalFree: isGlobalFreeClass,
         startedAt: new Date().toISOString(),
       };
+      if (!isResuming) {
+        void sendLiveClassStartEmails(liveClassPayload).catch((error) => console.warn("Live class start email job failed:", error.message));
+      }
 
       if (isResuming) {
         io.to(level).emit("teacher_reconnected", { level, subject, globalFree: isGlobalFreeClass });
@@ -1480,6 +1569,7 @@ io.on("connection", (socket) => {
         select: {
           id: true,
           studentName: true,
+          parentPhone: true,
           level: true,
           liveAccessEnabled: true,
           paymentStatus: true,
@@ -1620,6 +1710,12 @@ io.on("connection", (socket) => {
           data: { studentId: student.id, level: student.level, sessionKey },
         });
         socket.data.attendanceId = attendance.id;
+        void sendAttendanceEmail({
+          student,
+          subject: activeSubjectByLevel.get(classroomLevel),
+          status: "حضر التلميذ الحصة",
+          when: new Date().toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" }),
+        }).catch((error) => console.warn("Attendance email failed:", error.message));
       }
       socket.data.joinedAt = Date.now();
 
@@ -2396,6 +2492,11 @@ io.on("connection", (socket) => {
 
     const user = users.get(socket.id);
     users.delete(socket.id);
+    const hadOnlinePresence = Array.from(onlinePresenceUsers.keys()).some((key) => key.startsWith(`${socket.id}:`));
+    if (hadOnlinePresence) {
+      onlinePresenceUsers.forEach((_profile, key) => { if (key.startsWith(`${socket.id}:`)) onlinePresenceUsers.delete(key); });
+      broadcastOnlinePresence();
+    }
     console.info(`[Socket.io] Client disconnected: ${socket.id} (${reason})`);
 
     if (!user) {

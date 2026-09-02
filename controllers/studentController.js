@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { Prisma } = require("@prisma/client");
 const { normalizeParentPhone } = require("../utils/phone");
+const { normalizeEmail } = require("../utils/email");
 const {
   normalizeParentPin,
   hashParentPin,
@@ -14,8 +15,11 @@ const { removeImageFile } = require("./liveChatController");
 const { logAudit } = require("../utils/audit");
 const { normalizeReferralCode, ensureReferralProfile, awardReferralCommission } = require("../utils/referral");
 const { sendPushToRecipient } = require("../utils/push");
+const { sendParentEmailVerificationCode } = require("./authController");
 const { notificationRoom } = require("../utils/socketNotifications");
 const { notifyTelegram, sendTelegramToParent } = require("../services/telegramService");
+const { sendEmail } = require("../services/emailService");
+const { sendVerifiedParentEmail } = require("../services/parentEmailEvents");
 
 const uploadDirectory =
   process.env.UPLOAD_DIR || path.join(__dirname, "..", "public", "uploads");
@@ -260,7 +264,13 @@ async function registerStudent(req, res) {
     const studentName = normalizeText(req.body?.studentName);
     const parentPhone = normalizeParentPhone(req.body?.parentPhone);
     const parentPin = normalizeParentPin(req.body?.parentPin);
+    const emailInput = String(req.body?.email || "").trim();
+    const email = normalizeEmail(emailInput);
     const level = normalizeText(req.body?.level);
+    if (emailInput && !email) {
+      if (uploadedCardFile?.filename) await removeUploadedCard(uploadedCardFile.filename);
+      return res.status(400).json({ error: "أدخل بريدًا إلكترونيًا صحيحًا." });
+    }
     const referralCode = normalizeReferralCode(req.body?.referralCode);
 
     if (!studentName || !parentPhone || !parentPin || !level) {
@@ -293,7 +303,7 @@ async function registerStudent(req, res) {
 
     const existingCredential = await prisma.parentCredential.findUnique({
       where: { parentPhone },
-      select: { pinHash: true },
+      select: { pinHash: true, email: true },
     });
 
     if (existingCredential) {
@@ -309,8 +319,10 @@ async function registerStudent(req, res) {
     const student = await prisma.$transaction(async (tx) => {
       if (!existingCredential) {
         await tx.parentCredential.create({
-          data: { parentPhone, pinHash: await hashParentPin(parentPin) },
+          data: { parentPhone, email: email || null, pinHash: await hashParentPin(parentPin) },
         });
+      } else if (email && !existingCredential.email) {
+        await tx.parentCredential.update({ where: { parentPhone }, data: { email, emailVerifiedAt: null } });
       }
 
       const createdStudent = await tx.student.create({
@@ -350,12 +362,22 @@ async function registerStudent(req, res) {
       return createdStudent;
     });
 
+    let emailVerificationSent = false;
+    if (email && (!existingCredential || !existingCredential.email)) {
+      try {
+        await sendParentEmailVerificationCode(parentPhone, email);
+        emailVerificationSent = true;
+      } catch (error) {
+        console.error("Parent email verification code send failed after registration:", error);
+      }
+    }
+
     void notifyTelegram(req, {
       title: "تسجيل جديد",
       body: `تم تسجيل تلميذ جديد.\nالاسم: ${student.studentName}\nرقم الولي: ${student.parentPhone}\nالمستوى: ${student.level}`,
     });
     notifyTeacherRosterChanged(req, student.level, "created");
-    return res.status(201).json({ status: "success", data: student });
+    return res.status(201).json({ status: "success", data: { ...student, emailVerificationSent } });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       if (uploadedCardFile?.filename) await removeUploadedCard(uploadedCardFile.filename);
@@ -508,6 +530,7 @@ async function notifyParentPaymentReceiptDecision(req, { student, approved, reas
   const link = `/parent-dashboard.html?studentId=${encodeURIComponent(student.id)}&paymentReceipt=${approved ? "approved" : "rejected"}`;
   const dedupeKey = `PAYMENT_RECEIPT_DECISION:${student.id}:${student.paymentReceiptSubmittedAt?.getTime?.() || Date.now()}:${approved ? "APPROVED" : "REJECTED"}`;
   let notificationId = null;
+  let notificationCreated = false;
 
   try {
     const notification = await prisma.notification.create({
@@ -524,12 +547,35 @@ async function notifyParentPaymentReceiptDecision(req, { student, approved, reas
       select: { id: true },
     });
     notificationId = notification.id;
+    notificationCreated = true;
   } catch (error) {
     if (error?.code === "P2002") {
       const existing = await prisma.notification.findUnique({ where: { dedupeKey }, select: { id: true } }).catch(() => null);
       notificationId = existing?.id || null;
     } else {
       console.warn("Payment receipt decision notification persistence failed:", error.message);
+    }
+  }
+
+  if (notificationCreated) {
+    const credential = await prisma.parentCredential.findUnique({
+      where: { parentPhone },
+      select: { email: true, emailVerifiedAt: true },
+    }).catch(() => null);
+    if (credential?.email && credential.emailVerifiedAt) {
+      const baseUrl = String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "");
+      const status = approved ? "تم قبول الدفع" : "تم رفض الدفع";
+      const details = approved
+        ? "تم قبول وصل الدفع وتفعيل الاشتراك."
+        : `تم رفض وصل الدفع. ${reason || "يمكنك رفع وصل صحيح من جديد."}`;
+      await sendEmail({
+        to: credential.email,
+        subject: `تحديث حالة الدفع للتلميذ ${student.studentName || "التلميذ"}`,
+        text: `التلميذ: ${student.studentName || "التلميذ"}\nالحالة: ${status}\nالتفاصيل: ${details}\nالدخول إلى المنصة: ${baseUrl}/parent-dashboard.html`,
+        html: `<p><strong>التلميذ:</strong> ${student.studentName || "التلميذ"}</p><p><strong>الحالة:</strong> ${status}</p><p>${details}</p><p><a href="${baseUrl}/parent-dashboard.html">الدخول إلى المنصة</a></p>`,
+      }).catch((emailError) => {
+        console.warn("Payment email notification failed:", emailError.message);
+      });
     }
   }
 
@@ -1181,6 +1227,8 @@ async function updateStudentContact(req, res) {
             data: {
               parentPhone,
               pinHash: credential.pinHash,
+              email: credential.email,
+              emailVerifiedAt: credential.emailVerifiedAt,
               mustChangePin: credential.mustChangePin,
               temporaryPinIssuedAt: credential.temporaryPinIssuedAt,
               temporaryPinExpiresAt: credential.temporaryPinExpiresAt,
@@ -1253,8 +1301,16 @@ async function updateStudentContact(req, res) {
         phoneChanged,
       }),
     });
-    notifyTeacherRosterChanged(req, [currentStudent.level, updatedStudent.level], "contact-updated");
-
+        notifyTeacherRosterChanged(req, [currentStudent.level, updatedStudent.level], "contact-updated");
+    const changedFields = [];
+    if (currentStudent.studentName !== updatedStudent.studentName) changedFields.push("اسم التلميذ");
+    if (oldParentPhone !== updatedStudent.parentPhone) changedFields.push("رقم الهاتف");
+    void sendVerifiedParentEmail({
+      parentPhone: updatedStudent.parentPhone,
+      subject: "تم تحديث بيانات الحساب",
+      text: `تم تحديث ${changedFields.join(" و") || "بيانات الحساب"} في ${new Date().toLocaleString("ar-DZ")} .\nالدخول إلى المنصة: ${String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "")}/parent-dashboard.html`,
+      html: `<p>تم تحديث ${changedFields.join(" و") || "بيانات الحساب"}.</p><p>وقت التغيير: ${new Date().toLocaleString("ar-DZ")}</p><p><a href="${String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "")}/parent-dashboard.html">الدخول إلى المنصة</a></p>`,
+    }).catch((error) => console.warn("Parent account change email failed:", error.message));
     return res.status(200).json({
       status: "success",
       message: phoneChanged

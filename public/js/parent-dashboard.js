@@ -2472,6 +2472,8 @@ async function uploadReplacementCard() {
   }
 }
 
+
+
 function logout() {
   void window.revokeServerSession?.();
   clearParentSession();

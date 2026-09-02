@@ -2,6 +2,12 @@ const express = require("express");
 const {
   teacherLogin,
   parentLogin,
+  getParentEmail,
+  updateParentEmail,
+  sendParentEmailCode,
+  verifyParentEmailCode,
+  sendParentPinEmailCode,
+  resetParentPinWithEmail,
   logout,
   sessionStatus,
   listSessions,
@@ -20,6 +26,8 @@ const router = express.Router();
 router.post("/teacher", authRateLimit, teacherLogin);
 router.post("/parent", authRateLimit, parentLogin);
 router.post("/parent/forgot", authRateLimit, requestParentPinReset);
+router.post("/parent/pin/email/send-code", authRateLimit, sendParentPinEmailCode);
+router.post("/parent/pin/email/reset", authRateLimit, resetParentPinWithEmail);
 router.get("/parent/forgot-requests", verifyToken, isTeacher, listParentPinResetRequests);
 router.put("/parent/forgot-requests/:id/issue", verifyToken, isTeacher, issueTemporaryParentPin);
 router.post("/logout", verifyToken, logout);
@@ -28,5 +36,9 @@ router.get("/sessions", verifyToken, listSessions);
 router.delete("/sessions/others", verifyToken, revokeOtherSessions);
 router.delete("/sessions/:id", verifyToken, revokeSession);
 router.put("/parent/pin", verifyToken, changeParentPin);
+router.get("/parent/email", verifyToken, getParentEmail);
+router.put("/parent/email", verifyToken, updateParentEmail);
+router.post("/parent/email/send-code", verifyToken, sendParentEmailCode);
+router.post("/parent/email/verify-code", verifyToken, verifyParentEmailCode);
 
 module.exports = router;
