@@ -1521,6 +1521,35 @@
           font-weight: 800 !important;
           cursor: pointer !important;
         }
+
+        /* In Sub-View: Hide header and main cards entirely */
+        body.in-subview .parent-header,
+        body.in-subview #live-classes-entry-card,
+        body.in-subview .student-overview,
+        body.in-subview .dashboard-welcome,
+        body.in-subview .parent-kpi-grid {
+          display: none !important;
+        }
+
+        /* Back Button Style */
+        .subview-back-button {
+          display: none;
+          width: 100% !important;
+          min-height: 2.6rem !important;
+          background: #0f172a !important;
+          color: #ffffff !important;
+          font-weight: 800 !important;
+          font-size: 0.85rem !important;
+          border: none !important;
+          border-radius: 0.75rem !important;
+          margin-bottom: 1rem !important;
+          cursor: pointer !important;
+          text-align: center !important;
+        }
+
+        body.in-subview .subview-back-button {
+          display: block !important;
+        }
       }
     </style>
     <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=receipt-decision-2" />
@@ -1538,38 +1567,57 @@
           background: #ffffff !important;
           border-bottom: 1px solid #e2e8f0 !important;
           box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05) !important;
+          min-height: 2.7rem !important;
+          height: 2.7rem !important;
+          padding: 0.2rem 0.6rem !important;
         }
 
         .parent-header-content {
-          min-height: 4rem !important;
+          min-height: 2.7rem !important;
+          height: 2.7rem !important;
           padding: 0.5rem 1rem !important;
           width: 100% !important;
         }
 
+        .parent-brand-mark {
+          width: 1.9rem !important;
+          height: 1.9rem !important;
+          border-radius: 0.5rem !important;
+        }
+
+        .parent-brand-mark svg {
+          width: 1.1rem !important;
+          height: 1.1rem !important;
+        }
+
         .parent-brand-copy strong {
           color: #0f172a !important;
+          font-size: 0.8rem !important;
         }
 
         .parent-brand-copy small {
-          color: #64748b !important;
+          display: none !important;
         }
 
         .parent-menu-toggle {
           display: grid !important;
           place-items: center !important;
-          width: 2.5rem !important;
-          height: 2.5rem !important;
+          width: 2rem !important;
+          height: 2rem !important;
           background: #f1f5f9 !important;
           color: #1e3a8a !important;
           border: 1px solid #cbd5e1 !important;
           border-radius: 0.7rem !important;
-          font-size: 1.2rem !important;
+          font-size: 1rem !important;
         }
 
         .logout-button {
           color: #dc2626 !important;
           background: #fef2f2 !important;
           border: 1px solid #fecaca !important;
+          min-height: 1.9rem !important;
+          padding: 0.2rem 0.5rem !important;
+          font-size: 0.68rem !important;
         }
 
         /* 2. تحويل بطاقة الحصة المباشرة إلى تحفة بصرية أصلية */
@@ -1885,6 +1933,35 @@
           font-weight: 800 !important;
           cursor: pointer !important;
         }
+
+        /* In Sub-View: Hide header and main cards entirely */
+        body.in-subview .parent-header,
+        body.in-subview #live-classes-entry-card,
+        body.in-subview .student-overview,
+        body.in-subview .dashboard-welcome,
+        body.in-subview .parent-kpi-grid {
+          display: none !important;
+        }
+
+        /* Back Button Style */
+        .subview-back-button {
+          display: none;
+          width: 100% !important;
+          min-height: 2.6rem !important;
+          background: #0f172a !important;
+          color: #ffffff !important;
+          font-weight: 800 !important;
+          font-size: 0.85rem !important;
+          border: none !important;
+          border-radius: 0.75rem !important;
+          margin-bottom: 1rem !important;
+          cursor: pointer !important;
+          text-align: center !important;
+        }
+
+        body.in-subview .subview-back-button {
+          display: block !important;
+        }
       }
     </style>
 </head>
@@ -1895,23 +1972,23 @@
       <div class="parent-profile-card"><span class="parent-profile-avatar" aria-hidden="true">و</span><span><strong>حساب الولي</strong><small>متابعة الأبناء</small></span><i aria-hidden="true"></i></div>
       <nav class="parent-sidebar-nav" aria-label="تنقل بوابة الولي">
         <!-- 1. الصفحة الرئيسية -->
-        <a class="parent-nav-link is-active" href="#dashboard-content"><span aria-hidden="true">⌂</span>الصفحة الرئيسية</a>
+        <a class="parent-nav-link is-active" href="javascript:void(0)" onclick="returnToMobileHome()"><span aria-hidden="true">⌂</span>الصفحة الرئيسية</a>
         <!-- 2. اختيار أبنائي -->
         <a class="parent-nav-link" href="javascript:void(0)" onclick="document.getElementById('student-switcher').removeAttribute('hidden'); document.getElementById('parent-sidebar').classList.remove('is-open');"><span aria-hidden="true">👥</span>اختيار أبنائي</a>
         <!-- 3. جدول وتوقيت الحصص -->
-        <a class="parent-nav-link" href="#level-schedule-card"><span aria-hidden="true">📅</span>جدول وتوقيت الحصص</a>
+        <a class="parent-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('level-schedule-card')"><span aria-hidden="true">📅</span>جدول وتوقيت الحصص</a>
         <!-- 4. سجل الحصص والدروس المسجلة -->
-        <a class="parent-nav-link" href="javascript:void(0)" onclick="openMobileRegistryView()"><span aria-hidden="true">📚</span>سجل الحصص والدروس المسجلة</a>
+        <a class="parent-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('class-registry-student')"><span aria-hidden="true">📚</span>سجل الحصص والدروس المسجلة</a>
         <!-- 5. النشاط الدراسي والواجبات -->
-        <a class="parent-nav-link" href="#student-homework-card"><span aria-hidden="true">📝</span>النشاط الدراسي والواجبات</a>
+        <a class="parent-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('student-homework-card')"><span aria-hidden="true">📝</span>النشاط الدراسي والواجبات</a>
         <!-- 6. فيديوهات مكملة ودعم -->
-        <a class="parent-nav-link" href="#lesson-repository-card"><span aria-hidden="true">🎥</span>فيديوهات مكملة ودعم</a>
+        <a class="parent-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('lesson-repository-card')"><span aria-hidden="true">🎥</span>فيديوهات مكملة ودعم</a>
         <!-- 7. إنجازات التلميذ وشهاداته -->
-        <a class="parent-nav-link" href="#student-certificates-card"><span aria-hidden="true">🏆</span>إنجازات التلميذ وشهاداته</a>
+        <a class="parent-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('student-certificates-card')"><span aria-hidden="true">🏆</span>إنجازات التلميذ وشهاداته</a>
         <!-- 8. الفواتير والاشتراكات -->
-        <a class="parent-nav-link" href="#secondary-payment-upgrade"><span aria-hidden="true">💳</span>الفواتير والاشتراكات</a>
+        <a class="parent-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('secondary-payment-upgrade')"><span aria-hidden="true">💳</span>الفواتير والاشتراكات</a>
         <!-- 9. أرباحي -->
-        <a class="parent-nav-link referral-nav-link" href="#referral-earnings"><span aria-hidden="true">↗</span>أرباحي</a>
+        <a class="parent-nav-link referral-nav-link" href="javascript:void(0)" onclick="openDedicatedMobileView('referral-earnings')"><span aria-hidden="true">↗</span>أرباحي</a>
         <!-- 10. الإعدادات والأمان -->
         <a class="parent-nav-link" href="./account-center.html"><span aria-hidden="true">⚙</span>الإعدادات والأمان</a>
       </nav>
@@ -2000,8 +2077,8 @@
       </section>
 
       <section id="secondary-payment-upgrade" class="university-payment-upgrade secondary-payment-upgrade" hidden aria-live="polite">
-        <button id="mobile-close-upgrade-btn" type="button" class="mobile-close-view-btn" onclick="closeMobileUpgradeView()" style="display:none;">
-          ← العودة إلى لوحة المتابعة
+        <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
+          ← العودة إلى الصفحة الرئيسية
         </button>
          <div id="secondary-payment-waiting" class="payment-upgrade-waiting" hidden role="status">جاري تأكيد الدفع من إدارة المنصة</div>
          <h2>ترقية حسابي</h2>
@@ -2068,6 +2145,9 @@
       </section>
 
       <section id="level-schedule-card" class="level-schedule-card" hidden aria-labelledby="level-schedule-title">
+        <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
+          ← العودة إلى الصفحة الرئيسية
+        </button>
         <div class="level-schedule-heading">
           <div>
             <span class="level-schedule-kicker">دليل المستوى الدراسي</span>
@@ -2146,6 +2226,9 @@
           <article class="parent-kpi-card"><span class="parent-kpi-icon">★</span><div><small>التقييم العام</small><strong id="parent-kpi-rating">في انتظار التقييم</strong><em>لا يوجد تقييم مسجل بعد</em></div></article>
         </section>
         <section id="student-homework-card" class="student-homework-card parent-feedback-card" aria-labelledby="student-homework-title">
+          <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
+            ← العودة إلى الصفحة الرئيسية
+          </button>
           <button id="student-homework-toggle" class="student-homework-toggle" type="button" aria-expanded="false" aria-controls="student-homework-content">
             <span class="student-homework-toggle-copy"><span>النشاط الدراسي</span><strong id="student-homework-title">الواجبات المدرسية والحلول</strong><small>اضغط لعرض الواجبات المطلوبة ورفع الحلول</small></span>
             <span id="student-homework-toggle-icon" class="student-homework-toggle-icon" aria-hidden="true">⌄</span>
@@ -2156,6 +2239,9 @@
         </section>
 
         <section id="student-certificates-card" class="student-certificates-card parent-feedback-card" aria-labelledby="student-certificates-title">
+          <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
+            ← العودة إلى الصفحة الرئيسية
+          </button>
           <button id="student-certificates-toggle" class="student-certificates-toggle" type="button" aria-expanded="false" aria-controls="student-certificates-content">
             <span class="student-certificates-toggle-copy"><span>عامل تحفيزي</span><strong id="student-certificates-title">إنجازات التلميذ وشهاداته</strong><small>اضغط لعرض الشهادات التي حصل عليها التلميذ</small></span>
             <span id="student-certificates-toggle-icon" class="student-certificates-toggle-icon" aria-hidden="true">⌄</span>
@@ -2166,6 +2252,9 @@
           </div>
         </section>
         <section id="lesson-repository-card" class="lesson-repository-card" aria-labelledby="lesson-repository-parent-title">
+          <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
+            ← العودة إلى الصفحة الرئيسية
+          </button>
           <header class="lesson-repository-head">
             <button id="lesson-repository-toggle" class="lesson-repository-toggle" type="button" aria-expanded="false" aria-controls="lesson-repository-controls">
               <span class="lesson-repository-toggle-copy">
@@ -2183,8 +2272,8 @@
         </section>
 
         <section id="class-registry-student" class="class-registry-student" aria-labelledby="class-registry-student-title">
-          <button id="mobile-close-registry-btn" type="button" class="mobile-close-view-btn" onclick="closeMobileRegistryView()" style="display:none;">
-            ← العودة إلى لوحة المتابعة
+          <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
+            ← العودة إلى الصفحة الرئيسية
           </button>
           <button id="class-registry-toggle" class="class-registry-toggle" type="button" aria-expanded="false" aria-controls="class-registry-controls">
             <span class="class-registry-toggle-copy"><span>متابعة الحصص</span><strong id="class-registry-student-title">سجل الحصص والدروس المسجلة</strong><small>اضغط لعرض الفصول والأشهر والمواد والحصص</small></span>
@@ -2262,6 +2351,9 @@
         </section>
 
         <section id="referral-earnings" class="referral-earnings-card" aria-labelledby="referral-earnings-title">
+          <button type="button" class="subview-back-button" onclick="returnToMobileHome()">
+            ← العودة إلى الصفحة الرئيسية
+          </button>
           <header class="referral-earnings-header">
             <div>
               <span class="referral-earnings-kicker">برنامج الإحالة</span>
@@ -2445,31 +2537,72 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    function closeMobileRegistryView() {
-      document.body.classList.remove('mobile-registry-active');
-      const backBtn = document.getElementById('mobile-close-registry-btn');
-      if (backBtn) backBtn.style.display = 'none';
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function openMobileUpgradeView() {
+    function openDedicatedMobileView(sectionId) {
+      // 1. Close Sidebar
       const sidebar = document.getElementById('parent-sidebar');
       const backdrop = document.getElementById('parent-sidebar-backdrop');
       if (sidebar) sidebar.classList.remove('is-open');
       if (backdrop) backdrop.setAttribute('hidden', '');
-      document.body.classList.remove('mobile-registry-active');
-      document.body.classList.add('mobile-upgrade-active');
-      const upgradeSec = document.getElementById('secondary-payment-upgrade');
-      const backBtn = document.getElementById('mobile-close-upgrade-btn');
-      if (upgradeSec) upgradeSec.removeAttribute('hidden');
-      if (backBtn) backBtn.style.display = 'inline-flex';
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      // 2. Hide Main Elements
+      document.body.classList.add('in-subview');
+
+      // 3. Hide all potential sub-sections first
+      const sections = [
+        'class-registry-student', 
+        'level-schedule-card', 
+        'student-homework-card', 
+        'lesson-repository-card', 
+        'student-certificates-card', 
+        'secondary-payment-upgrade', 
+        'referral-earnings'
+      ];
+      sections.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.style.setProperty('display', 'none', 'important');
+        }
+      });
+
+      // 4. Show Target Section
+      const target = document.getElementById(sectionId);
+      if (target) {
+        target.removeAttribute('hidden');
+        target.style.setProperty('display', 'block', 'important');
+        
+        // Auto-expand any inner collapsible controls inside it
+        const innerControls = target.querySelectorAll('[id$="-controls"], [id$="-content"], [id$="-transfer"]');
+        innerControls.forEach(c => {
+          c.removeAttribute('hidden');
+          c.style.setProperty('display', 'block', 'important');
+        });
+        
+        // Hide internal accordion toggle arrow to keep header static
+        const toggleIcons = target.querySelectorAll('[id$="-toggle-icon"]');
+        toggleIcons.forEach(i => i.style.display = 'none');
+      }
+
+      // 5. Scroll to top
+      window.scrollTo({ top: 0, behavior: 'instant' });
     }
 
-    function closeMobileUpgradeView() {
-      document.body.classList.remove('mobile-upgrade-active');
-      const backBtn = document.getElementById('mobile-close-upgrade-btn');
-      if (backBtn) backBtn.style.display = 'none';
+    function returnToMobileHome() {
+      document.body.classList.remove('in-subview');
+      const sections = [
+        'class-registry-student', 
+        'level-schedule-card', 
+        'student-homework-card', 
+        'lesson-repository-card', 
+        'student-certificates-card', 
+        'secondary-payment-upgrade', 
+        'referral-earnings'
+      ];
+      sections.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.style.display = '';
+        }
+      });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   </script>
