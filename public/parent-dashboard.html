@@ -1756,6 +1756,135 @@
           font-size: 0.95rem !important;
           color: #059669 !important;
         }
+
+        /* 8. Minimalist Mobile Home Feed: hide clutter by default */
+        body:not(.mobile-registry-active):not(.mobile-upgrade-active) .parent-kpi-grid,
+        body:not(.mobile-registry-active):not(.mobile-upgrade-active) #student-homework-card,
+        body:not(.mobile-registry-active):not(.mobile-upgrade-active) #student-certificates-card,
+        body:not(.mobile-registry-active):not(.mobile-upgrade-active) #lesson-repository-card,
+        body:not(.mobile-registry-active):not(.mobile-upgrade-active) #class-registry-student,
+        body:not(.mobile-registry-active):not(.mobile-upgrade-active) #referral-earnings,
+        body:not(.mobile-registry-active):not(.mobile-upgrade-active) #level-schedule-card {
+          display: none !important;
+        }
+
+        /* 9. Dedicated Full-Screen Upgrade & Payment View */
+        body.mobile-upgrade-active #live-classes-entry-card,
+        body.mobile-upgrade-active .student-overview,
+        body.mobile-upgrade-active .parent-kpi-grid,
+        body.mobile-upgrade-active #student-homework-card,
+        body.mobile-upgrade-active #student-certificates-card,
+        body.mobile-upgrade-active #lesson-repository-card,
+        body.mobile-upgrade-active #class-registry-student,
+        body.mobile-upgrade-active #referral-earnings,
+        body.mobile-upgrade-active #level-schedule-card {
+          display: none !important;
+        }
+
+        body.mobile-upgrade-active #secondary-payment-upgrade {
+          display: block !important;
+          margin: 0 !important;
+          padding: 1rem !important;
+          background: #ffffff !important;
+          border-radius: 1.15rem !important;
+          border: 1px solid #dbeafe !important;
+          box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05) !important;
+        }
+
+        body.mobile-upgrade-active #secondary-payment-transfer {
+          display: block !important;
+        }
+
+        body.mobile-upgrade-active .parent-payment-details {
+          display: grid !important;
+          grid-template-columns: 1fr !important;
+          gap: 0.4rem !important;
+        }
+
+        body.mobile-upgrade-active .parent-payment-details div {
+          display: flex !important;
+          justify-content: space-between !important;
+          align-items: center !important;
+          padding: 0.45rem 0.5rem !important;
+          background: transparent !important;
+          border: none !important;
+          border-bottom: 1px dashed #cbd5e1 !important;
+        }
+
+        body.mobile-upgrade-active .parent-payment-details div:last-child {
+          border-bottom: none !important;
+        }
+
+        body.mobile-upgrade-active .unified-subscription-summary {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr !important;
+          gap: 0.5rem !important;
+        }
+
+        body.mobile-upgrade-active .unified-subscription-item strong,
+        body.mobile-upgrade-active #secondary-payment-state strong,
+        body.mobile-upgrade-active #payment-status {
+          white-space: normal !important;
+          word-break: break-word !important;
+          line-height: 1.4 !important;
+          font-size: 0.82rem !important;
+          display: block !important;
+          text-overflow: clip !important;
+        }
+
+        /* 10. Vertical Student Switcher Modal */
+        .student-switcher-list {
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 0.75rem !important;
+        }
+
+        .student-switcher-card {
+          width: 100% !important;
+          padding: 0.85rem 1rem !important;
+          border-radius: 1rem !important;
+          border: 1.5px solid #dbeafe !important;
+        }
+
+        /* 11. Mobile Upgrade CTA Button */
+        .mobile-upgrade-cta {
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          gap: 0.4rem !important;
+          width: 100% !important;
+          min-height: 2.85rem !important;
+          margin-top: 0.8rem !important;
+          padding: 0.62rem 0.95rem !important;
+          color: #ffffff !important;
+          background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+          border: none !important;
+          border-radius: 0.72rem !important;
+          font-size: 0.82rem !important;
+          font-weight: 800 !important;
+          cursor: pointer !important;
+          box-shadow: 0 4px 10px rgba(180, 83, 9, 0.25) !important;
+        }
+
+        .mobile-upgrade-cta:hover {
+          filter: brightness(1.06) !important;
+        }
+
+        /* 12. Back Button styling */
+        .mobile-close-view-btn {
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 0.4rem !important;
+          margin-bottom: 0.8rem !important;
+          background: #eff6ff !important;
+          color: #1d4ed8 !important;
+          border: 1px solid #bfdbfe !important;
+          border-radius: 0.65rem !important;
+          padding: 0.5rem 0.85rem !important;
+          font-size: 0.82rem !important;
+          font-weight: 800 !important;
+          cursor: pointer !important;
+        }
       }
     </style>
 </head>
@@ -1765,20 +1894,25 @@
       <div class="parent-sidebar-brand"><div class="parent-brand"><span class="parent-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 8 12 3.75 20.5 8 12 12.25 3.5 8Z" /><path d="M6.5 9.5v5.9c3.1 2.25 7.9 2.25 11 0V9.5" /></svg></span><span class="parent-brand-copy"><strong>أكاديمية التفوق</strong><small>بوابة الولي</small></span></div><button id="parent-sidebar-close" class="parent-sidebar-close" type="button" aria-label="إغلاق القائمة">×</button></div>
       <div class="parent-profile-card"><span class="parent-profile-avatar" aria-hidden="true">و</span><span><strong>حساب الولي</strong><small>متابعة الأبناء</small></span><i aria-hidden="true"></i></div>
       <nav class="parent-sidebar-nav" aria-label="تنقل بوابة الولي">
-        <!-- 1. الرقابة اليومية والتوقيت -->
+        <!-- 1. الصفحة الرئيسية -->
         <a class="parent-nav-link is-active" href="#dashboard-content"><span aria-hidden="true">⌂</span>الصفحة الرئيسية</a>
+        <!-- 2. اختيار أبنائي -->
         <a class="parent-nav-link" href="javascript:void(0)" onclick="document.getElementById('student-switcher').removeAttribute('hidden'); document.getElementById('parent-sidebar').classList.remove('is-open');"><span aria-hidden="true">👥</span>اختيار أبنائي</a>
+        <!-- 3. جدول وتوقيت الحصص -->
         <a class="parent-nav-link" href="#level-schedule-card"><span aria-hidden="true">📅</span>جدول وتوقيت الحصص</a>
-
-        <!-- 2. المحتوى والنشاط الأكاديمي -->
-        <a class="parent-nav-link" href="#student-homework-card"><span aria-hidden="true">📝</span>النشاط الدراسي والواجبات</a>
+        <!-- 4. سجل الحصص والدروس المسجلة -->
         <a class="parent-nav-link" href="javascript:void(0)" onclick="openMobileRegistryView()"><span aria-hidden="true">📚</span>سجل الحصص والدروس المسجلة</a>
+        <!-- 5. النشاط الدراسي والواجبات -->
+        <a class="parent-nav-link" href="#student-homework-card"><span aria-hidden="true">📝</span>النشاط الدراسي والواجبات</a>
+        <!-- 6. فيديوهات مكملة ودعم -->
         <a class="parent-nav-link" href="#lesson-repository-card"><span aria-hidden="true">🎥</span>فيديوهات مكملة ودعم</a>
+        <!-- 7. إنجازات التلميذ وشهاداته -->
         <a class="parent-nav-link" href="#student-certificates-card"><span aria-hidden="true">🏆</span>إنجازات التلميذ وشهاداته</a>
-
-        <!-- 3. الفواتير والمالية والإعدادات -->
+        <!-- 8. الفواتير والاشتراكات -->
         <a class="parent-nav-link" href="#secondary-payment-upgrade"><span aria-hidden="true">💳</span>الفواتير والاشتراكات</a>
+        <!-- 9. أرباحي -->
         <a class="parent-nav-link referral-nav-link" href="#referral-earnings"><span aria-hidden="true">↗</span>أرباحي</a>
+        <!-- 10. الإعدادات والأمان -->
         <a class="parent-nav-link" href="./account-center.html"><span aria-hidden="true">⚙</span>الإعدادات والأمان</a>
       </nav>
       <div class="parent-sidebar-footer"><a href="./academic-center.html">المركز الأكاديمي</a><button id="parent-sidebar-logout" type="button">↪ تسجيل الخروج</button></div>
@@ -1865,7 +1999,10 @@
         <div id="parent-schedule-list" class="parent-schedule-list" aria-live="polite"></div>
       </section>
 
-<section id="secondary-payment-upgrade" class="university-payment-upgrade secondary-payment-upgrade" hidden aria-live="polite">
+      <section id="secondary-payment-upgrade" class="university-payment-upgrade secondary-payment-upgrade" hidden aria-live="polite">
+        <button id="mobile-close-upgrade-btn" type="button" class="mobile-close-view-btn" onclick="closeMobileUpgradeView()" style="display:none;">
+          ← العودة إلى لوحة المتابعة
+        </button>
          <div id="secondary-payment-waiting" class="payment-upgrade-waiting" hidden role="status">جاري تأكيد الدفع من إدارة المنصة</div>
          <h2>ترقية حسابي</h2>
         <p>اختر المواد التي تريد الاشتراك فيها، ثم ارفع وصل الدفع للتمتع بالحصص المباشرة ومقاطع الدروس المسجلة.</p>
@@ -1997,6 +2134,7 @@
                   <strong>—</strong>
                 </div>
               </div>
+              <button id="mobile-upgrade-cta" class="mobile-upgrade-cta" type="button" onclick="openMobileUpgradeView()">⚡ ترقية حسابي (الاشتراك والدفع)</button>
             </div>
           </article>
         </div>
@@ -2310,6 +2448,27 @@
     function closeMobileRegistryView() {
       document.body.classList.remove('mobile-registry-active');
       const backBtn = document.getElementById('mobile-close-registry-btn');
+      if (backBtn) backBtn.style.display = 'none';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function openMobileUpgradeView() {
+      const sidebar = document.getElementById('parent-sidebar');
+      const backdrop = document.getElementById('parent-sidebar-backdrop');
+      if (sidebar) sidebar.classList.remove('is-open');
+      if (backdrop) backdrop.setAttribute('hidden', '');
+      document.body.classList.remove('mobile-registry-active');
+      document.body.classList.add('mobile-upgrade-active');
+      const upgradeSec = document.getElementById('secondary-payment-upgrade');
+      const backBtn = document.getElementById('mobile-close-upgrade-btn');
+      if (upgradeSec) upgradeSec.removeAttribute('hidden');
+      if (backBtn) backBtn.style.display = 'inline-flex';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function closeMobileUpgradeView() {
+      document.body.classList.remove('mobile-upgrade-active');
+      const backBtn = document.getElementById('mobile-close-upgrade-btn');
       if (backBtn) backBtn.style.display = 'none';
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
