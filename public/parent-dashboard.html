@@ -1427,6 +1427,40 @@
       .parent-dashboard-page.has-multiple-students #live-classes-entry-card {
         order: 2;
       }
+
+      @media screen and (max-width: 768px) {
+        /* Fix Payment Amount Truncation (No "..." ellipsis) */
+        .unified-subscription-summary {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr !important;
+          gap: 0.5rem !important;
+        }
+
+        .unified-subscription-item strong,
+        #secondary-payment-state strong,
+        #payment-status {
+          white-space: normal !important;
+          word-break: break-word !important;
+          line-height: 1.4 !important;
+          font-size: 0.82rem !important;
+          display: block !important;
+          text-overflow: clip !important;
+        }
+
+        /* Stack Children Vertically (One Under Another) */
+        .student-switcher-list {
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 0.75rem !important;
+        }
+
+        .student-switcher-card {
+          width: 100% !important;
+          padding: 0.85rem 1rem !important;
+          border-radius: 1rem !important;
+          border: 1.5px solid #dbeafe !important;
+        }
+      }
     </style>
     <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=receipt-decision-2" />
     <link rel="stylesheet" href="./css/live-classes-entry.css?v=live-entry-1" />
@@ -1669,7 +1703,23 @@
     <aside id="parent-sidebar" class="parent-sidebar" aria-label="القائمة الجانبية">
       <div class="parent-sidebar-brand"><div class="parent-brand"><span class="parent-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 8 12 3.75 20.5 8 12 12.25 3.5 8Z" /><path d="M6.5 9.5v5.9c3.1 2.25 7.9 2.25 11 0V9.5" /></svg></span><span class="parent-brand-copy"><strong>أكاديمية التفوق</strong><small>بوابة الولي</small></span></div><button id="parent-sidebar-close" class="parent-sidebar-close" type="button" aria-label="إغلاق القائمة">×</button></div>
       <div class="parent-profile-card"><span class="parent-profile-avatar" aria-hidden="true">و</span><span><strong>حساب الولي</strong><small>متابعة الأبناء</small></span><i aria-hidden="true"></i></div>
-      <nav class="parent-sidebar-nav" aria-label="تنقل بوابة الولي"><a class="parent-nav-link is-active" href="#dashboard-content"><span aria-hidden="true">⌂</span>لوحة المتابعة</a><a class="parent-nav-link" href="#student-switcher"><span aria-hidden="true">♙</span>أبنائي</a><a class="parent-nav-link" href="#parent-schedule-card"><span aria-hidden="true">▣</span>جدول الحصص</a><a class="parent-nav-link" href="#secondary-payment-upgrade"><span aria-hidden="true">▤</span>الفواتير والاشتراكات</a><a class="parent-nav-link" href="./account-center.html"><span aria-hidden="true">⚙</span>الإعدادات</a><a class="parent-nav-link referral-nav-link" href="#referral-earnings"><span aria-hidden="true">↗</span>أرباحي</a></nav>
+      <nav class="parent-sidebar-nav" aria-label="تنقل بوابة الولي">
+        <!-- 1. الرقابة اليومية والتوقيت -->
+        <a class="parent-nav-link is-active" href="#dashboard-content"><span aria-hidden="true">⌂</span>الصفحة الرئيسية</a>
+        <a class="parent-nav-link" href="javascript:void(0)" onclick="document.getElementById('student-switcher').removeAttribute('hidden'); document.getElementById('parent-sidebar').classList.remove('is-open');"><span aria-hidden="true">👥</span>اختيار أبنائي</a>
+        <a class="parent-nav-link" href="#level-schedule-card"><span aria-hidden="true">📅</span>جدول وتوقيت الحصص</a>
+
+        <!-- 2. المحتوى والنشاط الأكاديمي -->
+        <a class="parent-nav-link" href="#student-homework-card"><span aria-hidden="true">📝</span>النشاط الدراسي والواجبات</a>
+        <a class="parent-nav-link" href="#class-registry-student"><span aria-hidden="true">📚</span>سجل الحصص والدروس المسجلة</a>
+        <a class="parent-nav-link" href="#lesson-repository-card"><span aria-hidden="true">🎥</span>فيديوهات مكملة ودعم</a>
+        <a class="parent-nav-link" href="#student-certificates-card"><span aria-hidden="true">🏆</span>إنجازات التلميذ وشهاداته</a>
+
+        <!-- 3. الفواتير والمالية والإعدادات -->
+        <a class="parent-nav-link" href="#secondary-payment-upgrade"><span aria-hidden="true">💳</span>الفواتير والاشتراكات</a>
+        <a class="parent-nav-link referral-nav-link" href="#referral-earnings"><span aria-hidden="true">↗</span>أرباحي</a>
+        <a class="parent-nav-link" href="./account-center.html"><span aria-hidden="true">⚙</span>الإعدادات والأمان</a>
+      </nav>
       <div class="parent-sidebar-footer"><a href="./academic-center.html">المركز الأكاديمي</a><button id="parent-sidebar-logout" type="button">↪ تسجيل الخروج</button></div>
     </aside>
     <div class="parent-dashboard-shell">
