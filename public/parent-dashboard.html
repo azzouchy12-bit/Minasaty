@@ -20,7 +20,6 @@
     <link rel="stylesheet" href="./css/private-messages.css" />
     <link rel="stylesheet" href="./css/payment-feedback.css" />
     <link rel="stylesheet" href="./css/parent-messenger-required.css?v=messenger-banner-4" />
-    <link rel="stylesheet" href="./css/student-facebook-ui.css?v=1" />
 
     <style>
       :root {
@@ -1433,40 +1432,32 @@
     <link rel="stylesheet" href="./css/live-classes-entry.css?v=live-entry-1" />
 </head>
   <body class="parent-dashboard-page">
-    <div id="parent-sidebar-backdrop" class="fb-overlay" hidden></div>
-    <aside id="parent-sidebar" class="fb-sidebar" aria-label="القائمة الجانبية">
-      <div class="fb-sidebar-header">
-        <div class="fb-sidebar-avatar">و</div>
-        <div class="fb-sidebar-user-info">
-          <p class="fb-sidebar-user-name">حساب الولي</p>
-          <p class="fb-sidebar-user-role">متابعة الأبناء</p>
-        </div>
-        <button id="parent-sidebar-close" class="fb-icon-btn" type="button" aria-label="إغلاق القائمة">×</button>
-      </div>
-      <nav class="fb-sidebar-nav" aria-label="تنقل بوابة الولي">
-        <a class="fb-sidebar-item is-active" href="#dashboard-content"><span class="fb-sidebar-icon">⌂</span>لوحة المتابعة</a>
-        <a class="fb-sidebar-item" href="#student-switcher"><span class="fb-sidebar-icon">♙</span>أبنائي</a>
-        <a class="fb-sidebar-item" href="#parent-schedule-card"><span class="fb-sidebar-icon">▣</span>جدول الحصص</a>
-        <a class="fb-sidebar-item" href="#secondary-payment-upgrade"><span class="fb-sidebar-icon">▤</span>الفواتير والاشتراكات</a>
-        <a class="fb-sidebar-item" href="./account-center.html"><span class="fb-sidebar-icon">⚙</span>الإعدادات</a>
-        <a class="fb-sidebar-item" href="#referral-earnings"><span class="fb-sidebar-icon">↗</span>أرباحي</a>
-      </nav>
-      <div class="fb-sidebar-footer">
-        <a href="./academic-center.html" class="fb-sidebar-item"><span class="fb-sidebar-icon">🏛</span>المركز الأكاديمي</a>
-        <button id="parent-sidebar-logout" class="fb-sidebar-item" type="button"><span class="fb-sidebar-icon">↪</span>تسجيل الخروج</button>
-      </div>
+    <div id="parent-sidebar-backdrop" class="parent-sidebar-backdrop" hidden></div>
+    <aside id="parent-sidebar" class="parent-sidebar" aria-label="القائمة الجانبية">
+      <div class="parent-sidebar-brand"><div class="parent-brand"><span class="parent-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 8 12 3.75 20.5 8 12 12.25 3.5 8Z" /><path d="M6.5 9.5v5.9c3.1 2.25 7.9 2.25 11 0V9.5" /></svg></span><span class="parent-brand-copy"><strong>أكاديمية التفوق</strong><small>بوابة الولي</small></span></div><button id="parent-sidebar-close" class="parent-sidebar-close" type="button" aria-label="إغلاق القائمة">×</button></div>
+      <div class="parent-profile-card"><span class="parent-profile-avatar" aria-hidden="true">و</span><span><strong>حساب الولي</strong><small>متابعة الأبناء</small></span><i aria-hidden="true"></i></div>
+      <nav class="parent-sidebar-nav" aria-label="تنقل بوابة الولي"><a class="parent-nav-link is-active" href="#dashboard-content"><span aria-hidden="true">⌂</span>لوحة المتابعة</a><a class="parent-nav-link" href="#student-switcher"><span aria-hidden="true">♙</span>أبنائي</a><a class="parent-nav-link" href="#parent-schedule-card"><span aria-hidden="true">▣</span>جدول الحصص</a><a class="parent-nav-link" href="#secondary-payment-upgrade"><span aria-hidden="true">▤</span>الفواتير والاشتراكات</a><a class="parent-nav-link" href="./account-center.html"><span aria-hidden="true">⚙</span>الإعدادات</a><a class="parent-nav-link referral-nav-link" href="#referral-earnings"><span aria-hidden="true">↗</span>أرباحي</a></nav>
+      <div class="parent-sidebar-footer"><a href="./academic-center.html">المركز الأكاديمي</a><button id="parent-sidebar-logout" type="button">↪ تسجيل الخروج</button></div>
     </aside>
     <div class="parent-dashboard-shell">
-    <header class="fb-header">
-        <div class="fb-header-content">
-        <div class="fb-header-left">
-          <button id="parent-sidebar-toggle" class="fb-icon-btn" type="button" aria-label="فتح القائمة" aria-expanded="false">☰</button>
-          <div class="fb-logo">أ</div>
-          <h1 class="fb-header-title">أكاديمية التفوق</h1>
+    <header class="parent-header">
+        <div class="parent-header-content">
+        <button id="parent-sidebar-toggle" class="parent-menu-toggle" type="button" aria-label="فتح القائمة" aria-expanded="false">☰</button>
+        <div class="parent-brand">
+          <span class="parent-brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M3.5 8 12 3.75 20.5 8 12 12.25 3.5 8Z" /><path d="M6.5 9.5v5.9c3.1 2.25 7.9 2.25 11 0V9.5" /></svg>
+          </span>
+          <span class="parent-brand-copy">
+            <strong>أكاديمية التفوق</strong>
+            <small>بوابة متابعة الولي</small>
+          </span>
         </div>
-        <div class="fb-header-right">
-          <a class="fb-icon-btn" data-message-bell href="./student-chat.html" target="_blank" rel="noopener" aria-label="مراسلتي مع الأستاذ">✉<b data-message-badge hidden>0</b></a>
-          <button id="logout-btn" class="fb-icon-btn" type="button" aria-label="تسجيل الخروج">↪</button>
+        <div class="parent-header-actions">
+          <a class="message-bell" data-message-bell href="./student-chat.html" target="_blank" rel="noopener" aria-label="مراسلتي مع الأستاذ"><span aria-hidden="true">✉</span><b data-message-badge hidden>0</b></a>
+          <a class="parent-messages-link" href="./student-chat.html" target="_blank" rel="noopener">مراسلتي مع الأستاذ</a>
+          <a class="parent-messages-link" href="./academic-center.html">المركز الأكاديمي</a>
+          <a class="parent-messages-link" href="./account-center.html">الحساب والأمان</a>
+          <button id="logout-btn" class="logout-button" type="button">تسجيل الخروج</button>
         </div>
       </div>
     </header>
@@ -1643,119 +1634,100 @@
       </section>
 
       <section id="dashboard-content" hidden>
-        <div class="fb-student-card">
-          <div class="fb-student-avatar" id="student-avatar">ت</div>
-          <h2 class="fb-student-name"><span id="student-name">—</span><span id="account-status" class="fb-badge fb-badge-success">—</span></h2>
-          <p class="fb-student-level">المستوى الدراسي: <span id="student-level">—</span></p>
-          <div class="fb-student-stats">
-            <div class="fb-stat">
-              <span class="fb-stat-value" id="payment-status">—</span>
-              <span class="fb-stat-label">نوع الاشتراك</span>
+        <div class="student-overview">
+          <article class="overview-card student-card unified-student-card">
+            <span id="student-avatar" class="student-avatar" aria-hidden="true">ت</span>
+            <div class="unified-student-copy">
+              <div class="unified-student-heading">
+                <h2><span id="student-name">—</span><span id="account-status" class="account-status-chip">—</span></h2>
+                <span class="unified-student-kicker">بطاقة التلميذ والاشتراك</span>
+              </div>
+              <p class="unified-student-level">المستوى الدراسي: <span id="student-level">—</span></p>
+              <div class="unified-subscription-summary" aria-label="ملخص الاشتراك والدفع">
+                <div class="unified-subscription-item">
+                  <span>نوع الاشتراك</span>
+                  <strong id="payment-status">—</strong>
+                </div>
+                <div id="secondary-payment-state" class="unified-subscription-item unified-payment-state" hidden>
+                  <span>حالة الدفع</span>
+                  <strong>—</strong>
+                </div>
+              </div>
             </div>
-            <div class="fb-stat" id="secondary-payment-state" hidden>
-              <span class="fb-stat-value">—</span>
-              <span class="fb-stat-label">حالة الدفع</span>
-            </div>
-          </div>
+          </article>
         </div>
-        <section class="fb-kpi-grid" aria-label="مؤشرات التلميذ الحالي">
-          <div class="fb-kpi-card"><div class="fb-kpi-icon">✓</div><span class="fb-kpi-value" id="attendance-count">—</span><span class="fb-kpi-label">الحضور</span></div>
-          <div class="fb-kpi-card"><div class="fb-kpi-icon">🎙</div><span class="fb-kpi-value" id="participation-count">—</span><span class="fb-kpi-label">المشاركات</span></div>
-          <div class="fb-kpi-card"><div class="fb-kpi-icon">📝</div><span class="fb-kpi-value" id="homework-count">—</span><span class="fb-kpi-label">الواجبات</span></div>
-          <div class="fb-kpi-card"><div class="fb-kpi-icon">◷</div><span class="fb-kpi-value" id="parent-kpi-next-class">—</span><span class="fb-kpi-label">الحصة القادمة</span></div>
-          <div class="fb-kpi-card"><div class="fb-kpi-icon">★</div><span class="fb-kpi-value" id="parent-kpi-rating">في انتظار التقييم</span><span class="fb-kpi-label">التقييم العام</span></div>
+        <section class="parent-kpi-grid activity-kpi-grid" aria-label="مؤشرات التلميذ الحالي">
+          <article class="parent-kpi-card"><span class="parent-kpi-icon">✓</span><div><small>الحضور</small><strong id="attendance-count">—</strong><em>حصص (> 1 ساعة)</em></div></article>
+          <article class="parent-kpi-card"><span class="parent-kpi-icon">🎙</span><div><small>المشاركات</small><strong id="participation-count">—</strong><em>تفاعل صوتي (> 10 ث)</em></div></article>
+          <article class="parent-kpi-card"><span class="parent-kpi-icon">📝</span><div><small>الواجبات</small><strong id="homework-count">—</strong><em>المنجزة / المطلوبة</em></div></article>
+          <article class="parent-kpi-card"><span class="parent-kpi-icon">◷</span><div><small>الحصة القادمة</small><strong id="parent-kpi-next-class">—</strong><em>حسب برنامج المستوى</em></div></article>
+          <article class="parent-kpi-card"><span class="parent-kpi-icon">★</span><div><small>التقييم العام</small><strong id="parent-kpi-rating">في انتظار التقييم</strong><em>لا يوجد تقييم مسجل بعد</em></div></article>
         </section>
-        <section id="student-homework-card" class="fb-expandable" aria-labelledby="student-homework-title">
-          <div class="fb-expandable-header" id="student-homework-toggle" aria-expanded="false" aria-controls="student-homework-content">
-            <div class="fb-expandable-title">
-              <span class="fb-card-header-icon">📝</span>
-              <div>
-                <h3 class="fb-card-title" id="student-homework-title">الواجبات المدرسية والحلول</h3>
-                <p class="fb-card-subtitle">اضغط لعرض الواجبات المطلوبة ورفع الحلول</p>
-              </div>
-            </div>
-            <span class="fb-expandable-icon" id="student-homework-toggle-icon">⌄</span>
-          </div>
-          <div class="fb-expandable-content" id="student-homework-content">
-            <div class="fb-expandable-body">
-              <div id="student-homework-list" class="student-homework-list"></div>
-            </div>
+        <section id="student-homework-card" class="student-homework-card parent-feedback-card" aria-labelledby="student-homework-title">
+          <button id="student-homework-toggle" class="student-homework-toggle" type="button" aria-expanded="false" aria-controls="student-homework-content">
+            <span class="student-homework-toggle-copy"><span>النشاط الدراسي</span><strong id="student-homework-title">الواجبات المدرسية والحلول</strong><small>اضغط لعرض الواجبات المطلوبة ورفع الحلول</small></span>
+            <span id="student-homework-toggle-icon" class="student-homework-toggle-icon" aria-hidden="true">⌄</span>
+          </button>
+          <div id="student-homework-content" class="student-homework-content" hidden>
+            <div id="student-homework-list" class="student-homework-list"></div>
           </div>
         </section>
 
-        <section id="student-certificates-card" class="fb-expandable" aria-labelledby="student-certificates-title">
-          <div class="fb-expandable-header" id="student-certificates-toggle" aria-expanded="false" aria-controls="student-certificates-content">
-            <div class="fb-expandable-title">
-              <span class="fb-card-header-icon">🏆</span>
-              <div>
-                <h3 class="fb-card-title" id="student-certificates-title">إنجازات التلميذ وشهاداته</h3>
-                <p class="fb-card-subtitle">اضغط لعرض الشهادات التي حصل عليها التلميذ</p>
-              </div>
-            </div>
-            <span class="fb-expandable-icon" id="student-certificates-toggle-icon">⌄</span>
-          </div>
-          <div class="fb-expandable-content" id="student-certificates-content">
-            <div class="fb-expandable-body">
-              <p id="student-certificates-caption" class="student-certificates-caption">ستظهر هنا الشهادات والإنجازات التي أضافها الأستاذ لهذا التلميذ.</p>
-              <div id="student-certificates-list" class="student-certificates-list" aria-live="polite"></div>
-            </div>
+        <section id="student-certificates-card" class="student-certificates-card parent-feedback-card" aria-labelledby="student-certificates-title">
+          <button id="student-certificates-toggle" class="student-certificates-toggle" type="button" aria-expanded="false" aria-controls="student-certificates-content">
+            <span class="student-certificates-toggle-copy"><span>عامل تحفيزي</span><strong id="student-certificates-title">إنجازات التلميذ وشهاداته</strong><small>اضغط لعرض الشهادات التي حصل عليها التلميذ</small></span>
+            <span id="student-certificates-toggle-icon" class="student-certificates-toggle-icon" aria-hidden="true">⌄</span>
+          </button>
+          <div id="student-certificates-content" class="student-certificates-content" hidden>
+            <p id="student-certificates-caption" class="student-certificates-caption">ستظهر هنا الشهادات والإنجازات التي أضافها الأستاذ لهذا التلميذ.</p>
+            <div id="student-certificates-list" class="student-certificates-list" aria-live="polite"></div>
           </div>
         </section>
-        <section id="lesson-repository-card" class="fb-expandable" aria-labelledby="lesson-repository-parent-title">
-          <div class="fb-expandable-header" id="lesson-repository-toggle" aria-expanded="false" aria-controls="lesson-repository-controls">
-            <div class="fb-expandable-title">
-              <span class="fb-card-header-icon">🎥</span>
-              <div>
-                <h3 class="fb-card-title" id="lesson-repository-parent-title">فيديوهات مكملة</h3>
-                <p class="fb-card-subtitle">اضغط لعرض الفيديوهات التي أضافها الأستاذ يدويًا</p>
-              </div>
-            </div>
-            <span class="fb-expandable-icon" id="lesson-repository-toggle-icon">⌄</span>
-          </div>
-          <div class="fb-expandable-content" id="lesson-repository-controls">
-            <div class="fb-expandable-body">
-              <p id="lesson-repository-level-caption" class="lesson-repository-level-caption">ستظهر هنا الفيديوهات المكملة لمستوى التلميذ المختار.</p>
-              <div id="lesson-video-list" class="lesson-video-list" aria-live="polite"></div>
-            </div>
+        <section id="lesson-repository-card" class="lesson-repository-card" aria-labelledby="lesson-repository-parent-title">
+          <header class="lesson-repository-head">
+            <button id="lesson-repository-toggle" class="lesson-repository-toggle" type="button" aria-expanded="false" aria-controls="lesson-repository-controls">
+              <span class="lesson-repository-toggle-copy">
+                <span>فيديوهات مكملة</span>
+                <strong id="lesson-repository-parent-title">فيديوهات مكملة</strong>
+                <small>اضغط لعرض الفيديوهات التي أضافها الأستاذ يدويًا</small>
+              </span>
+              <span id="lesson-repository-toggle-icon" class="lesson-repository-toggle-icon" aria-hidden="true">⌄</span>
+            </button>
+          </header>
+          <div id="lesson-repository-controls" class="lesson-repository-controls" hidden>
+            <p id="lesson-repository-level-caption" class="lesson-repository-level-caption">ستظهر هنا الفيديوهات المكملة لمستوى التلميذ المختار.</p>
+            <div id="lesson-video-list" class="lesson-video-list" aria-live="polite"></div>
           </div>
         </section>
 
-        <section id="class-registry-student" class="fb-expandable" aria-labelledby="class-registry-student-title">
-          <div class="fb-expandable-header" id="class-registry-toggle" aria-expanded="false" aria-controls="class-registry-controls">
-            <div class="fb-expandable-title">
-              <span class="fb-card-header-icon">📚</span>
-              <div>
-                <h3 class="fb-card-title" id="class-registry-student-title">سجل الحصص والدروس المسجلة</h3>
-                <p class="fb-card-subtitle">اضغط لعرض الفصول والأشهر والمواد والحصص</p>
-              </div>
-            </div>
-            <span class="fb-expandable-icon" id="class-registry-toggle-icon">⌄</span>
-          </div>
-          <div class="fb-expandable-content" id="class-registry-controls">
-            <div class="fb-expandable-body">
-              <label class="class-registry-filter-bar" for="registry-term-select">
-                <span id="registry-term-label" class="class-registry-filter-label">الفصل الدراسي</span>
-                <select id="registry-term-select" class="class-registry-select" aria-labelledby="registry-term-label">
-                  <option value="">اختر الفصل الدراسي</option>
-                  <option value="TERM_1">الفصل الأول</option>
-                  <option value="TERM_2">الفصل الثاني</option>
-                  <option value="TERM_3">الفصل الثالث</option>
-                </select>
-              </label>
-              <label class="class-registry-filter-bar" for="registry-month-select">
-                <span id="registry-month-label" class="class-registry-filter-label">الشهر</span>
-                <select id="registry-month-select" class="class-registry-select" aria-labelledby="registry-month-label" disabled>
-                  <option value="">اختر الفصل أولاً</option>
-                </select>
-              </label>
-              <label class="class-registry-filter-bar" for="registry-subject-select">
-                <span id="registry-subject-label" class="class-registry-filter-label">المادة</span>
-                <select id="registry-subject-select" class="class-registry-select" aria-labelledby="registry-subject-label" disabled>
-                  <option value="">اختر الشهر أولاً</option>
-                </select>
-              </label>
-              <div id="parent-class-registry-list" class="class-registry-list" aria-live="polite"></div>
-            </div>
+        <section id="class-registry-student" class="class-registry-student" aria-labelledby="class-registry-student-title">
+          <button id="class-registry-toggle" class="class-registry-toggle" type="button" aria-expanded="false" aria-controls="class-registry-controls">
+            <span class="class-registry-toggle-copy"><span>متابعة الحصص</span><strong id="class-registry-student-title">سجل الحصص والدروس المسجلة</strong><small>اضغط لعرض الفصول والأشهر والمواد والحصص</small></span>
+            <span id="class-registry-toggle-icon" class="class-registry-toggle-icon" aria-hidden="true">⌄</span>
+          </button>
+          <div id="class-registry-controls" class="class-registry-controls" hidden>
+            <label class="class-registry-filter-bar" for="registry-term-select">
+              <span id="registry-term-label" class="class-registry-filter-label">الفصل الدراسي</span>
+              <select id="registry-term-select" class="class-registry-select" aria-labelledby="registry-term-label">
+                <option value="">اختر الفصل الدراسي</option>
+                <option value="TERM_1">الفصل الأول</option>
+                <option value="TERM_2">الفصل الثاني</option>
+                <option value="TERM_3">الفصل الثالث</option>
+              </select>
+            </label>
+            <label class="class-registry-filter-bar" for="registry-month-select">
+              <span id="registry-month-label" class="class-registry-filter-label">الشهر</span>
+              <select id="registry-month-select" class="class-registry-select" aria-labelledby="registry-month-label" disabled>
+                <option value="">اختر الفصل أولاً</option>
+              </select>
+            </label>
+            <label class="class-registry-filter-bar" for="registry-subject-select">
+              <span id="registry-subject-label" class="class-registry-filter-label">المادة</span>
+              <select id="registry-subject-select" class="class-registry-select" aria-labelledby="registry-subject-label" disabled>
+                <option value="">اختر الشهر أولاً</option>
+              </select>
+            </label>
+            <div id="parent-class-registry-list" class="class-registry-list" aria-live="polite"></div>
           </div>
         </section>
 
@@ -1804,54 +1776,47 @@
           <button id="replacement-card-button" class="card-reupload-action" type="button">رفع بطاقة جديدة</button>
         </section>
 
-        <section id="referral-earnings" class="fb-card" aria-labelledby="referral-earnings-title">
-          <div class="fb-card-header">
-            <span class="fb-card-header-icon">↗</span>
-            <div class="fb-card-header-text">
-              <h3 class="fb-card-title" id="referral-earnings-title">أرباحي</h3>
-              <p class="fb-card-subtitle">شارك رابطك مع من تعرف، واحصل على عمولة عند أول دفع ناجح</p>
+        <section id="referral-earnings" class="referral-earnings-card" aria-labelledby="referral-earnings-title">
+          <header class="referral-earnings-header">
+            <div>
+              <span class="referral-earnings-kicker">برنامج الإحالة</span>
+              <h2 id="referral-earnings-title">أرباحي</h2>
+              <p>شارك رابطك مع من تعرف، واحصل على عمولة عند أول دفع ناجح لكل مستوى دراسي للحساب المُحال.</p>
+            </div>
+            <span class="referral-earnings-icon" aria-hidden="true">↗</span>
+          </header>
+
+          <div class="referral-stats-grid" aria-label="إحصائيات الإحالة">
+            <article class="referral-stat-card"><span>أرباحي</span><strong id="referral-total-earnings">0 دج</strong></article>
+            <article class="referral-stat-card"><span>المسجلون تحتي</span><strong id="referral-registered-count">0</strong></article>
+            <article class="referral-stat-card"><span>الذين رقّوا حساباتهم</span><strong id="referral-upgraded-count">0</strong></article>
+          </div>
+
+          <div class="referral-link-panel">
+            <div class="referral-link-heading">
+              <div><strong>رابط الإحالة الخاص بي</strong><small>انسخه وأرسله إلى الأشخاص الذين تريد دعوتهم.</small></div>
+              <span class="referral-link-status">رابط شخصي</span>
+            </div>
+            <div class="referral-link-row">
+              <input id="referral-link-input" type="text" readonly value="جارٍ تجهيز الرابط…" aria-label="رابط الإحالة الخاص بي" />
+              <button id="copy-referral-link" class="copy-referral-button" type="button">نسخ</button>
+            </div>
+            <p id="referral-copy-feedback" class="referral-copy-feedback" role="status" aria-live="polite"></p>
+            <div class="referral-actions">
+              <a class="referral-withdraw-button" href="./referral-withdrawal.html">طلب سحب الأرباح</a>
+              <a class="referral-account-button" href="./baridimob-settings.html">تحديث حساب BaridiMob</a>
             </div>
           </div>
-          <div class="fb-card-body">
-            <div class="fb-kpi-grid">
-              <div class="fb-kpi-card"><span class="fb-kpi-value" id="referral-total-earnings">0 دج</span><span class="fb-kpi-label">أرباحي</span></div>
-              <div class="fb-kpi-card"><span class="fb-kpi-value" id="referral-registered-count">0</span><span class="fb-kpi-label">المسجلون تحتي</span></div>
-              <div class="fb-kpi-card"><span class="fb-kpi-value" id="referral-upgraded-count">0</span><span class="fb-kpi-label">الذين رقّوا حساباتهم</span></div>
-            </div>
-            <div class="fb-card" style="margin-top: 1rem;">
-              <div class="fb-card-header">
-                <div class="fb-card-header-text">
-                  <h4 class="fb-card-title">رابط الإحالة الخاص بي</h4>
-                  <p class="fb-card-subtitle">انسخه وأرسله إلى الأشخاص الذين تريد دعوتهم</p>
-                </div>
-                <span class="fb-badge fb-badge-info">رابط شخصي</span>
-              </div>
-              <div class="fb-card-body">
-                <div style="display: flex; gap: 0.5rem;">
-                  <input id="referral-link-input" type="text" readonly value="جارٍ تجهيز الرابط…" aria-label="رابط الإحالة الخاص بي" style="flex: 1; padding: 0.5rem; border: 1px solid var(--fb-border); border-radius: var(--fb-radius);" />
-                  <button id="copy-referral-link" class="fb-btn fb-btn-primary" type="button">نسخ</button>
-                </div>
-                <p id="referral-copy-feedback" class="referral-copy-feedback" role="status" aria-live="polite"></p>
-              </div>
-              <div class="fb-card-footer">
-                <a class="fb-btn fb-btn-secondary" href="./referral-withdrawal.html">طلب سحب الأرباح</a>
-                <a class="fb-btn fb-btn-secondary" href="./baridimob-settings.html">تحديث حساب BaridiMob</a>
-              </div>
-            </div>
-            <div class="fb-card" style="margin-top: 1rem;">
-              <div class="fb-card-header">
-                <h4 class="fb-card-title">شروط الربح</h4>
-              </div>
-              <div class="fb-card-body">
-                <ol style="margin: 0; padding-right: 1.5rem;">
-                  <li>يجب أن يسجل الشخص الجديد من خلال رابط الإحالة الخاص بك.</li>
-                  <li>لا تُحتسب عمولة عند التسجيل فقط؛ تُحتسب بعد أول دفع ناجح لذلك المستوى.</li>
-                  <li>ترقية مادة واحدة تمنحك <strong>100 دج</strong>.</li>
-                  <li>ترقية المادتين معًا تمنحك <strong>250 دج</strong>.</li>
-                  <li>تُحتسب العمولة مرة واحدة فقط لكل رقم هاتف ومستوى دراسي عند أول دفع ناجح، ولا تتكرر عند التجديد أو إعادة الترقية في المستوى نفسه.</li>
-                </ol>
-              </div>
-            </div>
+
+          <div class="referral-rules-panel">
+            <h3>شروط الربح</h3>
+            <ol>
+              <li>يجب أن يسجل الشخص الجديد من خلال رابط الإحالة الخاص بك.</li>
+              <li>لا تُحتسب عمولة عند التسجيل فقط؛ تُحتسب بعد أول دفع ناجح لذلك المستوى.</li>
+              <li>ترقية مادة واحدة تمنحك <strong>100 دج</strong>.</li>
+              <li>ترقية المادتين معًا تمنحك <strong>250 دج</strong>.</li>
+              <li>تُحتسب العمولة مرة واحدة فقط لكل رقم هاتف ومستوى دراسي عند أول دفع ناجح، ولا تتكرر عند التجديد أو إعادة الترقية في المستوى نفسه.</li>
+            </ol>
           </div>
         </section>
       </section>
@@ -1961,156 +1926,6 @@
     <script src="./js/parent-push-prompt.js?v=parent-push-prompt-1"></script>
     <script src="./js/browser-notifications.js?v=session-takeover-1"></script>
     <script src="./js/class-registry-parent.js?v=panel-scroll-1"></script>
-    <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
-    
-    <!-- Facebook-Style Bottom Tab Bar (Mobile Only) -->
-    <nav class="fb-tab-bar" aria-label="التنقل السفلي">
-      <button class="fb-tab active" data-tab="home">
-        <span class="fb-tab-icon">🏠</span>
-        <span>الرئيسية</span>
-      </button>
-      <button class="fb-tab" data-tab="lessons">
-        <span class="fb-tab-icon">📚</span>
-        <span>الدروس</span>
-      </button>
-      <button class="fb-tab" data-tab="homework">
-        <span class="fb-tab-icon">📝</span>
-        <span>الواجبات</span>
-      </button>
-      <button class="fb-tab" data-tab="payments">
-        <span class="fb-tab-icon">💳</span>
-        <span>المدفوعات</span>
-      </button>
-      <button class="fb-tab" data-tab="profile">
-        <span class="fb-tab-icon">👤</span>
-        <span>الملف</span>
-      </button>
-    </nav>
-
-    <script>
-      // Facebook-Style UI Interactions
-      document.addEventListener('DOMContentLoaded', function() {
-        // Sidebar Toggle
-        const sidebarToggle = document.getElementById('parent-sidebar-toggle');
-        const sidebar = document.getElementById('parent-sidebar');
-        const overlay = document.getElementById('parent-sidebar-backdrop');
-        const sidebarClose = document.getElementById('parent-sidebar-close');
-        
-        function openSidebar() {
-          sidebar.classList.add('open');
-          overlay.classList.add('open');
-          overlay.removeAttribute('hidden');
-          sidebarToggle.setAttribute('aria-expanded', 'true');
-        }
-        
-        function closeSidebar() {
-          sidebar.classList.remove('open');
-          overlay.classList.remove('open');
-          setTimeout(() => overlay.setAttribute('hidden', ''), 300);
-          sidebarToggle.setAttribute('aria-expanded', 'false');
-        }
-        
-        sidebarToggle?.addEventListener('click', openSidebar);
-        sidebarClose?.addEventListener('click', closeSidebar);
-        overlay?.addEventListener('click', closeSidebar);
-        
-        // Expandable Sections
-        const expandables = document.querySelectorAll('.fb-expandable');
-        expandables.forEach(expandable => {
-          const header = expandable.querySelector('.fb-expandable-header');
-          header?.addEventListener('click', () => {
-            expandable.classList.toggle('open');
-            const isOpen = expandable.classList.contains('open');
-            header.setAttribute('aria-expanded', isOpen);
-          });
-        });
-        
-        // Bottom Tab Bar
-        const tabs = document.querySelectorAll('.fb-tab');
-        tabs.forEach(tab => {
-          tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            
-            const tabName = tab.getAttribute('data-tab');
-            handleTabChange(tabName);
-          });
-        });
-        
-        function handleTabChange(tabName) {
-          // Hide all sections
-          const sections = ['dashboard-content', 'class-registry-student', 'student-homework-card', 'student-certificates-card', 'lesson-repository-card', 'secondary-payment-upgrade', 'referral-earnings'];
-          sections.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.style.display = 'none';
-          });
-          
-          // Show relevant sections based on tab
-          switch(tabName) {
-            case 'home':
-              document.getElementById('dashboard-content')?.removeAttribute('hidden');
-              document.getElementById('dashboard-content').style.display = 'block';
-              break;
-            case 'lessons':
-              document.getElementById('class-registry-student')?.removeAttribute('hidden');
-              document.getElementById('class-registry-student').style.display = 'block';
-              document.getElementById('lesson-repository-card')?.removeAttribute('hidden');
-              document.getElementById('lesson-repository-card').style.display = 'block';
-              break;
-            case 'homework':
-              document.getElementById('student-homework-card')?.removeAttribute('hidden');
-              document.getElementById('student-homework-card').style.display = 'block';
-              document.getElementById('student-certificates-card')?.removeAttribute('hidden');
-              document.getElementById('student-certificates-card').style.display = 'block';
-              break;
-            case 'payments':
-              document.getElementById('secondary-payment-upgrade')?.removeAttribute('hidden');
-              document.getElementById('secondary-payment-upgrade').style.display = 'block';
-              document.getElementById('referral-earnings')?.removeAttribute('hidden');
-              document.getElementById('referral-earnings').style.display = 'block';
-              break;
-            case 'profile':
-              // Open sidebar for profile/settings
-              openSidebar();
-              break;
-          }
-        }
-        
-        // Sidebar Navigation
-        const sidebarItems = document.querySelectorAll('.fb-sidebar-item');
-        sidebarItems.forEach(item => {
-          item.addEventListener('click', (e) => {
-            if (item.tagName === 'A' && item.getAttribute('href')?.startsWith('#')) {
-              e.preventDefault();
-              const targetId = item.getAttribute('href').substring(1);
-              
-              // Update active state
-              sidebarItems.forEach(i => i.classList.remove('active'));
-              item.classList.add('active');
-              
-              // Show target section
-              const target = document.getElementById(targetId);
-              if (target) {
-                // Hide all sections
-                sections.forEach(id => {
-                  const el = document.getElementById(id);
-                  if (el) el.style.display = 'none';
-                });
-                
-                // Show target
-                target.removeAttribute('hidden');
-                target.style.display = 'block';
-                
-                // Close sidebar
-                closeSidebar();
-                
-                // Scroll to top
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }
-            }
-          });
-        });
-      });
-    </script>
+  <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
 </body>
 </html>
