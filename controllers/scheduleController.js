@@ -311,7 +311,7 @@ async function deleteScheduledClass(req, res) {
 
 async function getClassRegistry(req, res) {
   try {
-    const level = normalizeText(req.params.level);
+    const level = canonicalLevel(req.params.level);
     const monthFilter = parseMonthFilter(req.query?.month);
     const subject = normalizeText(req.query?.subject).toUpperCase();
     if (!isValidLevel(level)) return res.status(400).json({ error: "المستوى الدراسي غير صالح." });
