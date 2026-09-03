@@ -1,16 +1,363 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="فيديوهات مكملة لمستوى التلميذ في أكاديمية التفوق للفيزياء والرياضيات." />
   <title>فيديوهات مكملة | أكاديمية التفوق</title>
-  <link rel="stylesheet" href="./css/style.css" /><link rel="stylesheet" href="./css/parent-dashboard-refactor.css" /><link rel="stylesheet" href="./css/parent-screen-common.css" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="./css/style.css?v=parent-videos-1" />
+  <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=parent-videos-1" />
+  <link rel="stylesheet" href="./css/payment-feedback.css?v=parent-videos-1" />
+
+  <style>
+    :root {
+      --vid-navy: #0f172a;
+      --vid-navy-deep: #1e3a8a;
+      --vid-bg: #f1f5f9;
+      --vid-card: #ffffff;
+      --vid-muted: #64748b;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      color: var(--vid-navy);
+      font-family: "Cairo", Arial, sans-serif;
+      background: var(--vid-bg);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body.lesson-video-open { overflow: hidden; }
+
+    /* Native app-style top bar */
+    .videos-topbar {
+      position: sticky;
+      z-index: 40;
+      top: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      width: 100%;
+      min-height: 3.5rem;
+      padding: calc(0.55rem + env(safe-area-inset-top)) 0.9rem 0.55rem;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--vid-navy) 0%, var(--vid-navy-deep) 100%);
+      box-shadow: 0 4px 18px rgba(15, 23, 42, 0.16);
+    }
+
+    .videos-topbar-title {
+      overflow: hidden;
+      margin: 0;
+      font-size: 1.02rem;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .videos-back-btn {
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+      gap: 0.35rem;
+      min-height: 2.25rem;
+      padding: 0.42rem 0.7rem;
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 0.62rem;
+      font-family: inherit;
+      font-size: 0.76rem;
+      font-weight: 800;
+      text-decoration: none;
+      transition: background 0.2s ease, transform 0.18s ease;
+    }
+
+    .videos-back-btn:hover { background: rgba(255, 255, 255, 0.24); }
+    .videos-back-btn:active { transform: scale(0.97); }
+    .videos-back-btn:focus-visible { outline: 3px solid rgba(147, 197, 253, 0.7); outline-offset: 2px; }
+
+    .videos-back-arrow { font-size: 1.05rem; line-height: 1; }
+
+    .videos-topbar-spacer { width: 1px; height: 1px; flex: 0 0 auto; visibility: hidden; }
+
+    /* Content */
+    .videos-page-body {
+      width: min(100% - 1.25rem, 52rem);
+      margin: 0 auto;
+      padding: 1rem 0 calc(2rem + env(safe-area-inset-bottom));
+    }
+
+    .videos-subhead { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.9rem; }
+    .videos-subhead-icon { display: grid; width: 2.3rem; height: 2.3rem; flex: 0 0 auto; place-items: center; color: #166534; background: #dcfce7; border-radius: 0.72rem; font-size: 1.15rem; font-weight: 900; }
+    .videos-subhead-copy { display: grid; gap: 0.1rem; }
+    .videos-subhead-copy strong { font-size: 0.95rem; font-weight: 800; }
+    .videos-subhead-copy small { color: var(--vid-muted); font-size: 0.72rem; }
+
+    .videos-content-card { padding: 0.35rem 0 0; }
+    #lesson-video-list.lesson-video-list { display: grid; gap: 0.85rem; padding-top: 0; margin-top: 0; grid-template-columns: 1fr; }
+    #lesson-video-list .lesson-video-item { grid-template-columns: 6.2rem minmax(0, 1fr); }
+
+    /* In-page player modal (compact; exact IDs required by parent-dashboard.js). */
+    .lesson-video-modal,
+    .lesson-video-modal[hidden] {
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      display: grid;
+      place-items: center;
+      padding: clamp(0.6rem, 2vw, 1.4rem);
+      background: rgba(2, 6, 23, 0.86);
+      backdrop-filter: blur(10px);
+    }
+    .lesson-video-modal[hidden] { display: none; }
+
+    .lesson-video-dialog {
+      display: grid;
+      gap: 0.9rem;
+      width: min(100%, 70rem);
+      max-height: 92vh;
+      overflow: auto;
+      padding: clamp(0.8rem, 2vw, 1.2rem);
+      background: #ffffff;
+      border-radius: 1.15rem;
+      box-shadow: 0 30px 90px rgba(2, 6, 23, 0.5);
+    }
+
+    .lesson-video-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.9rem; }
+    .lesson-video-modal-brand { display: grid; gap: 0.15rem; min-width: 0; }
+    .lesson-video-modal-brand span { color: #16a34a; font-size: 0.68rem; font-weight: 900; }
+    .lesson-video-modal-brand h2 { margin: 0; overflow: hidden; color: #0f172a; font-size: clamp(1rem, 2vw, 1.3rem); text-overflow: ellipsis; white-space: nowrap; }
+    .lesson-video-modal-brand p { margin: 0; color: #64748b; font-size: 0.72rem; }
+
+    .lesson-video-close {
+      display: grid;
+      width: 2.5rem;
+      height: 2.5rem;
+      flex: 0 0 auto;
+      place-items: center;
+      color: #475569;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.8rem;
+      font-size: 1.35rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .lesson-video-close:hover { color: #b91c1c; background: #fef2f2; }
+
+    .lesson-video-modal-body { display: grid; gap: 0.85rem; }
+
+    .lesson-video-player-shell {
+      position: relative;
+      overflow: hidden;
+      background: #020617;
+      border-radius: 0.9rem;
+    }
+
+    .lesson-video-player-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.7rem;
+      padding: 0.55rem 0.7rem;
+      color: #cbd5e1;
+      background: #0f172a;
+      font-size: 0.68rem;
+      font-weight: 800;
+    }
+    .lesson-video-player-topbar span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .lesson-video-player-actions { display: inline-flex; align-items: center; gap: 0.4rem; }
+    .lesson-video-player-action { min-height: 2rem; padding: 0.3rem 0.55rem; color: #e2e8f0; background: rgba(51, 65, 85, 0.86); border: 1px solid rgba(148, 163, 184, 0.34); border-radius: 0.5rem; font-size: 0.64rem; font-weight: 800; cursor: pointer; }
+    .lesson-video-player-action:hover { color: #ffffff; background: #2563eb; }
+
+    .lesson-video-frame { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; background: #020617; }
+    .lesson-video-player-shell:fullscreen { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100vw; height: 100vh; border-radius: 0; }
+    .lesson-video-player-shell:fullscreen .lesson-video-frame { height: 100%; aspect-ratio: auto; }
+
+    .lesson-video-zoom-layer { position: absolute; inset: 3rem 0 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+
+    .lesson-video-zoom-hint.is-visible,
+    .lesson-video-zoom-hint:not([class]) { display: none; }
+
+    .lesson-video-sidebar { display: grid; gap: 0.6rem; padding: 0.8rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.9rem; }
+    .lesson-video-sidebar-label { color: #16a34a; font-size: 0.68rem; font-weight: 900; }
+    .lesson-video-sidebar h3 { margin: 0.15rem 0 0; color: #0f172a; font-size: 0.92rem; line-height: 1.6; }
+    .lesson-video-sidebar-meta { display: block; margin-top: 0.2rem; color: #64748b; font-size: 0.7rem; line-height: 1.7; }
+    .lesson-video-sidebar-tip { padding: 0.72rem; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 0.72rem; font-size: 0.68rem; line-height: 1.75; }
+    .lesson-video-share-warning { display: grid; gap: 0.15rem; padding: 0.72rem; color: #991b1b; background: #fff1f2; border: 1px solid #fda4af; border-radius: 0.72rem; font-size: 0.68rem; line-height: 1.8; }
+    .lesson-video-share-warning strong { color: #b91c1c; font-size: 0.72rem; }
+
+    /* Payment-access upgrade modal used when a lesson is locked. */
+    .payment-access-modal,
+    .payment-access-modal[hidden] {
+      position: fixed;
+      inset: 0;
+      z-index: 130;
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+      background: rgba(15, 23, 42, 0.72);
+      backdrop-filter: blur(6px);
+    }
+    .payment-access-modal[hidden] { display: none; }
+
+    .payment-access-dialog {
+      position: relative;
+      width: min(100%, 25rem);
+      overflow: hidden;
+      background: #ffffff;
+      border-radius: 1.2rem;
+      box-shadow: 0 24px 55px rgba(15, 23, 42, 0.3);
+    }
+    .payment-access-close {
+      position: absolute;
+      top: 0.8rem;
+      left: 0.8rem;
+      z-index: 2;
+      display: grid;
+      width: 2.5rem;
+      height: 2.5rem;
+      place-items: center;
+      color: #ffffff;
+      background: #dc2626;
+      border: 0;
+      border-radius: 0.55rem;
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+    .payment-access-dialog-head { padding: 1.25rem 1.25rem 1rem; color: #ffffff; background: linear-gradient(135deg, #b91c1c, #dc2626); }
+    .payment-access-dialog-head h2, .payment-access-dialog-head p { margin: 0; }
+    .payment-access-dialog-head h2 { font-size: 1.03rem; font-weight: 800; }
+    .payment-access-dialog-head p { margin-top: 0.35rem; color: #fee2e2; font-size: 0.76rem; font-weight: 600; line-height: 1.8; }
+    .payment-access-dialog-icon { display: grid; width: 2.8rem; height: 2.8rem; margin-bottom: 0.75rem; place-items: center; color: #fef2f2; background: rgba(255, 255, 255, 0.16); border-radius: 0.82rem; font-size: 1.3rem; font-weight: 900; }
+    .payment-access-dialog-body { padding: 1.2rem 1.25rem 1.3rem; }
+    .payment-access-dialog-body > p { margin: 0; color: #475569; font-size: 0.82rem; font-weight: 600; line-height: 1.95; }
+    .payment-access-actions { display: grid; gap: 0.6rem; margin-top: 1rem; }
+    .payment-access-action { display: inline-flex; align-items: center; justify-content: center; min-height: 3rem; padding: 0.6rem 0.9rem; border-radius: 0.72rem; font-size: 0.82rem; font-weight: 800; text-decoration: none; }
+    .payment-access-action.upgrade { color: #ffffff; background: linear-gradient(135deg, #059669, #16a34a); }
+    .payment-access-action.promise { color: #111827; background: #facc15; }
+
+    @media (max-width: 480px) {
+      .videos-topbar-title { font-size: 0.94rem; }
+      .videos-back-btn { padding: 0.4rem 0.55rem; font-size: 0.72rem; }
+      .videos-page-body { width: min(100% - 1rem, 52rem); }
+      .lesson-video-player-topbar { flex-direction: column; align-items: stretch; }
+      .lesson-video-player-actions { justify-content: flex-end; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+    }
+  </style>
 </head>
-<body class="parent-screen">
-  <header class="parent-screen-header"><h1>فيديوهات مكملة</h1><a class="parent-screen-back" href="parent-dashboard.html">← العودة إلى الرئيسية</a></header>
-  <main class="parent-screen-main"><div class="parent-screen-student"><span class="parent-screen-avatar" id="parent-screen-student-avatar">ت</span><span class="parent-screen-student-copy"><strong id="parent-screen-student-name">التلميذ الحالي</strong><small id="parent-screen-student-level"></small></span></div><p id="parent-screen-error" class="parent-screen-error" hidden></p><section class="parent-screen-card"><h2>مكتبة الفيديوهات</h2><p>فيديوهات إضافية يحددها الأستاذ لمساعدة التلميذ على المراجعة.</p><div id="videos-list" class="parent-screen-list"><p class="parent-screen-empty">جارٍ تحميل الفيديوهات…</p></div></section></main>
-  <script src="./js/parent-screen-common.js"></script>
+<body>
+  <!-- Native app style top navigation bar -->
+  <header class="videos-topbar">
+    <a class="videos-back-btn" href="./parent-dashboard.html" aria-label="العودة إلى الرئيسية">
+      <span class="videos-back-arrow" aria-hidden="true">←</span>
+      العودة إلى الرئيسية
+    </a>
+    <h1 class="videos-topbar-title">فيديوهات مكملة</h1>
+    <span class="videos-topbar-spacer" aria-hidden="true"></span>
+  </header>
+
+  <main class="videos-page-body">
+    <div class="videos-subhead">
+      <span class="videos-subhead-icon" aria-hidden="true">🎬</span>
+      <span class="videos-subhead-copy">
+        <strong>دروس مسجّلة مكمّلة</strong>
+        <small>شاهد بإيقاعك الخاص داخل المنصة</small>
+      </span>
+    </div>
+
+    <section class="videos-content-card" aria-live="polite" aria-label="فيديوهات مكملة">
+      <p id="lesson-repository-level-caption" class="lesson-repository-level-caption">الفيديوهات المكملة التي أضافها الأستاذ لمستوى تلميذك.</p>
+      <div id="lesson-video-list" class="lesson-video-list">
+        <div class="lesson-video-empty">جارٍ تحميل الفيديوهات…</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- In-page lesson player modal -->
+  <div id="lesson-video-modal" class="lesson-video-modal" role="dialog" aria-modal="true" aria-labelledby="lesson-video-modal-title" hidden>
+    <section class="lesson-video-dialog">
+      <header class="lesson-video-modal-head">
+        <div class="lesson-video-modal-brand">
+          <span>مستودع الدروس · مشاهدة داخل المنصة</span>
+          <h2 id="lesson-video-modal-title">مشاهدة الحصة</h2>
+          <p>تعلّم براحتك، ويمكنك العودة إلى لوحة المتابعة في أي وقت.</p>
+        </div>
+        <button id="lesson-video-close" class="lesson-video-close" type="button" aria-label="إغلاق الفيديو">×</button>
+      </header>
+
+      <div class="lesson-video-modal-body">
+        <div class="lesson-video-player-shell">
+          <div class="lesson-video-player-topbar">
+            <span>الفيديو يعمل داخل الأكاديمية</span>
+            <div class="lesson-video-player-actions" role="group" aria-label="أدوات عرض الفيديو">
+              <button id="lesson-video-rotate" class="lesson-video-player-action" type="button" aria-label="تدوير الشاشة">تدوير الشاشة</button>
+              <button id="lesson-video-fullscreen" class="lesson-video-player-action" type="button" aria-label="فتح ملء الشاشة">ملء الشاشة</button>
+            </div>
+          </div>
+          <iframe id="lesson-video-frame" class="lesson-video-frame" title="فيديو الحصة المسجلة" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          <div id="lesson-video-zoom-layer" class="lesson-video-zoom-layer" aria-label="منطقة تكبير الفيديو بإصبعين"></div>
+          <span id="lesson-video-zoom-hint" class="lesson-video-zoom-hint">استخدم إصبعين للتكبير والتحريك</span>
+        </div>
+
+        <aside class="lesson-video-sidebar" aria-label="معلومات الدرس">
+          <div>
+            <span class="lesson-video-sidebar-label">الدرس الحالي</span>
+            <h3 id="lesson-video-sidebar-title">مشاهدة الحصة</h3>
+            <span id="lesson-video-sidebar-meta" class="lesson-video-sidebar-meta">فيديو مسجّل من مستودع المستوى</span>
+          </div>
+          <div class="lesson-video-sidebar-tip">شاهد الفيديو بملء الشاشة عند الحاجة، واستخدم أزرار YouTube لاختيار الجودة والترجمة والإعدادات.</div>
+          <div class="lesson-video-share-warning" role="note"><strong>تنبيه مهم</strong><span>مشاركة الفيديو مع غيرك تؤدّي إلى غلق حسابك في المنصة نهائياً ولا تُسترجع أموالك.</span></div>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- Payment/access modal surfaced when a lesson is locked for this student -->
+  <div id="payment-access-modal" class="payment-access-modal" role="dialog" aria-modal="true" aria-labelledby="payment-access-title" hidden>
+    <section class="payment-access-dialog">
+      <button id="decline-registration-btn" class="payment-access-close" type="button" aria-label="إغلاق النافذة">X</button>
+      <div class="payment-access-dialog-head">
+        <span class="payment-access-dialog-icon" aria-hidden="true">!</span>
+        <h2 id="payment-access-title">الدخول للحصة يحتاج إلى تفعيل</h2>
+        <p id="payment-access-head-message">لم يتم تأكيد الدفع أو إبلاغ الأستاذ بموعد الدفع.</p>
+      </div>
+      <div class="payment-access-dialog-body">
+        <p id="payment-access-message">اختر طريقة تفعيل المادة المطلوبة.</p>
+        <div class="payment-access-actions">
+          <a id="upgrade-subject-btn" class="payment-access-action upgrade" href="#">ترقية حسابي والتسجيل في المادة</a>
+          <a id="call-teacher-now-btn" class="payment-access-action promise" href="tel:0556960950">اتصل بالأستاذ للوعد بالدفع</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="./js/session-storage.js?v=parent-videos-1"></script>
+  <script src="./js/parent-dashboard.js?v=parent-videos-1"></script>
   <script>
-    (async () => { const box = document.getElementById("videos-list"); const student = window.parentScreen?.student; if (student?.studentName) document.getElementById("parent-screen-student-avatar").textContent = student.studentName.slice(0, 1); if (!student?.id || !student?.level) { box.innerHTML = '<p class="parent-screen-empty">اختر تلميذًا من لوحة الولي أولًا.</p>'; return; } try { const payload = await parentScreen.api(`/api/lesson-videos/${encodeURIComponent(student.level)}?studentId=${encodeURIComponent(student.id)}`); const items = Array.isArray(payload.data) ? payload.data : []; box.replaceChildren(); if (!items.length) { box.innerHTML = '<p class="parent-screen-empty">لا توجد فيديوهات مكملة متاحة حاليًا.</p>'; return; } items.forEach((item) => { const card = document.createElement("article"); card.className = "parent-screen-item"; const title = document.createElement("strong"); title.textContent = item.title || "فيديو مكمل"; const meta = document.createElement("span"); meta.textContent = item.subject || item.description || "مادة تعليمية إضافية"; card.append(title, meta); if (item.youtubeEmbedUrl || item.previewUrl) { const link = document.createElement("a"); link.className = "parent-screen-button"; link.href = item.youtubeEmbedUrl || item.previewUrl; link.target = "_blank"; link.rel = "noopener"; link.textContent = "مشاهدة الفيديو"; card.append(link); } box.append(card); }); } catch (error) { box.innerHTML = `<p class="parent-screen-empty">${error.message}</p>`; } })();
+    // Focused-screen boot: register the loader FIRST so it runs once
+    // parent-screen-common.js (loaded next) has restored the student.
+    window.addEventListener("parent-screen-ready", (event) => {
+      const student = event && event.detail;
+      if (!student || !student.id) return;
+      void loadLessonVideos(student.level);
+    });
   </script>
+  <script src="./js/parent-screen-common.js?v=parent-videos-1"></script>
 </body>
 </html>

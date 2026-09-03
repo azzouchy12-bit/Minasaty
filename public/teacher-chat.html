@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>الرسائل | أكاديمية التفوق</title>
   <link rel="stylesheet" href="./css/style.css" />
-  <link rel="stylesheet" href="./css/private-messages.css?v=messenger-ui-1" />
+  <link rel="stylesheet" href="./css/private-messages.css?v=messenger-ui-2" />
 </head>
 <body class="private-messages-page teacher-chat-page">
   <header class="private-chat-topbar">
@@ -39,9 +39,18 @@
         </header>
         <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
         <form id="chat-form" class="chat-compose">
-          <button class="chat-compose-tool" type="button" aria-label="إضافة">＋</button>
-          <textarea id="chat-input" rows="1" maxlength="4000" placeholder="اكتب رسالة للطالب…" autocomplete="off" required></textarea>
-          <button class="chat-send-button" type="submit" aria-label="إرسال الرسالة">إرسال</button>
+          <div id="chat-attachment-preview" class="chat-attachment-preview" hidden></div>
+          <div class="chat-compose-row">
+            <button id="chat-attach-btn" class="chat-compose-tool" type="button" aria-label="إرفاق ملف" aria-haspopup="menu" aria-expanded="false" aria-controls="chat-attach-menu">＋</button>
+            <div id="chat-attach-menu" class="chat-attach-menu" hidden role="menu">
+              <button type="button" role="menuitem" data-attach="camera">التقاط صورة</button>
+              <button type="button" role="menuitem" data-attach="file">اختيار ملف</button>
+            </div>
+            <textarea id="chat-input" rows="1" maxlength="4000" placeholder="اكتب رسالة للطالب…" autocomplete="off"></textarea>
+            <button class="chat-send-button" type="submit" aria-label="إرسال الرسالة">إرسال</button>
+          </div>
+          <input id="chat-camera-input" class="chat-attach-input" type="file" accept="image/*" capture="environment" hidden>
+          <input id="chat-file-input" class="chat-attach-input" type="file" accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
         </form>
       </div>
     </section>
@@ -50,7 +59,8 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="./js/session-storage.js?v=single-session-1"></script>
   <script src="./js/message-notifications.js"></script>
-  <script src="./js/teacher-chat.js?v=messenger-ui-1"></script>
+  <script src="./js/chat-attachments.js?v=messenger-ui-2"></script>
+  <script src="./js/teacher-chat.js?v=messenger-ui-2"></script>
   <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
 </body>
 </html>

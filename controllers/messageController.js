@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const prisma = require("../lib/prisma");
 const { sendPushToRecipient } = require("../utils/push");
 const { notifyTelegram } = require("../services/telegramService");
@@ -7,12 +9,58 @@ const { sendEmail } = require("../services/emailService");
 
 const MAX_MESSAGE_LENGTH = 4_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ATTACHMENT_PREFIX = "[[minasaty-attach]]";
+const attachmentUploadDirectory = path.join(
+  process.env.UPLOAD_DIR || path.join(__dirname, "..", "public", "uploads"),
+  "private-message-files",
+);
+
+fs.mkdirSync(attachmentUploadDirectory, { recursive: true });
 
 function normalizeMessage(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function decodeStoredContent(raw) {
+  const value = typeof raw === "string" ? raw : "";
+  if (!value.startsWith(ATTACHMENT_PREFIX)) {
+    return { text: value, attachment: null };
+  }
+  try {
+    const parsed = JSON.parse(value.slice(ATTACHMENT_PREFIX.length));
+    return {
+      text: normalizeMessage(parsed?.text),
+      attachment: parsed?.file && parsed.file.storedName
+        ? {
+            storedName: String(parsed.file.storedName),
+            originalName: String(parsed.file.originalName || "مرفق"),
+            mimeType: String(parsed.file.mimeType || "application/octet-stream"),
+          }
+        : null,
+    };
+  } catch {
+    return { text: value, attachment: null };
+  }
+}
+
+function encodeStoredContent(text, file) {
+  if (!file) return text;
+  return `${ATTACHMENT_PREFIX}${JSON.stringify({
+    text,
+    file: {
+      storedName: file.storedName,
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+    },
+  })}`;
+}
+
+function attachmentPublicUrl(studentId, storedName) {
+  return `/api/messages/${studentId}/files/${encodeURIComponent(storedName)}`;
+}
+
 function serializeMessage(message, studentName) {
+  const decoded = decodeStoredContent(message.content);
   return {
     id: message.id,
     studentId: message.studentId,
@@ -20,11 +68,34 @@ function serializeMessage(message, studentName) {
     receiverId: message.receiverId,
     senderRole: message.senderRole,
     receiverRole: message.receiverRole,
-    content: message.content,
+    content: decoded.text,
     createdAt: message.createdAt,
     isRead: message.isRead,
     senderName: message.senderRole === "teacher" ? "الأستاذ" : studentName,
+    attachment: decoded.attachment
+      ? {
+          name: decoded.attachment.originalName,
+          mimeType: decoded.attachment.mimeType,
+          url: attachmentPublicUrl(message.studentId, decoded.attachment.storedName),
+        }
+      : null,
   };
+}
+
+function serializeLastMessage(message, studentName) {
+  if (!message) return null;
+  return serializeMessage(message, studentName);
+}
+
+async function removeUploadedFile(filename) {
+  if (!filename) return;
+  try {
+    await fs.promises.unlink(path.join(attachmentUploadDirectory, path.basename(filename)));
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.warn("Unable to remove private-message attachment:", error.message);
+    }
+  }
 }
 
 async function getStudentForAccess(req, studentId) {
@@ -77,7 +148,7 @@ async function listTeacherConversations(req, res) {
         id: student.id,
         studentName: student.studentName,
         level: student.level,
-        lastMessage: student.messages[0] || null,
+        lastMessage: serializeLastMessage(student.messages[0], student.studentName),
       }))
       .sort((a, b) => {
         const lastMessageDifference = new Date(b.lastMessage?.createdAt || 0) - new Date(a.lastMessage?.createdAt || 0);
@@ -134,13 +205,28 @@ async function listMessages(req, res) {
 }
 
 async function sendMessage(req, res) {
+  const uploaded = req.file;
   const student = await getStudentForAccess(req, req.params.studentId);
-  if (!student) return res.status(403).json({ error: "لا تملك صلاحية إرسال رسالة في هذه المحادثة." });
+  if (!student) {
+    if (uploaded?.filename) await removeUploadedFile(uploaded.filename);
+    return res.status(403).json({ error: "لا تملك صلاحية إرسال رسالة في هذه المحادثة." });
+  }
 
   const content = normalizeMessage(req.body?.content);
-  if (!content || content.length > MAX_MESSAGE_LENGTH) {
-    return res.status(400).json({ error: `الرسالة مطلوبة ولا تتجاوز ${MAX_MESSAGE_LENGTH} حرف.` });
+  if ((!content && !uploaded) || content.length > MAX_MESSAGE_LENGTH) {
+    if (uploaded?.filename) await removeUploadedFile(uploaded.filename);
+    return res.status(400).json({ error: `الرسالة أو المرفق مطلوبان، والنص لا يتجاوز ${MAX_MESSAGE_LENGTH} حرف.` });
   }
+
+  const attachment = uploaded
+    ? {
+        storedName: uploaded.filename,
+        originalName: path.basename(String(uploaded.originalname || "مرفق")).slice(0, 180) || "مرفق",
+        mimeType: uploaded.mimetype || "application/octet-stream",
+      }
+    : null;
+  const storedContent = encodeStoredContent(content, attachment);
+  const previewText = content || (attachment ? `📎 ${attachment.originalName}` : "");
 
   const roles = messageRoles(req);
   try {
@@ -151,7 +237,7 @@ async function sendMessage(req, res) {
         receiverId: req.user.role === "teacher" ? student.id : "teacher",
         senderRole: roles.senderRole,
         receiverRole: roles.receiverRole,
-        content,
+        content: storedContent,
       },
     });
     await prisma.notification.create({
@@ -161,7 +247,7 @@ async function sendMessage(req, res) {
         recipientId: roles.receiverRole === "teacher" ? "teacher" : student.parentPhone,
         type: "MESSAGE",
         title: roles.receiverRole === "teacher" ? `رسالة جديدة من ${student.studentName}` : "رسالة جديدة من الأستاذ",
-        body: content.slice(0, 300),
+        body: previewText.slice(0, 300),
         link: roles.receiverRole === "teacher" ? "./teacher-chat.html" : "./student-chat.html",
       },
     });
@@ -186,7 +272,7 @@ async function sendMessage(req, res) {
     if (roles.receiverRole === "teacher") {
       void notifyTelegram(req, {
         title: "رسالة جديدة من ولي أو تلميذ",
-        body: `التلميذ: ${student.studentName}\nالمستوى: ${student.level}\nالنص: ${content.slice(0, 500)}`,
+        body: `التلميذ: ${student.studentName}\nالمستوى: ${student.level}\nالنص: ${previewText.slice(0, 500)}`,
       });
     }
     void sendPushToRecipient(
@@ -194,15 +280,36 @@ async function sendMessage(req, res) {
       roles.receiverRole === "teacher" ? "teacher" : student.parentPhone,
       {
         title: roles.receiverRole === "teacher" ? `رسالة جديدة من ${student.studentName}` : "رسالة جديدة من الأستاذ",
-        body: content.slice(0, 160),
+        body: previewText.slice(0, 160),
         link: roles.receiverRole === "teacher" ? "./teacher-chat.html" : "./student-chat.html",
       },
     ).catch(() => {});
     return res.status(201).json({ message: serializeMessage(message, student.studentName) });
   } catch (error) {
+    if (uploaded?.filename) await removeUploadedFile(uploaded.filename);
     console.error("Unable to save private message:", error);
     return res.status(500).json({ error: "تعذر حفظ الرسالة." });
   }
+}
+
+async function getMessageAttachment(req, res) {
+  const student = await getStudentForAccess(req, req.params.studentId);
+  if (!student) return res.status(403).json({ error: "لا تملك صلاحية الوصول إلى هذا المرفق." });
+
+  const storedName = path.basename(String(req.params.fileName || ""));
+  const expectedPrefix = `msg-${student.id}-`;
+  if (!storedName.startsWith(expectedPrefix)) {
+    return res.status(404).json({ error: "المرفق غير موجود." });
+  }
+
+  const filePath = path.join(attachmentUploadDirectory, storedName);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "ملف المرفق لم يعد متاحاً." });
+  }
+
+  res.setHeader("Cache-Control", "private, max-age=300");
+  res.type(path.extname(storedName));
+  return res.sendFile(filePath);
 }
 
 async function markMessagesRead(req, res) {
@@ -224,9 +331,11 @@ async function markMessagesRead(req, res) {
 
 module.exports = {
   MAX_MESSAGE_LENGTH,
+  attachmentUploadDirectory,
   listTeacherConversations,
   getUnreadCount,
   listMessages,
   sendMessage,
+  getMessageAttachment,
   markMessagesRead,
 };

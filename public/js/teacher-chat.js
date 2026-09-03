@@ -19,6 +19,7 @@ const teacherChatElements = {
   messages: document.getElementById("chat-messages"),
   form: document.getElementById("chat-form"),
   input: document.getElementById("chat-input"),
+  sendButton: document.querySelector("#chat-form .chat-send-button"),
   error: document.getElementById("chat-error"),
 };
 
@@ -27,14 +28,24 @@ let activeConversation = null;
 let teacherChatSocket = null;
 let renderedMessageIds = new Set();
 const requestedStudentId = new URLSearchParams(window.location.search).get("studentId");
+const teacherChatAttachments = window.ChatAttachments?.initChatComposerAttachments({
+  form: teacherChatElements.form,
+  toolButton: document.getElementById("chat-attach-btn"),
+  menu: document.getElementById("chat-attach-menu"),
+  preview: document.getElementById("chat-attachment-preview"),
+  cameraInput: document.getElementById("chat-camera-input"),
+  fileInput: document.getElementById("chat-file-input"),
+  onError: (message) => showTeacherChatError(message),
+});
 
 async function teacherChatFetch(url, options = {}) {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const response = await fetch(url, {
     ...options,
     headers: {
       Authorization: `Bearer ${teacherChatToken}`,
       Accept: "application/json",
-      ...(options.headers || {}),
+      ...(isFormData ? {} : options.headers || {}),
     },
   });
   if (response.status === 401 || response.status === 403) {
@@ -85,7 +96,9 @@ function renderConversations() {
     const name = document.createElement("strong");
     name.textContent = conversation.studentName;
     const meta = document.createElement("small");
-    meta.textContent = conversation.lastMessage?.content || conversation.level || "محادثة جديدة";
+    const lastText = conversation.lastMessage?.content || "";
+    const lastAttachment = conversation.lastMessage?.attachment;
+    meta.textContent = lastText || (lastAttachment?.name ? `📎 ${lastAttachment.name}` : conversation.level || "محادثة جديدة");
     copy.append(name, meta);
     const time = document.createElement("time");
     if (conversation.lastMessage?.createdAt) time.textContent = formatMessageTime(conversation.lastMessage.createdAt);
@@ -101,11 +114,15 @@ function renderMessage(message) {
   renderedMessageIds.add(message.id);
   const bubble = document.createElement("article");
   bubble.className = `chat-bubble ${message.senderRole === "teacher" ? "from-teacher" : "from-student"}`;
-  const content = document.createElement("p");
-  content.textContent = message.content;
+  window.ChatAttachments?.appendChatMessageAttachment(bubble, message, teacherChatFetch);
+  if (message.content) {
+    const content = document.createElement("p");
+    content.textContent = message.content;
+    bubble.append(content);
+  }
   const time = document.createElement("time");
   time.textContent = formatMessageTime(message.createdAt);
-  bubble.append(content, time);
+  bubble.append(time);
   teacherChatElements.messages.append(bubble);
   teacherChatElements.messages.scrollTop = teacherChatElements.messages.scrollHeight;
 }
@@ -157,25 +174,27 @@ async function loadConversations() {
 async function sendTeacherMessage(event) {
   event.preventDefault();
   const content = teacherChatElements.input.value.trim();
-  if (!activeConversation || !content) return;
-  const button = teacherChatElements.form.querySelector("button");
-  button.disabled = true;
+  const file = teacherChatAttachments?.getFile?.() || null;
+  if (!activeConversation || (!content && !file)) return;
+  const button = teacherChatElements.sendButton;
+  if (button) button.disabled = true;
   try {
+    const request = window.ChatAttachments?.buildChatMessageRequest(content, file);
     const response = await teacherChatFetch(`/api/messages/${encodeURIComponent(activeConversation.id)}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
+      ...request,
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "تعذر إرسال الرسالة.");
     teacherChatElements.input.value = "";
+    teacherChatAttachments?.clear?.();
     renderMessage(payload.message);
     activeConversation.lastMessage = { ...payload.message, isRead: true };
     renderConversations();
   } catch (error) {
     showTeacherChatError(error.message || "تعذر إرسال الرسالة.");
   } finally {
-    button.disabled = false;
+    if (button) button.disabled = false;
     teacherChatElements.input.focus();
   }
 }

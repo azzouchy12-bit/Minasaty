@@ -2109,9 +2109,8 @@ async function loadDashboard({ backgroundRefresh = false } = {}) {
 
   if (!backgroundRefresh) {
     clearError();
-    elements.loadingState.hidden = false;
-    elements.dashboardContent.hidden = true;
-    setLiveClassVisible(false);
+    if (elements.dashboardContent) elements.dashboardContent.hidden = true;
+    if (elements.loadingState && elements.dashboardContent) setLiveClassVisible(false);
   }
 
   try {
@@ -2745,15 +2744,24 @@ if (!getParentToken()) {
       closeLevelScheduleImageModal();
     }
   });
-  window.addEventListener("focus", refreshAccessAfterReturningFromCall);
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) {
-      refreshAccessAfterReturningFromCall();
-    }
-  });
-  initializeLobbySocket();
-  void loadDashboard().then(() => {
-    checkSofizPayReturn();
+  if (document.getElementById("dashboard-content")) {
+    window.addEventListener("focus", refreshAccessAfterReturningFromCall);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        refreshAccessAfterReturningFromCall();
+      }
+    });
+    initializeLobbySocket();
+    void loadDashboard().then(() => {
+      checkSofizPayReturn();
+      window.dispatchEvent(new Event("parent-dashboard-ready"));
+    });
+  } else {
+    // Focused standalone screen (e.g. parent-homework.html and sibling pages):
+    // the dashboard boot is intentionally skipped because there is no
+    // #dashboard-content. Only the logout/sidebar/modal wiring above applies.
+    // Each standalone page restores currentStudent itself and listens for this
+    // event to launch its content loader after the shared capabilities exist.
     window.dispatchEvent(new Event("parent-dashboard-ready"));
-  });
+  }
 }

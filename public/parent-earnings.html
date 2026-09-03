@@ -1,13 +1,160 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="أرباحي من برنامج الإحالة في أكاديمية التفوق للفيزياء والرياضيات." />
   <title>أرباحي | أكاديمية التفوق</title>
-  <link rel="stylesheet" href="./css/style.css" /><link rel="stylesheet" href="./css/parent-dashboard-refactor.css" /><link rel="stylesheet" href="./css/parent-screen-common.css" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="./css/style.css?v=parent-earnings-1" />
+  <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=parent-earnings-1" />
+  <link rel="stylesheet" href="./css/payment-feedback.css?v=parent-earnings-1" />
+
+  <style>
+    :root {
+      --earn-navy: #0f172a;
+      --earn-navy-deep: #1e3a8a;
+      --earn-muted: #64748b;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      color: #0f172a;
+      font-family: "Cairo", Arial, sans-serif;
+      background: linear-gradient(145deg, #f8fafc, #eff6ff);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    /* Native app-style top bar */
+    .earnings-topbar {
+      position: sticky;
+      z-index: 40;
+      top: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      width: 100%;
+      min-height: 3.5rem;
+      padding: calc(0.55rem + env(safe-area-inset-top)) 0.9rem 0.55rem;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--earn-navy) 0%, var(--earn-navy-deep) 100%);
+      box-shadow: 0 4px 18px rgba(15, 23, 42, 0.16);
+    }
+
+    .earnings-topbar-title { overflow: hidden; margin: 0; font-size: 1.02rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .earnings-back-btn { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 0.35rem; min-height: 2.25rem; padding: 0.42rem 0.7rem; color: #ffffff; background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 0.62rem; font-family: inherit; font-size: 0.76rem; font-weight: 800; text-decoration: none; transition: background 0.2s ease, transform 0.18s ease; }
+    .earnings-back-btn:hover { background: rgba(255, 255, 255, 0.24); }
+    .earnings-back-btn:active { transform: scale(0.97); }
+    .earnings-back-arrow { font-size: 1.05rem; line-height: 1; }
+    .earnings-topbar-spacer { width: 1px; height: 1px; flex: 0 0 auto; visibility: hidden; }
+
+    /* Content */
+    .earnings-page-body { width: min(100% - 1.25rem, 44rem); margin: 0 auto; padding: 1rem 0 calc(2rem + env(safe-area-inset-bottom)); }
+    .earnings-subhead { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 1rem; }
+    .earnings-subhead-icon { display: grid; width: 2.3rem; height: 2.3rem; flex: 0 0 auto; place-items: center; color: #1677ff; background: #dbeafe; border-radius: 0.72rem; font-size: 1.15rem; font-weight: 900; }
+    .earnings-subhead-copy { display: grid; gap: 0.1rem; }
+    .earnings-subhead-copy strong { font-size: 0.95rem; font-weight: 800; }
+    .earnings-subhead-copy small { color: var(--earn-muted); font-size: 0.72rem; }
+
+    /* Card keeps the shared .referral-* presentation. */
+    .referral-earnings-card { overflow: hidden; }
+
+    @media (max-width: 480px) {
+      .earnings-topbar-title { font-size: 0.94rem; }
+      .earnings-back-btn { padding: 0.4rem 0.55rem; font-size: 0.72rem; }
+      .earnings-page-body { width: min(100% - 1rem, 44rem); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+    }
+  </style>
 </head>
-<body class="parent-screen">
-  <header class="parent-screen-header"><h1>أرباحي</h1><a class="parent-screen-back" href="parent-dashboard.html">← العودة إلى الرئيسية</a></header>
-  <main class="parent-screen-main"><div class="parent-screen-student"><span class="parent-screen-avatar">↗</span><span class="parent-screen-student-copy"><strong>برنامج الإحالة</strong><small>تابع تسجيلاتك وأرباحك من لوحة الولي</small></span></div><p id="parent-screen-error" class="parent-screen-error" hidden></p><section class="parent-screen-card"><h2>ملخص الأرباح</h2><p>شارك رابط الإحالة مع أولياء الأمور وتابع النتائج المسجلة لحسابك.</p><div class="parent-screen-list"><article class="parent-screen-item"><strong>إجمالي الأرباح</strong><span id="referral-total-earnings">0 دج</span></article><article class="parent-screen-item"><strong>المسجلون تحتك</strong><span id="referral-registered-count">0</span></article><article class="parent-screen-item"><strong>الاشتراكات المؤهلة</strong><span id="referral-upgraded-count">0</span></article></div><div class="parent-screen-actions"><input id="referral-link-input" class="parent-screen-referral-input" value="جارٍ تجهيز الرابط…" readonly aria-label="رابط الإحالة" /><button id="copy-referral-link" class="parent-screen-button" type="button">نسخ</button></div><p id="referral-copy-feedback" class="parent-screen-referral-feedback" aria-live="polite"></p></section></main>
-  <script src="./js/parent-screen-common.js"></script><script src="./js/parent-referral.js"></script>
+<body>
+  <!-- Native app style top navigation bar -->
+  <header class="earnings-topbar">
+    <a class="earnings-back-btn" href="./parent-dashboard.html" aria-label="العودة إلى الرئيسية">
+      <span class="earnings-back-arrow" aria-hidden="true">←</span>
+      العودة إلى الرئيسية
+    </a>
+    <h1 class="earnings-topbar-title">أرباحي</h1>
+    <span class="earnings-topbar-spacer" aria-hidden="true"></span>
+  </header>
+
+  <main class="earnings-page-body">
+    <div class="earnings-subhead">
+      <span class="earnings-subhead-icon" aria-hidden="true">↗</span>
+      <span class="earnings-subhead-copy">
+        <strong>برنامج المكافآت</strong>
+        <small>عمولة عند نجاح التسجيل والاشتراك لمن تُحيلهم</small>
+      </span>
+    </div>
+
+    <section id="referral-earnings" class="referral-earnings-card" aria-labelledby="referral-earnings-title">
+      <header class="referral-earnings-header">
+        <div>
+          <span class="referral-earnings-kicker">برنامج الإحالة</span>
+          <h2 id="referral-earnings-title">أرباحي</h2>
+          <p>شارك رابطك مع من تعرف، واحصل على عمولة عند أول دفع ناجح لكل مستوى دراسي للحساب المُحال.</p>
+        </div>
+        <span class="referral-earnings-icon" aria-hidden="true">↗</span>
+      </header>
+
+      <div class="referral-stats-grid" aria-label="إحصائيات الإحالة">
+        <article class="referral-stat-card"><span>أرباحي</span><strong id="referral-total-earnings">0 دج</strong></article>
+        <article class="referral-stat-card"><span>المسجلون تحتي</span><strong id="referral-registered-count">0</strong></article>
+        <article class="referral-stat-card"><span>الذين رقّوا حساباتهم</span><strong id="referral-upgraded-count">0</strong></article>
+      </div>
+
+      <div class="referral-link-panel">
+        <div class="referral-link-heading">
+          <div>
+            <strong>رابط الإحالة الخاص بي</strong>
+            <small>انسخه وأرسله إلى الأشخاص الذين تريد دعوتهم.</small>
+          </div>
+          <span class="referral-link-status">رابط شخصي</span>
+        </div>
+        <div class="referral-link-row">
+          <input id="referral-link-input" type="text" readonly value="جارٍ تجهيز الرابط…" aria-label="رابط الإحالة الخاص بي" />
+          <button id="copy-referral-link" class="copy-referral-button" type="button">نسخ</button>
+        </div>
+        <p id="referral-copy-feedback" class="referral-copy-feedback" role="status" aria-live="polite"></p>
+        <div class="referral-actions">
+          <a class="referral-withdraw-button" href="./referral-withdrawal.html">طلب سحب الأرباح</a>
+          <a class="referral-account-button" href="./baridimob-settings.html">تحديث حساب BaridiMob</a>
+        </div>
+      </div>
+
+      <div class="referral-rules-panel">
+        <h3>شروط الربح</h3>
+        <ol>
+          <li>يجب أن يسجل الشخص الجديد من خلال رابط الإحالة الخاص بك.</li>
+          <li>لا تُحتسب عمولة عند التسجيل فقط؛ تُحتسب بعد أول دفع ناجح لذلك المستوى.</li>
+          <li>ترقية مادة واحدة تمنحك <strong>100 دج</strong>.</li>
+          <li>ترقية المادتين معًا تمنحك <strong>250 دج</strong>.</li>
+          <li>تُحتسب العمولة مرة واحدة فقط لكل رقم هاتف ومستوى دراسي عند أول دفع ناجح، ولا تتكرر عند التجديد أو إعادة الترقية في المستوى نفسه.</li>
+        </ol>
+      </div>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="./js/session-storage.js?v=parent-earnings-1"></script>
+  <script>
+    // Guard: this screen is parent-scoped; bounce to login when not authenticated.
+    const earnSessionToken = sessionStorage.getItem("parentToken");
+    if (!earnSessionToken) window.location.replace("./parent-login.html");
+  </script>
+  <script src="./js/parent-referral.js?v=parent-earnings-1"></script>
 </body>
 </html>

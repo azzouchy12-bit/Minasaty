@@ -155,9 +155,26 @@
 .chat-bubble.from-teacher { align-self: flex-start; background: var(--messenger-blue-soft); border-bottom-left-radius: .28rem; }
 .chat-bubble.from-teacher p { color: #0b3d91; }
 .chat-bubble.from-student { align-self: flex-end; background: #e4e6eb; border-bottom-right-radius: .28rem; }
-.chat-compose { display: flex; align-items: flex-end; gap: .45rem; padding: .7rem .85rem; background: #fff; border-top: 1px solid var(--messenger-border); }
+.chat-compose { display: grid; gap: .45rem; padding: .7rem .85rem; background: #fff; border-top: 1px solid var(--messenger-border); }
+.chat-compose-row { position: relative; display: flex; align-items: flex-end; gap: .45rem; }
 .chat-compose-tool { display: grid; width: 2.35rem; height: 2.35rem; flex: 0 0 auto; place-items: center; color: var(--messenger-blue); background: var(--messenger-blue-soft); border: 0; border-radius: 50%; font-size: 1.2rem; cursor: pointer; }
-.chat-compose textarea { flex: 1; min-height: 2.35rem; max-height: 8rem; padding: .58rem .8rem; resize: none; color: var(--messenger-text); background: var(--messenger-bg); border: 0; border-radius: 1.2rem; outline: 0; font: inherit; font-size: .76rem; line-height: 1.55; }
+.chat-compose textarea { flex: 1; min-width: 0; min-height: 2.35rem; max-height: 8rem; padding: .58rem .8rem; resize: none; color: var(--messenger-text); background: var(--messenger-bg); border: 0; border-radius: 1.2rem; outline: 0; font: inherit; font-size: .76rem; line-height: 1.55; }
+.chat-attach-input { display: none; }
+.chat-attachment-preview { display: flex; align-items: center; gap: .55rem; padding: .45rem .55rem; background: var(--messenger-blue-soft); border-radius: .85rem; }
+.chat-attachment-preview-card { display: grid; width: 2.7rem; height: 2.7rem; flex: 0 0 auto; place-items: center; overflow: hidden; background: #fff; border-radius: .55rem; }
+.chat-attachment-preview-card img { width: 100%; height: 100%; object-fit: cover; }
+.chat-attachment-preview-icon { color: var(--messenger-blue-dark); font-size: .62rem; font-weight: 900; }
+.chat-attachment-preview-meta { display: grid; min-width: 0; flex: 1; gap: .05rem; }
+.chat-attachment-preview-meta strong { overflow: hidden; color: var(--messenger-text); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.chat-attachment-preview-meta small { color: var(--messenger-muted); font-size: .58rem; }
+.chat-attachment-preview-remove { width: 1.7rem; height: 1.7rem; flex: 0 0 auto; color: #4b5563; background: #fff; border: 0; border-radius: 50%; font-size: 1.05rem; line-height: 1; cursor: pointer; }
+.chat-attach-menu { position: absolute; right: 0; bottom: calc(100% + .35rem); z-index: 4; display: grid; min-width: 11.5rem; overflow: hidden; background: #fff; border: 1px solid var(--messenger-border); border-radius: .85rem; box-shadow: 0 10px 24px rgba(15, 23, 42, .16); }
+.chat-attach-menu button { padding: .7rem .85rem; color: var(--messenger-text); background: #fff; border: 0; border-bottom: 1px solid var(--messenger-border); text-align: right; font: inherit; font-size: .74rem; font-weight: 800; cursor: pointer; }
+.chat-attach-menu button:last-child { border-bottom: 0; }
+.chat-attach-menu button:hover, .chat-attach-menu button:focus-visible { background: var(--messenger-blue-soft); color: var(--messenger-blue-dark); }
+.chat-message-attachment { display: block; margin-bottom: .35rem; }
+.chat-message-attachment-image { display: block; max-width: min(100%, 16rem); max-height: 12rem; border-radius: .7rem; object-fit: cover; }
+a.chat-message-attachment { color: inherit; font-size: .72rem; font-weight: 800; text-decoration: underline; }
 .chat-compose textarea:focus { box-shadow: 0 0 0 2px rgba(8, 102, 255, .18); }
 .chat-send-button { min-height: 2.35rem; padding: 0 .85rem; color: #fff; background: var(--messenger-blue); border: 0; border-radius: 1.2rem; font: inherit; font-size: .72rem; font-weight: 900; cursor: pointer; }
 .chat-send-button:hover:not(:disabled) { background: var(--messenger-blue-dark); }
@@ -232,7 +249,6 @@
 .student-chat-page .chat-bubble.from-teacher p, .student-chat-page .chat-bubble.from-teacher time { color: #fff; }
 .student-chat-page .chat-bubble.from-student { background: #e4e6eb; }
 
-/* The small plus control is intentionally visual-only until media attachments are added. */
 .chat-compose-tool { user-select: none; }
 .chat-compose-tool:focus-visible, .chat-send-button:focus-visible, .conversation-search input:focus-visible, .conversation-item:focus-visible { outline: 3px solid rgba(8, 102, 255, .28); outline-offset: 2px; }
 

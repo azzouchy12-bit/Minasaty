@@ -1,49 +1,70 @@
-(() => {
-  const token = sessionStorage.getItem("parentToken");
-  if (!token) {
-    window.location.replace("./parent-login.html");
-    return;
+"use strict";
+
+/*
+ * Shared boot helper for the mobile "focused" standalone parent screens
+ * (parent-homework.html, parent-achievements.html, parent-videos.html,
+ * parent-sessions.html).
+ *
+ * Screens include ./js/parent-dashboard.js BEFORE this file. Because there is
+ * no #dashboard-content, parent-dashboard.js skips its own dashboard boot and
+ * synchronously fires a single "parent-dashboard-ready" event during script
+ * evaluation (before any later <script> runs). Consequently UI listeners that
+ * wait for that event on this file would be attached too late.
+ *
+ * Instead this helper, which must run AFTER parent-dashboard.js, executes
+ * immediately: it restores the dashboard-persisted, currently-selected student
+ * and fires "parent-screen-ready" so each page's loader can kick off.
+ *
+ * Usage on every standalone screen (end of <body>):
+ *   <script src="/socket.io/socket.io.js"></script>
+ *   <script src="./js/session-storage.js"></script>
+ *   <script src="./js/parent-dashboard.js"></script>
+ *   <script src="./js/parent-screen-common.js"></script>
+ *   <script src="./js/<page-specific>.js"></script>   <- your page boot
+ *
+ * window.currentStudent lives as a shared module-level `let` in
+ * parent-dashboard.js, so this script assigns it and the renderers read it.
+ */
+
+function getSavedParentStudent() {
+  let student = null;
+
+  try {
+    student = JSON.parse(sessionStorage.getItem("currentStudent") || "null");
+  } catch (error) {
+    student = null;
   }
 
-  const selected = (() => {
+  if (!student || !student.id) {
+    // Fall back to the student list the dashboard persisted.
     try {
-      return JSON.parse(sessionStorage.getItem("currentStudent") || "null");
-    } catch {
-      return null;
+      const students = JSON.parse(sessionStorage.getItem("parentStudents") || "[]");
+      const selectedId = sessionStorage.getItem("selectedStudentId");
+      const match = students.find((item) => item && item.id === selectedId);
+      student = match || (Array.isArray(students) ? students[0] : null) || null;
+    } catch (error) {
+      student = null;
     }
-  })();
+  }
 
-  window.parentScreen = {
-    token,
-    student: selected,
-    async api(path, options = {}) {
-      const response = await fetch(path, {
-        ...options,
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...(options.headers || {}) },
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (response.status === 401 || response.status === 403) {
-        sessionStorage.removeItem("parentToken");
-        window.location.replace("./parent-login.html");
-        throw new Error("انتهت جلسة الولي.");
-      }
-      if (!response.ok) throw new Error(payload.error || "تعذر تحميل البيانات.");
-      return payload;
-    },
-    showError(message) {
-      const node = document.getElementById("parent-screen-error");
-      if (node) { node.hidden = !message; node.textContent = message || ""; }
-    },
-  };
+  return student && student.id ? student : null;
+}
 
-  const studentName = document.getElementById("parent-screen-student-name");
-  const studentLevel = document.getElementById("parent-screen-student-level");
-  if (studentName) studentName.textContent = selected?.studentName || "التلميذ الحالي";
-  if (studentLevel) studentLevel.textContent = selected?.level || "اختر تلميذًا من لوحة الولي";
-  document.getElementById("parent-screen-logout")?.addEventListener("click", () => {
-    sessionStorage.removeItem("parentToken");
-    sessionStorage.removeItem("currentStudent");
-    sessionStorage.removeItem("selectedStudentId");
+if (document.getElementById("dashboard-content")) {
+  // A genuine dashboard page; parent-dashboard.js has already booted it.
+} else {
+  const token = sessionStorage.getItem("parentToken");
+
+  if (!token) {
     window.location.replace("./parent-login.html");
-  });
-})();
+  } else {
+    const student = getSavedParentStudent();
+
+    if (student) {
+      // Reassign the shared module binding used by the renderers below.
+      currentStudent = student;
+      if (typeof persistStudentSession === "function") persistStudentSession(student);
+    }
+    window.dispatchEvent(new CustomEvent("parent-screen-ready", { detail: student }));
+  }
+}

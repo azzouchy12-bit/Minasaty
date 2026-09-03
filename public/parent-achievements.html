@@ -1,16 +1,240 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="إنجازات التلميذ وشهاداته في أكاديمية التفوق للفيزياء والرياضيات." />
   <title>إنجازات التلميذ وشهاداته | أكاديمية التفوق</title>
-  <link rel="stylesheet" href="./css/style.css" /><link rel="stylesheet" href="./css/parent-dashboard-refactor.css" /><link rel="stylesheet" href="./css/parent-screen-common.css" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="./css/style.css?v=parent-achievements-1" />
+  <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=parent-achievements-1" />
+  <link rel="stylesheet" href="./css/payment-feedback.css?v=parent-achievements-1" />
+
+  <style>
+    :root {
+      --ach-navy: #0f172a;
+      --ach-navy-deep: #1e3a8a;
+      --ach-bg: #f1f5f9;
+      --ach-card: #ffffff;
+      --ach-muted: #64748b;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      color: var(--ach-navy);
+      font-family: "Cairo", Arial, sans-serif;
+      background: var(--ach-bg);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body.achievements-open { overflow: hidden; }
+
+    /* Native app-style top bar */
+    .achievements-topbar {
+      position: sticky;
+      z-index: 40;
+      top: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      width: 100%;
+      min-height: 3.5rem;
+      padding: calc(0.55rem + env(safe-area-inset-top)) 0.9rem 0.55rem;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--ach-navy) 0%, var(--ach-navy-deep) 100%);
+      box-shadow: 0 4px 18px rgba(15, 23, 42, 0.16);
+    }
+
+    .achievements-topbar-title {
+      overflow: hidden;
+      margin: 0;
+      font-size: 1.02rem;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .achievements-back-btn {
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+      gap: 0.35rem;
+      min-height: 2.25rem;
+      padding: 0.42rem 0.7rem;
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 0.62rem;
+      font-family: inherit;
+      font-size: 0.76rem;
+      font-weight: 800;
+      text-decoration: none;
+      transition: background 0.2s ease, transform 0.18s ease;
+    }
+
+    .achievements-back-btn:hover { background: rgba(255, 255, 255, 0.24); }
+    .achievements-back-btn:active { transform: scale(0.97); }
+    .achievements-back-btn:focus-visible { outline: 3px solid rgba(147, 197, 253, 0.7); outline-offset: 2px; }
+
+    .achievements-back-arrow { font-size: 1.05rem; line-height: 1; }
+
+    .achievements-topbar-spacer { width: 1px; height: 1px; flex: 0 0 auto; visibility: hidden; }
+
+    /* Content */
+    .achievements-page-body {
+      width: min(100% - 1.25rem, 46rem);
+      margin: 0 auto;
+      padding: 1rem 0 calc(2rem + env(safe-area-inset-bottom));
+    }
+
+    .achievements-subhead {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin: 0 0 0.9rem;
+    }
+
+    .achievements-subhead-icon {
+      display: grid;
+      width: 2.3rem;
+      height: 2.3rem;
+      flex: 0 0 auto;
+      place-items: center;
+      color: #a16207;
+      background: #fef3c7;
+      border-radius: 0.72rem;
+      font-size: 1.15rem;
+      font-weight: 900;
+    }
+
+    .achievements-subhead-copy { display: grid; gap: 0.1rem; }
+    .achievements-subhead-copy strong { font-size: 0.95rem; font-weight: 800; }
+    .achievements-subhead-copy small { color: var(--ach-muted); font-size: 0.72rem; }
+
+    /* List container utilises shared styles for .student-certificates-*. */
+    .achievements-content-card { padding: 0.35rem 0; }
+    #student-certificates-list.student-certificates-list { display: grid; gap: 0.7rem; padding-top: 0; }
+
+    .student-certificate-modal,
+    .student-certificate-modal[hidden] {
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+      background: rgba(2, 6, 23, 0.86);
+      backdrop-filter: blur(10px);
+    }
+    .student-certificate-modal[hidden] { display: none; }
+
+    .student-certificate-modal-card {
+      position: relative;
+      width: min(100%, 44rem);
+      max-height: 88vh;
+      overflow: auto;
+      background: #ffffff;
+      border-radius: 1.1rem;
+      box-shadow: 0 26px 70px rgba(2, 6, 23, 0.5);
+      direction: ltr;
+    }
+
+    .student-certificate-modal-close {
+      position: sticky;
+      top: 0.6rem;
+      float: left;
+      margin: 0.6rem 0 0 0.6rem;
+      display: grid;
+      width: 2.5rem;
+      height: 2.5rem;
+      place-items: center;
+      color: #0f172a;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.7rem;
+      font-size: 1.3rem;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 6px 14px rgba(2, 6, 23, 0.2);
+      z-index: 2;
+    }
+
+    .student-certificate-modal img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    @media (max-width: 480px) {
+      .achievements-topbar-title { font-size: 0.94rem; }
+      .achievements-back-btn { padding: 0.4rem 0.55rem; font-size: 0.72rem; }
+      .achievements-page-body { width: min(100% - 1rem, 46rem); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+    }
+  </style>
 </head>
-<body class="parent-screen">
-  <header class="parent-screen-header"><h1>إنجازات التلميذ وشهاداته</h1><a class="parent-screen-back" href="parent-dashboard.html">← العودة إلى الرئيسية</a></header>
-  <main class="parent-screen-main"><div class="parent-screen-student"><span class="parent-screen-avatar" id="parent-screen-student-avatar">ت</span><span class="parent-screen-student-copy"><strong id="parent-screen-student-name">التلميذ الحالي</strong><small id="parent-screen-student-level"></small></span></div><p id="parent-screen-error" class="parent-screen-error" hidden></p><section class="parent-screen-card"><h2>الشهادات والإنجازات</h2><p>تابع الشهادات التي حصل عليها التلميذ والإنجازات المسجلة في الأكاديمية.</p><div id="achievements-list" class="parent-screen-list"><p class="parent-screen-empty">جارٍ تحميل الإنجازات…</p></div></section></main>
-  <script src="./js/parent-screen-common.js"></script>
+<body>
+  <!-- Native app style top navigation bar -->
+  <header class="achievements-topbar">
+    <a class="achievements-back-btn" href="./parent-dashboard.html" aria-label="العودة إلى الرئيسية">
+      <span class="achievements-back-arrow" aria-hidden="true">←</span>
+      العودة إلى الرئيسية
+    </a>
+    <h1 class="achievements-topbar-title">إنجازات التلميذ وشهاداته</h1>
+    <span class="achievements-topbar-spacer" aria-hidden="true"></span>
+  </header>
+
+  <main class="achievements-page-body">
+    <div class="achievements-subhead">
+      <span class="achievements-subhead-icon" aria-hidden="true">🏅</span>
+      <span class="achievements-subhead-copy">
+        <strong>شهادات التقدّم</strong>
+        <small>الإنجازات والجوائز التي حصل عليها التلميذ</small>
+      </span>
+    </div>
+
+    <section class="achievements-content-card" aria-live="polite" aria-label="إنجازات التلميذ وشهاداته">
+      <p id="student-certificates-caption" class="student-certificates-caption">شهادات يستحقّها التلميذ نظير جهده وتقدّمه، أضافها الأستاذ.</p>
+      <div id="student-certificates-list" class="student-certificates-list">
+        <p class="student-certificates-empty">جارٍ تحميل الشهادات…</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Certificate full-screen modal -->
+  <div id="student-certificate-modal" class="student-certificate-modal" role="dialog" aria-modal="true" aria-labelledby="student-certificate-modal-title" hidden>
+    <section class="student-certificate-modal-card">
+      <button id="student-certificate-modal-close" class="student-certificate-modal-close" type="button" aria-label="إغلاق الشهادة">×</button>
+      <h2 id="student-certificate-modal-title" class="sr-only">معاينة شهادة التلميذ</h2>
+      <img id="student-certificate-modal-image" src="" alt="شهادة التلميذ" decoding="async" />
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="./js/session-storage.js?v=parent-achievements-1"></script>
+  <script src="./js/parent-dashboard.js?v=parent-achievements-1"></script>
   <script>
-    (async () => { const box = document.getElementById("achievements-list"); const student = window.parentScreen?.student; if (student?.studentName) document.getElementById("parent-screen-student-avatar").textContent = student.studentName.slice(0, 1); if (!student?.id) { box.innerHTML = '<p class="parent-screen-empty">اختر تلميذًا من لوحة الولي أولًا.</p>'; return; } try { const payload = await parentScreen.api(`/api/certificates/student/${encodeURIComponent(student.id)}`); const items = Array.isArray(payload.data) ? payload.data : []; box.replaceChildren(); if (!items.length) { box.innerHTML = '<p class="parent-screen-empty">لا توجد شهادات أو إنجازات مسجلة حاليًا.</p>'; return; } items.forEach((item) => { const card = document.createElement("article"); card.className = "parent-screen-item"; const title = document.createElement("strong"); title.textContent = item.title || "شهادة إنجاز"; const date = document.createElement("span"); date.textContent = item.awardedAt ? `تاريخ الحصول عليها: ${new Intl.DateTimeFormat("ar-DZ", { dateStyle: "medium" }).format(new Date(item.awardedAt))}` : "إنجاز مسجل في الأكاديمية"; card.append(title, date); if (item.description) { const desc = document.createElement("span"); desc.textContent = item.description; card.append(desc); } box.append(card); }); } catch (error) { box.innerHTML = `<p class="parent-screen-empty">${error.message}</p>`; } })();
+    // Focused-screen boot: register the loader FIRST so it runs once
+    // parent-screen-common.js (loaded next) has restored the student.
+    window.addEventListener("parent-screen-ready", (event) => {
+      const student = event && event.detail;
+      if (!student || !student.id) return;
+      void loadStudentCertificates(student.id);
+    });
   </script>
+  <script src="./js/parent-screen-common.js?v=parent-achievements-1"></script>
 </body>
 </html>

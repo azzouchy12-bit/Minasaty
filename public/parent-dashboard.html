@@ -22,19 +22,50 @@
     <link rel="stylesheet" href="./css/parent-messenger-required.css?v=messenger-banner-4" />
 
     <style>
-      :root {
-        --parent-navy: #0f172a;
-        --parent-slate: #1e293b;
-        --parent-muted: #64748b;
-        --parent-bg: #f1f5f9;
-        --parent-card: #ffffff;
-        --parent-blue: #2563eb;
-        --parent-blue-soft: #eff6ff;
-        --parent-green: #059669;
-        --parent-green-soft: #ecfdf5;
-        --parent-red: #dc2626;
-        --parent-red-soft: #fef2f2;
-      }
+          :root {
+            --parent-navy: #0f172a;
+            --parent-slate: #1e293b;
+            --parent-muted: #64748b;
+            --parent-bg: #f1f5f9;
+            --parent-card: #ffffff;
+            --parent-blue: #2563eb;
+            --parent-blue-soft: #eff6ff;
+            --parent-green: #059669;
+            --parent-green-soft: #ecfdf5;
+            --parent-red: #dc2626;
+            --parent-red-soft: #fef2f2;
+          }
+
+          /* Mobile App Style Homework Button */
+          .mobile-homework-button { display: none; }
+          @media (max-width: 768px) {
+            .desktop-homework-trigger, .desktop-homework-content { display: none !important; }
+                        /* On mobile the card becomes a full-width native app touch button
+               that navigates to the dedicated homework screen. The accordion
+               toggle/content above are hidden so no inline expansion happens. */
+            .mobile-homework-button {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              width: 100%;
+              height: 48px;
+              margin: 0.5rem 0;
+              padding: 0 1.1rem;
+              color: #ffffff;
+              background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+              border: 1px solid rgba(96, 165, 250, 0.2);
+              border-radius: 12px;
+              box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
+              font-size: 0.95rem;
+              font-weight: 800;
+              letter-spacing: 0.01em;
+              text-decoration: none;
+              transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+            }
+            .mobile-homework-button:active { transform: scale(0.98); filter: brightness(1.08); }
+            .mobile-homework-button:hover { box-shadow: 0 10px 24px rgba(30, 58, 138, 0.32); }
+            .mobile-homework-arrow { font-size: 1.25rem; font-weight: 900; color: #bfdbfe; }
+          }
 
       .parent-dashboard-page {
         min-height: 100vh;
@@ -1436,7 +1467,7 @@
     <aside id="parent-sidebar" class="parent-sidebar" aria-label="القائمة الجانبية">
       <div class="parent-sidebar-brand"><div class="parent-brand"><span class="parent-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 8 12 3.75 20.5 8 12 12.25 3.5 8Z" /><path d="M6.5 9.5v5.9c3.1 2.25 7.9 2.25 11 0V9.5" /></svg></span><span class="parent-brand-copy"><strong>أكاديمية التفوق</strong><small>بوابة الولي</small></span></div><button id="parent-sidebar-close" class="parent-sidebar-close" type="button" aria-label="إغلاق القائمة">×</button></div>
       <div class="parent-profile-card"><span class="parent-profile-avatar" aria-hidden="true">و</span><span><strong>حساب الولي</strong><small>متابعة الأبناء</small></span><i aria-hidden="true"></i></div>
-      <nav class="parent-sidebar-nav" aria-label="تنقل بوابة الولي"><a class="parent-nav-link is-active" href="#dashboard-content"><span aria-hidden="true">⌂</span>لوحة المتابعة</a><a class="parent-nav-link" href="#student-switcher"><span aria-hidden="true">♙</span>أبنائي</a><a class="parent-nav-link" href="#parent-schedule-card"><span aria-hidden="true">▣</span>جدول الحصص</a><a class="parent-nav-link" href="#secondary-payment-upgrade"><span aria-hidden="true">▤</span>الفواتير والاشتراكات</a><a class="parent-nav-link" href="./account-center.html"><span aria-hidden="true">⚙</span>الإعدادات</a><a class="parent-nav-link referral-nav-link" href="./parent-earnings.html"><span aria-hidden="true">↗</span>أرباحي</a></nav>
+      <nav class="parent-sidebar-nav" aria-label="تنقل بوابة الولي"><a class="parent-nav-link is-active" href="#dashboard-content"><span aria-hidden="true">⌂</span>لوحة المتابعة</a><a class="parent-nav-link" href="#student-switcher"><span aria-hidden="true">♙</span>أبنائي</a><a class="parent-nav-link" href="#parent-schedule-card"><span aria-hidden="true">▣</span>جدول الحصص</a><a class="parent-nav-link" href="#secondary-payment-upgrade"><span aria-hidden="true">▤</span>الفواتير والاشتراكات</a><a class="parent-nav-link" href="./account-center.html"><span aria-hidden="true">⚙</span>الإعدادات</a><a class="parent-nav-link referral-nav-link" href="#referral-earnings"><span aria-hidden="true">↗</span>أرباحي</a></nav>
       <div class="parent-sidebar-footer"><a href="./academic-center.html">المركز الأكاديمي</a><button id="parent-sidebar-logout" type="button">↪ تسجيل الخروج</button></div>
     </aside>
     <div class="parent-dashboard-shell">
@@ -1663,49 +1694,61 @@
           <article class="parent-kpi-card"><span class="parent-kpi-icon">◷</span><div><small>الحصة القادمة</small><strong id="parent-kpi-next-class">—</strong><em>حسب برنامج المستوى</em></div></article>
           <article class="parent-kpi-card"><span class="parent-kpi-icon">★</span><div><small>التقييم العام</small><strong id="parent-kpi-rating">في انتظار التقييم</strong><em>لا يوجد تقييم مسجل بعد</em></div></article>
         </section>
-        <section id="student-homework-card" class="student-homework-card parent-feedback-card" aria-labelledby="student-homework-title">
-          <button id="student-homework-toggle" class="student-homework-toggle" type="button" aria-expanded="false" aria-controls="student-homework-content">
+                <section id="student-homework-card" class="student-homework-card parent-feedback-card" aria-labelledby="student-homework-title">
+          <button id="student-homework-toggle" class="student-homework-toggle desktop-homework-trigger" type="button" aria-expanded="false" aria-controls="student-homework-content">
             <span class="student-homework-toggle-copy"><span>النشاط الدراسي</span><strong id="student-homework-title">الواجبات المدرسية والحلول</strong><small>اضغط لعرض الواجبات المطلوبة ورفع الحلول</small></span>
             <span id="student-homework-toggle-icon" class="student-homework-toggle-icon" aria-hidden="true">⌄</span>
           </button>
-          <div id="student-homework-content" class="student-homework-content" hidden>
+          <div id="student-homework-content" class="student-homework-content desktop-homework-content" hidden>
             <div id="student-homework-list" class="student-homework-list"></div>
           </div>
+          <a href="./parent-homework.html" class="mobile-homework-button" aria-label="الواجبات المدرسية والحلول">
+            <span>الواجبات المدرسية والحلول</span>
+            <span class="mobile-homework-arrow" aria-hidden="true">←</span>
+          </a>
         </section>
 
-        <section id="student-certificates-card" class="student-certificates-card parent-feedback-card" aria-labelledby="student-certificates-title">
-          <a id="student-certificates-toggle" class="student-certificates-toggle" href="./parent-achievements.html" aria-label="فتح إنجازات التلميذ وشهاداته">
+                <section id="student-certificates-card" class="student-certificates-card parent-feedback-card" aria-labelledby="student-certificates-title">
+                    <button id="student-certificates-toggle" class="student-certificates-toggle desktop-homework-trigger" type="button" aria-expanded="false" aria-controls="student-certificates-content">
             <span class="student-certificates-toggle-copy"><span>عامل تحفيزي</span><strong id="student-certificates-title">إنجازات التلميذ وشهاداته</strong><small>اضغط لعرض الشهادات التي حصل عليها التلميذ</small></span>
-            <span class="student-certificates-toggle-icon" aria-hidden="true">←</span>
-          </a>
-          <div id="student-certificates-content" class="student-certificates-content" hidden>
+            <span id="student-certificates-toggle-icon" class="student-certificates-toggle-icon" aria-hidden="true">⌄</span>
+          </button>
+          <div id="student-certificates-content" class="student-certificates-content desktop-homework-content" hidden>
             <p id="student-certificates-caption" class="student-certificates-caption">ستظهر هنا الشهادات والإنجازات التي أضافها الأستاذ لهذا التلميذ.</p>
             <div id="student-certificates-list" class="student-certificates-list" aria-live="polite"></div>
           </div>
+          <a href="./parent-achievements.html" class="mobile-homework-button" aria-label="إنجازات التلميذ وشهاداته">
+            <span>إنجازات التلميذ وشهاداته</span>
+            <span class="mobile-homework-arrow" aria-hidden="true">←</span>
+          </a>
         </section>
         <section id="lesson-repository-card" class="lesson-repository-card" aria-labelledby="lesson-repository-parent-title">
           <header class="lesson-repository-head">
-            <a id="lesson-repository-toggle" class="lesson-repository-toggle" href="./parent-videos.html" aria-label="فتح الفيديوهات المكملة">
+            <button id="lesson-repository-toggle" class="lesson-repository-toggle desktop-homework-trigger" type="button" aria-expanded="false" aria-controls="lesson-repository-controls">
               <span class="lesson-repository-toggle-copy">
                 <span>فيديوهات مكملة</span>
                 <strong id="lesson-repository-parent-title">فيديوهات مكملة</strong>
-                <small>اضغط لفتح الفيديوهات التي أضافها الأستاذ يدويًا</small>
+                <small>اضغط لعرض الفيديوهات التي أضافها الأستاذ يدويًا</small>
               </span>
-              <span class="lesson-repository-toggle-icon" aria-hidden="true">←</span>
-            </a>
+              <span id="lesson-repository-toggle-icon" class="lesson-repository-toggle-icon" aria-hidden="true">⌄</span>
+            </button>
           </header>
-          <div id="lesson-repository-controls" class="lesson-repository-controls" hidden>
+                    <div id="lesson-repository-controls" class="lesson-repository-controls desktop-homework-content" hidden>
             <p id="lesson-repository-level-caption" class="lesson-repository-level-caption">ستظهر هنا الفيديوهات المكملة لمستوى التلميذ المختار.</p>
             <div id="lesson-video-list" class="lesson-video-list" aria-live="polite"></div>
           </div>
+          <a href="./parent-videos.html" class="mobile-homework-button" aria-label="فيديوهات مكملة">
+            <span>فيديوهات مكملة</span>
+            <span class="mobile-homework-arrow" aria-hidden="true">←</span>
+          </a>
         </section>
 
         <section id="class-registry-student" class="class-registry-student" aria-labelledby="class-registry-student-title">
-          <a id="class-registry-toggle" class="class-registry-toggle" href="./parent-sessions.html" aria-label="فتح سجل الحصص والدروس المسجلة">
-            <span class="class-registry-toggle-copy"><span>متابعة الحصص</span><strong id="class-registry-student-title">سجل الحصص والدروس المسجلة</strong><small>اضغط لفتح الفصول والأشهر والمواد والحصص</small></span>
-            <span class="class-registry-toggle-icon" aria-hidden="true">←</span>
-          </a>
-          <div id="class-registry-controls" class="class-registry-controls" hidden>
+          <button id="class-registry-toggle" class="class-registry-toggle desktop-homework-trigger" type="button" aria-expanded="false" aria-controls="class-registry-controls">
+            <span class="class-registry-toggle-copy"><span>متابعة الحصص</span><strong id="class-registry-student-title">سجل الحصص والدروس المسجلة</strong><small>اضغط لعرض الفصول والأشهر والمواد والحصص</small></span>
+            <span id="class-registry-toggle-icon" class="class-registry-toggle-icon" aria-hidden="true">⌄</span>
+          </button>
+          <div id="class-registry-controls" class="class-registry-controls desktop-homework-content" hidden>
             <label class="class-registry-filter-bar" for="registry-term-select">
               <span id="registry-term-label" class="class-registry-filter-label">الفصل الدراسي</span>
               <select id="registry-term-select" class="class-registry-select" aria-labelledby="registry-term-label">
@@ -1727,10 +1770,13 @@
                 <option value="">اختر الشهر أولاً</option>
               </select>
             </label>
-            <div id="parent-class-registry-list" class="class-registry-list" aria-live="polite"></div>
+                        <div id="parent-class-registry-list" class="class-registry-list" aria-live="polite"></div>
           </div>
+          <a href="./parent-sessions.html" class="mobile-homework-button" aria-label="سجل الحصص والدروس المسجلة">
+            <span>سجل الحصص والدروس المسجلة</span>
+            <span class="mobile-homework-arrow" aria-hidden="true">←</span>
+          </a>
         </section>
-
         <section id="parent-payment-confirmed" class="parent-payment-confirmed" hidden aria-live="polite">لقد تم تأكيد الدفع. أصبح حساب الطالب مدفوعًا ويمكنه الدخول إلى جميع الحصص.</section>
         <section id="parent-payment-decision" class="parent-payment-decision" hidden aria-live="polite" role="status"></section>
 
@@ -1777,7 +1823,7 @@
         </section>
 
         <section id="referral-earnings" class="referral-earnings-card" aria-labelledby="referral-earnings-title">
-          <header class="referral-earnings-header">
+          <header class="referral-earnings-header desktop-homework-content">
             <div>
               <span class="referral-earnings-kicker">برنامج الإحالة</span>
               <h2 id="referral-earnings-title">أرباحي</h2>
@@ -1786,13 +1832,13 @@
             <span class="referral-earnings-icon" aria-hidden="true">↗</span>
           </header>
 
-          <div class="referral-stats-grid" aria-label="إحصائيات الإحالة">
+          <div class="referral-stats-grid desktop-homework-content" aria-label="إحصائيات الإحالة">
             <article class="referral-stat-card"><span>أرباحي</span><strong id="referral-total-earnings">0 دج</strong></article>
             <article class="referral-stat-card"><span>المسجلون تحتي</span><strong id="referral-registered-count">0</strong></article>
             <article class="referral-stat-card"><span>الذين رقّوا حساباتهم</span><strong id="referral-upgraded-count">0</strong></article>
           </div>
 
-          <div class="referral-link-panel">
+          <div class="referral-link-panel desktop-homework-content">
             <div class="referral-link-heading">
               <div><strong>رابط الإحالة الخاص بي</strong><small>انسخه وأرسله إلى الأشخاص الذين تريد دعوتهم.</small></div>
               <span class="referral-link-status">رابط شخصي</span>
@@ -1808,16 +1854,20 @@
             </div>
           </div>
 
-          <div class="referral-rules-panel">
+          <div class="referral-rules-panel desktop-homework-content">
             <h3>شروط الربح</h3>
             <ol>
               <li>يجب أن يسجل الشخص الجديد من خلال رابط الإحالة الخاص بك.</li>
               <li>لا تُحتسب عمولة عند التسجيل فقط؛ تُحتسب بعد أول دفع ناجح لذلك المستوى.</li>
               <li>ترقية مادة واحدة تمنحك <strong>100 دج</strong>.</li>
               <li>ترقية المادتين معًا تمنحك <strong>250 دج</strong>.</li>
-              <li>تُحتسب العمولة مرة واحدة فقط لكل رقم هاتف ومستوى دراسي عند أول دفع ناجح، ولا تتكرر عند التجديد أو إعادة الترقية في المستوى نفسه.</li>
+                            <li>تُحتسب العمولة مرة واحدة فقط لكل رقم هاتف ومستوى دراسي عند أول دفع ناجح، ولا تتكرر عند التجديد أو إعادة الترقية في المستوى نفسه.</li>
             </ol>
           </div>
+          <a href="./parent-earnings.html" class="mobile-homework-button" aria-label="أرباحي">
+            <span>أرباحي</span>
+            <span class="mobile-homework-arrow" aria-hidden="true">←</span>
+          </a>
         </section>
       </section>
         </main>

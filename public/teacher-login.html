@@ -8,17 +8,15 @@
   <link rel="stylesheet" href="./css/app.css" />
 </head>
 <body class="app-shell">
-  <main class="auth-layout">
-    <section class="auth-card">
-      <a class="brand-link" href="./index.html">أكاديمية التفوق</a>
-      <p class="eyebrow">بوابة الأستاذ</p>
-      <h1>مرحباً بك</h1>
-      <p>سجّل الدخول لإدارة التلاميذ والمواد والحصص المباشرة.</p>
+    <main class="auth-layout">
+    <section class="auth-card" style="text-align: center;">
+      <a class="brand-link" href="./index.html" style="display: block; text-align: center;">أكاديمية التفوق</a>
+      <p class="eyebrow" style="text-align: center;">بوابة الأستاذ</p>
       <form id="teacher-login-form" class="stack-form">
-        <label for="teacher-passcode">رمز دخول الأستاذ</label>
+        <label for="teacher-passcode" style="text-align: right; display: block;">رمز دخول الأستاذ</label>
         <input id="teacher-passcode" type="password" autocomplete="current-password" required />
         <p id="login-error" class="form-error" hidden aria-live="polite"></p>
-        <button class="cta-button cta-teacher" type="submit">دخول</button>
+        <button class="cta-button cta-teacher" type="submit" style="width: 100%; min-height: 4.5rem; font-size: 1.25rem; font-weight: 900; background: #0284c7; border-color: #0284c7; border-radius: 1rem; cursor: pointer;">دخول</button>
       </form>
     </section>
   </main>

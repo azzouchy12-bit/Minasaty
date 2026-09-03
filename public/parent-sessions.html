@@ -1,16 +1,236 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="سجل الحصص والدروس المسجلة للتلميذ في أكاديمية التفوق للفيزياء والرياضيات." />
   <title>سجل الحصص والدروس المسجلة | أكاديمية التفوق</title>
-  <link rel="stylesheet" href="./css/style.css" /><link rel="stylesheet" href="./css/parent-dashboard-refactor.css" /><link rel="stylesheet" href="./css/parent-screen-common.css" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="./css/style.css?v=parent-sessions-1" />
+  <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=parent-sessions-1" />
+  <link rel="stylesheet" href="./css/payment-feedback.css?v=parent-sessions-1" />
+
+  <style>
+    :root {
+      --ses-navy: #0f172a;
+      --ses-navy-deep: #1e3a8a;
+      --ses-muted: #5b6472;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      color: #0f172a;
+      font-family: "Cairo", Arial, sans-serif;
+      background: linear-gradient(145deg, #f8fafc, #eef2ff);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body.lesson-video-open { overflow: hidden; }
+
+    /* Native app-style top bar */
+    .sessions-topbar {
+      position: sticky;
+      z-index: 40;
+      top: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      width: 100%;
+      min-height: 3.5rem;
+      padding: calc(0.55rem + env(safe-area-inset-top)) 0.9rem 0.55rem;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--ses-navy) 0%, var(--ses-navy-deep) 100%);
+      box-shadow: 0 4px 18px rgba(15, 23, 42, 0.16);
+    }
+
+    .sessions-topbar-title { overflow: hidden; margin: 0; font-size: 1rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .sessions-back-btn { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 0.35rem; min-height: 2.25rem; padding: 0.42rem 0.7rem; color: #ffffff; background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 0.62rem; font-family: inherit; font-size: 0.76rem; font-weight: 800; text-decoration: none; transition: background 0.2s ease, transform 0.18s ease; }
+    .sessions-back-btn:hover { background: rgba(255, 255, 255, 0.24); }
+    .sessions-back-btn:active { transform: scale(0.97); }
+    .sessions-back-arrow { font-size: 1.05rem; line-height: 1; }
+    .sessions-topbar-spacer { width: 1px; height: 1px; flex: 0 0 auto; visibility: hidden; }
+
+    /* Content */
+    .sessions-page-body { width: min(100% - 1.25rem, 48rem); margin: 0 auto; padding: 1rem 0 calc(2rem + env(safe-area-inset-bottom)); }
+    .sessions-subhead { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 1rem; }
+    .sessions-subhead-icon { display: grid; width: 2.3rem; height: 2.3rem; flex: 0 0 auto; place-items: center; color: #1d4ed8; background: #dbeafe; border-radius: 0.72rem; font-size: 1.15rem; font-weight: 900; }
+    .sessions-subhead-copy { display: grid; gap: 0.1rem; }
+    .sessions-subhead-copy strong { font-size: 0.95rem; font-weight: 800; }
+    .sessions-subhead-copy small { color: var(--ses-muted); font-size: 0.72rem; }
+
+    /* Registry card (expanded open by default) */
+    .class-registry-student { margin: 0; overflow: hidden; border: 1px solid rgba(191, 219, 254, 0.85); border-radius: 1.15rem; background: #ffffff; box-shadow: 0 14px 34px rgba(37, 99, 235, 0.08); }
+
+    .sessions-reg-toggle {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.85rem; width: 100%; padding: 1rem 1.1rem; color: inherit; background: transparent; border: 0; text-align: right; cursor: pointer;
+    }
+    .sessions-reg-toggle-copy { display: grid; gap: 0.18rem; min-width: 0; }
+    .sessions-reg-toggle-copy > span { color: #2563eb; font-size: 0.68rem; font-weight: 900; }
+    .sessions-reg-toggle-copy strong { color: #0f172a; font-size: 1.05rem; line-height: 1.45; }
+    .sessions-reg-toggle-copy small { color: #64748b; font-size: 0.76rem; }
+    .sessions-reg-toggle-icon { display: grid; width: 2.4rem; height: 2.4rem; flex: 0 0 auto; place-items: center; color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 0.75rem; font-size: 1.15rem; transition: transform 0.2s ease; }
+
+    .class-registry-controls { display: grid; gap: 0.75rem; padding: 0 1.1rem 1.15rem; }
+    .class-registry-controls[hidden] { display: none; }
+
+    .class-registry-filter-bar { display: grid; gap: 0.3rem; }
+    .class-registry-filter-label { color: #475569; font-size: 0.72rem; font-weight: 800; }
+    .class-registry-select,
+    .class-registry-filter-bar select {
+      width: 100%; min-height: 2.75rem; padding: 0.5rem 0.65rem;
+      color: #0f172a; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 0.7rem;
+      font-family: "Cairo", Arial, sans-serif; font-size: 0.8rem; font-weight: 700;
+    }
+    .class-registry-select:disabled { color: #94a3b8; background: #f1f5f9; }
+
+    .class-registry-list { display: grid; gap: 0.65rem; padding-top: 0.1rem; }
+    .class-registry-empty, .class-registry-loading { margin: 0; padding: 1rem; color: #64748b; background: #f8fafc; border: 1px dashed #c7d2fe; border-radius: 0.9rem; text-align: center; font-size: 0.78rem; }
+
+    @media (max-width: 480px) {
+      .sessions-topbar-title { font-size: 0.94rem; }
+      .sessions-back-btn { padding: 0.4rem 0.55rem; font-size: 0.72rem; }
+      .sessions-page-body { width: min(100% - 1rem, 48rem); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+    }
+  </style>
 </head>
-<body class="parent-screen">
-  <header class="parent-screen-header"><h1>سجل الحصص والدروس المسجلة</h1><a class="parent-screen-back" href="parent-dashboard.html">← العودة إلى الرئيسية</a></header>
-  <main class="parent-screen-main"><div class="parent-screen-student"><span class="parent-screen-avatar" id="parent-screen-student-avatar">ت</span><span class="parent-screen-student-copy"><strong id="parent-screen-student-name">التلميذ الحالي</strong><small id="parent-screen-student-level"></small></span></div><p id="parent-screen-error" class="parent-screen-error" hidden></p><section class="parent-screen-card"><h2>تصفية السجل</h2><p>اختر الفصل الدراسي ثم الشهر ثم المادة لعرض الحصص المسجلة.</p><div class="parent-screen-filters"><select id="session-term" aria-label="الفصل الدراسي"><option value="">اختر الفصل الدراسي</option><option value="TERM_1">الفصل الأول</option><option value="TERM_2">الفصل الثاني</option><option value="TERM_3">الفصل الثالث</option></select><select id="session-month" aria-label="الشهر" disabled><option value="">اختر الشهر</option></select><select id="session-subject" aria-label="المادة" disabled><option value="">اختر المادة</option></select></div><div id="sessions-list" class="parent-screen-list"><p class="parent-screen-empty">اختر الخيارات لعرض السجل.</p></div></section></main>
-  <script src="./js/parent-screen-common.js"></script>
+<body>
+  <!-- Native app style top navigation bar -->
+  <header class="sessions-topbar">
+    <a class="sessions-back-btn" href="./parent-dashboard.html" aria-label="العودة إلى الرئيسية">
+      <span class="sessions-back-arrow" aria-hidden="true">←</span>
+      العودة إلى الرئيسية
+    </a>
+    <h1 class="sessions-topbar-title">سجل الحصص والدروس المسجلة</h1>
+    <span class="sessions-topbar-spacer" aria-hidden="true"></span>
+  </header>
+
+  <main class="sessions-page-body">
+    <div class="sessions-subhead">
+      <span class="sessions-subhead-icon" aria-hidden="true">🗓</span>
+      <span class="sessions-subhead-copy">
+        <strong>برنامج الحصص الخاص بتلميذك</strong>
+        <small>اختر الفصل والشهر والمادة للاطلاع على الحصص</small>
+      </span>
+    </div>
+
+    <section id="class-registry-student" class="class-registry-student" aria-labelledby="class-registry-student-title">
+      <button id="class-registry-toggle" class="sessions-reg-toggle" type="button" aria-expanded="true" aria-controls="class-registry-controls">
+        <span class="sessions-reg-toggle-copy">
+          <span>متابعة الحصص</span>
+          <strong id="class-registry-student-title">سجل الحصص والدروس المسجلة</strong>
+          <small>تصفّح الحصص حسب الفصل والشهر والمادة، وشاهد التسجيلات.</small>
+        </span>
+        <span id="class-registry-toggle-icon" class="sessions-reg-toggle-icon" aria-hidden="true">⌃</span>
+      </button>
+
+      <div id="class-registry-controls" class="class-registry-controls">
+        <label class="class-registry-filter-bar" for="registry-term-select">
+          <span id="registry-term-label" class="class-registry-filter-label">الفصل الدراسي</span>
+          <select id="registry-term-select" class="class-registry-select" aria-labelledby="registry-term-label">
+            <option value="">اختر الفصل الدراسي</option>
+          </select>
+        </label>
+        <label class="class-registry-filter-bar" for="registry-month-select">
+          <span id="registry-month-label" class="class-registry-filter-label">الشهر</span>
+          <select id="registry-month-select" class="class-registry-select" aria-labelledby="registry-month-label" disabled>
+            <option value="">اختر الفصل أولاً</option>
+          </select>
+        </label>
+        <label class="class-registry-filter-bar" for="registry-subject-select">
+          <span id="registry-subject-label" class="class-registry-filter-label">المادة</span>
+          <select id="registry-subject-select" class="class-registry-select" aria-labelledby="registry-subject-label" disabled>
+            <option value="">اختر الشهر أولاً</option>
+          </select>
+        </label>
+
+        <div id="parent-class-registry-list" class="class-registry-list" aria-live="polite">
+          <p class="class-registry-empty">اختر الفصل والشهر والمادة لعرض سجل الحصص.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Lesson player modal (mirrors the dashboard's registered-lesson viewer). -->
+  <div id="lesson-video-modal" class="lesson-video-modal" role="dialog" aria-modal="true" aria-labelledby="lesson-video-modal-title" hidden>
+    <section class="lesson-video-dialog">
+      <header class="lesson-video-modal-head">
+        <div class="lesson-video-modal-brand">
+          <span>تسجيل الحصة</span>
+          <h2 id="lesson-video-modal-title">مشاهدة الحصة المسجلة</h2>
+          <p>شاهد الواجب المعاد تسجيله متى شئت.</p>
+        </div>
+        <button id="lesson-video-close" class="lesson-video-close" type="button" aria-label="إغلاق الفيديو">×</button>
+      </header>
+      <div class="lesson-video-modal-body">
+        <div class="lesson-video-player-shell">
+          <div class="lesson-video-player-topbar">
+            <span>التسجيل يعمل داخل الأكاديمية</span>
+            <div class="lesson-video-player-actions" role="group" aria-label="أدوات عرض الفيديو">
+              <button id="lesson-video-fullscreen" class="lesson-video-player-action" type="button" aria-label="فتح ملء الشاشة">ملء الشاشة</button>
+            </div>
+          </div>
+          <iframe id="lesson-video-frame" class="lesson-video-frame" title="فيديو الحصة المسجلة" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          <div id="lesson-video-zoom-layer" class="lesson-video-zoom-layer" aria-label="منطقة تكبير الفيديو بإصبعين"></div>
+        </div>
+        <aside class="lesson-video-sidebar" aria-label="معلومات الحصة">
+          <div>
+            <span class="lesson-video-sidebar-label">الحصة المختارة</span>
+            <h3 id="lesson-video-sidebar-title">مشاهدة الحصة</h3>
+            <span id="lesson-video-sidebar-meta" class="lesson-video-sidebar-meta">فيديو الحصة المسجلة</span>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- Registry upsell modal shown when the lesson requires an upgrade. -->
+  <div id="registry-upsell-modal" class="registry-upsell-modal" role="dialog" aria-modal="true" aria-labelledby="registry-upsell-title" hidden>
+    <section class="registry-upsell-dialog">
+      <button id="registry-upsell-close" class="lesson-video-close" type="button" aria-label="إغلاق">×</button>
+      <span class="registry-upsell-icon" aria-hidden="true">🔒</span>
+      <p class="registry-upsell-kicker">محتوى يحتاج إلى ترقية</p>
+      <h2 id="registry-upsell-title">عذرًا، أنت غير مؤهل لمشاهدة هذا المحتوى.</h2>
+      <p>حسابك الحالي غير مفعّل لهذه المادة. لمشاهدة دروس هذه المادة المسجلة والمباشرة، يرجى الاتصال بالأستاذ لترقية حسابك.</p>
+      <a class="registry-upsell-call" href="tel:0556960950">تواصل مع الأستاذ</a>
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="./js/session-storage.js?v=parent-sessions-1"></script>
+  <script src="./js/parent-dashboard.js?v=parent-sessions-1"></script>
+  <script src="./js/class-registry-parent.js?v=parent-sessions-1"></script>
   <script>
-    (() => { const student = window.parentScreen?.student; const term = document.getElementById("session-term"); const month = document.getElementById("session-month"); const subject = document.getElementById("session-subject"); const box = document.getElementById("sessions-list"); const months = { TERM_1: [["2026-09","سبتمبر 2026"],["2026-10","أكتوبر 2026"],["2026-11","نوفمبر 2026"]], TERM_2: [["2027-01","جانفي 2027"],["2027-02","فيفري 2027"]], TERM_3: [["2027-04","أبريل 2027"],["2027-05","ماي 2027"]] }; function options(select, placeholder, values, disabled) { select.replaceChildren(new Option(placeholder, "")); values.forEach(([value,label]) => select.append(new Option(label,value))); select.disabled = disabled; } function redraw() { options(month, term.value ? "اختر الشهر" : "اختر الفصل أولًا", months[term.value] || [], !term.value); options(subject, month.value ? "اختر المادة" : "اختر الشهر أولًا", student?.level === "طالب جامعي" ? [["PAID","اشتراك مدفوع"],["FREE","اشتراك مجاني"]] : [["MATH","الرياضيات"],["PHYSICS","الفيزياء"]], !month.value); } async function load() { if (!student?.id || !student?.level || !term.value || !month.value || !subject.value) { box.innerHTML = '<p class="parent-screen-empty">اختر الفصل والشهر والمادة أولًا.</p>'; return; } box.innerHTML = '<p class="parent-screen-empty">جارٍ تحميل السجل…</p>'; try { const payload = await parentScreen.api(`/api/schedules/registry/${encodeURIComponent(student.level)}?month=${encodeURIComponent(month.value)}&subject=${encodeURIComponent(subject.value)}&studentId=${encodeURIComponent(student.id)}`); const items = Array.isArray(payload.data) ? payload.data : []; box.replaceChildren(); if (!items.length) { box.innerHTML = '<p class="parent-screen-empty">لا توجد حصص في الاختيار الحالي.</p>'; return; } items.forEach((item) => { const card = document.createElement("article"); card.className = "parent-screen-item"; const title = document.createElement("strong"); title.textContent = item.subject === "PHYSICS" ? "الفيزياء" : item.subject === "MATH" ? "الرياضيات" : item.subject || "حصة دراسية"; const meta = document.createElement("span"); meta.textContent = `${item.scheduledAt ? new Intl.DateTimeFormat("ar-DZ", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.scheduledAt)) : "موعد غير محدد"} · ${item.status === "COMPLETED" ? "تمت الحصة" : item.status === "TEACHER_ABSENT" ? "غياب الأستاذ" : "في الانتظار"}`; card.append(title, meta); if (item.canWatch && (item.youtubeEmbedUrl || item.previewUrl)) { const link = document.createElement("a"); link.className = "parent-screen-button"; link.href = item.youtubeEmbedUrl || item.previewUrl; link.target = "_blank"; link.rel = "noopener"; link.textContent = "مشاهدة التسجيل"; card.append(link); } box.append(card); }); } catch (error) { box.innerHTML = `<p class="parent-screen-empty">${error.message}</p>`; } } term.addEventListener("change", () => { redraw(); load(); }); month.addEventListener("change", () => { redraw(); load(); }); subject.addEventListener("change", load); redraw(); })();
+    // Sessions focus screen. The registry's own accordion starts collapsed
+    // internally even though the controls are shown; expand it exactly once as
+    // soon as the shared (parent) session — incl. the stored selected student —
+    // exists, so the filters become usable and loading the register isn't gated.
+    let sessionsRegistryOpened = false;
+    window.addEventListener("parent-screen-ready", (event) => {
+      const student = event && event.detail;
+      if (student && student.id) {
+        window.dispatchEvent(new CustomEvent("active-student-changed", { detail: student }));
+      }
+      const toggle = document.getElementById("class-registry-toggle");
+      if (toggle && !sessionsRegistryOpened) {
+        sessionsRegistryOpened = true;
+        toggle.click(); // flips internal open=true so a subject selection loads
+      }
+    });
   </script>
+  <script src="./js/parent-screen-common.js?v=parent-sessions-1"></script>
 </body>
 </html>
