@@ -226,5 +226,15 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="./js/session-storage.js?v=parent-homework-1"></script>
   <script src="./js/parent-dashboard.js?v=parent-homework-1"></script>
+  <script>
+    // Focused-screen boot: register the loader FIRST so it runs once
+    // parent-screen-common.js (loaded next) has restored the student.
+    window.addEventListener("parent-screen-ready", (event) => {
+      const student = event && event.detail;
+      if (!student || !student.id) return;
+      void loadStudentHomework(student.id);
+    });
+  </script>
+  <script src="./js/parent-screen-common.js?v=parent-homework-1"></script>
 </body>
 </html>
