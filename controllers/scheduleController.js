@@ -75,6 +75,20 @@ function parseMonthFilter(value) {
   return { monthKey: "", monthName: "" };
 }
 
+function monthDateRange(monthFilter) {
+  let key = monthFilter.monthKey;
+  if (!key && monthFilter.monthName) {
+    const year = new Date().getUTCFullYear();
+    key = `${year}-${MONTH_NAMES[monthFilter.monthName]}`;
+  }
+  if (!MONTH_KEY_PATTERN.test(key || "")) return null;
+  const [year, month] = key.split("-").map(Number);
+  return {
+    start: new Date(Date.UTC(year, month - 1, 1)),
+    end: new Date(Date.UTC(year, month, 1)),
+  };
+}
+
 function extractGoogleDriveFileId(value) {
   const rawUrl = normalizeText(value);
   if (!rawUrl) return "";
@@ -321,8 +335,17 @@ async function getClassRegistry(req, res) {
     const student = req.user.role === "parent" ? await getParentRegistryStudent(req, level) : null;
     if (req.user.role === "parent" && !student) return res.status(403).json({ error: "اختر تلميذًا مرتبطًا بحساب الولي لهذا المستوى." });
 
+    const range = monthDateRange(monthFilter);
+    const indexedMonthClause = monthFilter.monthKey
+      ? { monthKey: monthFilter.monthKey }
+      : monthFilter.monthName
+        ? { monthName: monthFilter.monthName }
+        : null;
+    const monthWhere = range
+      ? { OR: [indexedMonthClause, { scheduledAt: { gte: range.start, lt: range.end } }].filter(Boolean) }
+      : {};
     const classes = await prisma.scheduledClass.findMany({
-      where: { level, ...(monthFilter.monthKey ? { monthKey: monthFilter.monthKey } : {}), ...(monthFilter.monthName ? { monthName: monthFilter.monthName } : {}), ...(subject ? { subject } : {}) },
+      where: { level, ...monthWhere, ...(subject ? { subject } : {}) },
       orderBy: { scheduledAt: "asc" },
     });
     return res.status(200).json({
