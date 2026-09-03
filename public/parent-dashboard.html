@@ -1436,7 +1436,7 @@
     <aside id="parent-sidebar" class="parent-sidebar" aria-label="القائمة الجانبية">
       <div class="parent-sidebar-brand"><div class="parent-brand"><span class="parent-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 8 12 3.75 20.5 8 12 12.25 3.5 8Z" /><path d="M6.5 9.5v5.9c3.1 2.25 7.9 2.25 11 0V9.5" /></svg></span><span class="parent-brand-copy"><strong>أكاديمية التفوق</strong><small>بوابة الولي</small></span></div><button id="parent-sidebar-close" class="parent-sidebar-close" type="button" aria-label="إغلاق القائمة">×</button></div>
       <div class="parent-profile-card"><span class="parent-profile-avatar" aria-hidden="true">و</span><span><strong>حساب الولي</strong><small>متابعة الأبناء</small></span><i aria-hidden="true"></i></div>
-      <nav class="parent-sidebar-nav" aria-label="تنقل بوابة الولي"><a class="parent-nav-link is-active" href="#dashboard-content"><span aria-hidden="true">⌂</span>لوحة المتابعة</a><a class="parent-nav-link" href="#student-switcher"><span aria-hidden="true">♙</span>أبنائي</a><a class="parent-nav-link" href="#parent-schedule-card"><span aria-hidden="true">▣</span>جدول الحصص</a><a class="parent-nav-link" href="#secondary-payment-upgrade"><span aria-hidden="true">▤</span>الفواتير والاشتراكات</a><a class="parent-nav-link" href="./account-center.html"><span aria-hidden="true">⚙</span>الإعدادات</a><a class="parent-nav-link referral-nav-link" href="#referral-earnings"><span aria-hidden="true">↗</span>أرباحي</a></nav>
+      <nav class="parent-sidebar-nav" aria-label="تنقل بوابة الولي"><a class="parent-nav-link is-active" href="#dashboard-content"><span aria-hidden="true">⌂</span>لوحة المتابعة</a><a class="parent-nav-link" href="#student-switcher"><span aria-hidden="true">♙</span>أبنائي</a><a class="parent-nav-link" href="#parent-schedule-card"><span aria-hidden="true">▣</span>جدول الحصص</a><a class="parent-nav-link" href="#secondary-payment-upgrade"><span aria-hidden="true">▤</span>الفواتير والاشتراكات</a><a class="parent-nav-link" href="./account-center.html"><span aria-hidden="true">⚙</span>الإعدادات</a><a class="parent-nav-link referral-nav-link" href="./parent-earnings.html"><span aria-hidden="true">↗</span>أرباحي</a></nav>
       <div class="parent-sidebar-footer"><a href="./academic-center.html">المركز الأكاديمي</a><button id="parent-sidebar-logout" type="button">↪ تسجيل الخروج</button></div>
     </aside>
     <div class="parent-dashboard-shell">
@@ -1674,10 +1674,10 @@
         </section>
 
         <section id="student-certificates-card" class="student-certificates-card parent-feedback-card" aria-labelledby="student-certificates-title">
-          <button id="student-certificates-toggle" class="student-certificates-toggle" type="button" aria-expanded="false" aria-controls="student-certificates-content">
+          <a id="student-certificates-toggle" class="student-certificates-toggle" href="./parent-achievements.html" aria-label="فتح إنجازات التلميذ وشهاداته">
             <span class="student-certificates-toggle-copy"><span>عامل تحفيزي</span><strong id="student-certificates-title">إنجازات التلميذ وشهاداته</strong><small>اضغط لعرض الشهادات التي حصل عليها التلميذ</small></span>
-            <span id="student-certificates-toggle-icon" class="student-certificates-toggle-icon" aria-hidden="true">⌄</span>
-          </button>
+            <span class="student-certificates-toggle-icon" aria-hidden="true">←</span>
+          </a>
           <div id="student-certificates-content" class="student-certificates-content" hidden>
             <p id="student-certificates-caption" class="student-certificates-caption">ستظهر هنا الشهادات والإنجازات التي أضافها الأستاذ لهذا التلميذ.</p>
             <div id="student-certificates-list" class="student-certificates-list" aria-live="polite"></div>
@@ -1685,14 +1685,14 @@
         </section>
         <section id="lesson-repository-card" class="lesson-repository-card" aria-labelledby="lesson-repository-parent-title">
           <header class="lesson-repository-head">
-            <button id="lesson-repository-toggle" class="lesson-repository-toggle" type="button" aria-expanded="false" aria-controls="lesson-repository-controls">
+            <a id="lesson-repository-toggle" class="lesson-repository-toggle" href="./parent-videos.html" aria-label="فتح الفيديوهات المكملة">
               <span class="lesson-repository-toggle-copy">
                 <span>فيديوهات مكملة</span>
                 <strong id="lesson-repository-parent-title">فيديوهات مكملة</strong>
-                <small>اضغط لعرض الفيديوهات التي أضافها الأستاذ يدويًا</small>
+                <small>اضغط لفتح الفيديوهات التي أضافها الأستاذ يدويًا</small>
               </span>
-              <span id="lesson-repository-toggle-icon" class="lesson-repository-toggle-icon" aria-hidden="true">⌄</span>
-            </button>
+              <span class="lesson-repository-toggle-icon" aria-hidden="true">←</span>
+            </a>
           </header>
           <div id="lesson-repository-controls" class="lesson-repository-controls" hidden>
             <p id="lesson-repository-level-caption" class="lesson-repository-level-caption">ستظهر هنا الفيديوهات المكملة لمستوى التلميذ المختار.</p>
@@ -1701,10 +1701,10 @@
         </section>
 
         <section id="class-registry-student" class="class-registry-student" aria-labelledby="class-registry-student-title">
-          <button id="class-registry-toggle" class="class-registry-toggle" type="button" aria-expanded="false" aria-controls="class-registry-controls">
-            <span class="class-registry-toggle-copy"><span>متابعة الحصص</span><strong id="class-registry-student-title">سجل الحصص والدروس المسجلة</strong><small>اضغط لعرض الفصول والأشهر والمواد والحصص</small></span>
-            <span id="class-registry-toggle-icon" class="class-registry-toggle-icon" aria-hidden="true">⌄</span>
-          </button>
+          <a id="class-registry-toggle" class="class-registry-toggle" href="./parent-sessions.html" aria-label="فتح سجل الحصص والدروس المسجلة">
+            <span class="class-registry-toggle-copy"><span>متابعة الحصص</span><strong id="class-registry-student-title">سجل الحصص والدروس المسجلة</strong><small>اضغط لفتح الفصول والأشهر والمواد والحصص</small></span>
+            <span class="class-registry-toggle-icon" aria-hidden="true">←</span>
+          </a>
           <div id="class-registry-controls" class="class-registry-controls" hidden>
             <label class="class-registry-filter-bar" for="registry-term-select">
               <span id="registry-term-label" class="class-registry-filter-label">الفصل الدراسي</span>

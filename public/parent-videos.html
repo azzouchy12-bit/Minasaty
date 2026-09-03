@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>فيديوهات مكملة | أكاديمية التفوق</title>
+  <link rel="stylesheet" href="./css/style.css" /><link rel="stylesheet" href="./css/parent-dashboard-refactor.css" /><link rel="stylesheet" href="./css/parent-screen-common.css" />
+</head>
+<body class="parent-screen">
+  <header class="parent-screen-header"><h1>فيديوهات مكملة</h1><a class="parent-screen-back" href="parent-dashboard.html">← العودة إلى الرئيسية</a></header>
+  <main class="parent-screen-main"><div class="parent-screen-student"><span class="parent-screen-avatar" id="parent-screen-student-avatar">ت</span><span class="parent-screen-student-copy"><strong id="parent-screen-student-name">التلميذ الحالي</strong><small id="parent-screen-student-level"></small></span></div><p id="parent-screen-error" class="parent-screen-error" hidden></p><section class="parent-screen-card"><h2>مكتبة الفيديوهات</h2><p>فيديوهات إضافية يحددها الأستاذ لمساعدة التلميذ على المراجعة.</p><div id="videos-list" class="parent-screen-list"><p class="parent-screen-empty">جارٍ تحميل الفيديوهات…</p></div></section></main>
+  <script src="./js/parent-screen-common.js"></script>
+  <script>
+    (async () => { const box = document.getElementById("videos-list"); const student = window.parentScreen?.student; if (student?.studentName) document.getElementById("parent-screen-student-avatar").textContent = student.studentName.slice(0, 1); if (!student?.id || !student?.level) { box.innerHTML = '<p class="parent-screen-empty">اختر تلميذًا من لوحة الولي أولًا.</p>'; return; } try { const payload = await parentScreen.api(`/api/lesson-videos/${encodeURIComponent(student.level)}?studentId=${encodeURIComponent(student.id)}`); const items = Array.isArray(payload.data) ? payload.data : []; box.replaceChildren(); if (!items.length) { box.innerHTML = '<p class="parent-screen-empty">لا توجد فيديوهات مكملة متاحة حاليًا.</p>'; return; } items.forEach((item) => { const card = document.createElement("article"); card.className = "parent-screen-item"; const title = document.createElement("strong"); title.textContent = item.title || "فيديو مكمل"; const meta = document.createElement("span"); meta.textContent = item.subject || item.description || "مادة تعليمية إضافية"; card.append(title, meta); if (item.youtubeEmbedUrl || item.previewUrl) { const link = document.createElement("a"); link.className = "parent-screen-button"; link.href = item.youtubeEmbedUrl || item.previewUrl; link.target = "_blank"; link.rel = "noopener"; link.textContent = "مشاهدة الفيديو"; card.append(link); } box.append(card); }); } catch (error) { box.innerHTML = `<p class="parent-screen-empty">${error.message}</p>`; } })();
+  </script>
+</body>
+</html>

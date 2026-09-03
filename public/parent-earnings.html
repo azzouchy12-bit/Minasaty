@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>أرباحي | أكاديمية التفوق</title>
+  <link rel="stylesheet" href="./css/style.css" /><link rel="stylesheet" href="./css/parent-dashboard-refactor.css" /><link rel="stylesheet" href="./css/parent-screen-common.css" />
+</head>
+<body class="parent-screen">
+  <header class="parent-screen-header"><h1>أرباحي</h1><a class="parent-screen-back" href="parent-dashboard.html">← العودة إلى الرئيسية</a></header>
+  <main class="parent-screen-main"><div class="parent-screen-student"><span class="parent-screen-avatar">↗</span><span class="parent-screen-student-copy"><strong>برنامج الإحالة</strong><small>تابع تسجيلاتك وأرباحك من لوحة الولي</small></span></div><p id="parent-screen-error" class="parent-screen-error" hidden></p><section class="parent-screen-card"><h2>ملخص الأرباح</h2><p>شارك رابط الإحالة مع أولياء الأمور وتابع النتائج المسجلة لحسابك.</p><div class="parent-screen-list"><article class="parent-screen-item"><strong>إجمالي الأرباح</strong><span id="referral-total-earnings">0 دج</span></article><article class="parent-screen-item"><strong>المسجلون تحتك</strong><span id="referral-registered-count">0</span></article><article class="parent-screen-item"><strong>الاشتراكات المؤهلة</strong><span id="referral-upgraded-count">0</span></article></div><div class="parent-screen-actions"><input id="referral-link-input" class="parent-screen-referral-input" value="جارٍ تجهيز الرابط…" readonly aria-label="رابط الإحالة" /><button id="copy-referral-link" class="parent-screen-button" type="button">نسخ</button></div><p id="referral-copy-feedback" class="parent-screen-referral-feedback" aria-live="polite"></p></section></main>
+  <script src="./js/parent-screen-common.js"></script><script src="./js/parent-referral.js"></script>
+</body>
+</html>
