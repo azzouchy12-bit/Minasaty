@@ -22,19 +22,50 @@
     <link rel="stylesheet" href="./css/parent-messenger-required.css?v=messenger-banner-4" />
 
     <style>
-      :root {
-        --parent-navy: #0f172a;
-        --parent-slate: #1e293b;
-        --parent-muted: #64748b;
-        --parent-bg: #f1f5f9;
-        --parent-card: #ffffff;
-        --parent-blue: #2563eb;
-        --parent-blue-soft: #eff6ff;
-        --parent-green: #059669;
-        --parent-green-soft: #ecfdf5;
-        --parent-red: #dc2626;
-        --parent-red-soft: #fef2f2;
-      }
+          :root {
+            --parent-navy: #0f172a;
+            --parent-slate: #1e293b;
+            --parent-muted: #64748b;
+            --parent-bg: #f1f5f9;
+            --parent-card: #ffffff;
+            --parent-blue: #2563eb;
+            --parent-blue-soft: #eff6ff;
+            --parent-green: #059669;
+            --parent-green-soft: #ecfdf5;
+            --parent-red: #dc2626;
+            --parent-red-soft: #fef2f2;
+          }
+
+          /* Mobile App Style Homework Button */
+          .mobile-homework-button { display: none; }
+          @media (max-width: 768px) {
+            .desktop-homework-trigger, .desktop-homework-content { display: none !important; }
+                        /* On mobile the card becomes a full-width native app touch button
+               that navigates to the dedicated homework screen. The accordion
+               toggle/content above are hidden so no inline expansion happens. */
+            .mobile-homework-button {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              width: 100%;
+              height: 48px;
+              margin: 0.5rem 0;
+              padding: 0 1.1rem;
+              color: #ffffff;
+              background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+              border: 1px solid rgba(96, 165, 250, 0.2);
+              border-radius: 12px;
+              box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
+              font-size: 0.95rem;
+              font-weight: 800;
+              letter-spacing: 0.01em;
+              text-decoration: none;
+              transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+            }
+            .mobile-homework-button:active { transform: scale(0.98); filter: brightness(1.08); }
+            .mobile-homework-button:hover { box-shadow: 0 10px 24px rgba(30, 58, 138, 0.32); }
+            .mobile-homework-arrow { font-size: 1.25rem; font-weight: 900; color: #bfdbfe; }
+          }
 
       .parent-dashboard-page {
         min-height: 100vh;
@@ -1663,14 +1694,18 @@
           <article class="parent-kpi-card"><span class="parent-kpi-icon">◷</span><div><small>الحصة القادمة</small><strong id="parent-kpi-next-class">—</strong><em>حسب برنامج المستوى</em></div></article>
           <article class="parent-kpi-card"><span class="parent-kpi-icon">★</span><div><small>التقييم العام</small><strong id="parent-kpi-rating">في انتظار التقييم</strong><em>لا يوجد تقييم مسجل بعد</em></div></article>
         </section>
-        <section id="student-homework-card" class="student-homework-card parent-feedback-card" aria-labelledby="student-homework-title">
-          <button id="student-homework-toggle" class="student-homework-toggle" type="button" aria-expanded="false" aria-controls="student-homework-content">
+                <section id="student-homework-card" class="student-homework-card parent-feedback-card" aria-labelledby="student-homework-title">
+          <button id="student-homework-toggle" class="student-homework-toggle desktop-homework-trigger" type="button" aria-expanded="false" aria-controls="student-homework-content">
             <span class="student-homework-toggle-copy"><span>النشاط الدراسي</span><strong id="student-homework-title">الواجبات المدرسية والحلول</strong><small>اضغط لعرض الواجبات المطلوبة ورفع الحلول</small></span>
             <span id="student-homework-toggle-icon" class="student-homework-toggle-icon" aria-hidden="true">⌄</span>
           </button>
-          <div id="student-homework-content" class="student-homework-content" hidden>
+          <div id="student-homework-content" class="student-homework-content desktop-homework-content" hidden>
             <div id="student-homework-list" class="student-homework-list"></div>
           </div>
+          <a href="./parent-homework.html" class="mobile-homework-button" aria-label="الواجبات المدرسية والحلول">
+            <span>الواجبات المدرسية والحلول</span>
+            <span class="mobile-homework-arrow" aria-hidden="true">←</span>
+          </a>
         </section>
 
         <section id="student-certificates-card" class="student-certificates-card parent-feedback-card" aria-labelledby="student-certificates-title">

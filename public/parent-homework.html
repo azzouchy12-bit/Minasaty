@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="شاشة الواجبات المدرسية والحلول في أكاديمية التفوق للفيزياء والرياضيات." />
+  <title>الواجبات والحلول المدرسية | أكاديمية التفوق</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="./css/style.css?v=parent-homework-1" />
+  <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=parent-homework-1" />
+  <link rel="stylesheet" href="./css/payment-feedback.css?v=parent-homework-1" />
+
+  <style>
+    :root {
+      --ph-navy: #0f172a;
+      --ph-navy-deep: #1e3a8a;
+      --ph-bg: #f1f5f9;
+      --ph-card: #ffffff;
+      --ph-muted: #64748b;
+    }
+
+    *,
+    *::before,
+    *::after { box-sizing: border-box; }
+
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      color: var(--ph-navy);
+      font-family: "Cairo", Arial, sans-serif;
+      background: var(--ph-bg);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body.homework-page-open { overflow: hidden; }
+
+    /* Native app-style top bar */
+    .homework-topbar {
+      position: sticky;
+      z-index: 40;
+      top: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      width: 100%;
+      min-height: 3.5rem;
+      padding: calc(0.55rem + env(safe-area-inset-top)) 0.9rem 0.55rem;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--ph-navy) 0%, var(--ph-navy-deep) 100%);
+      box-shadow: 0 4px 18px rgba(15, 23, 42, 0.16);
+    }
+
+    .homework-topbar-title {
+      overflow: hidden;
+      margin: 0;
+      font-size: 1.02rem;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .homework-back-btn {
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+      gap: 0.35rem;
+      min-height: 2.25rem;
+      padding: 0.42rem 0.7rem;
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 0.62rem;
+      font-family: inherit;
+      font-size: 0.76rem;
+      font-weight: 800;
+      text-decoration: none;
+      transition: background 0.2s ease, transform 0.18s ease;
+    }
+
+    .homework-back-btn:hover { background: rgba(255, 255, 255, 0.24); }
+    .homework-back-btn:active { transform: scale(0.97); }
+    .homework-back-btn:focus-visible { outline: 3px solid rgba(147, 197, 253, 0.7); outline-offset: 2px; }
+
+    .homework-back-arrow { font-size: 1.05rem; line-height: 1; }
+
+    .homework-topbar-spacer {
+      width: 1px; height: 1px; flex: 0 0 auto; visibility: hidden;
+    }
+
+    /* Content */
+    .homework-page-body {
+      width: min(100% - 1.25rem, 46rem);
+      margin: 0 auto;
+      padding: 1rem 0 calc(2rem + env(safe-area-inset-bottom));
+    }
+
+    .homework-subhead {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin: 0 0 0.9rem;
+    }
+
+    .homework-subhead-icon {
+      display: grid;
+      width: 2.3rem;
+      height: 2.3rem;
+      flex: 0 0 auto;
+      place-items: center;
+      color: var(--ph-navy-deep);
+      background: #e0e7ff;
+      border-radius: 0.72rem;
+      font-size: 1.15rem;
+      font-weight: 900;
+    }
+
+    .homework-subhead-copy { display: grid; gap: 0.1rem; }
+    .homework-subhead-copy strong { font-size: 0.95rem; font-weight: 800; }
+    .homework-subhead-copy small { color: var(--ph-muted); font-size: 0.72rem; }
+
+    .homework-content-card {
+      padding: 0.35rem 0;
+    }
+
+    /* Homework list container uses the shared stylesheet styles. */
+    #student-homework-list.student-homework-list {
+      display: grid;
+      gap: 0.7rem;
+      padding-top: 0;
+    }
+
+    .student-homework-empty {
+      display: grid;
+      min-height: 9rem;
+      place-items: center;
+      margin: 0;
+      padding: 1.5rem;
+      color: var(--ph-muted);
+      text-align: center;
+      background: var(--ph-card);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 1rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+      line-height: 1.8;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+    }
+
+    @media (max-width: 480px) {
+      .homework-topbar-title { font-size: 0.94rem; }
+      .homework-back-btn { padding: 0.4rem 0.55rem; font-size: 0.72rem; }
+      .homework-page-body { width: min(100% - 1rem, 46rem); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Native app style top navigation bar -->
+  <header class="homework-topbar">
+    <a class="homework-back-btn" href="./parent-dashboard.html" aria-label="العودة إلى الرئيسية">
+      <span class="homework-back-arrow" aria-hidden="true">←</span>
+      العودة إلى الرئيسية
+    </a>
+    <h1 class="homework-topbar-title">الواجبات والحلول المدرسية</h1>
+    <span class="homework-topbar-spacer" aria-hidden="true"></span>
+  </header>
+
+  <main class="homework-page-body">
+    <div class="homework-subhead">
+      <span class="homework-subhead-icon" aria-hidden="true">📝</span>
+      <span class="homework-subhead-copy">
+        <strong>واجباتي المدرسيّة</strong>
+        <small>تَصفّح الواجبات وارفع حلولك بسهولة</small>
+      </span>
+    </div>
+
+    <section class="homework-content-card" aria-live="polite" aria-label="الواجبات المدرسية والحلول">
+      <div id="student-homework-content" class="student-homework-content" aria-hidden="false">
+        <div id="student-homework-list" class="student-homework-list">
+          <p class="student-homework-empty">جارٍ تحميل الواجبات…</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- File preview modal (kept functional for attachments & instruction PDFs/images) -->
+  <div id="student-homework-file-modal" class="student-homework-file-modal" role="dialog" aria-modal="true" aria-labelledby="student-homework-file-title" hidden>
+    <section class="student-homework-file-dialog">
+      <div class="student-homework-file-head">
+        <h2 id="student-homework-file-title">واجب الرياضيات</h2>
+        <button id="student-homework-file-close" class="modal-close" type="button" aria-label="إغلاق معاينة الواجب">×</button>
+      </div>
+      <p id="student-homework-file-hint" class="student-homework-file-hint">اضغط بإصبعين للتكبير والتحريك.</p>
+      <div id="student-homework-file-stage" class="student-homework-file-stage">
+        <img id="student-homework-file-image" class="student-homework-file-image" alt="صورة ملف الواجب" hidden decoding="async" draggable="false" />
+        <iframe id="student-homework-file-frame" class="student-homework-file-frame" title="ملف الواجب" hidden></iframe>
+      </div>
+    </section>
+  </div>
+
+  <!-- Shared error / success feedback dialog for uploads -->
+  <div id="document-feedback-modal" class="document-feedback-modal" role="dialog" aria-modal="true" aria-labelledby="document-feedback-title" hidden>
+    <section class="document-feedback-dialog">
+      <div class="document-feedback-head">
+        <span class="document-feedback-icon" aria-hidden="true">!</span>
+        <div>
+          <h2 id="document-feedback-title">تعذر إتمام العملية</h2>
+          <p>راجع البيانات والحل ثم حاول مرة أخرى.</p>
+        </div>
+      </div>
+      <div id="document-feedback-message" class="document-feedback-body"></div>
+      <button id="document-feedback-close" class="document-feedback-close" type="button">إغلاق</button>
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="./js/session-storage.js?v=parent-homework-1"></script>
+  <script src="./js/parent-dashboard.js?v=parent-homework-1"></script>
+</body>
+</html>
