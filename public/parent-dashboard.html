@@ -1708,19 +1708,23 @@
           </a>
         </section>
 
-        <section id="student-certificates-card" class="student-certificates-card parent-feedback-card" aria-labelledby="student-certificates-title">
-          <button id="student-certificates-toggle" class="student-certificates-toggle" type="button" aria-expanded="false" aria-controls="student-certificates-content">
+                <section id="student-certificates-card" class="student-certificates-card parent-feedback-card" aria-labelledby="student-certificates-title">
+                    <button id="student-certificates-toggle" class="student-certificates-toggle desktop-homework-trigger" type="button" aria-expanded="false" aria-controls="student-certificates-content">
             <span class="student-certificates-toggle-copy"><span>عامل تحفيزي</span><strong id="student-certificates-title">إنجازات التلميذ وشهاداته</strong><small>اضغط لعرض الشهادات التي حصل عليها التلميذ</small></span>
             <span id="student-certificates-toggle-icon" class="student-certificates-toggle-icon" aria-hidden="true">⌄</span>
           </button>
-          <div id="student-certificates-content" class="student-certificates-content" hidden>
+          <div id="student-certificates-content" class="student-certificates-content desktop-homework-content" hidden>
             <p id="student-certificates-caption" class="student-certificates-caption">ستظهر هنا الشهادات والإنجازات التي أضافها الأستاذ لهذا التلميذ.</p>
             <div id="student-certificates-list" class="student-certificates-list" aria-live="polite"></div>
           </div>
+          <a href="./parent-achievements.html" class="mobile-homework-button" aria-label="إنجازات التلميذ وشهاداته">
+            <span>إنجازات التلميذ وشهاداته</span>
+            <span class="mobile-homework-arrow" aria-hidden="true">←</span>
+          </a>
         </section>
         <section id="lesson-repository-card" class="lesson-repository-card" aria-labelledby="lesson-repository-parent-title">
           <header class="lesson-repository-head">
-            <button id="lesson-repository-toggle" class="lesson-repository-toggle" type="button" aria-expanded="false" aria-controls="lesson-repository-controls">
+            <button id="lesson-repository-toggle" class="lesson-repository-toggle desktop-homework-trigger" type="button" aria-expanded="false" aria-controls="lesson-repository-controls">
               <span class="lesson-repository-toggle-copy">
                 <span>فيديوهات مكملة</span>
                 <strong id="lesson-repository-parent-title">فيديوهات مكملة</strong>
@@ -1729,18 +1733,22 @@
               <span id="lesson-repository-toggle-icon" class="lesson-repository-toggle-icon" aria-hidden="true">⌄</span>
             </button>
           </header>
-          <div id="lesson-repository-controls" class="lesson-repository-controls" hidden>
+                    <div id="lesson-repository-controls" class="lesson-repository-controls desktop-homework-content" hidden>
             <p id="lesson-repository-level-caption" class="lesson-repository-level-caption">ستظهر هنا الفيديوهات المكملة لمستوى التلميذ المختار.</p>
             <div id="lesson-video-list" class="lesson-video-list" aria-live="polite"></div>
           </div>
+          <a href="./parent-videos.html" class="mobile-homework-button" aria-label="فيديوهات مكملة">
+            <span>فيديوهات مكملة</span>
+            <span class="mobile-homework-arrow" aria-hidden="true">←</span>
+          </a>
         </section>
 
         <section id="class-registry-student" class="class-registry-student" aria-labelledby="class-registry-student-title">
-          <button id="class-registry-toggle" class="class-registry-toggle" type="button" aria-expanded="false" aria-controls="class-registry-controls">
+          <button id="class-registry-toggle" class="class-registry-toggle desktop-homework-trigger" type="button" aria-expanded="false" aria-controls="class-registry-controls">
             <span class="class-registry-toggle-copy"><span>متابعة الحصص</span><strong id="class-registry-student-title">سجل الحصص والدروس المسجلة</strong><small>اضغط لعرض الفصول والأشهر والمواد والحصص</small></span>
             <span id="class-registry-toggle-icon" class="class-registry-toggle-icon" aria-hidden="true">⌄</span>
           </button>
-          <div id="class-registry-controls" class="class-registry-controls" hidden>
+          <div id="class-registry-controls" class="class-registry-controls desktop-homework-content" hidden>
             <label class="class-registry-filter-bar" for="registry-term-select">
               <span id="registry-term-label" class="class-registry-filter-label">الفصل الدراسي</span>
               <select id="registry-term-select" class="class-registry-select" aria-labelledby="registry-term-label">
@@ -1762,10 +1770,13 @@
                 <option value="">اختر الشهر أولاً</option>
               </select>
             </label>
-            <div id="parent-class-registry-list" class="class-registry-list" aria-live="polite"></div>
+                        <div id="parent-class-registry-list" class="class-registry-list" aria-live="polite"></div>
           </div>
+          <a href="./parent-sessions.html" class="mobile-homework-button" aria-label="سجل الحصص والدروس المسجلة">
+            <span>سجل الحصص والدروس المسجلة</span>
+            <span class="mobile-homework-arrow" aria-hidden="true">←</span>
+          </a>
         </section>
-
         <section id="parent-payment-confirmed" class="parent-payment-confirmed" hidden aria-live="polite">لقد تم تأكيد الدفع. أصبح حساب الطالب مدفوعًا ويمكنه الدخول إلى جميع الحصص.</section>
         <section id="parent-payment-decision" class="parent-payment-decision" hidden aria-live="polite" role="status"></section>
 
@@ -1812,7 +1823,7 @@
         </section>
 
         <section id="referral-earnings" class="referral-earnings-card" aria-labelledby="referral-earnings-title">
-          <header class="referral-earnings-header">
+          <header class="referral-earnings-header desktop-homework-content">
             <div>
               <span class="referral-earnings-kicker">برنامج الإحالة</span>
               <h2 id="referral-earnings-title">أرباحي</h2>
@@ -1821,13 +1832,13 @@
             <span class="referral-earnings-icon" aria-hidden="true">↗</span>
           </header>
 
-          <div class="referral-stats-grid" aria-label="إحصائيات الإحالة">
+          <div class="referral-stats-grid desktop-homework-content" aria-label="إحصائيات الإحالة">
             <article class="referral-stat-card"><span>أرباحي</span><strong id="referral-total-earnings">0 دج</strong></article>
             <article class="referral-stat-card"><span>المسجلون تحتي</span><strong id="referral-registered-count">0</strong></article>
             <article class="referral-stat-card"><span>الذين رقّوا حساباتهم</span><strong id="referral-upgraded-count">0</strong></article>
           </div>
 
-          <div class="referral-link-panel">
+          <div class="referral-link-panel desktop-homework-content">
             <div class="referral-link-heading">
               <div><strong>رابط الإحالة الخاص بي</strong><small>انسخه وأرسله إلى الأشخاص الذين تريد دعوتهم.</small></div>
               <span class="referral-link-status">رابط شخصي</span>
@@ -1843,16 +1854,20 @@
             </div>
           </div>
 
-          <div class="referral-rules-panel">
+          <div class="referral-rules-panel desktop-homework-content">
             <h3>شروط الربح</h3>
             <ol>
               <li>يجب أن يسجل الشخص الجديد من خلال رابط الإحالة الخاص بك.</li>
               <li>لا تُحتسب عمولة عند التسجيل فقط؛ تُحتسب بعد أول دفع ناجح لذلك المستوى.</li>
               <li>ترقية مادة واحدة تمنحك <strong>100 دج</strong>.</li>
               <li>ترقية المادتين معًا تمنحك <strong>250 دج</strong>.</li>
-              <li>تُحتسب العمولة مرة واحدة فقط لكل رقم هاتف ومستوى دراسي عند أول دفع ناجح، ولا تتكرر عند التجديد أو إعادة الترقية في المستوى نفسه.</li>
+                            <li>تُحتسب العمولة مرة واحدة فقط لكل رقم هاتف ومستوى دراسي عند أول دفع ناجح، ولا تتكرر عند التجديد أو إعادة الترقية في المستوى نفسه.</li>
             </ol>
           </div>
+          <a href="./parent-earnings.html" class="mobile-homework-button" aria-label="أرباحي">
+            <span>أرباحي</span>
+            <span class="mobile-homework-arrow" aria-hidden="true">←</span>
+          </a>
         </section>
       </section>
         </main>
