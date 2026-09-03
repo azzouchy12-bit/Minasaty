@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>الواجبات المدرسية والحلول | أكاديمية التفوق</title>
+  <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/parent-dashboard-refactor.css" />
+  <style>
+    body { background: #f1f5f9; font-family: "Cairo", Arial, sans-serif; margin: 0; padding: 0; }
+    .homework-page-shell { width: min(100% - 2rem, 50rem); margin: 2rem auto; }
+    .homework-page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; padding: 1rem 1.25rem; background: #ffffff; border-radius: 1rem; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05); }
+    .homework-page-header h1 { margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a; }
+    .homework-back-btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.9rem; color: #2563eb; background: #eff6ff; border: 1px solid #dbeafe; border-radius: 0.6rem; font-size: 0.8rem; font-weight: 800; text-decoration: none; transition: background 0.2s ease; }
+    .homework-back-btn:hover { background: #dbeafe; }
+    .homework-content-card { background: #ffffff; padding: 1.5rem; border-radius: 1rem; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05); }
+  </style>
+</head>
+<body>
+  <main class="homework-page-shell">
+    <header class="homework-page-header">
+      <h1>الواجبات المدرسية والحلول</h1>
+      <a class="homework-back-btn" href="./parent-dashboard.html">← العودة إلى لوحة التحكم</a>
+    </header>
+    <section class="homework-content-card">
+      <div id="student-homework-list" class="student-homework-list">
+        <p style="color: #64748b; text-align: center; padding: 2rem 0;">جاري تحميل الواجبات المطلوبة…</p>
+      </div>
+    </section>
+  </main>
+  <script src="./js/parent-dashboard.js"></script>
+</body>
+</html>
