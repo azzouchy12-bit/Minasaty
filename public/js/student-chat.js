@@ -14,18 +14,30 @@ const studentChatElements = {
   messages: document.getElementById("student-chat-messages"),
   form: document.getElementById("student-chat-form"),
   input: document.getElementById("student-chat-input"),
+  sendButton: document.querySelector("#student-chat-form .chat-send-button"),
   error: document.getElementById("student-chat-error"),
 };
+
+const studentChatAttachments = window.ChatAttachments?.initChatComposerAttachments({
+  form: studentChatElements.form,
+  toolButton: document.getElementById("student-chat-attach-btn"),
+  menu: document.getElementById("student-chat-attach-menu"),
+  preview: document.getElementById("student-chat-attachment-preview"),
+  cameraInput: document.getElementById("student-chat-camera-input"),
+  fileInput: document.getElementById("student-chat-file-input"),
+  onError: (message) => showStudentChatError(message),
+});
 
 const studentRenderedMessageIds = new Set();
 
 async function studentChatFetch(url, options = {}) {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const response = await fetch(url, {
     ...options,
     headers: {
       Authorization: `Bearer ${studentChatToken}`,
       Accept: "application/json",
-      ...(options.headers || {}),
+      ...(isFormData ? {} : options.headers || {}),
     },
   });
   if (response.status === 428) {
@@ -54,11 +66,15 @@ function renderStudentMessage(message) {
   studentRenderedMessageIds.add(message.id);
   const bubble = document.createElement("article");
   bubble.className = `chat-bubble ${message.senderRole === "student" ? "from-student" : "from-teacher"}`;
-  const content = document.createElement("p");
-  content.textContent = message.content;
+  window.ChatAttachments?.appendChatMessageAttachment(bubble, message, studentChatFetch);
+  if (message.content) {
+    const content = document.createElement("p");
+    content.textContent = message.content;
+    bubble.append(content);
+  }
   const time = document.createElement("time");
   time.textContent = new Intl.DateTimeFormat("ar-DZ", { dateStyle: "short", timeStyle: "short" }).format(new Date(message.createdAt));
-  bubble.append(content, time);
+  bubble.append(time);
   studentChatElements.messages.append(bubble);
   studentChatElements.messages.scrollTop = studentChatElements.messages.scrollHeight;
 }
@@ -87,23 +103,25 @@ async function loadStudentConversation() {
 async function sendStudentMessage(event) {
   event.preventDefault();
   const content = studentChatElements.input.value.trim();
-  if (!content) return;
-  const button = studentChatElements.form.querySelector("button");
-  button.disabled = true;
+  const file = studentChatAttachments?.getFile?.() || null;
+  if (!content && !file) return;
+  const button = studentChatElements.sendButton;
+  if (button) button.disabled = true;
   try {
+    const request = window.ChatAttachments?.buildChatMessageRequest(content, file);
     const response = await studentChatFetch(`/api/messages/${encodeURIComponent(studentChatId)}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
+      ...request,
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "تعذر إرسال الرسالة.");
     studentChatElements.input.value = "";
+    studentChatAttachments?.clear?.();
     renderStudentMessage(payload.message);
   } catch (error) {
     showStudentChatError(error.message || "تعذر إرسال الرسالة.");
   } finally {
-    button.disabled = false;
+    if (button) button.disabled = false;
     studentChatElements.input.focus();
   }
 }

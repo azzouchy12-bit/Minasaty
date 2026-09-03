@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>مراسلتي مع الأستاذ | أكاديمية التفوق</title>
   <link rel="stylesheet" href="./css/style.css" />
-  <link rel="stylesheet" href="./css/private-messages.css?v=messenger-ui-1" />
+  <link rel="stylesheet" href="./css/private-messages.css?v=messenger-ui-2" />
 </head>
 <body class="private-messages-page student-chat-page">
   <header class="private-chat-topbar">
@@ -23,9 +23,18 @@
       </header>
       <div id="student-chat-messages" class="chat-messages" aria-live="polite"></div>
       <form id="student-chat-form" class="chat-compose">
-        <button class="chat-compose-tool" type="button" aria-label="إضافة">＋</button>
-        <textarea id="student-chat-input" rows="1" maxlength="4000" placeholder="اكتب رسالتك للأستاذ…" autocomplete="off" required></textarea>
-        <button class="chat-send-button" type="submit" aria-label="إرسال الرسالة">إرسال</button>
+        <div id="student-chat-attachment-preview" class="chat-attachment-preview" hidden></div>
+        <div class="chat-compose-row">
+          <button id="student-chat-attach-btn" class="chat-compose-tool" type="button" aria-label="إرفاق ملف" aria-haspopup="menu" aria-expanded="false" aria-controls="student-chat-attach-menu">＋</button>
+          <div id="student-chat-attach-menu" class="chat-attach-menu" hidden role="menu">
+            <button type="button" role="menuitem" data-attach="camera">التقاط صورة</button>
+            <button type="button" role="menuitem" data-attach="file">اختيار ملف</button>
+          </div>
+          <textarea id="student-chat-input" rows="1" maxlength="4000" placeholder="اكتب رسالتك للأستاذ…" autocomplete="off"></textarea>
+          <button class="chat-send-button" type="submit" aria-label="إرسال الرسالة">إرسال</button>
+        </div>
+        <input id="student-chat-camera-input" class="chat-attach-input" type="file" accept="image/*" capture="environment" hidden>
+        <input id="student-chat-file-input" class="chat-attach-input" type="file" accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
       </form>
     </section>
   </main>
@@ -33,7 +42,8 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="./js/session-storage.js?v=single-session-1"></script>
   <script src="./js/message-notifications.js"></script>
-  <script src="./js/student-chat.js?v=messenger-ui-1"></script>
+  <script src="./js/chat-attachments.js?v=messenger-ui-2"></script>
+  <script src="./js/student-chat.js?v=messenger-ui-2"></script>
   <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
 </body>
 </html>
