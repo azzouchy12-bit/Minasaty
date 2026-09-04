@@ -34,6 +34,7 @@ const socket = typeof window.io === "function"
   : createUnavailableStudentSocket();
 
 const rtcConfig = {
+  iceCandidatePoolSize: 10,
   iceServers: [
     {
       urls: [
@@ -44,6 +45,9 @@ const rtcConfig = {
     },
   ],
 };
+if (typeof window.getMinasatyRtcConfig === "function") {
+  void window.getMinasatyRtcConfig().then((config) => Object.assign(rtcConfig, config));
+}
 
 // Required viewer state for this phase.
 let pc;

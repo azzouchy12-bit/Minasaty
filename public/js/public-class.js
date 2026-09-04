@@ -8,7 +8,10 @@
   const isHost = Boolean(hostRoomId);
   const roomId = hostRoomId || guestRoomId;
   const roomPattern = /^[a-zA-Z0-9_-]{16,128}$/;
-  const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+  const rtcConfig = { iceCandidatePoolSize: 10, iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+  if (typeof window.getMinasatyRtcConfig === "function") {
+    void window.getMinasatyRtcConfig(hostToken).then((config) => Object.assign(rtcConfig, config));
+  }
   const GOOGLE_DRIVE_CLIENT_ID = "938017291163-a6dar2h6u2d5isf5h4nqtaccp7jpkk28.apps.googleusercontent.com";
   const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
   const GOOGLE_DRIVE_ROOT_FOLDER = "تسجيلات أكاديمية التفوق";

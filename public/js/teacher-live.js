@@ -29,6 +29,7 @@ const socket = io({
 // still recommended for a production deployment where restrictive networks
 // may block direct WebRTC connections.
 const rtcConfig = {
+  iceCandidatePoolSize: 10,
   iceServers: [
     {
       urls: [
@@ -39,6 +40,9 @@ const rtcConfig = {
     },
   ],
 };
+if (typeof window.getMinasatyRtcConfig === "function") {
+  void window.getMinasatyRtcConfig().then((config) => Object.assign(rtcConfig, config));
+}
 
 // Required broadcaster state requested for this phase.
 const peerConnections = Object.create(null);

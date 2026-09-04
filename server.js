@@ -205,6 +205,7 @@ const academicRoutes = require("./routes/academicRoutes");
 const materialRoutes = require("./routes/materialRoutes");
 const certificateRoutes = require("./routes/certificateRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const webrtcRoutes = require("./routes/webrtcRoutes");
 
 app.use("/api/site-analytics", siteAnalyticsRoutes);
 app.use("/api/referrals", referralRoutes);
@@ -223,6 +224,7 @@ app.use("/api/materials", materialRoutes);
 app.use("/api/certificates", certificateRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/webrtc", webrtcRoutes);
 
 // Course-material uploads are intentionally disabled. Block the legacy public
 // path before the general static middleware so old files cannot be downloaded.
