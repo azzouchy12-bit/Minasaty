@@ -265,12 +265,25 @@
   });
 
   window.addEventListener("active-student-changed", (event) => {
-    activeStudent = event.detail || null;
+    activeStudent = event.detail || getStoredStudent();
     term = "";
     month = "";
     subject = "";
     renderFilters();
     if (isOpen) showSelectionPrompt();
+  });
+
+  // parent-screen-common dispatches this after restoring the selected student.
+  // Listen here as well because this standalone page loads the registry script
+  // before the shared helper; otherwise the registry can remain without a
+  // studentId and never issue the schedule request.
+  window.addEventListener("parent-screen-ready", (event) => {
+    activeStudent = event.detail || getStoredStudent();
+    renderFilters();
+    if (isOpen) {
+      showSelectionPrompt();
+      if (term && month && subject) void load();
+    }
   });
   window.addEventListener("class-registry-updated", () => void load());
   window.addEventListener("class-registry-refresh", () => void load());
