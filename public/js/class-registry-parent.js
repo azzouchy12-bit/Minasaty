@@ -144,11 +144,12 @@
       videoUrl = item.driveLink || item.recordingUrl || item.videoUrl;
     }
 
-    // تحويل روابط يوتيوب العادية تلقائياً إلى صيغة embed صالحة للتشغيل
-    if (videoUrl && (videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be"))) {
-      const match = String(videoUrl).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+// استخراج معرّف يوتيوب النظيف (11 حرفاً بالضبط) وتحويله لنطاق التضمين المباشر
+    if (videoUrl) {
+      const match = String(videoUrl).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|live\/|watch\?.+&v=))([A-Za-z0-9_-]{11})/);
       if (match && match) {
-        videoUrl = `https://www.youtube.com/embed/${match}?rel=0&modestbranding=1&playsinline=1`;
+        // استخدام نطاق youtube-nocookie المخصص للمنصات التعليمية
+        videoUrl = `https://www.youtube-nocookie.com/embed/${match}?enablejsapi=1&playsinline=1&rel=0&modestbranding=1`;
       }
     }
 
