@@ -90,34 +90,46 @@
     return payload;
   }
 
-  function formatDate(value) {
-    const date = new Date(value);
-    return Number.isFinite(date.getTime())
-      ? new Intl.DateTimeFormat("ar-DZ", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Algiers" }).format(date)
-      : "تاريخ غير صالح";
+  // 1. التحقق من صحة رابط التضمين الأصلي القادم من السيرفر
+  function isSafeYouTubeEmbedUrl(value) {
+    return /^https:\/\/www\.youtube\.com\/embed\/[A-Za-z0-9_-]{11}.*$/.test(String(value || ""));
   }
 
-  function openVideo(item) {
-    // 1. استدعاء رابط الفيديو المعتمد كما كان يشتغل بنجاح
-    let videoUrl = item.youtubeEmbedUrl;
-    if (!videoUrl && item.youtubeVideoId) {
-      videoUrl = `https://www.youtube.com/embed/${item.youtubeVideoId}?rel=0&modestbranding=1&playsinline=1`;
-    }
-    if (!videoUrl && item.previewUrl) {
-      videoUrl = item.previewUrl;
-    }
-    if (!videoUrl) {
-      videoUrl = item.driveLink || item.recordingUrl || item.videoUrl;
+  // 2. استخراج الرابط الصحيح دون أي تشويه
+  function resolveVideoUrl(item) {
+    if (!item) return null;
+
+    // استخدام رابط السيرفر الأصلي أولاً (الذي كان يعمل بنجاح)
+    if (isSafeYouTubeEmbedUrl(item.youtubeEmbedUrl)) {
+      return item.youtubeEmbedUrl;
     }
 
-    // التحقق من روابط يوتيوب وضمان صيغة embed القياسية
-    if (videoUrl && (videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be"))) {
-      const match = String(videoUrl).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+    // إذا كان السيرفر أرسل معرف يوتيوب فقط
+    if (item.youtubeVideoId && typeof item.youtubeVideoId === "string" && item.youtubeVideoId.trim().length === 11) {
+      return "https://www.youtube.com/embed/" + item.youtubeVideoId.trim();
+    }
+
+    // إذا كان الفيديو من جوجل درايف
+    if (item.previewUrl) {
+      return item.previewUrl;
+    }
+
+    // فحص أي رابط آخر وتحويله بدقة
+    const raw = item.recordingUrl || item.videoUrl || item.driveLink || item.url;
+    if (raw) {
+      const match = String(raw).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|live\/|watch\?.+&v=))([A-Za-z0-9_-]{11})/);
       if (match && match) {
-        videoUrl = `https://www.youtube.com/embed/${match}?rel=0&modestbranding=1&playsinline=1`;
+        return "https://www.youtube.com/embed/" + match;
       }
+      return raw;
     }
 
+    return null;
+  }
+
+  // 3. دالة فتح وتشغيل الفيديو المدمجة
+  function openVideo(item) {
+    const videoUrl = resolveVideoUrl(item);
     if (!videoUrl) {
       alert("عذراً، لم يتم العثور على رابط تسجيل صالح لهذه الحصة.");
       return;
@@ -147,7 +159,7 @@
         </a>
       </header>
 
-      <!-- وسط الصفحة -->
+      <!-- وسط الصفحة: المشغل -->
       <main style="flex:1;max-width:960px;width:100%;margin:0 auto;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px;">
         
         <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px 16px;color:#fff;">
@@ -155,20 +167,19 @@
           <p style="margin:0;color:#94a3b8;font-size:14px;">📅 ${dateFormatted}</p>
         </div>
 
-        <!-- إطار الفيديو المخصص مع كامل أذونات التدوير وملء الشاشة -->
         <div id="video-frame-box" style="position:relative;width:100%;padding-top:56.25%;background:#000;border-radius:12px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,0.7);border:1px solid #1e293b;">
           <iframe 
             id="lesson-custom-iframe"
             src="${videoUrl}" 
             style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" 
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; webkitfullscreen; mozallowfullscreen; fullscreen" 
+            referrerpolicy="strict-origin-when-cross-origin"
             allowfullscreen="true">
           </iframe>
         </div>
 
-        <!-- زر ملء الشاشة الأفقي المعتمد -->
         <div style="display:flex;justify-content:center;">
-          <button id="fullscreen-action-btn" type="button" style="background:#059669;color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;display:flex;align-items:gap;gap:8px;">
+          <button id="fullscreen-action-btn" type="button" style="background:#059669;color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px;">
             ⛶ تكبير الشاشة (وضع ملء الشاشة الأفقي)
           </button>
         </div>
@@ -202,7 +213,7 @@
       }
     };
 
-    // 2. كود ملء الشاشة وتدويرها أفقياً بنجاح
+    // كود ملء الشاشة وتدويرها أفقياً بنجاح
     $("fullscreen-action-btn").onclick = async () => {
       const iframe = $("lesson-custom-iframe");
       if (!iframe) return;
