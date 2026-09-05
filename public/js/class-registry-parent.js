@@ -98,9 +98,10 @@
   }
 
   function openVideo(item) {
+    // 1. استدعاء رابط الفيديو المعتمد كما كان يشتغل بنجاح
     let videoUrl = item.youtubeEmbedUrl;
     if (!videoUrl && item.youtubeVideoId) {
-      videoUrl = `https://www.youtube.com/embed/${item.youtubeVideoId}?enablejsapi=1&playsinline=1&rel=0&modestbranding=1`;
+      videoUrl = `https://www.youtube.com/embed/${item.youtubeVideoId}?rel=0&modestbranding=1&playsinline=1`;
     }
     if (!videoUrl && item.previewUrl) {
       videoUrl = item.previewUrl;
@@ -109,10 +110,11 @@
       videoUrl = item.driveLink || item.recordingUrl || item.videoUrl;
     }
 
+    // التحقق من روابط يوتيوب وضمان صيغة embed القياسية
     if (videoUrl && (videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be"))) {
-      const match = String(videoUrl).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|live\/|shorts\/|watch\?.+&v=))([A-Za-z0-9_-]{11})/);
+      const match = String(videoUrl).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
       if (match && match) {
-        videoUrl = `https://www.youtube.com/embed/${match}?enablejsapi=1&playsinline=1&rel=0&modestbranding=1`;
+        videoUrl = `https://www.youtube.com/embed/${match}?rel=0&modestbranding=1&playsinline=1`;
       }
     }
 
@@ -135,6 +137,7 @@
     const dateFormatted = formatDate(item.scheduledAt);
 
     viewer.innerHTML = `
+      <!-- الشريط العلوي -->
       <header style="background:#1e293b;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155;position:sticky;top:0;z-index:10;">
         <button id="viewer-back-btn" type="button" style="background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;">
           ← العودة إلى سجل الحصص
@@ -144,6 +147,7 @@
         </a>
       </header>
 
+      <!-- وسط الصفحة -->
       <main style="flex:1;max-width:960px;width:100%;margin:0 auto;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px;">
         
         <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px 16px;color:#fff;">
@@ -151,6 +155,7 @@
           <p style="margin:0;color:#94a3b8;font-size:14px;">📅 ${dateFormatted}</p>
         </div>
 
+        <!-- إطار الفيديو المخصص مع كامل أذونات التدوير وملء الشاشة -->
         <div id="video-frame-box" style="position:relative;width:100%;padding-top:56.25%;background:#000;border-radius:12px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,0.7);border:1px solid #1e293b;">
           <iframe 
             id="lesson-custom-iframe"
@@ -161,12 +166,14 @@
           </iframe>
         </div>
 
+        <!-- زر ملء الشاشة الأفقي المعتمد -->
         <div style="display:flex;justify-content:center;">
-          <button id="fullscreen-action-btn" type="button" style="background:#059669;color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px;">
+          <button id="fullscreen-action-btn" type="button" style="background:#059669;color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;display:flex;align-items:gap;gap:8px;">
             ⛶ تكبير الشاشة (وضع ملء الشاشة الأفقي)
           </button>
         </div>
 
+        <!-- التنبيه الأمني المشدد -->
         <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);border-radius:12px;padding:16px;color:#fca5a5;margin-top:6px;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
             <span style="font-size:22px;">⚠️</span>
@@ -195,7 +202,7 @@
       }
     };
 
-    // ✅ تكبير الفيديو وتدوير الشاشة أفقياً لملء كامل مساحة الهاتف
+    // 2. كود ملء الشاشة وتدويرها أفقياً بنجاح
     $("fullscreen-action-btn").onclick = async () => {
       const iframe = $("lesson-custom-iframe");
       if (!iframe) return;
@@ -207,7 +214,6 @@
           await iframe.webkitRequestFullscreen();
         }
 
-        // تدوير الشاشة تلقائياً للوضع الأفقي (Landscape)
         if (screen.orientation && screen.orientation.lock) {
           await screen.orientation.lock("landscape").catch(() => {});
         }
@@ -216,7 +222,6 @@
       }
     };
 
-    // إعادة الوضع الطبيعي عند الخروج من ملء الشاشة
     const onExitFullscreen = () => {
       if (!document.fullscreenElement && !document.webkitFullscreenElement) {
         if (screen.orientation && screen.orientation.unlock) {
