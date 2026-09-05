@@ -1,5 +1,11 @@
 (() => {
-  const token = sessionStorage.getItem("parentToken");
+  // 1. قراءة التوكن من sessionStorage أو localStorage
+  const token =
+    sessionStorage.getItem("parentToken") ||
+    localStorage.getItem("parentToken") ||
+    localStorage.getItem("token") ||
+    sessionStorage.getItem("token");
+
   if (!token) return;
 
   const $ = (id) => document.getElementById(id);
@@ -14,7 +20,8 @@
   const upsell = $("registry-upsell-modal");
 
   let activeStudent = null;
-  let isOpen = false;
+  // ✅ التصحيح الأساسي: جعل الصفحة مفتوحة ومفعلة افتراضياً
+  let isOpen = true; 
   let term = "";
   let month = "";
   let subject = "";
@@ -47,8 +54,23 @@
   const statusLabels = { PENDING: "لم تُنجز بعد", COMPLETED: "تمت الحصة", TEACHER_ABSENT: "غياب الأستاذ" };
   const subjectLabels = { MATH: "الرياضيات", PHYSICS: "الفيزياء", PAID: "اشتراك مدفوع", FREE: "اشتراك مجاني" };
 
+  // ✅ تصحيح استرجاع التلميذ ليدعم كلاً من id و studentId والتخزينين
   function getStoredStudent() {
-    try { return JSON.parse(sessionStorage.getItem("currentStudent") || "null"); } catch { return null; }
+    try {
+      const raw =
+        sessionStorage.getItem("currentStudent") ||
+        localStorage.getItem("currentStudent") ||
+        localStorage.getItem("selectedStudent") ||
+        sessionStorage.getItem("selectedStudent");
+      const parsed = JSON.parse(raw || "null");
+      if (!parsed) return null;
+      return {
+        ...parsed,
+        id: parsed.id || parsed.studentId || parsed._id
+      };
+    } catch {
+      return null;
+    }
   }
 
   function getSubjectChoices() {
@@ -125,7 +147,6 @@
   }
 
   function showSelectionPrompt() {
-    if (!isOpen) return;
     if (!term) return showMessage("اختر الفصل الدراسي أولاً.");
     if (!month) return showMessage("اختر الشهر من القائمة.");
     if (!subject) return showMessage("اختر المادة من القائمة.");
@@ -219,7 +240,8 @@
 
   async function load() {
     activeStudent = activeStudent || getStoredStudent();
-    if (!activeStudent?.id || !activeStudent.level || !list || !isOpen) return;
+    // ✅ تم إزالة شرط !isOpen ليعمل دائماً
+    if (!activeStudent?.id || !activeStudent.level || !list) return;
     if (!term || !month || !subject) {
       showSelectionPrompt();
       return;
@@ -238,8 +260,8 @@
     if (controls) controls.hidden = !isOpen;
     section?.classList.toggle("is-open", isOpen);
     renderFilters();
+    showSelectionPrompt();
     if (isOpen) {
-      showSelectionPrompt();
       window.focusExpandedParentPanel?.(section);
     }
   }
@@ -270,21 +292,16 @@
     month = "";
     subject = "";
     renderFilters();
-    if (isOpen) showSelectionPrompt();
+    showSelectionPrompt();
   });
 
-  // parent-screen-common dispatches this after restoring the selected student.
-  // Listen here as well because this standalone page loads the registry script
-  // before the shared helper; otherwise the registry can remain without a
-  // studentId and never issue the schedule request.
   window.addEventListener("parent-screen-ready", (event) => {
     activeStudent = event.detail || getStoredStudent();
     renderFilters();
-    if (isOpen) {
-      showSelectionPrompt();
-      if (term && month && subject) void load();
-    }
+    showSelectionPrompt();
+    if (term && month && subject) void load();
   });
+
   window.addEventListener("class-registry-updated", () => void load());
   window.addEventListener("class-registry-refresh", () => void load());
   $("registry-upsell-close")?.addEventListener("click", closeUpsell);
@@ -292,8 +309,6 @@
   window.addEventListener("keydown", (event) => { if (event.key === "Escape") closeUpsell(); });
 
   activeStudent = getStoredStudent();
+  if (controls) controls.hidden = false;
   renderFilters();
 })();
-
-// Registry terms: 2026 fall, 2027 winter, and 2027 spring months are selected
-// before the API request, so the existing level/subject access rules stay intact.
