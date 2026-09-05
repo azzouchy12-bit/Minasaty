@@ -110,31 +110,105 @@
     document.body.style.overflow = "";
   }
 
-  function isSafeYouTubeEmbedUrl(value) {
-    return /^https:\/\/www\.youtube\.com\/embed\/[A-Za-z0-9_-]{11}.*$/.test(String(value || ""));
+ // 1. استخراج وتحويل أي رابط فيديو إلى صيغة تشغيل صالحة
+  function extractVideoUrl(item) {
+    if (!item) return null;
+    let url = item.youtubeEmbedUrl || item.recordingUrl || item.videoUrl || item.previewUrl || item.url;
+    
+    if (!url && item.youtubeVideoId) {
+      return `https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1`;
+    }
+    
+    if (!url) return null;
+
+    // تحويل روابط يوتيوب العادية إلى صيغة embed مع التشغيل التلقائي
+    const ytMatch = String(url).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+    if (ytMatch && ytMatch) {
+      return `https://www.youtube.com/embed/${ytMatch}?autoplay=1`;
+    }
+
+    return url;
   }
 
+  // 2. فتح وتشغيل الفيديو وضمان إنشاء نافذة العرض تلقائياً
   function openVideo(item) {
-    const modal = $("lesson-video-modal");
-    const frame = $("lesson-video-frame");
-    const videoUrl = isSafeYouTubeEmbedUrl(item.youtubeEmbedUrl) ? item.youtubeEmbedUrl : item.previewUrl;
-    if (!modal || !frame || !videoUrl) return;
-    $("lesson-video-modal-title").textContent = `${subjectLabels[item.subject] || "الحصة"} · ${formatDate(item.scheduledAt)}`;
-    $("lesson-video-sidebar-title").textContent = subjectLabels[item.subject] || "مشاهدة الحصة";
-    $("lesson-video-sidebar-meta").textContent = `${formatDate(item.scheduledAt)} · مشاهدة داخل المنصة`;
-    if (videoUrl.includes("youtube.com")) {
+    const videoUrl = extractVideoUrl(item);
+    if (!videoUrl) {
+      alert("عذراً، لم يتم العثور على رابط صالح لتسجيل هذه الحصة.");
+      return;
+    }
+
+    let modal = $("lesson-video-modal");
+    let frame = $("lesson-video-frame");
+
+    // إذا كانت نافذة العرض غير موجودة في الصفحة المستقلة، يتم إنشاؤها فوراً
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "lesson-video-modal";
+      modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:15px;";
+      
+      const content = document.createElement("div");
+      content.style.cssText = "width:100%;max-width:850px;background:#000;border-radius:12px;overflow:hidden;position:relative;box-shadow:0 10px 30px rgba(0,0,0,0.6);";
+
+      const header = document.createElement("div");
+      header.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#1e293b;color:#fff;";
+      
+      const title = document.createElement("span");
+      title.id = "lesson-video-modal-title";
+      title.style.cssText = "font-weight:bold;font-size:15px;";
+      title.textContent = `${subjectLabels[item.subject] || "الحصة"} · ${formatDate(item.scheduledAt)}`;
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.innerHTML = "&times;";
+      closeBtn.style.cssText = "background:none;border:none;color:#fff;font-size:32px;line-height:1;cursor:pointer;padding:0 10px;";
+      closeBtn.onclick = () => {
+        if (frame) frame.src = "";
+        modal.style.display = "none";
+      };
+
+      header.append(title, closeBtn);
+
+      const frameContainer = document.createElement("div");
+      frameContainer.style.cssText = "position:relative;width:100%;padding-top:56.25%;background:#000;";
+
+      frame = document.createElement("iframe");
+      frame.id = "lesson-video-frame";
+      frame.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;";
       frame.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture");
       frame.setAttribute("allowfullscreen", "true");
-      frame.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
-    } else {
-      frame.removeAttribute("allow");
-      frame.removeAttribute("allowfullscreen");
-      frame.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+
+      frameContainer.append(frame);
+      content.append(header, frameContainer);
+      modal.append(content);
+      document.body.append(modal);
+
+      // إغلاق عند الضغط خارج نافذة الفيديو
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          if (frame) frame.src = "";
+          modal.style.display = "none";
+        }
+      };
     }
+
+    const titleElem = $("lesson-video-modal-title");
+    if (titleElem) {
+      titleElem.textContent = `${subjectLabels[item.subject] || "الحصة"} · ${formatDate(item.scheduledAt)}`;
+    }
+
     frame.src = videoUrl;
-    frame.setAttribute("title", item.youtubeVideoId ? "فيديو YouTube داخل الأكاديمية" : "فيديو الحصة المسجلة");
-    modal.hidden = false;
-    document.body.classList.add("lesson-video-open");
+    modal.style.display = "flex";
+  }
+
+  // 3. الإبقاء على دالة الرسائل كما هي
+  function showMessage(message, className = "class-registry-empty") {
+    if (!list) return;
+    list.replaceChildren();
+    const element = document.createElement("p");
+    element.className = className;
+    element.textContent = message;
+    list.append(element);
   }
 
   function showMessage(message, className = "class-registry-empty") {
