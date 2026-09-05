@@ -97,49 +97,25 @@
       : "تاريخ غير صالح";
   }
 
-  function openUpsell() {
-    if (!upsell) return;
-    upsell.hidden = false;
-    document.body.style.overflow = "hidden";
-    $("registry-upsell-close")?.focus();
-  }
-
-  function closeUpsell() {
-    if (!upsell) return;
-    upsell.hidden = true;
-    document.body.style.overflow = "";
-  }
-
- // 1. استخراج معرّف يوتيوب النظيف (11 حرفاً) بدقة مطلقة
-  function extractVideoUrl(item) {
-    if (!item) return null;
-
-    // إذا كان معرّف يوتيوب موجوداً بالفعل في بيانات الحصة
-    if (item.youtubeVideoId && typeof item.youtubeVideoId === "string" && item.youtubeVideoId.trim().length === 11) {
-      return `https://www.youtube.com/embed/${item.youtubeVideoId.trim()}?enablejsapi=1&playsinline=1&rel=0&modestbranding=1`;
-    }
-
-    // فحص باقي حقول الروابط الممكنة
-    let raw = item.youtubeEmbedUrl || item.recordingUrl || item.videoUrl || item.previewUrl || item.driveLink || item.url;
-    if (!raw) return null;
-    raw = String(raw).trim();
-
-    // استخراج معرّف الـ 11 رمزاً فقط بدقة
-    const ytMatch = raw.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|live\/|shorts\/|watch\?.+&v=))([A-Za-z0-9_-]{11})/);
-    if (ytMatch && ytMatch) {
-      return `https://www.youtube.com/embed/${ytMatch}?enablejsapi=1&playsinline=1&rel=0&modestbranding=1`;
-    }
-
-    if (raw.startsWith("https://www.youtube.com/embed/")) {
-      return raw;
-    }
-
-    return raw;
-  }
-
-  // 2. دالة فتح وتشغيل الفيديو والتحكم بملء الشاشة
   function openVideo(item) {
-    const videoUrl = extractVideoUrl(item);
+    let videoUrl = item.youtubeEmbedUrl;
+    if (!videoUrl && item.youtubeVideoId) {
+      videoUrl = `https://www.youtube.com/embed/${item.youtubeVideoId}?enablejsapi=1&playsinline=1&rel=0&modestbranding=1`;
+    }
+    if (!videoUrl && item.previewUrl) {
+      videoUrl = item.previewUrl;
+    }
+    if (!videoUrl) {
+      videoUrl = item.driveLink || item.recordingUrl || item.videoUrl;
+    }
+
+    if (videoUrl && (videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be"))) {
+      const match = String(videoUrl).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|live\/|shorts\/|watch\?.+&v=))([A-Za-z0-9_-]{11})/);
+      if (match && match) {
+        videoUrl = `https://www.youtube.com/embed/${match}?enablejsapi=1&playsinline=1&rel=0&modestbranding=1`;
+      }
+    }
+
     if (!videoUrl) {
       alert("عذراً، لم يتم العثور على رابط تسجيل صالح لهذه الحصة.");
       return;
@@ -159,7 +135,6 @@
     const dateFormatted = formatDate(item.scheduledAt);
 
     viewer.innerHTML = `
-      <!-- الشريط العلوي -->
       <header style="background:#1e293b;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155;position:sticky;top:0;z-index:10;">
         <button id="viewer-back-btn" type="button" style="background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;">
           ← العودة إلى سجل الحصص
@@ -169,7 +144,6 @@
         </a>
       </header>
 
-      <!-- وسط الصفحة: المشغل -->
       <main style="flex:1;max-width:960px;width:100%;margin:0 auto;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px;">
         
         <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px 16px;color:#fff;">
@@ -188,12 +162,11 @@
         </div>
 
         <div style="display:flex;justify-content:center;">
-          <button id="fullscreen-action-btn" type="button" style="background:#059669;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px;">
-            ⛶ تكبير الشاشة (ملء الشاشة)
+          <button id="fullscreen-action-btn" type="button" style="background:#059669;color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px;">
+            ⛶ تكبير الشاشة (وضع ملء الشاشة الأفقي)
           </button>
         </div>
 
-        <!-- التنبيه الأمني المشدد -->
         <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);border-radius:12px;padding:16px;color:#fca5a5;margin-top:6px;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
             <span style="font-size:22px;">⚠️</span>
@@ -217,21 +190,42 @@
       if (iframe) iframe.src = "";
       viewer.remove();
       document.body.style.overflow = "";
+      if (screen.orientation && screen.orientation.unlock) {
+        try { screen.orientation.unlock(); } catch (e) {}
+      }
     };
 
-    // تفعيل ملء الشاشة الحقيقي للفيديو
-    $("fullscreen-action-btn").onclick = () => {
+    // ✅ تكبير الفيديو وتدوير الشاشة أفقياً لملء كامل مساحة الهاتف
+    $("fullscreen-action-btn").onclick = async () => {
       const iframe = $("lesson-custom-iframe");
-      if (iframe) {
+      if (!iframe) return;
+
+      try {
         if (iframe.requestFullscreen) {
-          iframe.requestFullscreen();
+          await iframe.requestFullscreen();
         } else if (iframe.webkitRequestFullscreen) {
-          iframe.webkitRequestFullscreen();
-        } else if (iframe.webkitEnterFullscreen) {
-          iframe.webkitEnterFullscreen();
+          await iframe.webkitRequestFullscreen();
+        }
+
+        // تدوير الشاشة تلقائياً للوضع الأفقي (Landscape)
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock("landscape").catch(() => {});
+        }
+      } catch (err) {
+        console.log("Fullscreen request:", err);
+      }
+    };
+
+    // إعادة الوضع الطبيعي عند الخروج من ملء الشاشة
+    const onExitFullscreen = () => {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (screen.orientation && screen.orientation.unlock) {
+          try { screen.orientation.unlock(); } catch (e) {}
         }
       }
     };
+    document.onfullscreenchange = onExitFullscreen;
+    document.onwebkitfullscreenchange = onExitFullscreen;
   }
 
   function showMessage(message, className = "class-registry-empty") {
