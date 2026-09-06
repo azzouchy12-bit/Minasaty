@@ -110,58 +110,44 @@
     document.body.style.overflow = "";
   }
 
-  // 1. استخراج وتحويل أي رابط فيديو إلى صيغة تشغيل صالحة
+// 1. استخراج معرّف يوتيوب النظيف (11 حرفاً) بدقة مطلقة
   function extractVideoUrl(item) {
     if (!item) return null;
-    let url = item.youtubeEmbedUrl || item.recordingUrl || item.videoUrl || item.previewUrl || item.url;
-    
-    if (!url && item.youtubeVideoId) {
-      return `https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1`;
-    }
-    
-    if (!url) return null;
 
-    // تحويل روابط يوتيوب العادية إلى صيغة embed مع التشغيل التلقائي
-    const ytMatch = String(url).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+    // إذا كان معرّف يوتيوب موجوداً بالفعل في بيانات الحصة
+    if (item.youtubeVideoId && typeof item.youtubeVideoId === "string" && item.youtubeVideoId.trim().length === 11) {
+      return `https://www.youtube.com/embed/${item.youtubeVideoId.trim()}?enablejsapi=1&playsinline=1&rel=0&modestbranding=1`;
+    }
+
+    // فحص باقي حقول الروابط الممكنة
+    let raw = item.youtubeEmbedUrl || item.recordingUrl || item.videoUrl || item.previewUrl || item.driveLink || item.url;
+    if (!raw) return null;
+    raw = String(raw).trim();
+
+    // استخراج معرّف الـ 11 رمزاً فقط بدقة
+    const ytMatch = raw.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|live\/|shorts\/|watch\?.+&v=))([A-Za-z0-9_-]{11})/);
     if (ytMatch && ytMatch) {
-      return `https://www.youtube.com/embed/${ytMatch}?autoplay=1`;
+      return `https://www.youtube.com/embed/${ytMatch}?enablejsapi=1&playsinline=1&rel=0&modestbranding=1`;
     }
 
-    return url;
+    if (raw.startsWith("https://www.youtube.com/embed/")) {
+      return raw;
+    }
+
+    return raw;
   }
 
-  // 2. فتح وتشغيل الفيديو وضمان إنشاء نافذة العرض تلقائياً
+  // 2. دالة فتح وتشغيل الفيديو والتحكم بملء الشاشة
   function openVideo(item) {
-    // 1. استخراج الرابط الصحيح للحصة من كافة الحقول المتاحة
-    let videoUrl = item.youtubeEmbedUrl;
-    if (!videoUrl && item.youtubeVideoId) {
-      videoUrl = `https://www.youtube.com/embed/${item.youtubeVideoId}?rel=0&modestbranding=1&playsinline=1`;
-    }
-    if (!videoUrl && item.previewUrl) {
-      videoUrl = item.previewUrl;
-    }
-    if (!videoUrl) {
-      videoUrl = item.driveLink || item.recordingUrl || item.videoUrl;
-    }
-
-    // تحويل روابط يوتيوب العادية تلقائياً إلى صيغة embed صالحة للتشغيل
-    if (videoUrl && (videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be"))) {
-      const match = String(videoUrl).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-      if (match && match) {
-        videoUrl = `https://www.youtube.com/embed/${match}?rel=0&modestbranding=1&playsinline=1`;
-      }
-    }
-
+    const videoUrl = extractVideoUrl(item);
     if (!videoUrl) {
       alert("عذراً، لم يتم العثور على رابط تسجيل صالح لهذه الحصة.");
       return;
     }
 
-    // 2. إخفاء أي نافذة قديمة كانت تظهر بأسفل الصفحة
     const oldModal = $("lesson-video-modal");
     if (oldModal) oldModal.style.display = "none";
 
-    // 3. إنشاء صفحة العرض الكاملة في أعلى الشاشة
     let viewer = $("custom-lesson-page-viewer");
     if (viewer) viewer.remove();
 
@@ -173,9 +159,9 @@
     const dateFormatted = formatDate(item.scheduledAt);
 
     viewer.innerHTML = `
-      <!-- الشريط العلوي: أزرار العودة والعنوان -->
+      <!-- الشريط العلوي -->
       <header style="background:#1e293b;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155;position:sticky;top:0;z-index:10;">
-        <button id="viewer-back-btn" type="button" style="background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:6px;">
+        <button id="viewer-back-btn" type="button" style="background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;">
           ← العودة إلى سجل الحصص
         </button>
         <a href="parent-dashboard.html" style="background:#334155;color:#e2e8f0;text-decoration:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:bold;">
@@ -183,36 +169,31 @@
         </a>
       </header>
 
-      <!-- محتوى الصفحة: في الوسط -->
+      <!-- وسط الصفحة: المشغل -->
       <main style="flex:1;max-width:960px;width:100%;margin:0 auto;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px;">
         
-        <!-- بطاقة عنوان الحصة وتاريخها -->
         <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px 16px;color:#fff;">
           <h2 style="margin:0 0 6px 0;font-size:18px;color:#60a5fa;">📹 ${subjectName}</h2>
           <p style="margin:0;color:#94a3b8;font-size:14px;">📅 ${dateFormatted}</p>
         </div>
 
-        <!-- مشغل الفيديو التفاعلي مع صلاحيات ملء الشاشة الكاملة -->
         <div id="video-frame-box" style="position:relative;width:100%;padding-top:56.25%;background:#000;border-radius:12px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,0.7);border:1px solid #1e293b;">
           <iframe 
             id="lesson-custom-iframe"
             src="${videoUrl}" 
             style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" 
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; webkitfullscreen; mozallowfullscreen; fullscreen" 
-            allowfullscreen="true"
-            webkitallowfullscreen="true"
-            mozallowfullscreen="true">
+            allowfullscreen="true">
           </iframe>
         </div>
 
-        <!-- زر ملء الشاشة لتكبير وتدوير الفيديو في الهاتف -->
         <div style="display:flex;justify-content:center;">
           <button id="fullscreen-action-btn" type="button" style="background:#059669;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px;">
             ⛶ تكبير الشاشة (ملء الشاشة)
           </button>
         </div>
 
-        <!-- التنبيه الأمني المشدد في الأسفل -->
+        <!-- التنبيه الأمني المشدد -->
         <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);border-radius:12px;padding:16px;color:#fca5a5;margin-top:6px;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
             <span style="font-size:22px;">⚠️</span>
@@ -231,7 +212,6 @@
     document.body.append(viewer);
     document.body.style.overflow = "hidden";
 
-    // وظيفة زر العودة إلى سجل الحصص
     $("viewer-back-btn").onclick = () => {
       const iframe = $("lesson-custom-iframe");
       if (iframe) iframe.src = "";
@@ -239,17 +219,17 @@
       document.body.style.overflow = "";
     };
 
-    // وظيفة زر ملء الشاشة وتدويرها في الهاتف
+    // تفعيل ملء الشاشة الحقيقي للفيديو
     $("fullscreen-action-btn").onclick = () => {
-      const frameBox = $("video-frame-box");
-      if (frameBox.requestFullscreen) {
-        frameBox.requestFullscreen();
-      } else if (frameBox.webkitRequestFullscreen) {
-        frameBox.webkitRequestFullscreen();
-      } else if (frameBox.mozRequestFullScreen) {
-        frameBox.mozRequestFullScreen();
-      } else if (frameBox.msRequestFullscreen) {
-        frameBox.msRequestFullscreen();
+      const iframe = $("lesson-custom-iframe");
+      if (iframe) {
+        if (iframe.requestFullscreen) {
+          iframe.requestFullscreen();
+        } else if (iframe.webkitRequestFullscreen) {
+          iframe.webkitRequestFullscreen();
+        } else if (iframe.webkitEnterFullscreen) {
+          iframe.webkitEnterFullscreen();
+        }
       }
     };
   }
