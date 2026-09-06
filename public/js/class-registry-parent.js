@@ -132,83 +132,126 @@
 
   // 2. فتح وتشغيل الفيديو وضمان إنشاء نافذة العرض تلقائياً
   function openVideo(item) {
-    const videoUrl = extractVideoUrl(item);
+    // 1. استخراج الرابط الصحيح للحصة من كافة الحقول المتاحة
+    let videoUrl = item.youtubeEmbedUrl;
+    if (!videoUrl && item.youtubeVideoId) {
+      videoUrl = `https://www.youtube.com/embed/${item.youtubeVideoId}?rel=0&modestbranding=1&playsinline=1`;
+    }
+    if (!videoUrl && item.previewUrl) {
+      videoUrl = item.previewUrl;
+    }
     if (!videoUrl) {
-      alert("عذراً، لم يتم العثور على رابط صالح لتسجيل هذه الحصة.");
+      videoUrl = item.driveLink || item.recordingUrl || item.videoUrl;
+    }
+
+    // تحويل روابط يوتيوب العادية تلقائياً إلى صيغة embed صالحة للتشغيل
+    if (videoUrl && (videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be"))) {
+      const match = String(videoUrl).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+      if (match && match) {
+        videoUrl = `https://www.youtube.com/embed/${match}?rel=0&modestbranding=1&playsinline=1`;
+      }
+    }
+
+    if (!videoUrl) {
+      alert("عذراً، لم يتم العثور على رابط تسجيل صالح لهذه الحصة.");
       return;
     }
 
-    let modal = $("lesson-video-modal");
-    let frame = $("lesson-video-frame");
+    // 2. إخفاء أي نافذة قديمة كانت تظهر بأسفل الصفحة
+    const oldModal = $("lesson-video-modal");
+    if (oldModal) oldModal.style.display = "none";
 
-    // إذا كانت نافذة العرض غير موجودة في الصفحة المستقلة، يتم إنشاؤها فوراً
-    if (!modal) {
-      modal = document.createElement("div");
-      modal.id = "lesson-video-modal";
-      modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:15px;";
-      
-      const content = document.createElement("div");
-      content.style.cssText = "width:100%;max-width:850px;background:#000;border-radius:12px;overflow:hidden;position:relative;box-shadow:0 10px 30px rgba(0,0,0,0.6);";
+    // 3. إنشاء صفحة العرض الكاملة في أعلى الشاشة
+    let viewer = $("custom-lesson-page-viewer");
+    if (viewer) viewer.remove();
 
-      const header = document.createElement("div");
-      header.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#1e293b;color:#fff;";
-      
-      const title = document.createElement("span");
-      title.id = "lesson-video-modal-title";
-      title.style.cssText = "font-weight:bold;font-size:15px;";
-      title.textContent = `${subjectLabels[item.subject] || "الحصة"} · ${formatDate(item.scheduledAt)}`;
+    viewer = document.createElement("div");
+    viewer.id = "custom-lesson-page-viewer";
+    viewer.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;background:#0b1329;z-index:9999999;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;font-family:inherit;";
 
-      const closeBtn = document.createElement("button");
-      closeBtn.type = "button";
-      closeBtn.innerHTML = "&times;";
-      closeBtn.style.cssText = "background:none;border:none;color:#fff;font-size:32px;line-height:1;cursor:pointer;padding:0 10px;";
-      closeBtn.onclick = () => {
-        if (frame) frame.src = "";
-        modal.style.display = "none";
-      };
+    const subjectName = subjectLabels[item.subject] || item.subject || "الحصة";
+    const dateFormatted = formatDate(item.scheduledAt);
 
-      header.append(title, closeBtn);
+    viewer.innerHTML = `
+      <!-- الشريط العلوي: أزرار العودة والعنوان -->
+      <header style="background:#1e293b;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155;position:sticky;top:0;z-index:10;">
+        <button id="viewer-back-btn" type="button" style="background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:6px;">
+          ← العودة إلى سجل الحصص
+        </button>
+        <a href="parent-dashboard.html" style="background:#334155;color:#e2e8f0;text-decoration:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:bold;">
+          🏠 الرئيسية
+        </a>
+      </header>
 
-      const frameContainer = document.createElement("div");
-      frameContainer.style.cssText = "position:relative;width:100%;padding-top:56.25%;background:#000;";
+      <!-- محتوى الصفحة: في الوسط -->
+      <main style="flex:1;max-width:960px;width:100%;margin:0 auto;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px;">
+        
+        <!-- بطاقة عنوان الحصة وتاريخها -->
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px 16px;color:#fff;">
+          <h2 style="margin:0 0 6px 0;font-size:18px;color:#60a5fa;">📹 ${subjectName}</h2>
+          <p style="margin:0;color:#94a3b8;font-size:14px;">📅 ${dateFormatted}</p>
+        </div>
 
-      frame = document.createElement("iframe");
-      frame.id = "lesson-video-frame";
-      frame.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;";
-      frame.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture");
-      frame.setAttribute("allowfullscreen", "true");
+        <!-- مشغل الفيديو التفاعلي مع صلاحيات ملء الشاشة الكاملة -->
+        <div id="video-frame-box" style="position:relative;width:100%;padding-top:56.25%;background:#000;border-radius:12px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,0.7);border:1px solid #1e293b;">
+          <iframe 
+            id="lesson-custom-iframe"
+            src="${videoUrl}" 
+            style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; webkitfullscreen; mozallowfullscreen; fullscreen" 
+            allowfullscreen="true"
+            webkitallowfullscreen="true"
+            mozallowfullscreen="true">
+          </iframe>
+        </div>
 
-      frameContainer.append(frame);
-      content.append(header, frameContainer);
-      modal.append(content);
-      document.body.append(modal);
+        <!-- زر ملء الشاشة لتكبير وتدوير الفيديو في الهاتف -->
+        <div style="display:flex;justify-content:center;">
+          <button id="fullscreen-action-btn" type="button" style="background:#059669;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px;">
+            ⛶ تكبير الشاشة (ملء الشاشة)
+          </button>
+        </div>
 
-      // إغلاق عند الضغط خارج نافذة الفيديو
-      modal.onclick = (e) => {
-        if (e.target === modal) {
-          if (frame) frame.src = "";
-          modal.style.display = "none";
-        }
-      };
-    }
+        <!-- التنبيه الأمني المشدد في الأسفل -->
+        <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);border-radius:12px;padding:16px;color:#fca5a5;margin-top:6px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:22px;">⚠️</span>
+            <strong style="color:#ef4444;font-size:16px;">تنبيه أمني هام ومشدد:</strong>
+          </div>
+          <p style="margin:0;font-size:13.5px;line-height:1.7;color:#fecaca;">
+            محتوى هذه الحصة مسجل وحصري ومخصص فقط للتلميذ المسجل في الأكاديمية.<br>
+            <strong>يُمنع منعاً باتاً</strong> تصوير أو تسجيل أو تحميل أو مشاركة هذا الفيديو أو رابطه مع أي طرف آخر.<br>
+            أي محاولة لمشاركة الفيديو ستؤدي فوراً إلى <strong>إغلاق الحساب نهائياً</strong> وحرمان التلميذ من المنصة دون أي تعويض، مع الاحتفاظ بكامل الحقوق القانونية.
+          </p>
+        </div>
 
-    const titleElem = $("lesson-video-modal-title");
-    if (titleElem) {
-      titleElem.textContent = `${subjectLabels[item.subject] || "الحصة"} · ${formatDate(item.scheduledAt)}`;
-    }
+      </main>
+    `;
 
-    frame.src = videoUrl;
-    modal.style.display = "flex";
-  }
+    document.body.append(viewer);
+    document.body.style.overflow = "hidden";
 
-  // 3. الإبقاء على دالة الرسائل كما هي
-  function showMessage(message, className = "class-registry-empty") {
-    if (!list) return;
-    list.replaceChildren();
-    const element = document.createElement("p");
-    element.className = className;
-    element.textContent = message;
-    list.append(element);
+    // وظيفة زر العودة إلى سجل الحصص
+    $("viewer-back-btn").onclick = () => {
+      const iframe = $("lesson-custom-iframe");
+      if (iframe) iframe.src = "";
+      viewer.remove();
+      document.body.style.overflow = "";
+    };
+
+    // وظيفة زر ملء الشاشة وتدويرها في الهاتف
+    $("fullscreen-action-btn").onclick = () => {
+      const frameBox = $("video-frame-box");
+      if (frameBox.requestFullscreen) {
+        frameBox.requestFullscreen();
+      } else if (frameBox.webkitRequestFullscreen) {
+        frameBox.webkitRequestFullscreen();
+      } else if (frameBox.mozRequestFullScreen) {
+        frameBox.mozRequestFullScreen();
+      } else if (frameBox.msRequestFullscreen) {
+        frameBox.msRequestFullscreen();
+      }
+    };
   }
 
   function showMessage(message, className = "class-registry-empty") {
