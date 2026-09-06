@@ -134,8 +134,8 @@ async function createAssignment(req, res) {
     }
   });
   void logAudit(req, { action: "ASSIGNMENT_CREATED", entityType: "Assignment", entityId: assignment.id, metadata: { requestedLevel, level, subject } });
-  return res.status(201).json({ status: "success", data: assignment });
-}
+const { attachmentData, instructionImageData, ...safeAssignment } = assignment;
+return res.status(201).json({ status: "success", data: safeAssignment });}
 
 async function listTeacherAssignments(req, res) {
   if (!requireTeacher(req, res)) return;
@@ -796,7 +796,14 @@ async function getTeacherAnalytics(req, res) {
 }
 
 async function getAssignmentInstructionImage(req, res) {
-  const assignment = await prisma.assignment.findUnique({ where: { id: text(req.params.assignmentId, 80) } });
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: text(req.params.assignmentId, 80) },
+    select: {
+      instructionImageData: true,
+      instructionImageMimeType: true,
+      instructionImageOriginalName: true,
+    },
+  });
   if (!assignment || !assignment.instructionImageData) return res.status(404).json({ error: "صورة التعليمات غير موجودة." });
   const fileBuffer = asBinaryBuffer(assignment.instructionImageData);
   res.setHeader("Content-Type", assignment.instructionImageMimeType || "application/octet-stream");
@@ -806,7 +813,14 @@ async function getAssignmentInstructionImage(req, res) {
 }
 
 async function getAssignmentFile(req, res) {
-  const assignment = await prisma.assignment.findUnique({ where: { id: text(req.params.assignmentId, 80) } });
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: text(req.params.assignmentId, 80) },
+    select: {
+      attachmentData: true,
+      attachmentMimeType: true,
+      attachmentOriginalName: true,
+    },
+  });
   if (!assignment || !assignment.attachmentData) return res.status(404).json({ error: "الملف غير موجود." });
   const fileBuffer = asBinaryBuffer(assignment.attachmentData);
   res.setHeader("Content-Type", assignment.attachmentMimeType || "application/octet-stream");
