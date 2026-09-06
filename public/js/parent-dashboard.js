@@ -2757,11 +2757,32 @@ if (!getParentToken()) {
       window.dispatchEvent(new Event("parent-dashboard-ready"));
     });
   } else {
-    // Focused standalone screen (e.g. parent-homework.html and sibling pages):
-    // the dashboard boot is intentionally skipped because there is no
-    // #dashboard-content. Only the logout/sidebar/modal wiring above applies.
-    // Each standalone page restores currentStudent itself and listens for this
-    // event to launch its content loader after the shared capabilities exist.
+    // ✅ تشغيل الصفحات المستقلة للهاتف (فيديوهات، واجبات، شهادات) تلقائياً
+    function bootStandaloneScreen(student) {
+      if (!student) return;
+      currentStudent = student;
+      if (student.level && elements.lessonVideoList) {
+        void loadLessonVideos(student.level);
+      }
+      if (student.id && elements.studentHomeworkList) {
+        void loadStudentHomework(student.id);
+      }
+      if (student.id && elements.studentCertificatesList) {
+        void loadStudentCertificates(student.id);
+      }
+    }
+
+    // قراءة التلميذ فوراً من الجلسة
+    try {
+      const stored = JSON.parse(sessionStorage.getItem("currentStudent") || localStorage.getItem("currentStudent") || "null");
+      if (stored) bootStandaloneScreen(stored);
+    } catch (e) {}
+
+    // الاستماع لحدث جاهزية الشاشة
+    window.addEventListener("parent-screen-ready", (event) => {
+      bootStandaloneScreen(event && event.detail);
+    });
+
     window.dispatchEvent(new Event("parent-dashboard-ready"));
   }
 }
