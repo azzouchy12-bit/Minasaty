@@ -138,100 +138,135 @@
   }
 
   // 2. دالة فتح وتشغيل الفيديو والتحكم بملء الشاشة
-  function openVideo(item) {
+function openVideo(item) {
     const videoUrl = extractVideoUrl(item);
     if (!videoUrl) {
-      alert("عذراً، لم يتم العثور على رابط تسجيل صالح لهذه الحصة.");
+      alert("عذراً، هذا الدرس لا يملك رابط فيديو أو معرف غير صالح.");
       return;
     }
 
-    const oldModal = $("lesson-video-modal");
+    const oldModal = document.getElementById("lesson-video-modal");
     if (oldModal) oldModal.style.display = "none";
 
-    let viewer = $("custom-lesson-page-viewer");
+    let viewer = document.getElementById("custom-lesson-page-viewer");
     if (viewer) viewer.remove();
 
     viewer = document.createElement("div");
     viewer.id = "custom-lesson-page-viewer";
-    viewer.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;background:#0b1329;z-index:9999999;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;font-family:inherit;";
+    viewer.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;background:#0b132b;z-index:999999;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;font-family:inherit;";
 
-    const subjectName = subjectLabels[item.subject] || item.subject || "الحصة";
+    const subjectName = subjectLabels[item.subject] || item.subject || "درس";
     const dateFormatted = formatDate(item.scheduledAt);
 
     viewer.innerHTML = `
-      <!-- الشريط العلوي -->
+      <!-- شريط علوي -->
       <header style="background:#1e293b;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155;position:sticky;top:0;z-index:10;">
         <button id="viewer-back-btn" type="button" style="background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;">
-          ← العودة إلى سجل الحصص
+          ← العودة للجدول
         </button>
-        <a href="parent-dashboard.html" style="background:#334155;color:#e2e8f0;text-decoration:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:bold;">
-          🏠 الرئيسية
+        <a href="parent-dashboard.html" style="background:#334155;color:#e2e8f0;text-decoration:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;">
+          الرئيسية
         </a>
       </header>
 
-      <!-- وسط الصفحة: المشغل -->
-      <main style="flex:1;max-width:960px;width:100%;margin:0 auto;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px;">
-        
+      <!-- محتوى الفيديو الرئيسي -->
+      <main style="flex:1;max-width:900px;width:100%;margin:0 auto;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px;">
         <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px 16px;color:#fff;">
           <h2 style="margin:0 0 6px 0;font-size:18px;color:#60a5fa;">📹 ${subjectName}</h2>
           <p style="margin:0;color:#94a3b8;font-size:14px;">📅 ${dateFormatted}</p>
         </div>
 
-        <div id="video-frame-box" style="position:relative;width:100%;padding-top:56.25%;background:#000;border-radius:12px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,0.7);border:1px solid #1e293b;">
-          <iframe 
+        <div id="video-frame-box" style="position:relative;width:100%;padding-top:56.25%;background:#000;border-radius:12px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.5);">
+          <iframe
             id="lesson-custom-iframe"
-            src="${videoUrl}" 
-            style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; webkitfullscreen; mozallowfullscreen; fullscreen" 
+            src="${videoUrl}"
+            style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+            referrerpolicy="strict-origin-when-cross-origin"
             allowfullscreen="true">
           </iframe>
         </div>
 
         <div style="display:flex;justify-content:center;">
-          <button id="fullscreen-action-btn" type="button" style="background:#059669;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px;">
-            ⛶ تكبير الشاشة (ملء الشاشة)
+          <button id="fullscreen-action-btn" type="button" style="background:#059669;color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px;">
+            ⛶ <span>تكبير وتدوير الشاشة أفقياً</span>
           </button>
         </div>
 
-        <!-- التنبيه الأمني المشدد -->
-        <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);border-radius:12px;padding:16px;color:#fca5a5;margin-top:6px;">
+        <!-- تنبيه حماية المحتوى -->
+        <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);border-radius:12px;padding:14px 16px;color:#fca5a5;direction:rtl;text-align:right;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
             <span style="font-size:22px;">⚠️</span>
-            <strong style="color:#ef4444;font-size:16px;">تنبيه أمني هام ومشدد:</strong>
+            <strong style="color:#ef4444;font-size:16px;">تنبيه هام للحساب والحماية:</strong>
           </div>
           <p style="margin:0;font-size:13.5px;line-height:1.7;color:#fecaca;">
-            محتوى هذه الحصة مسجل وحصري ومخصص فقط للتلميذ المسجل في الأكاديمية.<br>
-            <strong>يُمنع منعاً باتاً</strong> تصوير أو تسجيل أو تحميل أو مشاركة هذا الفيديو أو رابطه مع أي طرف آخر.<br>
-            أي محاولة لمشاركة الفيديو ستؤدي فوراً إلى <strong>إغلاق الحساب نهائياً</strong> وحرمان التلميذ من المنصة دون أي تعويض، مع الاحتفاظ بكامل الحقوق القانونية.
+            مشاركة رابط الفيديو أو الحساب تعتبر مخالفة صريحة لشروط الخدمة.<br>
+            <strong>في حال تم رصد أي مشاركة</strong> سيتم حظر الحساب فوراً ولن تسترجع أي مبلغ مدفوع.<br>
+            جميع التحركات والمشاهدات مسجلة ومربوطة بمعرف حسابك <strong>لحماية المحتوى التعليمي</strong> وتفادي الاستغلال التجاري.
           </p>
         </div>
-
       </main>
     `;
 
     document.body.append(viewer);
     document.body.style.overflow = "hidden";
 
-    $("viewer-back-btn").onclick = () => {
-      const iframe = $("lesson-custom-iframe");
+    document.getElementById("viewer-back-btn").onclick = () => {
+      const iframe = document.getElementById("lesson-custom-iframe");
       if (iframe) iframe.src = "";
       viewer.remove();
       document.body.style.overflow = "";
+      if (screen.orientation && screen.orientation.unlock) {
+        try { screen.orientation.unlock(); } catch (e) {}
+      }
     };
 
-    // تفعيل ملء الشاشة الحقيقي للفيديو
-    $("fullscreen-action-btn").onclick = () => {
-      const iframe = $("lesson-custom-iframe");
-      if (iframe) {
-        if (iframe.requestFullscreen) {
-          iframe.requestFullscreen();
-        } else if (iframe.webkitRequestFullscreen) {
-          iframe.webkitRequestFullscreen();
+    // ✅ التدوير الأفقي وتمديد الفيديو لكامل شاشة الهاتف
+    document.getElementById("fullscreen-action-btn").onclick = async () => {
+      const box = document.getElementById("video-frame-box");
+      const iframe = document.getElementById("lesson-custom-iframe");
+      if (!box || !iframe) return;
+
+      try {
+        // تكبير الحاوية مع إزالة النسبة القديمة لتملأ 100% من الشاشة بالعرض
+        if (box.requestFullscreen) {
+          await box.requestFullscreen();
+        } else if (box.webkitRequestFullscreen) {
+          await box.webkitRequestFullscreen();
         } else if (iframe.webkitEnterFullscreen) {
           iframe.webkitEnterFullscreen();
+          return;
+        }
+
+        box.style.paddingTop = "0";
+        box.style.height = "100vh";
+        box.style.width = "100vw";
+
+        // قلب الهاتف أفقياً (Landscape)
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock("landscape").catch(() => {});
+        }
+      } catch (err) {
+        console.log("Orientation lock:", err);
+      }
+    };
+
+    // استعادة أبعاد الفيديو العادية عند الخروج من ملء الشاشة
+    const onExitFs = () => {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const box = document.getElementById("video-frame-box");
+        if (box) {
+          box.style.paddingTop = "56.25%";
+          box.style.height = "";
+          box.style.width = "100%";
+        }
+        if (screen.orientation && screen.orientation.unlock) {
+          try { screen.orientation.unlock(); } catch (e) {}
         }
       }
     };
+    document.onfullscreenchange = onExitFs;
+    document.onwebkitfullscreenchange = onExitFs;
   }
 
   function showMessage(message, className = "class-registry-empty") {
