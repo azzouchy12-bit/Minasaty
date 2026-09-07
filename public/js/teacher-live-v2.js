@@ -3197,20 +3197,34 @@ function showOpenScheduledClassNotice(scheduledClass = null, serverMessage = "")
   resumeButton.textContent = "استعادة الحصة الآن والاتصال بالطلاب";
   resumeButton.style.cssText = "width:100%;min-height:52px;padding:12px 18px;border:0;border-radius:10px;background:#0d6efd;color:#fff;font-size:17px;font-weight:700;cursor:pointer";
   resumeButton.addEventListener("click", async () => {
+    const level = scheduledClass?.level || elements.levelSelect?.value || "";
+    const subject = scheduledClass?.subject || elements.subjectSelect?.value || "";
+    const resumeToken = scheduledClass?.resumeToken || pendingPageRecovery?.resumeToken || readLiveClassRecovery()?.resumeToken || "";
+    const customErrorMessage = serverMessage || "تعذر استعادة الجلسة السابقة.";
+
     resumeButton.disabled = true;
-    resumeButton.textContent = "جارٍ استعادة الحصة…";
+    resumeButton.textContent = "جاري استعادة الحصة والاتصال...";
+
     pendingPageRecovery = { level, subject, resumeToken };
-    elements.levelSelect.value = level;
-    syncClassTypeSelector({ selectedValue: subject });
+    if (elements.levelSelect && level) {
+      elements.levelSelect.value = level;
+    }
+    if (typeof syncClassTypeSelector === "function" && subject) {
+      syncClassTypeSelector({ selectedValue: subject });
+    }
+
     clearOpenScheduledClassNotice();
+
     try {
       await startLiveClass();
+    } catch (err) {
+      console.error("فشل استعادة الحصة:", err);
     } finally {
       if (!classActive) {
         resumeButton.disabled = false;
         resumeButton.textContent = "استعادة الحصة الآن والاتصال بالطلاب";
         if (!openScheduledClassNotice) {
-          showOpenScheduledClassNotice(null, serverMessage || "تعذر استعادة الحصة بعد.");
+          showOpenScheduledClassNotice(scheduledClass, customErrorMessage);
         }
       }
     }
