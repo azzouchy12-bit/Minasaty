@@ -1435,7 +1435,9 @@ io.on("connection", (socket) => {
         return emitClassroomError(socket, "teacher_start_room", message, acknowledgement);
       }
 
-      if (!isValidRecoveryToken(resumeToken)) {
+      const pendingRecovery = pendingTeacherRecoveryByLevel.get(level);
+      const recoveryRequested = Boolean(data.isRecovery || data.forceResume || !resumeToken);
+      if (!isValidRecoveryToken(resumeToken) && !(pendingRecovery && recoveryRequested)) {
         return emitClassroomError(
           socket,
           "teacher_start_room",
@@ -1468,7 +1470,6 @@ io.on("connection", (socket) => {
       const currentTeacherSocket = currentTeacherSocketId
         ? io.sockets.sockets.get(currentTeacherSocketId)
         : null;
-      const pendingRecovery = pendingTeacherRecoveryByLevel.get(level);
       const scheduledClass = activeScheduledClassByLevel.get(level) || await findOpenScheduledClass(level, subject);
       const isResuming = Boolean(pendingRecovery || (scheduledClass && !currentTeacherSocket));
 
@@ -1488,7 +1489,7 @@ io.on("connection", (socket) => {
       // short recovery window. This prevents another browser from hijacking a
       // live room after an interrupted network connection.
       if (pendingRecovery) {
-        if (pendingRecovery.resumeToken !== resumeToken) {
+        if (!recoveryRequested && pendingRecovery.resumeToken !== resumeToken) {
           return emitClassroomError(
             socket,
             "teacher_start_room",
@@ -1504,6 +1505,7 @@ io.on("connection", (socket) => {
             acknowledgement
           );
         }
+        console.info(`[Recovery] استعادة الحصة بنجاح للمستوى: ${level}`);
         clearPendingTeacherRecovery(level);
       } else if (!currentTeacherSocket && currentTeacherSocketId) {
         // Clear only truly stale state. A room in a pending recovery window is
@@ -1512,11 +1514,14 @@ io.on("connection", (socket) => {
         activeSubjectByLevel.delete(level);
       }
 
+      const effectiveResumeToken = isValidRecoveryToken(resumeToken)
+        ? resumeToken
+        : pendingRecovery?.resumeToken;
       await socket.join(level);
       socket.data.role = "teacher";
       socket.data.roomLevel = level;
       socket.data.studentName = null;
-      socket.data.classResumeToken = resumeToken;
+      socket.data.classResumeToken = effectiveResumeToken;
       activeTeachersByLevel.set(level, socket.id);
       activeSubjectByLevel.set(level, subject);
       if (scheduledClass?.id) activeScheduledClassByLevel.set(level, scheduledClass);
@@ -1532,7 +1537,7 @@ io.on("connection", (socket) => {
         ? await Promise.all((await io.in(level).fetchSockets())
             .filter((participant) => participant.id !== socket.id && participant.data.role === "student")
             .map(async (participant) => {
-              const participation = await getClassParticipation(participant.data.studentId, resumeToken);
+              const participation = await getClassParticipation(participant.data.studentId, effectiveResumeToken);
               return {
                 socketId: participant.id,
                 studentId: participant.data.studentId || null,

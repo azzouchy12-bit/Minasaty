@@ -3205,7 +3205,7 @@ function showOpenScheduledClassNotice(scheduledClass = null, serverMessage = "")
     resumeButton.disabled = true;
     resumeButton.textContent = "جاري استعادة الحصة والاتصال...";
 
-    pendingPageRecovery = { level, subject, resumeToken };
+    pendingPageRecovery = { level, subject, resumeToken, isRecovery: true, forceResume: true };
     if (elements.levelSelect && level) {
       elements.levelSelect.value = level;
     }
@@ -3327,6 +3327,8 @@ async function startLiveClass() {
       level: selectedLevel,
       subject: selectedSubject,
       resumeToken: classResumeToken,
+      isRecovery: Boolean(pageRecovery?.isRecovery || isResumingAfterPageRefresh),
+      forceResume: Boolean(pageRecovery?.forceResume || isResumingAfterPageRefresh),
     });
 
     activeScheduledClassId = roomResponse?.scheduledClassId || null;
