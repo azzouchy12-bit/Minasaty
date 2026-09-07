@@ -76,6 +76,8 @@ let screenShareRevision = 0;
 let isStarting = false;
 let isEnding = false;
 let classResumeToken = null;
+let activeScheduledClassId = null;
+let activeYoutubeVideoId = null;
 let reconnectingLiveClass = false;
 const renderedQuestionImageUrls = new Set();
 let questionImageModalPreviousFocus = null;
@@ -1320,6 +1322,8 @@ function getLocalRecordingMetadata() {
     classType: safeLabel(getClassTypeName(activeLevel, activeSubject), "تسجيل"),
     registryLevel: activeLevel || "",
     registrySubject: activeSubject || "",
+    scheduledClassId: activeScheduledClassId || "",
+    youtubeVideoId: activeYoutubeVideoId || "",
     recordedAt: localRecordingStartedAt ? new Date(localRecordingStartedAt).toISOString() : new Date().toISOString(),
     recordingWidth: localRecordingIs1080p ? LOCAL_RECORDING_WIDTH : null,
     recordingHeight: localRecordingIs1080p ? LOCAL_RECORDING_HEIGHT : null,
@@ -1338,6 +1342,29 @@ function updateYoutubeUploadUi({ visible = false, text = "", progress = 0 } = {}
   elements.youtubeUploadState.hidden = !visible;
   elements.youtubeUploadText.textContent = text;
   elements.youtubeUploadProgress.value = Math.max(0, Math.min(100, Number(progress) || 0));
+}
+
+function uploadFormDataWithProgress(url, formData, { token, onProgress } = {}) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
+    };
+    xhr.onload = () => {
+      let payload = {};
+      try { payload = JSON.parse(xhr.responseText || "{}"); } catch (_) {}
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(payload.error || "تعذر رفع التسجيل إلى YouTube."));
+        return;
+      }
+      resolve(payload);
+    };
+    xhr.onerror = () => reject(new Error("تعذر الاتصال بخادم رفع التسجيل."));
+    xhr.onabort = () => reject(new Error("تم إلغاء رفع التسجيل."));
+    xhr.send(formData);
+  });
 }
 
 async function uploadRecordingToYouTube(recording) {
@@ -1372,28 +1399,24 @@ async function uploadRecordingToYouTube(recording) {
     formData.append("level", recording.registryLevel || recording.level || "");
     formData.append("subject", recording.registrySubject || "");
     formData.append("recordedAt", recording.recordedAt || new Date().toISOString());
+    if (recording.scheduledClassId) formData.append("scheduledClassId", recording.scheduledClassId);
+    if (recording.youtubeVideoId) formData.append("youtubeVideoId", recording.youtubeVideoId);
     formData.append("title", `حصة ${recording.classType || "مباشرة"} — ${recording.registryLevel || recording.level || "الأكاديمية"}`.slice(0, 100));
     formData.append("description", `تسجيل تلقائي من أكاديمية التفوق للفيزياء والرياضيات\nالمستوى: ${recording.registryLevel || recording.level}\nنوع الحصة: ${recording.classType || recording.registrySubject}`);
 
-    const response = await fetch("/api/youtube/upload", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
+    const payload = await uploadFormDataWithProgress("/api/youtube/upload", formData, {
+      token,
+      onProgress: (progress) => updateYoutubeUploadUi({
+        visible: true,
+        text: `جاري معالجة ورفع تسجيل الحصة إلى اليوتيوب... (${progress}%)`,
+        progress,
+      }),
     });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      if (payload.reauthRequired && payload.authorizationUrl) {
-        const reconnectWindow = window.open(payload.authorizationUrl, "youtube-reconnect", "popup,width=620,height=760");
-        if (!reconnectWindow) window.location.href = payload.authorizationUrl;
-        throw new Error("انتهت صلاحية ربط YouTube. افتح نافذة إعادة الربط، ثم أعد رفع التسجيل.");
-      }
-      throw new Error(payload.error || "تعذر رفع التسجيل إلى YouTube.");
-    }
 
     const registryMessage = payload.data?.registryClass
       ? " وتم ربطه تلقائياً بسجل الحصة الرسمية وإتاحته حسب الصلاحيات."
       : " هذا تسجيل تجريبي محفوظ على YouTube فقط ولم يُدرج في السجل الرسمي.";
-    updateYoutubeUploadUi({ visible: true, text: `✅ تم الرفع لـ YouTube كفيديو غير مدرج${registryMessage}`, progress: 100 });
+    updateYoutubeUploadUi({ visible: true, text: `تم حفظ ورفع التسجيل بنجاح!${registryMessage}`, progress: 100 });
     setStudioStatus(
       payload.data?.registryClass
         ? "✅ تم رفع الحصة الرسمية وربطها بالسجل تلقائياً."
@@ -1730,8 +1753,7 @@ function finalizeLocalRecording() {
   updateControls();
   resolver?.(Boolean(recording));
   if (recording) {
-    if (isEnding) showRecordingReadyModal();
-    else void uploadRecordingToYouTube(recording);
+    void uploadRecordingToYouTube(recording);
   }
 }
 
@@ -3008,6 +3030,8 @@ async function endLiveClass({ notifyServer = true, statusMessage } = {}) {
     stopLocalStreams();
     activeLevel = null;
     activeSubject = null;
+    activeScheduledClassId = null;
+    activeYoutubeVideoId = null;
     classResumeToken = null;
     reconnectingLiveClass = false;
     isPageNavigatingAway = false;
@@ -3112,6 +3136,48 @@ async function toggleScreenShare() {
   await replaceScreenShareStream();
 }
 
+let openScheduledClassNotice = null;
+
+function clearOpenScheduledClassNotice() {
+  openScheduledClassNotice?.remove();
+  openScheduledClassNotice = null;
+}
+
+function showOpenScheduledClassNotice(scheduledClass) {
+  clearOpenScheduledClassNotice();
+  if (!scheduledClass || classActive || isStarting || !elements.startButton?.parentElement) return;
+  const notice = document.createElement("div");
+  notice.className = "open-scheduled-class-notice";
+  notice.style.cssText = "margin:12px 0;padding:14px;border:2px solid #e0a100;border-radius:10px;background:#fff8d6;color:#604500;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap";
+  notice.innerHTML = `<strong>توجد حصة جارية سابقة لم يتم إنهاؤها</strong>`;
+  const resumeButton = document.createElement("button");
+  resumeButton.type = "button";
+  resumeButton.className = "primary-button";
+  resumeButton.textContent = "استئناف الحصة السابقة";
+  resumeButton.addEventListener("click", () => {
+    pendingPageRecovery = { level: elements.levelSelect.value, subject: elements.subjectSelect.value, resumeToken: createClassResumeToken() };
+    clearOpenScheduledClassNotice();
+    void startLiveClass();
+  });
+  notice.append(resumeButton);
+  elements.startButton.parentElement.insertBefore(notice, elements.startButton);
+  openScheduledClassNotice = notice;
+}
+
+async function checkForOpenScheduledClass() {
+  if (classActive || isStarting || isEnding || !socket.connected) return;
+  const level = elements.levelSelect?.value;
+  const subject = elements.subjectSelect?.value;
+  if (!level || !subject) return;
+  try {
+    const response = await emitWithAcknowledgement("teacher_find_open_class", { level, subject }, 5_000);
+    if (response?.scheduledClass) showOpenScheduledClassNotice(response.scheduledClass);
+    else clearOpenScheduledClassNotice();
+  } catch (_) {
+    clearOpenScheduledClassNotice();
+  }
+}
+
 async function startLiveClass() {
   if (classActive || isStarting || isEnding) {
     return;
@@ -3191,6 +3257,8 @@ async function startLiveClass() {
       resumeToken: classResumeToken,
     });
 
+    activeScheduledClassId = roomResponse?.scheduledClassId || null;
+    activeYoutubeVideoId = roomResponse?.youtubeVideoId || null;
     pendingPageRecovery = null;
     persistLiveClassRecovery();
     const baseMessage = selectedLevel === GLOBAL_FREE_LEVEL
@@ -3610,8 +3678,10 @@ try {
 elements.levelSelect.addEventListener("change", () => {
   if (!classActive && !isStarting && !isEnding) {
     syncClassTypeSelector();
+    void checkForOpenScheduledClass();
   }
 });
+elements.subjectSelect?.addEventListener("change", () => void checkForOpenScheduledClass());
 elements.screenShareButton?.addEventListener("click", () => void toggleScreenShare());
 elements.toggleMicButton.addEventListener("click", toggleMicrophone);
 elements.recordLocalButton.addEventListener("click", toggleLocalRecording);
@@ -3685,6 +3755,7 @@ if (pendingPageRecovery) {
   syncClassTypeSelector();
 }
 
+void checkForOpenScheduledClass();
 updateAttendeeCount();
 try {
   updateControls();

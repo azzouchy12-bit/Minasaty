@@ -2770,6 +2770,17 @@ socket.on("class_ended", (data = {}) => {
   waitForNextLiveClass("انتهت الحصة. ستفتح الحصة التالية تلقائياً عند بدء الأستاذ.");
 });
 
+socket.on("class_ended_by_teacher", () => {
+  hideLiveStartNotice();
+  resetViewerState({
+    message: "انتهت الحصة المباشرة.. شكراً لحضوركم وتفاعلكم!",
+    mode: "neutral",
+    showJoin: false,
+  });
+  hideConnectionOverlay();
+  waitForNextLiveClass("انتهت الحصة المباشرة.. شكراً لحضوركم وتفاعلكم!");
+});
+
 socket.on("classroom_error", (data = {}) => {
   if (data.message) {
     setViewerStatus(data.message, "error");

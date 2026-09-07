@@ -392,6 +392,7 @@ const activeTeachersByLevel = new Map();
 // Stores the selected class type for each active level: a subject for school levels
 // or a subscription type for university students.
 const activeSubjectByLevel = new Map();
+const activeScheduledClassByLevel = new Map();
 // Explicit screen-share state lets students distinguish a real shared screen
 // from the static level welcome image that remains local to their page.
 const screenShareActiveByLevel = new Map();
@@ -897,6 +898,24 @@ function isValidRecoveryToken(value) {
   return typeof value === "string" && /^[a-zA-Z0-9-]{16,128}$/.test(value);
 }
 
+async function findOpenScheduledClass(level, subject) {
+  const now = new Date();
+  const startOfDay = new Date(now);
+  startOfDay.setHours(0, 0, 0, 0);
+  const startOfNextDay = new Date(startOfDay);
+  startOfNextDay.setDate(startOfNextDay.getDate() + 1);
+  return prisma.scheduledClass.findFirst({
+    where: {
+      level,
+      subject,
+      status: { not: "COMPLETED" },
+      scheduledAt: { gte: startOfDay, lt: startOfNextDay },
+    },
+    orderBy: { scheduledAt: "desc" },
+    select: { id: true, level: true, subject: true, status: true, youtubeVideoId: true, scheduledAt: true },
+  });
+}
+
 /**
  * Close a class for every currently connected participant. The class-ended
  * event is emitted before sockets leave, ensuring viewer pages can react.
@@ -912,11 +931,15 @@ async function closeClassroom(level, reason) {
   clearPendingTeacherRecovery(level);
   activeTeachersByLevel.delete(level);
   activeSubjectByLevel.delete(level);
+  activeScheduledClassByLevel.delete(level);
   setScreenShareActive(level, false);
   openStudentMicsByLevel.delete(level);
   whiteboardAccessByLevel.delete(level);
   clearClassroomChatHistory(level);
   io.to(level).emit("class_ended", { level, reason });
+  if (reason === "teacher_ended") {
+    io.to(level).emit("class_ended_by_teacher", { level, reason });
+  }
   // Parent dashboards join a separate passive lobby. They receive only the
   // live-state change—not attendee data, WebRTC signals, or media.
   io.to(`${level}_lobby`).emit("live_class_ended", { level, globalFree: level === GLOBAL_FREE_LEVEL, reason });
@@ -1365,6 +1388,23 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("teacher_find_open_class", async (data = {}, acknowledgement) => {
+    try {
+      const authenticatedTeacher = await requireTeacherSocketSession(socket, "teacher_find_open_class", acknowledgement);
+      if (!authenticatedTeacher) return;
+      const level = normalizeText(data.level);
+      const subject = normalizeText(data.subject).toUpperCase();
+      if (!isValidLevel(level) || !isValidActiveClassType(level, subject)) {
+        return acknowledge(acknowledgement, { ok: true, scheduledClass: null });
+      }
+      const scheduledClass = await findOpenScheduledClass(level, subject);
+      return acknowledge(acknowledgement, { ok: true, scheduledClass });
+    } catch (error) {
+      console.error("[Socket.io] teacher_find_open_class failed:", error);
+      return acknowledge(acknowledgement, { ok: false, scheduledClass: null });
+    }
+  });
+
   /**
    * Teacher starts a classroom for exactly one study level.
    * Payload: { level, subject }
@@ -1429,7 +1469,8 @@ io.on("connection", (socket) => {
         ? io.sockets.sockets.get(currentTeacherSocketId)
         : null;
       const pendingRecovery = pendingTeacherRecoveryByLevel.get(level);
-      const isResuming = Boolean(pendingRecovery);
+      const scheduledClass = activeScheduledClassByLevel.get(level) || await findOpenScheduledClass(level, subject);
+      const isResuming = Boolean(pendingRecovery || (scheduledClass && !currentTeacherSocket));
 
       // At this stage a level accepts one active broadcaster. Authentication
       // middleware should later ensure that only an authenticated teacher can
@@ -1478,6 +1519,7 @@ io.on("connection", (socket) => {
       socket.data.classResumeToken = resumeToken;
       activeTeachersByLevel.set(level, socket.id);
       activeSubjectByLevel.set(level, subject);
+      if (scheduledClass?.id) activeScheduledClassByLevel.set(level, scheduledClass);
       if (!isResuming && !currentTeacherSocket) {
         clearClassroomChatHistory(level);
       }
@@ -1505,6 +1547,8 @@ io.on("connection", (socket) => {
       const liveClassPayload = {
         level,
         subject,
+        scheduledClassId: scheduledClass?.id || null,
+        youtubeVideoId: scheduledClass?.youtubeVideoId || null,
         subjectLabel: isGlobalFreeClass ? "حصة مجانية مفتوحة للجميع" : getLiveSubjectLabel(subject),
         globalFree: isGlobalFreeClass,
         startedAt: new Date().toISOString(),
@@ -1532,8 +1576,8 @@ io.on("connection", (socket) => {
       }
 
       emitClassroomChatHistory(socket, level);
-      socket.emit("room_ready", { level, subject, role: "teacher", resumed: isResuming, globalFree: isGlobalFreeClass });
-      acknowledge(acknowledgement, { ok: true, level, subject, role: "teacher", resumed: isResuming, globalFree: isGlobalFreeClass });
+      socket.emit("room_ready", { level, subject, scheduledClassId: scheduledClass?.id || null, youtubeVideoId: scheduledClass?.youtubeVideoId || null, role: "teacher", resumed: isResuming, globalFree: isGlobalFreeClass });
+      acknowledge(acknowledgement, { ok: true, level, subject, scheduledClassId: scheduledClass?.id || null, youtubeVideoId: scheduledClass?.youtubeVideoId || null, role: "teacher", resumed: isResuming, globalFree: isGlobalFreeClass });
       console.info(`[Socket.io] Teacher ${socket.id} ${isResuming ? "resumed" : "started"} room: ${level} (${subject})`);
     } catch (error) {
       console.error("[Socket.io] teacher_start_room failed:", error);

@@ -113,7 +113,7 @@ function isOfficialRecordingTime(value) {
   );
 }
 
-async function attachVideoToNearestScheduledClass({ req, level, subject, videoId, recordedAt }) {
+async function attachVideoToNearestScheduledClass({ req, level, subject, videoId, recordedAt, scheduledClassId }) {
   const normalizedLevel = canonicalLevel(level);
   const targetSubject = canonicalSubject(subject);
   if (!normalizedLevel || !targetSubject || !videoId) return null;
@@ -127,6 +127,18 @@ async function attachVideoToNearestScheduledClass({ req, level, subject, videoId
 
   const displayLevel = Object.entries(LEVEL_ALIASES).find(([, canonical]) => canonical === normalizedLevel)?.[0];
   const levelCandidates = [...new Set([normalizedLevel, displayLevel].filter(Boolean))];
+  if (scheduledClassId) {
+    const resumedClass = await prisma.scheduledClass.findUnique({ where: { id: scheduledClassId } });
+    if (resumedClass && levelCandidates.includes(resumedClass.level) && resumedClass.subject === targetSubject && resumedClass.status !== "COMPLETED") {
+      const updated = await prisma.scheduledClass.update({
+        where: { id: resumedClass.id },
+        data: { status: "COMPLETED", youtubeVideoId: videoId },
+      });
+      req.app.get("io")?.to(`${normalizedLevel}_lobby`).emit("class_registry_updated", { level: normalizedLevel, classId: updated.id });
+      return { id: updated.id, level: updated.level, subject: updated.subject, scheduledAt: updated.scheduledAt };
+    }
+  }
+
   const candidates = await prisma.scheduledClass.findMany({
     where: {
       level: { in: levelCandidates },
@@ -226,6 +238,7 @@ router.post("/upload", verifyToken, isTeacher, (req, res, next) => {
     const level = String(req.body?.level || "").trim();
     const subject = String(req.body?.subject || "").trim();
     const recordedAt = String(req.body?.recordedAt || "").trim();
+    const scheduledClassId = String(req.body?.scheduledClassId || "").trim();
     const title = String(req.body?.title || `حصة ${subject || "مباشرة"} - ${level || "الأكاديمية"} - ${new Date().toLocaleDateString("ar-DZ")}`).slice(0, 100);
     const description = String(req.body?.description || `تسجيل من أكاديمية التفوق للفيزياء والرياضيات\nالمستوى: ${level}\nالمادة: ${subject}`).slice(0, 5000);
     
@@ -239,7 +252,7 @@ router.post("/upload", verifyToken, isTeacher, (req, res, next) => {
     const result = await uploadVideo({ stream: fs.createReadStream(req.file.path), mimeType, title, description });
     
     // 1. Attach to registry
-    const registryClass = await attachVideoToNearestScheduledClass({ req, level, subject, videoId: result.id, recordedAt }).catch((error) => {
+    const registryClass = await attachVideoToNearestScheduledClass({ req, level, subject, videoId: result.id, recordedAt, scheduledClassId }).catch((error) => {
       console.error("Unable to attach uploaded YouTube video to the class registry:", error);
       return null;
     });
