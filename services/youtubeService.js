@@ -9,7 +9,7 @@ const YOUTUBE_SCOPES = Object.freeze([
   "https://www.googleapis.com/auth/youtube.upload",
   "https://www.googleapis.com/auth/youtube.readonly",
 ]);
-const DEFAULT_REDIRECT_URI = "https://dr.africacold.fr/api/youtube/callback";
+const DEFAULT_REDIRECT_URI = "https://acadimia.africacold.fr/api/youtube/callback";
 const TOKEN_ALGORITHM = "aes-256-gcm";
 
 function getClientId() {
@@ -21,7 +21,7 @@ function getClientSecret() {
 }
 
 function getRedirectUri() {
-  return String(process.env.YOUTUBE_REDIRECT_URI || DEFAULT_REDIRECT_URI).trim();
+  return String(process.env.GOOGLE_REDIRECT_URI || DEFAULT_REDIRECT_URI).trim();
 }
 
 function getEncryptionKey() {

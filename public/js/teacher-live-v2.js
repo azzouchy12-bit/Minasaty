@@ -1381,7 +1381,14 @@ async function uploadRecordingToYouTube(recording) {
       body: formData,
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || "تعذر رفع التسجيل إلى YouTube.");
+    if (!response.ok) {
+      if (payload.reauthRequired && payload.authorizationUrl) {
+        const reconnectWindow = window.open(payload.authorizationUrl, "youtube-reconnect", "popup,width=620,height=760");
+        if (!reconnectWindow) window.location.href = payload.authorizationUrl;
+        throw new Error("انتهت صلاحية ربط YouTube. افتح نافذة إعادة الربط، ثم أعد رفع التسجيل.");
+      }
+      throw new Error(payload.error || "تعذر رفع التسجيل إلى YouTube.");
+    }
 
     const registryMessage = payload.data?.registryClass
       ? " وتم ربطه تلقائياً بسجل الحصة الرسمية وإتاحته حسب الصلاحيات."

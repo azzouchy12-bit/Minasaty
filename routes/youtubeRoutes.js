@@ -276,6 +276,22 @@ router.post("/upload", verifyToken, isTeacher, (req, res, next) => {
     });
   } catch (error) {
     console.error("Unable to upload video to YouTube:", error);
+    const rawError = `${error?.message || ""} ${error?.response?.data?.error || ""} ${error?.response?.data?.error_description || ""}`.toLowerCase();
+    const reauthRequired = rawError.includes("invalid_grant") || rawError.includes("invalid grant");
+    if (reauthRequired) {
+      let authorizationUrl = null;
+      try {
+        authorizationUrl = getAuthorizationUrl(makeState());
+      } catch (authError) {
+        console.error("Unable to create YouTube reauthorization URL:", authError);
+      }
+      return res.status(409).json({
+        error: "انتهت صلاحية ربط YouTube. أعد ربط القناة ثم أعد رفع التسجيل.",
+        code: "YOUTUBE_REAUTH_REQUIRED",
+        reauthRequired: true,
+        authorizationUrl,
+      });
+    }
     const status = error.code === "YOUTUBE_NOT_CONNECTED" ? 409 : 503;
     return res.status(status).json({ error: error.message || "تعذر رفع التسجيل إلى YouTube." });
   } finally {
