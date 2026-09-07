@@ -120,6 +120,64 @@ let localRecordingStartedAt = 0;
 let localRecordingStopResolver = null;
 let localRecordingDownloadRequested = true;
 let localRecordingFinalized = false;
+// ==================== مخزن مقاطع التسجيل الدائم IndexedDB ====================
+const MINASATY_REC_DB = "minasaty_rec_vault";
+const MINASATY_REC_STORE = "session_chunks";
+
+function openMinasatyRecDB() {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open(MINASATY_REC_DB, 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(MINASATY_REC_STORE)) {
+          db.createObjectStore(MINASATY_REC_STORE, { autoIncrement: true });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch (e) {
+      resolve(null);
+    }
+  });
+}
+
+async function persistChunkToIndexedDB(chunk) {
+  try {
+    const db = await openMinasatyRecDB();
+    if (!db) return;
+    const tx = db.transaction(MINASATY_REC_STORE, "readwrite");
+    tx.objectStore(MINASATY_REC_STORE).add(chunk);
+  } catch (err) {
+    console.warn("[IndexedDB] فشل تخزين مقطع الفيديو:", err);
+  }
+}
+
+async function retrieveAllPersistedChunks() {
+  return new Promise(async (resolve) => {
+    try {
+      const db = await openMinasatyRecDB();
+      if (!db) return resolve([]);
+      const tx = db.transaction(MINASATY_REC_STORE, "readonly");
+      const req = tx.objectStore(MINASATY_REC_STORE).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    } catch {
+      resolve([]);
+    }
+  });
+}
+
+async function clearPersistedChunks() {
+  try {
+    const db = await openMinasatyRecDB();
+    if (!db) return;
+    const tx = db.transaction(MINASATY_REC_STORE, "readwrite");
+    tx.objectStore(MINASATY_REC_STORE).clear();
+    localStorage.removeItem("minasaty_is_recording");
+  } catch {}
+}
+// ============================================================================
 const LOCAL_RECORDING_WIDTH = 1920;
 const LOCAL_RECORDING_HEIGHT = 1080;
 const LOCAL_RECORDING_FRAME_RATE = 60;
@@ -408,6 +466,7 @@ function persistLiveClassRecovery() {
 }
 
 function clearLiveClassRecovery() {
+  clearPersistedChunks();
   sessionStorage.removeItem(TEACHER_LIVE_RECOVERY_KEY);
   pendingPageRecovery = null;
 }
@@ -1769,15 +1828,20 @@ function startLocalRecording() {
       ? { mimeType, videoBitsPerSecond: LOCAL_RECORDING_VIDEO_BITRATE, audioBitsPerSecond: LOCAL_RECORDING_AUDIO_BITRATE }
       : { videoBitsPerSecond: LOCAL_RECORDING_VIDEO_BITRATE, audioBitsPerSecond: LOCAL_RECORDING_AUDIO_BITRATE };
     const recorder = new MediaRecorder(localRecordingStream, options);
-    localMediaRecorder = recorder;
-    localRecordingMimeType = recorder.mimeType || mimeType || "video/webm";
-    localRecordingChunks = [];
+   localRecordingMimeType = recorder.mimeType || mimeType || "video/webm";
+    // الحفاظ على المقاطع السابقة إذا كنا في جلسة استعادة
+    if (!localRecordingChunks || localRecordingChunks.length === 0) {
+      localRecordingChunks = [];
+    }
+    localStorage.setItem("minasaty_is_recording", "true");
     localRecordingStartedAt = Date.now();
     localRecordingDownloadRequested = true;
     localRecordingFinalized = false;
     recorder.ondataavailable = (event) => {
       if (event.data?.size) {
         localRecordingChunks.push(event.data);
+        // حفظ كل مقطع فورياً في قاعدة بيانات المتصفح الدائمة لمنع ضياعه
+        persistChunkToIndexedDB(event.data);
       }
     };
     recorder.onerror = (event) => {
@@ -3343,6 +3407,22 @@ async function startLiveClass() {
       "live"
     );
     void publishScreenShareState(false);
+    // استرجاع التسجيل تلقائياً ودمج المقاطع السابقة إذا كانت الحصة تسجل قبل انقطاع الكهرباء
+    const wasRecording = localStorage.getItem("minasaty_is_recording") === "true";
+    if ((wasRecording || isResumingAfterPageRefresh || roomResponse?.resumed) && !isLocalRecording()) {
+      console.log("[Recovery] جاري استئناف تسجيل الحصة واسترجاع المقاطع السابقة...");
+      retrieveAllPersistedChunks().then((saved) => {
+        if (saved && saved.length > 0) {
+          localRecordingChunks = saved;
+          console.log(`[Recovery] تم دمج ${saved.length} مقطع مسجل قبل الانقطاع.`);
+        }
+        if (typeof startLocalRecording === "function") {
+          setTimeout(() => {
+            startLocalRecording();
+          }, 800);
+        }
+      });
+    }
   } catch (error) {
     console.error("Unable to start live class:", error);
     classActive = false;
