@@ -1,5 +1,11 @@
 (() => {
-  const token = sessionStorage.getItem("parentToken");
+  // 1. قراءة التوكن من sessionStorage أو localStorage
+  const token =
+    sessionStorage.getItem("parentToken") ||
+    localStorage.getItem("parentToken") ||
+    localStorage.getItem("token") ||
+    sessionStorage.getItem("token");
+
   if (!token) return;
 
   const $ = (id) => document.getElementById(id);
@@ -14,7 +20,8 @@
   const upsell = $("registry-upsell-modal");
 
   let activeStudent = null;
-  let isOpen = false;
+  // ✅ التصحيح الأساسي: جعل الصفحة مفتوحة ومفعلة افتراضياً
+  let isOpen = true; 
   let term = "";
   let month = "";
   let subject = "";
@@ -47,8 +54,23 @@
   const statusLabels = { PENDING: "لم تُنجز بعد", COMPLETED: "تمت الحصة", TEACHER_ABSENT: "غياب الأستاذ" };
   const subjectLabels = { MATH: "الرياضيات", PHYSICS: "الفيزياء", PAID: "اشتراك مدفوع", FREE: "اشتراك مجاني" };
 
+  // ✅ تصحيح استرجاع التلميذ ليدعم كلاً من id و studentId والتخزينين
   function getStoredStudent() {
-    try { return JSON.parse(sessionStorage.getItem("currentStudent") || "null"); } catch { return null; }
+    try {
+      const raw =
+        sessionStorage.getItem("currentStudent") ||
+        localStorage.getItem("currentStudent") ||
+        localStorage.getItem("selectedStudent") ||
+        sessionStorage.getItem("selectedStudent");
+      const parsed = JSON.parse(raw || "null");
+      if (!parsed) return null;
+      return {
+        ...parsed,
+        id: parsed.id || parsed.studentId || parsed._id
+      };
+    } catch {
+      return null;
+    }
   }
 
   function getSubjectChoices() {
@@ -88,31 +110,163 @@
     document.body.style.overflow = "";
   }
 
-  function isSafeYouTubeEmbedUrl(value) {
-    return /^https:\/\/www\.youtube\.com\/embed\/[A-Za-z0-9_-]{11}.*$/.test(String(value || ""));
+// 1. استخراج معرّف يوتيوب النظيف (11 حرفاً) بدقة مطلقة
+  function extractVideoUrl(item) {
+    if (!item) return null;
+
+    // إذا كان معرّف يوتيوب موجوداً بالفعل في بيانات الحصة
+    if (item.youtubeVideoId && typeof item.youtubeVideoId === "string" && item.youtubeVideoId.trim().length === 11) {
+      return `https://www.youtube.com/embed/${item.youtubeVideoId.trim()}?enablejsapi=1&playsinline=1&rel=0&modestbranding=1`;
+    }
+
+    // فحص باقي حقول الروابط الممكنة
+    let raw = item.youtubeEmbedUrl || item.recordingUrl || item.videoUrl || item.previewUrl || item.driveLink || item.url;
+    if (!raw) return null;
+    raw = String(raw).trim();
+
+    // استخراج معرّف الـ 11 رمزاً فقط بدقة
+    const ytMatch = raw.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|live\/|shorts\/|watch\?.+&v=))([A-Za-z0-9_-]{11})/);
+    if (ytMatch && ytMatch) {
+      return `https://www.youtube.com/embed/${ytMatch}?enablejsapi=1&playsinline=1&rel=0&modestbranding=1`;
+    }
+
+    if (raw.startsWith("https://www.youtube.com/embed/")) {
+      return raw;
+    }
+
+    return raw;
   }
 
-  function openVideo(item) {
-    const modal = $("lesson-video-modal");
-    const frame = $("lesson-video-frame");
-    const videoUrl = isSafeYouTubeEmbedUrl(item.youtubeEmbedUrl) ? item.youtubeEmbedUrl : item.previewUrl;
-    if (!modal || !frame || !videoUrl) return;
-    $("lesson-video-modal-title").textContent = `${subjectLabels[item.subject] || "الحصة"} · ${formatDate(item.scheduledAt)}`;
-    $("lesson-video-sidebar-title").textContent = subjectLabels[item.subject] || "مشاهدة الحصة";
-    $("lesson-video-sidebar-meta").textContent = `${formatDate(item.scheduledAt)} · مشاهدة داخل المنصة`;
-    if (videoUrl.includes("youtube.com")) {
-      frame.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture");
-      frame.setAttribute("allowfullscreen", "true");
-      frame.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
-    } else {
-      frame.removeAttribute("allow");
-      frame.removeAttribute("allowfullscreen");
-      frame.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+  // 2. دالة فتح وتشغيل الفيديو والتحكم بملء الشاشة
+function openVideo(item) {
+    const videoUrl = extractVideoUrl(item);
+    if (!videoUrl) {
+      alert("عذراً، هذا الدرس لا يملك رابط فيديو أو معرف غير صالح.");
+      return;
     }
-    frame.src = videoUrl;
-    frame.setAttribute("title", item.youtubeVideoId ? "فيديو YouTube داخل الأكاديمية" : "فيديو الحصة المسجلة");
-    modal.hidden = false;
-    document.body.classList.add("lesson-video-open");
+
+    const oldModal = document.getElementById("lesson-video-modal");
+    if (oldModal) oldModal.style.display = "none";
+
+    let viewer = document.getElementById("custom-lesson-page-viewer");
+    if (viewer) viewer.remove();
+
+    viewer = document.createElement("div");
+    viewer.id = "custom-lesson-page-viewer";
+    viewer.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;background:#0b132b;z-index:999999;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;font-family:inherit;";
+
+    const subjectName = subjectLabels[item.subject] || item.subject || "درس";
+    const dateFormatted = formatDate(item.scheduledAt);
+
+    viewer.innerHTML = `
+      <!-- شريط علوي -->
+      <header style="background:#1e293b;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155;position:sticky;top:0;z-index:10;">
+        <button id="viewer-back-btn" type="button" style="background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;">
+          ← العودة للجدول
+        </button>
+        <a href="parent-dashboard.html" style="background:#334155;color:#e2e8f0;text-decoration:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;">
+          الرئيسية
+        </a>
+      </header>
+
+      <!-- محتوى الفيديو الرئيسي -->
+      <main style="flex:1;max-width:900px;width:100%;margin:0 auto;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px;">
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px 16px;color:#fff;">
+          <h2 style="margin:0 0 6px 0;font-size:18px;color:#60a5fa;">📹 ${subjectName}</h2>
+          <p style="margin:0;color:#94a3b8;font-size:14px;">📅 ${dateFormatted}</p>
+        </div>
+
+        <div id="video-frame-box" style="position:relative;width:100%;padding-top:56.25%;background:#000;border-radius:12px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.5);">
+          <iframe
+            id="lesson-custom-iframe"
+            src="${videoUrl}"
+            style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+            referrerpolicy="strict-origin-when-cross-origin"
+            allowfullscreen="true">
+          </iframe>
+        </div>
+
+        <div style="display:flex;justify-content:center;">
+          <button id="fullscreen-action-btn" type="button" style="background:#059669;color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px;">
+            ⛶ <span>تكبير وتدوير الشاشة أفقياً</span>
+          </button>
+        </div>
+
+        <!-- تنبيه حماية المحتوى -->
+        <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);border-radius:12px;padding:14px 16px;color:#fca5a5;direction:rtl;text-align:right;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:22px;">⚠️</span>
+            <strong style="color:#ef4444;font-size:16px;">تنبيه هام للحساب والحماية:</strong>
+          </div>
+          <p style="margin:0;font-size:13.5px;line-height:1.7;color:#fecaca;">
+            مشاركة رابط الفيديو أو الحساب تعتبر مخالفة صريحة لشروط الخدمة.<br>
+            <strong>في حال تم رصد أي مشاركة</strong> سيتم حظر الحساب فوراً ولن تسترجع أي مبلغ مدفوع.<br>
+            جميع التحركات والمشاهدات مسجلة ومربوطة بمعرف حسابك <strong>لحماية المحتوى التعليمي</strong> وتفادي الاستغلال التجاري.
+          </p>
+        </div>
+      </main>
+    `;
+
+    document.body.append(viewer);
+    document.body.style.overflow = "hidden";
+
+    document.getElementById("viewer-back-btn").onclick = () => {
+      const iframe = document.getElementById("lesson-custom-iframe");
+      if (iframe) iframe.src = "";
+      viewer.remove();
+      document.body.style.overflow = "";
+      if (screen.orientation && screen.orientation.unlock) {
+        try { screen.orientation.unlock(); } catch (e) {}
+      }
+    };
+
+    // ✅ التدوير الأفقي وتمديد الفيديو لكامل شاشة الهاتف
+    document.getElementById("fullscreen-action-btn").onclick = async () => {
+      const box = document.getElementById("video-frame-box");
+      const iframe = document.getElementById("lesson-custom-iframe");
+      if (!box || !iframe) return;
+
+      try {
+        // تكبير الحاوية مع إزالة النسبة القديمة لتملأ 100% من الشاشة بالعرض
+        if (box.requestFullscreen) {
+          await box.requestFullscreen();
+        } else if (box.webkitRequestFullscreen) {
+          await box.webkitRequestFullscreen();
+        } else if (iframe.webkitEnterFullscreen) {
+          iframe.webkitEnterFullscreen();
+          return;
+        }
+
+        box.style.paddingTop = "0";
+        box.style.height = "100vh";
+        box.style.width = "100vw";
+
+        // قلب الهاتف أفقياً (Landscape)
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock("landscape").catch(() => {});
+        }
+      } catch (err) {
+        console.log("Orientation lock:", err);
+      }
+    };
+
+    // استعادة أبعاد الفيديو العادية عند الخروج من ملء الشاشة
+    const onExitFs = () => {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const box = document.getElementById("video-frame-box");
+        if (box) {
+          box.style.paddingTop = "56.25%";
+          box.style.height = "";
+          box.style.width = "100%";
+        }
+        if (screen.orientation && screen.orientation.unlock) {
+          try { screen.orientation.unlock(); } catch (e) {}
+        }
+      }
+    };
+    document.onfullscreenchange = onExitFs;
+    document.onwebkitfullscreenchange = onExitFs;
   }
 
   function showMessage(message, className = "class-registry-empty") {
@@ -125,7 +279,6 @@
   }
 
   function showSelectionPrompt() {
-    if (!isOpen) return;
     if (!term) return showMessage("اختر الفصل الدراسي أولاً.");
     if (!month) return showMessage("اختر الشهر من القائمة.");
     if (!subject) return showMessage("اختر المادة من القائمة.");
@@ -219,7 +372,8 @@
 
   async function load() {
     activeStudent = activeStudent || getStoredStudent();
-    if (!activeStudent?.id || !activeStudent.level || !list || !isOpen) return;
+    // ✅ تم إزالة شرط !isOpen ليعمل دائماً
+    if (!activeStudent?.id || !activeStudent.level || !list) return;
     if (!term || !month || !subject) {
       showSelectionPrompt();
       return;
@@ -238,8 +392,8 @@
     if (controls) controls.hidden = !isOpen;
     section?.classList.toggle("is-open", isOpen);
     renderFilters();
+    showSelectionPrompt();
     if (isOpen) {
-      showSelectionPrompt();
       window.focusExpandedParentPanel?.(section);
     }
   }
@@ -270,21 +424,16 @@
     month = "";
     subject = "";
     renderFilters();
-    if (isOpen) showSelectionPrompt();
+    showSelectionPrompt();
   });
 
-  // parent-screen-common dispatches this after restoring the selected student.
-  // Listen here as well because this standalone page loads the registry script
-  // before the shared helper; otherwise the registry can remain without a
-  // studentId and never issue the schedule request.
   window.addEventListener("parent-screen-ready", (event) => {
     activeStudent = event.detail || getStoredStudent();
     renderFilters();
-    if (isOpen) {
-      showSelectionPrompt();
-      if (term && month && subject) void load();
-    }
+    showSelectionPrompt();
+    if (term && month && subject) void load();
   });
+
   window.addEventListener("class-registry-updated", () => void load());
   window.addEventListener("class-registry-refresh", () => void load());
   $("registry-upsell-close")?.addEventListener("click", closeUpsell);
@@ -292,8 +441,6 @@
   window.addEventListener("keydown", (event) => { if (event.key === "Escape") closeUpsell(); });
 
   activeStudent = getStoredStudent();
+  if (controls) controls.hidden = false;
   renderFilters();
 })();
-
-// Registry terms: 2026 fall, 2027 winter, and 2027 spring months are selected
-// before the API request, so the existing level/subject access rules stay intact.
