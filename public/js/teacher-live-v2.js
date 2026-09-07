@@ -2999,14 +2999,22 @@ async function leaveLiveStudio() {
   }
 }
 
-async function endLiveClass({ notifyServer = true, statusMessage } = {}) {
+async function endLiveClass({ notifyServer = true, statusMessage, preserveRecovery = false } = {}) {
   if (isEnding) {
     return;
   }
 
   const levelToEnd = activeLevel;
+  const subjectToRecover = activeSubject;
+  const resumeTokenToRecover = classResumeToken;
   const hadActiveClass = classActive;
-  clearLiveClassRecovery();
+  if (preserveRecovery && levelToEnd && subjectToRecover && resumeTokenToRecover) {
+    persistLiveClassRecovery();
+    pendingPageRecovery = { level: levelToEnd, subject: subjectToRecover, resumeToken: resumeTokenToRecover };
+  } else {
+    clearLiveClassRecovery();
+    clearOpenScheduledClassNotice();
+  }
   isEnding = true;
   classActive = false;
   updateControls();
@@ -3143,25 +3151,75 @@ function clearOpenScheduledClassNotice() {
   openScheduledClassNotice = null;
 }
 
-function showOpenScheduledClassNotice(scheduledClass) {
+function isLiveRecoveryMessage(message = "") {
+  const normalized = String(message).replace(/\s+/g, " ").trim();
+  return normalized.includes("تستعيد اتصال الأستاذ") ||
+    normalized.includes("إعادة الاتصال") ||
+    normalized.includes("استعادة الحصة") ||
+    normalized.includes("حصة جارية سابقة") ||
+    normalized.includes("حصة جارية حالياً");
+}
+
+function showOpenScheduledClassNotice(scheduledClass = null, serverMessage = "") {
   clearOpenScheduledClassNotice();
-  if (!scheduledClass || classActive || isStarting || !elements.startButton?.parentElement) return;
-  const notice = document.createElement("div");
-  notice.className = "open-scheduled-class-notice";
-  notice.style.cssText = "margin:12px 0;padding:14px;border:2px solid #e0a100;border-radius:10px;background:#fff8d6;color:#604500;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap";
-  notice.innerHTML = `<strong>توجد حصة جارية سابقة لم يتم إنهاؤها</strong>`;
+  if (classActive || !document.body) return;
+
+  const storedRecovery = pendingPageRecovery || readLiveClassRecovery();
+  const level = scheduledClass?.level || storedRecovery?.level || elements.levelSelect?.value || "";
+  const subject = scheduledClass?.subject || storedRecovery?.subject || elements.subjectSelect?.value || "";
+  const resumeToken = storedRecovery?.resumeToken || createClassResumeToken();
+  if (!level || !subject) return;
+
+  pendingPageRecovery = { level, subject, resumeToken };
+  if (elements.levelSelect && elements.levelSelect.value !== level) {
+    elements.levelSelect.value = level;
+    syncClassTypeSelector({ selectedValue: subject });
+  } else if (elements.subjectSelect && elements.subjectSelect.value !== subject) {
+    syncClassTypeSelector({ selectedValue: subject });
+  }
+
+  const modal = document.createElement("div");
+  modal.className = "live-recovery-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.style.cssText = "position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.72)";
+  const panel = document.createElement("div");
+  panel.style.cssText = "width:min(560px,100%);padding:28px;border-radius:16px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center;color:#172033";
+  const title = document.createElement("h2");
+  title.textContent = "توجد حصة جارية حالياً بانتظارك لهذا المستوى والمادة والطلاب متصلون";
+  title.style.cssText = "margin:0 0 14px;font-size:clamp(20px,3vw,28px);line-height:1.45";
+  const details = document.createElement("p");
+  details.textContent = `${level} — ${getClassTypeName(level, subject)}`;
+  details.style.cssText = "margin:0 0 22px;color:#526071;font-weight:600";
   const resumeButton = document.createElement("button");
   resumeButton.type = "button";
   resumeButton.className = "primary-button";
-  resumeButton.textContent = "استئناف الحصة السابقة";
-  resumeButton.addEventListener("click", () => {
-    pendingPageRecovery = { level: elements.levelSelect.value, subject: elements.subjectSelect.value, resumeToken: createClassResumeToken() };
+  resumeButton.textContent = "استعادة الحصة الآن والاتصال بالطلاب";
+  resumeButton.style.cssText = "width:100%;min-height:52px;padding:12px 18px;border:0;border-radius:10px;background:#0d6efd;color:#fff;font-size:17px;font-weight:700;cursor:pointer";
+  resumeButton.addEventListener("click", async () => {
+    resumeButton.disabled = true;
+    resumeButton.textContent = "جارٍ استعادة الحصة…";
+    pendingPageRecovery = { level, subject, resumeToken };
+    elements.levelSelect.value = level;
+    syncClassTypeSelector({ selectedValue: subject });
     clearOpenScheduledClassNotice();
-    void startLiveClass();
+    try {
+      await startLiveClass();
+    } finally {
+      if (!classActive) {
+        resumeButton.disabled = false;
+        resumeButton.textContent = "استعادة الحصة الآن والاتصال بالطلاب";
+        if (!openScheduledClassNotice) {
+          showOpenScheduledClassNotice(null, serverMessage || "تعذر استعادة الحصة بعد.");
+        }
+      }
+    }
   });
-  notice.append(resumeButton);
-  elements.startButton.parentElement.insertBefore(notice, elements.startButton);
-  openScheduledClassNotice = notice;
+  panel.append(title, details, resumeButton);
+  modal.append(panel);
+  document.body.append(modal);
+  openScheduledClassNotice = modal;
+  resumeButton.focus();
 }
 
 async function checkForOpenScheduledClass() {
@@ -3274,17 +3332,19 @@ async function startLiveClass() {
     classActive = false;
     activeLevel = null;
     activeSubject = null;
-    if (!isResumingAfterPageRefresh) {
+    const recoveryError = isLiveRecoveryMessage(error?.message);
+    if (!isResumingAfterPageRefresh && !recoveryError) {
       clearLiveClassRecovery();
       classResumeToken = null;
     }
     closeAllPeerConnections();
     clearAttendees();
     stopLocalStreams();
-    setStudioStatus(
-      error?.message || getMediaErrorMessage(error, "مشاركة الشاشة"),
-      "error"
-    );
+    const errorMessage = error?.message || getMediaErrorMessage(error, "مشاركة الشاشة");
+    setStudioStatus(errorMessage, "error");
+    if (recoveryError) {
+      showOpenScheduledClassNotice(null, errorMessage);
+    }
   } finally {
     isStarting = false;
     updateControls();
@@ -3391,6 +3451,7 @@ socket.on("connect", () => {
 
   if (!classActive) {
     setStudioStatus("الاستوديو جاهز", "neutral");
+    void checkForOpenScheduledClass();
   }
 });
 
@@ -3610,9 +3671,10 @@ socket.on("class_ended", (data = {}) => {
 
   endLiveClass({
     notifyServer: false,
+    preserveRecovery: data.reason === "teacher_disconnected",
     statusMessage:
       data.reason === "teacher_disconnected"
-        ? "انقطع اتصال الأستاذ؛ تم إغلاق الحصة."
+        ? "انقطع اتصال الأستاذ؛ الحصة محفوظة بانتظار عودته."
         : "تم إنهاء الحصة المباشرة.",
   });
 });
@@ -3620,6 +3682,9 @@ socket.on("class_ended", (data = {}) => {
 socket.on("classroom_error", (data = {}) => {
   if (data.message) {
     setStudioStatus(data.message, "error");
+    if (isLiveRecoveryMessage(data.message)) {
+      showOpenScheduledClassNotice(null, data.message);
+    }
   }
 });
 
