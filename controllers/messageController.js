@@ -3,7 +3,6 @@
 const fs = require("fs");
 const path = require("path");
 
-// المسار المعتمد لمجلد حفظ المرفقات والصور الخاصة بالرسائل
 const MESSAGE_UPLOAD_DIR = path.resolve(__dirname, "../uploads/messages");
 const MESSAGES_UPLOAD_DIR = MESSAGE_UPLOAD_DIR;
 const UPLOAD_DIR = MESSAGE_UPLOAD_DIR;
@@ -14,14 +13,11 @@ const ATTACHMENTS_DIR = MESSAGE_UPLOAD_DIR;
 const uploadPath = MESSAGE_UPLOAD_DIR;
 const messageUploadPath = MESSAGE_UPLOAD_DIR;
 
-// إنشاء المجلد فورياً عند إقلاع السيرفر لتفادي أي خطأ مسار
 try {
   if (!fs.existsSync(MESSAGE_UPLOAD_DIR)) {
     fs.mkdirSync(MESSAGE_UPLOAD_DIR, { recursive: true });
   }
-} catch (err) {
-  console.warn("[Messages] ملاحظة حول مجلد المرفقات:", err.message);
-}
+} catch (_) {}
 
 let prisma;
 try {
@@ -34,13 +30,10 @@ try {
 let getAiAgentResponse = null;
 try {
   getAiAgentResponse = require("../services/aiAgentService").getAiAgentResponse;
-} catch {
-  // يتم تحميل الخدمة تلقائياً عند توافرها
-}
+} catch (_) {}
 
-/**
- * استخراج اسم التلميذ بأمان مهما كانت بنية الحقول في قاعدة البيانات
- */
+const pendingAiTimers = new Map();
+
 function extractStudentName(student) {
   if (!student) return "تلميذ";
   return (
@@ -53,24 +46,18 @@ function extractStudentName(student) {
   );
 }
 
-/**
- * فحص ما إذا كان الأستاذ متصلاً حالياً في غرفة السوكت الخاصة بالرسائل
- */
 function isTeacherOnline(req) {
   try {
     const io = req.app?.get?.("io");
     if (!io) return false;
     const nsp = io.of("/private-messages") || io;
-    const teacherRoom = nsp.adapter?.rooms?.get("teacher");
+    const teacherRoom = nsp.adapter?.rooms?.get("teacher") || nsp.adapter?.rooms?.get("admin");
     return Boolean(teacherRoom && teacherRoom.size > 0);
   } catch {
     return false;
   }
 }
 
-/**
- * بث رسالة عبر Socket.IO لكل من التلميذ والأستاذ مع إرفاق بيانات التلميذ الشاملة
- */
 function emitPrivateMessage(req, message, student) {
   try {
     const io = req.app?.get?.("io");
@@ -97,71 +84,149 @@ function emitPrivateMessage(req, message, student) {
       content: message.content,
       createdAt: message.createdAt,
       isRead: message.isRead,
+      attachment: message.attachment || null,
       studentName: studentName,
       student: studentInfo,
     };
 
     nsp.to("teacher").emit("private_message_created", payload);
+    nsp.to("admin").emit("private_message_created", payload);
     nsp.to(`student:${studentInfo.id}`).emit("private_message_created", payload);
   } catch (error) {
     console.warn("[Messages] تعذر إرسال حدث السوكت:", error);
   }
 }
 
+async function triggerAiAssistantReply(req, student, studentMessage) {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      console.warn("[AIAgent] تنبيه: لا يوجد OPENAI_API_KEY في متغيرات السيرفر.");
+      return;
+    }
+
+    if (!getAiAgentResponse) {
+      try {
+        getAiAgentResponse = require("../services/aiAgentService").getAiAgentResponse;
+      } catch (err) {
+        console.error("[AIAgent] تعذر تحميل ملف services/aiAgentService:", err.message);
+        return;
+      }
+    }
+
+    const history = await prisma.message.findMany({
+      where: { studentId: student.id },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+    });
+    history.reverse();
+
+    const studentDisplayName = extractStudentName(student);
+    console.log(`[AIAgent] جاري استدعاء الذكاء الاصطناعي الشامل للرد على التلميذ: ${studentDisplayName}...`);
+
+    const aiReply = await getAiAgentResponse({
+      studentMessage,
+      studentName: studentDisplayName,
+      studentLevel: student.level || "",
+      conversationHistory: history,
+    });
+
+    if (!aiReply) {
+      console.warn("[AIAgent] لم يتم استلام رد من نموذج الذكاء الاصطناعي.");
+      return;
+    }
+
+    const aiMessage = await prisma.message.create({
+      data: {
+        studentId: student.id,
+        senderId: "teacher",
+        receiverId: student.id,
+        senderRole: "teacher",
+        receiverRole: "student",
+        content: aiReply,
+      },
+    });
+
+    emitPrivateMessage(req, aiMessage, student);
+    console.log(`[AIAgent] تم الرد بنجاح وحفظه في المحادثة: "${aiReply.slice(0, 50)}..."`);
+  } catch (error) {
+    console.error("[AIAgent] خطأ أثناء معالجة رد الوكيل الذكي:", error);
+  }
+}
+
 /**
- * قائمة المحادثات للأستاذ
+ * 1. قائمة المحادثات للأستاذ (متطابقة 100% مع ما يطلبه ملف teacher-chat.js)
+ * يتوقع teacher-chat.js: payload.conversations حيث كل عنصر يحتوي على:
+ * id, studentName, level, lastMessage: { content, senderRole, isRead, createdAt, attachment }
  */
 async function listTeacherConversations(req, res) {
   try {
-    const students = await prisma.student.findMany({
-      include: {
-        messages: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
+    let students = [];
+    try {
+      students = await prisma.student.findMany({
+        include: {
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
         },
-      },
-      orderBy: { updatedAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+      });
+    } catch (queryErr) {
+      console.warn("[Messages] fallback student query without include:", queryErr.message);
+      students = await prisma.student.findMany();
+    }
 
     const conversations = await Promise.all(
       students.map(async (student) => {
-        const unreadCount = await prisma.message.count({
-          where: {
-            studentId: student.id,
-            receiverRole: "teacher",
-            isRead: false,
-          },
-        });
+        let unreadCount = 0;
+        try {
+          unreadCount = await prisma.message.count({
+            where: {
+              studentId: student.id,
+              receiverRole: "teacher",
+              isRead: false,
+            },
+          });
+        } catch (_) {}
 
         const studentName = extractStudentName(student);
-        const lastMessage = student.messages[0] || null;
+        const lastMsg = student.messages?.[0] || null;
+
         return {
+          id: student.id,
           studentId: student.id,
           studentName: studentName,
           name: studentName,
-          student: {
-            id: student.id,
-            studentName: studentName,
-            name: studentName,
-            level: student.level || "",
-          },
-          level: student.level,
-          lastMessage: lastMessage?.content || "",
-          lastMessageAt: lastMessage?.createdAt || student.createdAt,
+          level: student.level || "",
+          lastMessage: lastMsg
+            ? {
+                id: lastMsg.id,
+                content: lastMsg.content || "",
+                senderRole: lastMsg.senderRole,
+                isRead: Boolean(lastMsg.isRead),
+                createdAt: lastMsg.createdAt,
+                attachment: lastMsg.attachment || null,
+              }
+            : null,
           unreadCount,
         };
       })
     );
 
-    return res.json({ success: true, data: conversations });
+    return res.json({
+      success: true,
+      conversations: conversations, // الحقل الأساسي الذي يطلبه teacher-chat.js
+      data: conversations,
+      students: conversations,
+    });
   } catch (error) {
-    console.error("[Messages] خطأ في قائمة المحادثات:", error);
+    console.error("[Messages] خطأ في قائمة المحادثات للأستاذ:", error);
     return res.status(500).json({ success: false, error: "تعذر جلب المحادثات." });
   }
 }
 
 /**
- * إجمالي عدد الرسائل غير المقروءة
+ * 2. إجمالي عدد الرسائل غير المقروءة للـ Badge
  */
 async function getUnreadCount(req, res) {
   try {
@@ -194,11 +259,16 @@ async function getUnreadCount(req, res) {
 }
 
 /**
- * جلب الرسائل بين التلميذ والأستاذ (مع إرفاق بيانات التلميذ student و studentName لحل المشكلة جذرياً)
+ * 3. فتح محادثة تلميذ معين (متطابقة 100% مع دالة openConversation في teacher-chat.js)
+ * تتوقع: payload.student: { studentName, level } و payload.messages: [ ... ]
  */
 async function listMessages(req, res) {
   try {
-    const studentId = req.params.studentId || req.user?.id;
+    const studentId =
+      req.params.studentId ||
+      req.query.studentId ||
+      (req.user?.role === "student" ? req.user?.id : null);
+
     if (!studentId) {
       return res.status(400).json({ success: false, error: "معرّف التلميذ مطلوب." });
     }
@@ -223,24 +293,11 @@ async function listMessages(req, res) {
       orderBy: { createdAt: "asc" },
     });
 
-    // إثراء الرسائل بكل الحقول المحتملة لتفادي أي خطأ في الواجهة
-    const enrichedMessages = rawMessages.map((msg) => ({
-      ...msg,
-      studentName: studentName,
-      student: studentInfo,
-    }));
-
-    // إرفاق الحقول بالمصفوفة وبالكائن لترضي أي استدعاء في الفرونت إند
-    enrichedMessages.student = studentInfo;
-    enrichedMessages.studentName = studentName;
-    enrichedMessages.messages = enrichedMessages;
-
     return res.json({
       success: true,
-      data: enrichedMessages,
-      messages: enrichedMessages,
-      student: studentInfo,
-      studentName: studentName,
+      student: studentInfo, // الحقل الأساسي المطلوب في teacher-chat.js: payload.student.studentName
+      messages: rawMessages, // الحقل الأساسي المطلوب: payload.messages.forEach(renderMessage)
+      data: rawMessages,
     });
   } catch (error) {
     console.error("[Messages] خطأ في جلب الرسائل:", error);
@@ -249,11 +306,12 @@ async function listMessages(req, res) {
 }
 
 /**
- * إرسال رسالة جديدة (مع دعم الرد الآلي للوكيل الذكي عندما يكون الأستاذ غير متصل)
+ * 4. إرسال رسالة من الأستاذ أو التلميذ (متطابقة مع sendTeacherMessage)
+ * تتوقع: payload.message لترسمها عبر renderMessage(payload.message)
  */
 async function sendMessage(req, res) {
   try {
-    const studentId = req.params.studentId || req.user?.id;
+    const studentId = req.params.studentId || req.query.studentId || req.user?.id;
     const content = String(req.body?.content || "").trim();
     const senderRole = req.user?.role === "teacher" || req.user?.role === "admin" ? "teacher" : "student";
     const receiverRole = senderRole === "teacher" ? "student" : "teacher";
@@ -272,7 +330,6 @@ async function sendMessage(req, res) {
       return res.status(404).json({ success: false, error: "حساب التلميذ غير موجود." });
     }
 
-    // 1. حفظ رسالة المستخدم في قاعدة البيانات
     const message = await prisma.message.create({
       data: {
         studentId: student.id,
@@ -284,77 +341,46 @@ async function sendMessage(req, res) {
       },
     });
 
-    // 2. بث الرسالة فورياً عبر السوكت
     emitPrivateMessage(req, message, student);
 
-    // 3. فحص تدخل وكيل الذكاء الاصطناعي:
-    // يعمل فقط إذا كان المرسل هو التلميذ، والأستاذ غير متصل (Offline) بالمنصة
     if (senderRole === "student") {
       const teacherIsConnected = isTeacherOnline(req);
+      const delayMs = teacherIsConnected ? 6000 : 1000;
 
-      if (!teacherIsConnected && process.env.OPENAI_API_KEY) {
-        console.log(`[AIAgent] الأستاذ غير متصل، جاري تحليل سؤال التلميذ: "${content.slice(0, 40)}..."`);
+      if (pendingAiTimers.has(student.id)) {
+        clearTimeout(pendingAiTimers.get(student.id));
+      }
 
-        setImmediate(async () => {
-          try {
-            if (!getAiAgentResponse) {
-              try {
-                getAiAgentResponse = require("../services/aiAgentService").getAiAgentResponse;
-              } catch (_) {}
-            }
+      console.log(`[AIAgent] استلمنا رسالة من التلميذ (${teacherIsConnected ? "الأستاذ متصل - مهلة 6 ثوانٍ" : "الأستاذ غير متصل - رد فوري"}).`);
 
-            if (typeof getAiAgentResponse === "function") {
-              const history = await prisma.message.findMany({
-                where: { studentId: student.id },
-                orderBy: { createdAt: "desc" },
-                take: 6,
-              });
-              history.reverse();
+      const timer = setTimeout(() => {
+        pendingAiTimers.delete(student.id);
+        void triggerAiAssistantReply(req, student, content);
+      }, delayMs);
 
-              const studentDisplayName = extractStudentName(student);
-
-              const aiReply = await getAiAgentResponse({
-                studentMessage: content,
-                studentName: studentDisplayName,
-                conversationHistory: history,
-              });
-
-              if (aiReply) {
-                const aiMessage = await prisma.message.create({
-                  data: {
-                    studentId: student.id,
-                    senderId: "teacher",
-                    receiverId: student.id,
-                    senderRole: "teacher",
-                    receiverRole: "student",
-                    content: aiReply,
-                  },
-                });
-
-                emitPrivateMessage(req, aiMessage, student);
-                console.log(`[AIAgent] تم الرد بنجاح على التلميذ ${studentDisplayName}`);
-              }
-            }
-          } catch (agentErr) {
-            console.error("[AIAgent] خطأ أثناء معالجة الرد الآلي:", agentErr);
-          }
-        });
+      pendingAiTimers.set(student.id, timer);
+    } else if (senderRole === "teacher") {
+      if (pendingAiTimers.has(studentId)) {
+        clearTimeout(pendingAiTimers.get(studentId));
+        pendingAiTimers.delete(studentId);
+        console.log("[AIAgent] الأستاذ رد بنفسه، تم إلغاء رد الوكيل الذكي.");
       }
     }
 
-    return res.status(201).json({ success: true, data: message });
+    return res.status(201).json({
+      success: true,
+      message: message, // متطابقة 100% مع ما يطلبه teacher-chat.js: renderMessage(payload.message)
+      data: message,
+    });
   } catch (error) {
     console.error("[Messages] خطأ في إرسال الرسالة:", error);
     return res.status(500).json({ success: false, error: "تعذر إرسال الرسالة." });
   }
 }
 
-/**
- * تحديد الرسائل كمقروءة
- */
 async function markMessagesRead(req, res) {
   try {
-    const studentId = req.params.studentId || req.user?.id;
+    const studentId = req.params.studentId || req.query.studentId || req.user?.id;
     const role = req.user?.role === "teacher" || req.user?.role === "admin" ? "teacher" : "student";
 
     if (!studentId) {
@@ -377,9 +403,6 @@ async function markMessagesRead(req, res) {
   }
 }
 
-/**
- * جلب المرفقات في الرسائل
- */
 async function getMessageAttachment(req, res) {
   try {
     const { fileName } = req.params;
