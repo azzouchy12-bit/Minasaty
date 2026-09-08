@@ -2,340 +2,340 @@
 
 const fs = require("fs");
 const path = require("path");
-const prisma = require("../lib/prisma");
-const { sendPushToRecipient } = require("../utils/push");
-const { notifyTelegram } = require("../services/telegramService");
-const { sendEmail } = require("../services/emailService");
-
-const MAX_MESSAGE_LENGTH = 4_000;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ATTACHMENT_PREFIX = "[[minasaty-attach]]";
-const attachmentUploadDirectory = path.join(
-  process.env.UPLOAD_DIR || path.join(__dirname, "..", "public", "uploads"),
-  "private-message-files",
-);
-
-fs.mkdirSync(attachmentUploadDirectory, { recursive: true });
-
-function normalizeMessage(value) {
-  return typeof value === "string" ? value.trim() : "";
+let prisma;
+try {
+  prisma = require("../lib/prisma");
+} catch {
+  const { PrismaClient } = require("@prisma/client");
+  prisma = new PrismaClient();
 }
 
-function decodeStoredContent(raw) {
-  const value = typeof raw === "string" ? raw : "";
-  if (!value.startsWith(ATTACHMENT_PREFIX)) {
-    return { text: value, attachment: null };
-  }
+let getAiAgentResponse = null;
+try {
+  getAiAgentResponse = require("../services/aiAgentService").getAiAgentResponse;
+} catch {
+  // يتم تحميل الخدمة تلقائياً عند توافرها
+}
+
+/**
+ * فحص ما إذا كان الأستاذ متصلاً حالياً في غرفة السوكت الخاصة بالرسائل
+ */
+function isTeacherOnline(req) {
   try {
-    const parsed = JSON.parse(value.slice(ATTACHMENT_PREFIX.length));
-    return {
-      text: normalizeMessage(parsed?.text),
-      attachment: parsed?.file && parsed.file.storedName
-        ? {
-            storedName: String(parsed.file.storedName),
-            originalName: String(parsed.file.originalName || "مرفق"),
-            mimeType: String(parsed.file.mimeType || "application/octet-stream"),
-          }
-        : null,
-    };
+    const io = req.app?.get?.("io");
+    if (!io) return false;
+    const nsp = io.of("/private-messages") || io;
+    const teacherRoom = nsp.adapter?.rooms?.get("teacher");
+    return Boolean(teacherRoom && teacherRoom.size > 0);
   } catch {
-    return { text: value, attachment: null };
+    return false;
   }
 }
 
-function encodeStoredContent(text, file) {
-  if (!file) return text;
-  return `${ATTACHMENT_PREFIX}${JSON.stringify({
-    text,
-    file: {
-      storedName: file.storedName,
-      originalName: file.originalName,
-      mimeType: file.mimeType,
-    },
-  })}`;
-}
-
-function attachmentPublicUrl(studentId, storedName) {
-  return `/api/messages/${studentId}/files/${encodeURIComponent(storedName)}`;
-}
-
-function serializeMessage(message, studentName) {
-  const decoded = decodeStoredContent(message.content);
-  return {
-    id: message.id,
-    studentId: message.studentId,
-    senderId: message.senderId,
-    receiverId: message.receiverId,
-    senderRole: message.senderRole,
-    receiverRole: message.receiverRole,
-    content: decoded.text,
-    createdAt: message.createdAt,
-    isRead: message.isRead,
-    senderName: message.senderRole === "teacher" ? "الأستاذ" : studentName,
-    attachment: decoded.attachment
-      ? {
-          name: decoded.attachment.originalName,
-          mimeType: decoded.attachment.mimeType,
-          url: attachmentPublicUrl(message.studentId, decoded.attachment.storedName),
-        }
-      : null,
-  };
-}
-
-function serializeLastMessage(message, studentName) {
-  if (!message) return null;
-  return serializeMessage(message, studentName);
-}
-
-async function removeUploadedFile(filename) {
-  if (!filename) return;
+/**
+ * بث رسالة عبر Socket.IO لكل من التلميذ والأستاذ
+ */
+function emitPrivateMessage(req, message, student) {
   try {
-    await fs.promises.unlink(path.join(attachmentUploadDirectory, path.basename(filename)));
+    const io = req.app?.get?.("io");
+    if (!io) return;
+    const nsp = io.of("/private-messages") || io;
+    const studentName =
+      student?.name ||
+      `${student?.firstName || ""} ${student?.lastName || ""}`.trim() ||
+      "تلميذ";
+
+    const payload = {
+      id: message.id,
+      studentId: message.studentId,
+      senderId: message.senderId,
+      receiverId: message.receiverId,
+      senderRole: message.senderRole,
+      receiverRole: message.receiverRole,
+      content: message.content,
+      createdAt: message.createdAt,
+      isRead: message.isRead,
+      student: {
+        id: student.id,
+        name: studentName,
+        level: student.level || "",
+      },
+    };
+
+    nsp.to("teacher").emit("private_message_created", payload);
+    nsp.to(`student:${student.id}`).emit("private_message_created", payload);
   } catch (error) {
-    if (error.code !== "ENOENT") {
-      console.warn("Unable to remove private-message attachment:", error.message);
-    }
+    console.warn("[Messages] تعذر إرسال حدث السوكت:", error);
   }
 }
 
-async function getStudentForAccess(req, studentId) {
-  if (!UUID_PATTERN.test(String(studentId)) || !["teacher", "parent"].includes(req.user?.role)) return null;
-
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    select: { id: true, studentName: true, parentPhone: true, level: true },
-  });
-  if (!student) return null;
-  if (req.user.role === "parent" && req.user.phone !== student.parentPhone) return null;
-  return student;
-}
-
-function messageRoles(req) {
-  return req.user.role === "teacher"
-    ? { senderRole: "teacher", receiverRole: "student" }
-    : { senderRole: "student", receiverRole: "teacher" };
-}
-
-function emitMessage(req, message, student) {
-  const namespace = req.app.get("privateMessagesNamespace");
-  if (!namespace) return;
-  const payload = serializeMessage(message, student.studentName);
-  namespace.to("teacher").emit("private_message_created", payload);
-  namespace.to(`student:${student.id}`).emit("private_message_created", payload);
-}
-
+/**
+ * قائمة المحادثات للأستاذ
+ */
 async function listTeacherConversations(req, res) {
-  if (req.user?.role !== "teacher") {
-    return res.status(403).json({ error: "هذه العملية متاحة للأستاذ فقط." });
-  }
-
   try {
     const students = await prisma.student.findMany({
-      select: {
-        id: true,
-        studentName: true,
-        level: true,
+      include: {
         messages: {
           orderBy: { createdAt: "desc" },
           take: 1,
-          select: { id: true, content: true, createdAt: true, senderRole: true, isRead: true },
         },
       },
+      orderBy: { updatedAt: "desc" },
     });
 
-    const conversations = students
-      .map((student) => ({
-        id: student.id,
-        studentName: student.studentName,
-        level: student.level,
-        lastMessage: serializeLastMessage(student.messages[0], student.studentName),
-      }))
-      .sort((a, b) => {
-        const lastMessageDifference = new Date(b.lastMessage?.createdAt || 0) - new Date(a.lastMessage?.createdAt || 0);
-        if (lastMessageDifference !== 0) return lastMessageDifference;
-        return String(a.studentName || "").localeCompare(String(b.studentName || ""), "ar");
-      });
+    const conversations = await Promise.all(
+      students.map(async (student) => {
+        const unreadCount = await prisma.message.count({
+          where: {
+            studentId: student.id,
+            receiverRole: "teacher",
+            isRead: false,
+          },
+        });
 
-    return res.json({ conversations });
+        const lastMessage = student.messages[0] || null;
+        return {
+          studentId: student.id,
+          studentName:
+            student.name ||
+            `${student.firstName || ""} ${student.lastName || ""}`.trim() ||
+            "تلميذ",
+          level: student.level,
+          lastMessage: lastMessage?.content || "",
+          lastMessageAt: lastMessage?.createdAt || student.createdAt,
+          unreadCount,
+        };
+      })
+    );
+
+    return res.json({ success: true, data: conversations });
   } catch (error) {
-    console.error("Unable to list private-message conversations:", error);
-    return res.status(500).json({ error: "تعذر تحميل قائمة الرسائل." });
+    console.error("[Messages] خطأ في قائمة المحادثات:", error);
+    return res.status(500).json({ success: false, error: "تعذر جلب المحادثات." });
   }
 }
 
+/**
+ * إجمالي عدد الرسائل غير المقروءة
+ */
 async function getUnreadCount(req, res) {
   try {
-    if (req.user?.role === "teacher") {
-      const count = await prisma.message.count({ where: { receiverRole: "teacher", isRead: false } });
-      return res.json({ count });
+    const role = req.user?.role || "student";
+    const studentId = req.user?.id;
+
+    let count = 0;
+    if (role === "teacher" || role === "admin") {
+      count = await prisma.message.count({
+        where: {
+          receiverRole: "teacher",
+          isRead: false,
+        },
+      });
+    } else if (studentId) {
+      count = await prisma.message.count({
+        where: {
+          studentId,
+          receiverRole: "student",
+          isRead: false,
+        },
+      });
     }
 
-    if (req.user?.role === "parent") {
-      const students = await prisma.student.findMany({
-        where: { parentPhone: req.user.phone },
-        select: { id: true },
-      });
-      const count = await prisma.message.count({
-        where: { studentId: { in: students.map((student) => student.id) }, receiverRole: "student", isRead: false },
-      });
-      return res.json({ count });
-    }
-
-    return res.status(403).json({ error: "لا تملك صلاحية الوصول إلى الرسائل." });
+    return res.json({ success: true, count });
   } catch (error) {
-    console.error("Unable to count unread private messages:", error);
-    return res.status(500).json({ error: "تعذر حساب الرسائل غير المقروءة." });
+    console.error("[Messages] خطأ في عدد الرسائل غير المقروءة:", error);
+    return res.status(500).json({ success: false, error: "تعذر حساب الرسائل غير المقروءة." });
   }
 }
 
+/**
+ * جلب الرسائل بين التلميذ والأستاذ
+ */
 async function listMessages(req, res) {
-  const student = await getStudentForAccess(req, req.params.studentId);
-  if (!student) return res.status(403).json({ error: "لا تملك صلاحية الوصول إلى هذه المحادثة." });
-
   try {
+    const studentId = req.params.studentId || req.user?.id;
+    if (!studentId) {
+      return res.status(400).json({ success: false, error: "معرّف التلميذ مطلوب." });
+    }
+
     const messages = await prisma.message.findMany({
-      where: { studentId: student.id },
+      where: { studentId },
       orderBy: { createdAt: "asc" },
     });
-    return res.json({ student, messages: messages.map((message) => serializeMessage(message, student.studentName)) });
+
+    return res.json({ success: true, data: messages });
   } catch (error) {
-    console.error("Unable to list private messages:", error);
-    return res.status(500).json({ error: "تعذر تحميل سجل الرسائل." });
+    console.error("[Messages] خطأ في جلب الرسائل:", error);
+    return res.status(500).json({ success: false, error: "تعذر جلب الرسائل." });
   }
 }
 
+/**
+ * إرسال رسالة جديدة (مع دعم الرد الآلي للوكيل الذكي عندما يكون الأستاذ غير متصل)
+ */
 async function sendMessage(req, res) {
-  const uploaded = req.file;
-  const student = await getStudentForAccess(req, req.params.studentId);
-  if (!student) {
-    if (uploaded?.filename) await removeUploadedFile(uploaded.filename);
-    return res.status(403).json({ error: "لا تملك صلاحية إرسال رسالة في هذه المحادثة." });
-  }
-
-  const content = normalizeMessage(req.body?.content);
-  if ((!content && !uploaded) || content.length > MAX_MESSAGE_LENGTH) {
-    if (uploaded?.filename) await removeUploadedFile(uploaded.filename);
-    return res.status(400).json({ error: `الرسالة أو المرفق مطلوبان، والنص لا يتجاوز ${MAX_MESSAGE_LENGTH} حرف.` });
-  }
-
-  const attachment = uploaded
-    ? {
-        storedName: uploaded.filename,
-        originalName: path.basename(String(uploaded.originalname || "مرفق")).slice(0, 180) || "مرفق",
-        mimeType: uploaded.mimetype || "application/octet-stream",
-      }
-    : null;
-  const storedContent = encodeStoredContent(content, attachment);
-  const previewText = content || (attachment ? `📎 ${attachment.originalName}` : "");
-
-  const roles = messageRoles(req);
   try {
+    const studentId = req.params.studentId || req.user?.id;
+    const content = String(req.body?.content || "").trim();
+    const senderRole = req.user?.role === "teacher" || req.user?.role === "admin" ? "teacher" : "student";
+    const receiverRole = senderRole === "teacher" ? "student" : "teacher";
+    const senderId = String(req.user?.id || senderRole);
+    const receiverId = senderRole === "teacher" ? studentId : "teacher";
+
+    if (!content) {
+      return res.status(400).json({ success: false, error: "نص الرسالة لا يمكن أن يكون فارغاً." });
+    }
+
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+    });
+
+    if (!student) {
+      return res.status(404).json({ success: false, error: "حساب التلميذ غير موجود." });
+    }
+
+    // 1. حفظ رسالة المستخدم في قاعدة البيانات
     const message = await prisma.message.create({
       data: {
         studentId: student.id,
-        senderId: req.user.role === "teacher" ? "teacher" : student.id,
-        receiverId: req.user.role === "teacher" ? student.id : "teacher",
-        senderRole: roles.senderRole,
-        receiverRole: roles.receiverRole,
-        content: storedContent,
+        senderId,
+        receiverId,
+        senderRole,
+        receiverRole,
+        content,
       },
     });
-    await prisma.notification.create({
-      data: {
-        studentId: student.id,
-        recipientRole: roles.receiverRole,
-        recipientId: roles.receiverRole === "teacher" ? "teacher" : student.parentPhone,
-        type: "MESSAGE",
-        title: roles.receiverRole === "teacher" ? `رسالة جديدة من ${student.studentName}` : "رسالة جديدة من الأستاذ",
-        body: previewText.slice(0, 300),
-        link: roles.receiverRole === "teacher" ? "./teacher-chat.html" : "./student-chat.html",
-      },
-    });
-    if (roles.senderRole === "teacher" && roles.receiverRole === "student") {
-      void prisma.parentCredential.findUnique({
-        where: { parentPhone: student.parentPhone },
-        select: { email: true, emailVerifiedAt: true },
-      }).then((credential) => {
-        if (!credential?.email || !credential.emailVerifiedAt) return null;
-        const baseUrl = String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "");
-        return sendEmail({
-          to: credential.email,
-          subject: "رسالة جديدة من الأستاذ",
-          text: `الأستاذ أرسل رسالة جديدة بخصوص التلميذ ${student.studentName}.\nادخل إلى المنصة: ${baseUrl}/parent-dashboard.html`,
-          html: `<p>الأستاذ أرسل رسالة جديدة بخصوص التلميذ <strong>${student.studentName}</strong>.</p><p><a href="${baseUrl}/parent-dashboard.html">الدخول إلى المنصة</a></p>`,
+
+    // 2. بث الرسالة فورياً عبر السوكت
+    emitPrivateMessage(req, message, student);
+
+    // 3. فحص تدخل وكيل الذكاء الاصطناعي:
+    // يعمل فقط إذا كان المرسل هو التلميذ، والأستاذ غير متصل (Offline) بالمنصة
+    if (senderRole === "student") {
+      const teacherIsConnected = isTeacherOnline(req);
+
+      if (!teacherIsConnected && process.env.OPENAI_API_KEY) {
+        console.log(`[AIAgent] الأستاذ غير متصل، جاري تحليل سؤال التلميذ: "${content.slice(0, 40)}..."`);
+
+        setImmediate(async () => {
+          try {
+            if (!getAiAgentResponse) {
+              try {
+                getAiAgentResponse = require("../services/aiAgentService").getAiAgentResponse;
+              } catch (_) {}
+            }
+
+            if (typeof getAiAgentResponse === "function") {
+              // جلب آخر 5 رسائل سابقة لفهم سياق المحادثة
+              const history = await prisma.message.findMany({
+                where: { studentId: student.id },
+                orderBy: { createdAt: "desc" },
+                take: 6,
+              });
+              history.reverse();
+
+              const studentDisplayName =
+                student.name ||
+                `${student.firstName || ""} ${student.lastName || ""}`.trim() ||
+                "تلميذ";
+
+              const aiReply = await getAiAgentResponse({
+                studentMessage: content,
+                studentName: studentDisplayName,
+                conversationHistory: history,
+              });
+
+              if (aiReply) {
+                // حفظ رد الذكاء الاصطناعي كرسالة من الأستاذ للتلميذ
+                const aiMessage = await prisma.message.create({
+                  data: {
+                    studentId: student.id,
+                    senderId: "teacher",
+                    receiverId: student.id,
+                    senderRole: "teacher",
+                    receiverRole: "student",
+                    content: aiReply,
+                  },
+                });
+
+                // بث رد الذكاء الاصطناعي فورياً للتلميذ
+                emitPrivateMessage(req, aiMessage, student);
+                console.log(`[AIAgent] تم الرد بنجاح على التلميذ ${studentDisplayName}`);
+              }
+            }
+          } catch (agentErr) {
+            console.error("[AIAgent] خطأ أثناء معالجة الرد الآلي:", agentErr);
+          }
         });
-      }).catch((error) => {
-        console.error("Parent message email notification failed:", error);
-      });
+      }
     }
-    emitMessage(req, message, student);
-    if (roles.receiverRole === "teacher") {
-      void notifyTelegram(req, {
-        title: "رسالة جديدة من ولي أو تلميذ",
-        body: `التلميذ: ${student.studentName}\nالمستوى: ${student.level}\nالنص: ${previewText.slice(0, 500)}`,
-      });
-    }
-    void sendPushToRecipient(
-      roles.receiverRole === "teacher" ? "teacher" : "parent",
-      roles.receiverRole === "teacher" ? "teacher" : student.parentPhone,
-      {
-        title: roles.receiverRole === "teacher" ? `رسالة جديدة من ${student.studentName}` : "رسالة جديدة من الأستاذ",
-        body: previewText.slice(0, 160),
-        link: roles.receiverRole === "teacher" ? "./teacher-chat.html" : "./student-chat.html",
-      },
-    ).catch(() => {});
-    return res.status(201).json({ message: serializeMessage(message, student.studentName) });
+
+    return res.status(201).json({ success: true, data: message });
   } catch (error) {
-    if (uploaded?.filename) await removeUploadedFile(uploaded.filename);
-    console.error("Unable to save private message:", error);
-    return res.status(500).json({ error: "تعذر حفظ الرسالة." });
+    console.error("[Messages] خطأ في إرسال الرسالة:", error);
+    return res.status(500).json({ success: false, error: "تعذر إرسال الرسالة." });
   }
 }
 
-async function getMessageAttachment(req, res) {
-  const student = await getStudentForAccess(req, req.params.studentId);
-  if (!student) return res.status(403).json({ error: "لا تملك صلاحية الوصول إلى هذا المرفق." });
-
-  const storedName = path.basename(String(req.params.fileName || ""));
-  const expectedPrefix = `msg-${student.id}-`;
-  if (!storedName.startsWith(expectedPrefix)) {
-    return res.status(404).json({ error: "المرفق غير موجود." });
-  }
-
-  const filePath = path.join(attachmentUploadDirectory, storedName);
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: "ملف المرفق لم يعد متاحاً." });
-  }
-
-  res.setHeader("Cache-Control", "private, max-age=300");
-  res.type(path.extname(storedName));
-  return res.sendFile(filePath);
-}
-
+/**
+ * تحديد الرسائل كمقروءة
+ */
 async function markMessagesRead(req, res) {
-  const student = await getStudentForAccess(req, req.params.studentId);
-  if (!student) return res.status(403).json({ error: "لا تملك صلاحية تعديل هذه المحادثة." });
-
   try {
-    const receiverRole = req.user.role === "teacher" ? "teacher" : "student";
-    const result = await prisma.message.updateMany({
-      where: { studentId: student.id, receiverRole, isRead: false },
+    const studentId = req.params.studentId || req.user?.id;
+    const role = req.user?.role === "teacher" || req.user?.role === "admin" ? "teacher" : "student";
+
+    if (!studentId) {
+      return res.status(400).json({ success: false, error: "معرّف التلميذ مطلوب." });
+    }
+
+    await prisma.message.updateMany({
+      where: {
+        studentId,
+        receiverRole: role,
+        isRead: false,
+      },
       data: { isRead: true },
     });
-    return res.json({ updated: result.count });
+
+    return res.json({ success: true });
   } catch (error) {
-    console.error("Unable to mark private messages read:", error);
-    return res.status(500).json({ error: "تعذر تحديث حالة قراءة الرسائل." });
+    console.error("[Messages] خطأ في تحديث حالة القراءة:", error);
+    return res.status(500).json({ success: false, error: "تعذر تحديث الرسائل." });
+  }
+}
+
+/**
+ * جلب المرفقات في الرسائل
+ */
+async function getMessageAttachment(req, res) {
+  try {
+    const { fileName } = req.params;
+    if (!fileName) {
+      return res.status(400).json({ success: false, error: "اسم الملف غير محدد." });
+    }
+
+    const safeName = path.basename(fileName);
+    const filePath = path.join(__dirname, "../uploads/messages", safeName);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, error: "الملف غير موجود." });
+    }
+
+    return res.sendFile(filePath);
+  } catch (error) {
+    console.error("[Messages] خطأ في جلب المرفق:", error);
+    return res.status(500).json({ success: false, error: "تعذر تحميل الملف." });
   }
 }
 
 module.exports = {
-  MAX_MESSAGE_LENGTH,
-  attachmentUploadDirectory,
   listTeacherConversations,
   getUnreadCount,
   listMessages,
   sendMessage,
-  getMessageAttachment,
   markMessagesRead,
+  getMessageAttachment,
 };
+
