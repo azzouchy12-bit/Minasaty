@@ -154,9 +154,9 @@ async function triggerAiAssistantReply(req, student, studentMessage) {
 }
 
 /**
- * 1. قائمة المحادثات للأستاذ (متطابقة 100% مع ما يطلبه ملف teacher-chat.js)
- * يتوقع teacher-chat.js: payload.conversations حيث كل عنصر يحتوي على:
- * id, studentName, level, lastMessage: { content, senderRole, isRead, createdAt, attachment }
+ * قائمة المحادثات للأستاذ
+ * مرتبة تماماً مثل فيسبوك وماسنجر:
+ * التلميذ الذي أرسل أو تفاعل مؤخراً يظهر في قمة القائمة أولاً
  */
 async function listTeacherConversations(req, res) {
   try {
@@ -213,9 +213,20 @@ async function listTeacherConversations(req, res) {
       })
     );
 
+    // 🔥 الترتيب الاحترافي على طريقة فيسبوك وماسنجر:
+    // المحادثات التي تحتوي على أحدث رسالة تظهر أولاً في أعلى القائمة
+    conversations.sort((a, b) => {
+      const timeA = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
+      const timeB = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+      if (timeB !== timeA) {
+        return timeB - timeA; // الأحدث زماناً يسبق دائماً
+      }
+      return 0;
+    });
+
     return res.json({
       success: true,
-      conversations: conversations, // الحقل الأساسي الذي يطلبه teacher-chat.js
+      conversations: conversations,
       data: conversations,
       students: conversations,
     });
@@ -225,9 +236,6 @@ async function listTeacherConversations(req, res) {
   }
 }
 
-/**
- * 2. إجمالي عدد الرسائل غير المقروءة للـ Badge
- */
 async function getUnreadCount(req, res) {
   try {
     const role = req.user?.role || "student";
@@ -258,10 +266,6 @@ async function getUnreadCount(req, res) {
   }
 }
 
-/**
- * 3. فتح محادثة تلميذ معين (متطابقة 100% مع دالة openConversation في teacher-chat.js)
- * تتوقع: payload.student: { studentName, level } و payload.messages: [ ... ]
- */
 async function listMessages(req, res) {
   try {
     const studentId =
@@ -295,8 +299,8 @@ async function listMessages(req, res) {
 
     return res.json({
       success: true,
-      student: studentInfo, // الحقل الأساسي المطلوب في teacher-chat.js: payload.student.studentName
-      messages: rawMessages, // الحقل الأساسي المطلوب: payload.messages.forEach(renderMessage)
+      student: studentInfo,
+      messages: rawMessages,
       data: rawMessages,
     });
   } catch (error) {
@@ -305,10 +309,6 @@ async function listMessages(req, res) {
   }
 }
 
-/**
- * 4. إرسال رسالة من الأستاذ أو التلميذ (متطابقة مع sendTeacherMessage)
- * تتوقع: payload.message لترسمها عبر renderMessage(payload.message)
- */
 async function sendMessage(req, res) {
   try {
     const studentId = req.params.studentId || req.query.studentId || req.user?.id;
@@ -369,7 +369,7 @@ async function sendMessage(req, res) {
 
     return res.status(201).json({
       success: true,
-      message: message, // متطابقة 100% مع ما يطلبه teacher-chat.js: renderMessage(payload.message)
+      message: message,
       data: message,
     });
   } catch (error) {
