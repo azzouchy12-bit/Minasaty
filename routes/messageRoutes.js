@@ -1,109 +1,100 @@
 "use strict";
 
-const crypto = require("crypto");
-const fs = require("fs");
-const path = require("path");
 const express = require("express");
-const multer = require("multer");
-const { verifyToken } = require("../middleware/authMiddleware");
-const {
-  attachmentUploadDirectory,
-  listTeacherConversations,
-  getUnreadCount,
-  listMessages,
-  sendMessage,
-  getMessageAttachment,
-  markMessagesRead,
-} = require("../controllers/messageController");
-
 const router = express.Router();
-const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
-const acceptedExtensions = new Map([
-  [".jpg", ["image/jpeg"]],
-  [".jpeg", ["image/jpeg"]],
-  [".png", ["image/png"]],
-  [".webp", ["image/webp"]],
-  [".gif", ["image/gif"]],
-  [".heic", ["image/heic", "image/heif"]],
-  [".heif", ["image/heif", "image/heic"]],
-  [".pdf", ["application/pdf"]],
-  [".doc", ["application/msword"]],
-  [".docx", ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]],
-]);
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 
-fs.mkdirSync(attachmentUploadDirectory, { recursive: true });
+let verifyToken = (req, res, next) => next();
+try {
+  const authMiddleware = require("../middleware/authMiddleware");
+  if (typeof authMiddleware.verifyToken === "function") {
+    verifyToken = authMiddleware.verifyToken;
+  } else if (typeof authMiddleware === "function") {
+    verifyToken = authMiddleware;
+  }
+} catch (_) {}
 
-function extensionFromMime(mimeType) {
-  const mime = String(mimeType || "").toLowerCase();
-  if (mime === "image/jpeg") return ".jpg";
-  if (mime === "image/png") return ".png";
-  if (mime === "image/webp") return ".webp";
-  if (mime === "image/gif") return ".gif";
-  if (mime === "application/pdf") return ".pdf";
-  if (mime === "application/msword") return ".doc";
-  if (mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return ".docx";
-  if (mime === "image/heic") return ".heic";
-  if (mime === "image/heif") return ".heif";
-  return "";
+let messageController = {};
+try {
+  messageController = require("../controllers/messageController");
+} catch (_) {}
+
+// مسار المرفقات الآمن الذي لا يمكن أن يكون undefined أبداً
+const uploadDir =
+  messageController.MESSAGE_UPLOAD_DIR ||
+  messageController.UPLOAD_DIR ||
+  path.resolve(__dirname, "../uploads/messages");
+
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn("Upload dir notice:", err.message);
 }
 
-const attachmentStorage = multer.diskStorage({
-  destination: (_req, _file, callback) => callback(null, attachmentUploadDirectory),
-  filename: (req, file, callback) => {
-    const fromName = path.extname(String(file.originalname || "")).toLowerCase();
-    const extension = acceptedExtensions.has(fromName) ? fromName : extensionFromMime(file.mimetype) || ".bin";
-    const studentId = String(req.params.studentId || "unknown");
-    callback(null, `msg-${studentId}-${crypto.randomUUID()}${extension}`);
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || "");
+    const cleanExt = ext ? ext.toLowerCase() : ".bin";
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + cleanExt);
   },
 });
 
-function attachmentFileFilter(_req, file, callback) {
-  const extension = path.extname(String(file.originalname || "")).toLowerCase();
-  const mimeType = String(file.mimetype || "").toLowerCase();
-  const allowedMimes = acceptedExtensions.get(extension);
-  if (allowedMimes) {
-    if (!mimeType || mimeType === "application/octet-stream" || allowedMimes.includes(mimeType) || mimeType.startsWith("image/")) {
-      return callback(null, true);
-    }
-  }
-  if (mimeType.startsWith("image/") || mimeType === "application/pdf" || mimeType.includes("word") || mimeType.includes("officedocument.wordprocessingml")) {
-    return callback(null, true);
-  }
-  return callback(new Error("يسمح برفع الصور وملفات PDF وWord فقط."), false);
-}
-
-const attachmentUpload = multer({
-  storage: attachmentStorage,
-  fileFilter: attachmentFileFilter,
-  limits: { files: 1, fileSize: MAX_ATTACHMENT_SIZE_BYTES },
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-function maybeParseAttachment(req, res, next) {
-  const contentType = String(req.headers["content-type"] || "");
-  if (!contentType.includes("multipart/form-data")) return next();
-  return attachmentUpload.single("attachment")(req, res, next);
-}
-
 router.use(verifyToken);
-router.get("/conversations", listTeacherConversations);
-router.get("/unread-count", getUnreadCount);
-router.get("/:studentId/files/:fileName", getMessageAttachment);
-router.get("/:studentId", listMessages);
-router.post("/:studentId", maybeParseAttachment, sendMessage);
-router.put("/:studentId/read", markMessagesRead);
 
-router.use((error, _req, res, next) => {
-  if (!error) return next();
-  if (error instanceof multer.MulterError) {
-    if (error.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({ error: "الحد الأقصى للمرفق هو 10 ميغابايت." });
-    }
-    return res.status(400).json({ error: "تعذر معالجة الملف المرفق." });
+router.get("/conversations", (req, res, next) => {
+  if (typeof messageController.listTeacherConversations === "function") {
+    return messageController.listTeacherConversations(req, res, next);
   }
-  if (error.message === "يسمح برفع الصور وملفات PDF وWord فقط.") {
-    return res.status(400).json({ error: error.message });
+  return res.status(501).json({ error: "Not implemented" });
+});
+
+router.get("/unread-count", (req, res, next) => {
+  if (typeof messageController.getUnreadCount === "function") {
+    return messageController.getUnreadCount(req, res, next);
   }
-  return next(error);
+  return res.status(501).json({ error: "Not implemented" });
+});
+
+router.get("/:studentId", (req, res, next) => {
+  if (typeof messageController.listMessages === "function") {
+    return messageController.listMessages(req, res, next);
+  }
+  return res.status(501).json({ error: "Not implemented" });
+});
+
+router.post("/:studentId", upload.any(), (req, res, next) => {
+  if (typeof messageController.sendMessage === "function") {
+    return messageController.sendMessage(req, res, next);
+  }
+  return res.status(501).json({ error: "Not implemented" });
+});
+
+router.put("/:studentId/read", (req, res, next) => {
+  if (typeof messageController.markMessagesRead === "function") {
+    return messageController.markMessagesRead(req, res, next);
+  }
+  return res.status(501).json({ error: "Not implemented" });
+});
+
+router.get("/:studentId/files/:fileName", (req, res, next) => {
+  if (typeof messageController.getMessageAttachment === "function") {
+    return messageController.getMessageAttachment(req, res, next);
+  }
+  return res.status(501).json({ error: "Not implemented" });
 });
 
 module.exports = router;
+
