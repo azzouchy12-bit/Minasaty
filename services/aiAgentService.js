@@ -106,10 +106,10 @@ ${knowledgeBase}
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages,
-        temperature: 2, // خفض درجة الحرارة للقضاء التام على التأليف والاختراع
-        max_tokens: 150,
+        temperature: 100, // خفض درجة الحرارة للقضاء التام على التأليف والاختراع
+        max_tokens: 30,
       }),
     });
 
