@@ -38,6 +38,9 @@ try {
   // يتم تحميل الخدمة تلقائياً عند توافرها
 }
 
+// مؤقتات انتظار رد الأستاذ قبل تدخل الوكيل الذكي
+const pendingAiTimers = new Map();
+
 /**
  * استخراج اسم التلميذ بأمان مهما كانت بنية الحقول في قاعدة البيانات
  */
@@ -105,6 +108,67 @@ function emitPrivateMessage(req, message, student) {
     nsp.to(`student:${studentInfo.id}`).emit("private_message_created", payload);
   } catch (error) {
     console.warn("[Messages] تعذر إرسال حدث السوكت:", error);
+  }
+}
+
+/**
+ * تشغيل الرد الذكي وحفظه في قاعدة البيانات وبثه للتلميذ
+ */
+async function triggerAiAssistantReply(req, student, studentMessage) {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      console.warn("[AIAgent] تنبيه: لا يوجد OPENAI_API_KEY في متغيرات السيرفر.");
+      return;
+    }
+
+    if (!getAiAgentResponse) {
+      try {
+        getAiAgentResponse = require("../services/aiAgentService").getAiAgentResponse;
+      } catch (err) {
+        console.error("[AIAgent] تعذر تحميل ملف services/aiAgentService:", err.message);
+        return;
+      }
+    }
+
+    const history = await prisma.message.findMany({
+      where: { studentId: student.id },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+    });
+    history.reverse();
+
+    const studentDisplayName = extractStudentName(student);
+    console.log(`[AIAgent] جاري استدعاء الذكاء الاصطناعي الشامل للرد على التلميذ: ${studentDisplayName}...`);
+
+    const aiReply = await getAiAgentResponse({
+      studentMessage,
+      studentName: studentDisplayName,
+      studentLevel: student.level || "",
+      conversationHistory: history,
+    });
+
+    if (!aiReply) {
+      console.warn("[AIAgent] لم يتم استلام رد من نموذج الذكاء الاصطناعي.");
+      return;
+    }
+
+    // حفظ رد الوكيل الذكي في قاعدة البيانات كرسالة من الأستاذ
+    const aiMessage = await prisma.message.create({
+      data: {
+        studentId: student.id,
+        senderId: "teacher",
+        receiverId: student.id,
+        senderRole: "teacher",
+        receiverRole: "student",
+        content: aiReply,
+      },
+    });
+
+    // بث الرد فورياً إلى شات التلميذ عبر السوكت
+    emitPrivateMessage(req, aiMessage, student);
+    console.log(`[AIAgent] تم الرد بنجاح وحفظه في المحادثة: "${aiReply.slice(0, 50)}..."`);
+  } catch (error) {
+    console.error("[AIAgent] خطأ أثناء معالجة رد الوكيل الذكي:", error);
   }
 }
 
@@ -194,7 +258,7 @@ async function getUnreadCount(req, res) {
 }
 
 /**
- * جلب الرسائل بين التلميذ والأستاذ (مع إرفاق بيانات التلميذ student و studentName لحل المشكلة جذرياً)
+ * جلب الرسائل بين التلميذ والأستاذ (مصححة بنسبة 100% لتفادي خطأ studentName)
  */
 async function listMessages(req, res) {
   try {
@@ -223,14 +287,12 @@ async function listMessages(req, res) {
       orderBy: { createdAt: "asc" },
     });
 
-    // إثراء الرسائل بكل الحقول المحتملة لتفادي أي خطأ في الواجهة
     const enrichedMessages = rawMessages.map((msg) => ({
       ...msg,
       studentName: studentName,
       student: studentInfo,
     }));
 
-    // إرفاق الحقول بالمصفوفة وبالكائن لترضي أي استدعاء في الفرونت إند
     enrichedMessages.student = studentInfo;
     enrichedMessages.studentName = studentName;
     enrichedMessages.messages = enrichedMessages;
@@ -249,7 +311,7 @@ async function listMessages(req, res) {
 }
 
 /**
- * إرسال رسالة جديدة (مع دعم الرد الآلي للوكيل الذكي عندما يكون الأستاذ غير متصل)
+ * إرسال رسالة جديدة مع نظام الرد الذكي
  */
 async function sendMessage(req, res) {
   try {
@@ -272,7 +334,7 @@ async function sendMessage(req, res) {
       return res.status(404).json({ success: false, error: "حساب التلميذ غير موجود." });
     }
 
-    // 1. حفظ رسالة المستخدم في قاعدة البيانات
+    // 1. حفظ رسالة التلميذ أو الأستاذ في قاعدة البيانات
     const message = await prisma.message.create({
       data: {
         studentId: student.id,
@@ -284,61 +346,34 @@ async function sendMessage(req, res) {
       },
     });
 
-    // 2. بث الرسالة فورياً عبر السوكت
+    // 2. بث الرسالة فورياً عبر السوكت للطرفين
     emitPrivateMessage(req, message, student);
 
-    // 3. فحص تدخل وكيل الذكاء الاصطناعي:
-    // يعمل فقط إذا كان المرسل هو التلميذ، والأستاذ غير متصل (Offline) بالمنصة
+    // 3. إدارة نظام رد الوكيل الذكي الشامل:
     if (senderRole === "student") {
       const teacherIsConnected = isTeacherOnline(req);
+      
+      // إذا كان الأستاذ غير متصل: يرد فوراً (ثانية واحدة).
+      // إذا كان الأستاذ متصلاً: ينتظر 6 ثوانٍ، إن لم يرد الأستاذ بيده، يجيب الوكيل الذكي!
+      const delayMs = teacherIsConnected ? 6000 : 1000;
 
-      if (!teacherIsConnected && process.env.OPENAI_API_KEY) {
-        console.log(`[AIAgent] الأستاذ غير متصل، جاري تحليل سؤال التلميذ: "${content.slice(0, 40)}..."`);
+      if (pendingAiTimers.has(student.id)) {
+        clearTimeout(pendingAiTimers.get(student.id));
+      }
 
-        setImmediate(async () => {
-          try {
-            if (!getAiAgentResponse) {
-              try {
-                getAiAgentResponse = require("../services/aiAgentService").getAiAgentResponse;
-              } catch (_) {}
-            }
+      console.log(`[AIAgent] استلمنا رسالة من التلميذ (${teacherIsConnected ? "الأستاذ متصل - مهلة 6 ثوانٍ" : "الأستاذ غير متصل - رد فوري"}).`);
 
-            if (typeof getAiAgentResponse === "function") {
-              const history = await prisma.message.findMany({
-                where: { studentId: student.id },
-                orderBy: { createdAt: "desc" },
-                take: 6,
-              });
-              history.reverse();
+      const timer = setTimeout(() => {
+        pendingAiTimers.delete(student.id);
+        void triggerAiAssistantReply(req, student, content);
+      }, delayMs);
 
-              const studentDisplayName = extractStudentName(student);
-
-              const aiReply = await getAiAgentResponse({
-                studentMessage: content,
-                studentName: studentDisplayName,
-                conversationHistory: history,
-              });
-
-              if (aiReply) {
-                const aiMessage = await prisma.message.create({
-                  data: {
-                    studentId: student.id,
-                    senderId: "teacher",
-                    receiverId: student.id,
-                    senderRole: "teacher",
-                    receiverRole: "student",
-                    content: aiReply,
-                  },
-                });
-
-                emitPrivateMessage(req, aiMessage, student);
-                console.log(`[AIAgent] تم الرد بنجاح على التلميذ ${studentDisplayName}`);
-              }
-            }
-          } catch (agentErr) {
-            console.error("[AIAgent] خطأ أثناء معالجة الرد الآلي:", agentErr);
-          }
-        });
+      pendingAiTimers.set(student.id, timer);
+    } else if (senderRole === "teacher") {
+      if (pendingAiTimers.has(studentId)) {
+        clearTimeout(pendingAiTimers.get(studentId));
+        pendingAiTimers.delete(studentId);
+        console.log("[AIAgent] الأستاذ رد بنفسه، تم إلغاء رد الوكيل الذكي.");
       }
     }
 
