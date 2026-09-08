@@ -39,6 +39,21 @@ try {
 }
 
 /**
+ * استخراج اسم التلميذ بأمان مهما كانت بنية الحقول في قاعدة البيانات
+ */
+function extractStudentName(student) {
+  if (!student) return "تلميذ";
+  return (
+    student.studentName ||
+    student.name ||
+    student.fullName ||
+    `${student.firstName || ""} ${student.lastName || ""}`.trim() ||
+    student.username ||
+    "تلميذ"
+  );
+}
+
+/**
  * فحص ما إذا كان الأستاذ متصلاً حالياً في غرفة السوكت الخاصة بالرسائل
  */
 function isTeacherOnline(req) {
@@ -54,17 +69,23 @@ function isTeacherOnline(req) {
 }
 
 /**
- * بث رسالة عبر Socket.IO لكل من التلميذ والأستاذ
+ * بث رسالة عبر Socket.IO لكل من التلميذ والأستاذ مع إرفاق بيانات التلميذ الشاملة
  */
 function emitPrivateMessage(req, message, student) {
   try {
     const io = req.app?.get?.("io");
     if (!io) return;
     const nsp = io.of("/private-messages") || io;
-    const studentName =
-      student?.name ||
-      `${student?.firstName || ""} ${student?.lastName || ""}`.trim() ||
-      "تلميذ";
+    const studentName = extractStudentName(student);
+
+    const studentInfo = {
+      id: student?.id || message.studentId,
+      studentId: student?.id || message.studentId,
+      studentName: studentName,
+      name: studentName,
+      fullName: studentName,
+      level: student?.level || "",
+    };
 
     const payload = {
       id: message.id,
@@ -76,15 +97,12 @@ function emitPrivateMessage(req, message, student) {
       content: message.content,
       createdAt: message.createdAt,
       isRead: message.isRead,
-      student: {
-        id: student.id,
-        name: studentName,
-        level: student.level || "",
-      },
+      studentName: studentName,
+      student: studentInfo,
     };
 
     nsp.to("teacher").emit("private_message_created", payload);
-    nsp.to(`student:${student.id}`).emit("private_message_created", payload);
+    nsp.to(`student:${studentInfo.id}`).emit("private_message_created", payload);
   } catch (error) {
     console.warn("[Messages] تعذر إرسال حدث السوكت:", error);
   }
@@ -115,13 +133,18 @@ async function listTeacherConversations(req, res) {
           },
         });
 
+        const studentName = extractStudentName(student);
         const lastMessage = student.messages[0] || null;
         return {
           studentId: student.id,
-          studentName:
-            student.name ||
-            `${student.firstName || ""} ${student.lastName || ""}`.trim() ||
-            "تلميذ",
+          studentName: studentName,
+          name: studentName,
+          student: {
+            id: student.id,
+            studentName: studentName,
+            name: studentName,
+            level: student.level || "",
+          },
           level: student.level,
           lastMessage: lastMessage?.content || "",
           lastMessageAt: lastMessage?.createdAt || student.createdAt,
@@ -171,7 +194,7 @@ async function getUnreadCount(req, res) {
 }
 
 /**
- * جلب الرسائل بين التلميذ والأستاذ
+ * جلب الرسائل بين التلميذ والأستاذ (مع إرفاق بيانات التلميذ student و studentName لحل المشكلة جذرياً)
  */
 async function listMessages(req, res) {
   try {
@@ -180,12 +203,45 @@ async function listMessages(req, res) {
       return res.status(400).json({ success: false, error: "معرّف التلميذ مطلوب." });
     }
 
-    const messages = await prisma.message.findMany({
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+    });
+
+    const studentName = extractStudentName(student);
+    const studentInfo = {
+      id: studentId,
+      studentId: studentId,
+      studentName: studentName,
+      name: studentName,
+      fullName: studentName,
+      level: student?.level || "",
+      phone: student?.phone || "",
+    };
+
+    const rawMessages = await prisma.message.findMany({
       where: { studentId },
       orderBy: { createdAt: "asc" },
     });
 
-    return res.json({ success: true, data: messages });
+    // إثراء الرسائل بكل الحقول المحتملة لتفادي أي خطأ في الواجهة
+    const enrichedMessages = rawMessages.map((msg) => ({
+      ...msg,
+      studentName: studentName,
+      student: studentInfo,
+    }));
+
+    // إرفاق الحقول بالمصفوفة وبالكائن لترضي أي استدعاء في الفرونت إند
+    enrichedMessages.student = studentInfo;
+    enrichedMessages.studentName = studentName;
+    enrichedMessages.messages = enrichedMessages;
+
+    return res.json({
+      success: true,
+      data: enrichedMessages,
+      messages: enrichedMessages,
+      student: studentInfo,
+      studentName: studentName,
+    });
   } catch (error) {
     console.error("[Messages] خطأ في جلب الرسائل:", error);
     return res.status(500).json({ success: false, error: "تعذر جلب الرسائل." });
@@ -248,7 +304,6 @@ async function sendMessage(req, res) {
             }
 
             if (typeof getAiAgentResponse === "function") {
-              // جلب آخر 5 رسائل سابقة لفهم سياق المحادثة
               const history = await prisma.message.findMany({
                 where: { studentId: student.id },
                 orderBy: { createdAt: "desc" },
@@ -256,10 +311,7 @@ async function sendMessage(req, res) {
               });
               history.reverse();
 
-              const studentDisplayName =
-                student.name ||
-                `${student.firstName || ""} ${student.lastName || ""}`.trim() ||
-                "تلميذ";
+              const studentDisplayName = extractStudentName(student);
 
               const aiReply = await getAiAgentResponse({
                 studentMessage: content,
@@ -268,7 +320,6 @@ async function sendMessage(req, res) {
               });
 
               if (aiReply) {
-                // حفظ رد الذكاء الاصطناعي كرسالة من الأستاذ للتلميذ
                 const aiMessage = await prisma.message.create({
                   data: {
                     studentId: student.id,
@@ -280,7 +331,6 @@ async function sendMessage(req, res) {
                   },
                 });
 
-                // بث رد الذكاء الاصطناعي فورياً للتلميذ
                 emitPrivateMessage(req, aiMessage, student);
                 console.log(`[AIAgent] تم الرد بنجاح على التلميذ ${studentDisplayName}`);
               }
