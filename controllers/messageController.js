@@ -2,6 +2,27 @@
 
 const fs = require("fs");
 const path = require("path");
+
+// المسار المعتمد لمجلد حفظ المرفقات والصور الخاصة بالرسائل
+const MESSAGE_UPLOAD_DIR = path.resolve(__dirname, "../uploads/messages");
+const MESSAGES_UPLOAD_DIR = MESSAGE_UPLOAD_DIR;
+const UPLOAD_DIR = MESSAGE_UPLOAD_DIR;
+const uploadDir = MESSAGE_UPLOAD_DIR;
+const messageUploadDir = MESSAGE_UPLOAD_DIR;
+const MESSAGE_ATTACHMENT_DIR = MESSAGE_UPLOAD_DIR;
+const ATTACHMENTS_DIR = MESSAGE_UPLOAD_DIR;
+const uploadPath = MESSAGE_UPLOAD_DIR;
+const messageUploadPath = MESSAGE_UPLOAD_DIR;
+
+// إنشاء المجلد فورياً عند إقلاع السيرفر لتفادي أي خطأ مسار
+try {
+  if (!fs.existsSync(MESSAGE_UPLOAD_DIR)) {
+    fs.mkdirSync(MESSAGE_UPLOAD_DIR, { recursive: true });
+  }
+} catch (err) {
+  console.warn("[Messages] ملاحظة حول مجلد المرفقات:", err.message);
+}
+
 let prisma;
 try {
   prisma = require("../lib/prisma");
@@ -317,7 +338,7 @@ async function getMessageAttachment(req, res) {
     }
 
     const safeName = path.basename(fileName);
-    const filePath = path.join(__dirname, "../uploads/messages", safeName);
+    const filePath = path.join(MESSAGE_UPLOAD_DIR, safeName);
 
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ success: false, error: "الملف غير موجود." });
@@ -337,5 +358,16 @@ module.exports = {
   sendMessage,
   markMessagesRead,
   getMessageAttachment,
+  MESSAGE_UPLOAD_DIR,
+  MESSAGES_UPLOAD_DIR,
+  UPLOAD_DIR,
+  uploadDir,
+  messageUploadDir,
+  MESSAGE_ATTACHMENT_DIR,
+  ATTACHMENTS_DIR,
+  uploadPath,
+  messageUploadPath,
+  isTeacherOnline,
+  emitPrivateMessage,
 };
 
