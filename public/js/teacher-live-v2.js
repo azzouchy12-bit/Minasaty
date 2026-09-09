@@ -1517,91 +1517,23 @@ async function uploadRecordingToYouTube(recording) {
   const scheduledClassId = recording.scheduledClassId || activeScheduledClassId || "";
   const title = `حصة ${subject} — ${level} — ${new Date().toLocaleDateString("ar-DZ")}`.slice(0, 100);
   const description = `تسجيل تلقائي من أكاديمية التفوق للفيزياء والرياضيات\nالمستوى: ${level}\nالمادة: ${subject}`;
-  const fileSize = recording.blob.size;
-  const mimeType = recording.blob.type && recording.blob.type.startsWith("video/") ? recording.blob.type : "video/webm";
+  const fileSizeMb = (recording.blob.size / (1024 * 1024)).toFixed(1);
 
   youtubeUploadInProgress = true;
-  updateYoutubeUploadUi({ visible: true, text: "جارٍ رفع تسجيل الحصة إلى YouTube… (0%)", progress: 5 });
+  updateYoutubeUploadUi({
+    visible: true,
+    text: `جارٍ بدء رفع تسجيل الحصة إلى YouTube (${fileSizeMb} MB)…`,
+    progress: 2,
+  });
   updateControls();
 
   try {
-    // 1. محاولة الرفع المباشر المستأنف لـ Google (Direct Resumable Upload) مع تجاوز CORS
-    const initRes = await fetch("/api/youtube/resumable-session", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ title, description, mimeType, fileSize, level, subject, scheduledClassId }),
-    });
+    const videoBlob = recording.blob.type && recording.blob.type.startsWith("video/")
+      ? recording.blob
+      : new Blob([recording.blob], { type: "video/webm" });
 
-    if (initRes.ok) {
-      const { uploadUrl } = await initRes.json();
-      if (uploadUrl) {
-        const videoId = await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("PUT", uploadUrl, true);
-          xhr.setRequestHeader("Content-Type", mimeType);
-
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const percent = Math.round((event.loaded / event.total) * 100);
-              updateYoutubeUploadUi({
-                visible: true,
-                text: `جارٍ رفع تسجيل الحصة إلى YouTube… (${percent}%)`,
-                progress: percent,
-              });
-            }
-          };
-
-          xhr.onload = () => {
-            if (xhr.status === 200 || xhr.status === 201) {
-              try {
-                const data = JSON.parse(xhr.responseText);
-                resolve(data.id);
-              } catch (_) {
-                resolve(null);
-              }
-            } else {
-              reject(new Error(`فشل رفع الفيديو لليوتيوب (${xhr.status})`));
-            }
-          };
-
-          xhr.onerror = () => reject(new Error("انقطع الاتصال أثناء الرفع المباشر لـ YouTube."));
-          xhr.send(recording.blob);
-        });
-
-        if (videoId) {
-          updateYoutubeUploadUi({ visible: true, text: "تم الرفع بنجاح! جارٍ ربط الحصة بالسجل…", progress: 100 });
-          const finishRes = await fetch("/api/youtube/resumable-finish", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ videoId, level, subject, scheduledClassId, title, recordedAt: recording.recordedAt || new Date().toISOString() }),
-          });
-
-          const finishPayload = await finishRes.json();
-          const registryMsg = finishPayload.data?.registryClass
-            ? " وتم ربطه تلقائياً بسجل الحصة الرسمية."
-            : " (تسجيل تجريبي غير مدرج على YouTube).";
-          updateYoutubeUploadUi({ visible: true, text: `✅ تم حفظ ورفع التسجيل بنجاح!${registryMsg}`, progress: 100 });
-          setStudioStatus("✅ تم حفظ ورفع التسجيل إلى YouTube بنجاح.", "live");
-          setTimeout(() => updateYoutubeUploadUi({ visible: false }), 6000);
-          return finishPayload.data || null;
-        }
-      }
-    }
-  } catch (resumableErr) {
-    console.warn("Direct resumable upload failed, falling back to server upload:", resumableErr);
-  }
-
-  // 2. مسار الرفع الاحتياطي
-  try {
-    updateYoutubeUploadUi({ visible: true, text: "جارٍ رفع التسجيل عبر مسار السيرفر الاحتياطي…", progress: 15 });
     const formData = new FormData();
-    formData.append("video", recording.blob, recording.fileName || "recording.webm");
+    formData.append("video", videoBlob, recording.fileName || "recording.webm");
     formData.append("level", level);
     formData.append("subject", subject);
     formData.append("recordedAt", recording.recordedAt || new Date().toISOString());
@@ -1609,28 +1541,39 @@ async function uploadRecordingToYouTube(recording) {
     formData.append("title", title);
     formData.append("description", description);
 
+    // رفع واحد نظيف ومباشر عبر السيرفر مع متابعة دقيقة لشريط التقدم
     const payload = await uploadFormDataWithProgress("/api/youtube/upload", formData, {
       token,
-      onProgress: (progress) => updateYoutubeUploadUi({
-        visible: true,
-        text: `جاري معالجة ورفع تسجيل الحصة إلى اليوتيوب... (${progress}%)`,
-        progress,
-      }),
+      onProgress: (progress) => {
+        updateYoutubeUploadUi({
+          visible: true,
+          text: `جارٍ معالجة ورفع تسجيل الحصة إلى YouTube... (${progress}%)`,
+          progress,
+        });
+      },
     });
 
-    updateYoutubeUploadUi({ visible: true, text: "✅ تم حفظ ورفع التسجيل بنجاح!", progress: 100 });
+    const registryMsg = payload.data?.registryClass
+      ? " وتم ربطه تلقائياً بسجل الحصة الرسمية."
+      : " (تسجيل محفوظ في قناتك على YouTube كفيديو غير مدرج).";
+
+    updateYoutubeUploadUi({
+      visible: true,
+      text: `✅ تم حفظ ورفع التسجيل إلى YouTube بنجاح!${registryMsg}`,
+      progress: 100,
+    });
     setStudioStatus("✅ تم حفظ ورفع التسجيل إلى YouTube بنجاح.", "live");
-    setTimeout(() => updateYoutubeUploadUi({ visible: false }), 6000);
+    setTimeout(() => updateYoutubeUploadUi({ visible: false }), 7000);
     return payload.data || null;
   } catch (error) {
     console.error("Unable to upload recording to YouTube:", error);
     updateYoutubeUploadUi({
       visible: true,
-      text: `فشل الرفع: ${error.message} (الملف محفوظ في مجلد التنزيلات)`,
+      text: `تعذر الرفع إلى YouTube: ${error.message} (الملف محفوظ في جهازك)`,
       progress: 0,
     });
     setStudioStatus("تعذر رفع التسجيل إلى YouTube؛ الملف محفوظ في جهازك.", "error");
-    setTimeout(() => updateYoutubeUploadUi({ visible: false }), 8000);
+    setTimeout(() => updateYoutubeUploadUi({ visible: false }), 9000);
     return null;
   } finally {
     youtubeUploadInProgress = false;
