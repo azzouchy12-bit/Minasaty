@@ -27,7 +27,7 @@ if (!fs.existsSync(uploadDirectory)) {
 
 const upload = multer({
   dest: uploadDirectory,
-  limits: { fileSize: 4_000 * 1024 * 1024 }, // 4GB limit for legacy fallback
+  limits: { fileSize: 10_000 * 1024 * 1024 }, // 4GB limit for legacy fallback
 });
 
 function getJwtSecret() {
