@@ -248,9 +248,9 @@ ${PLATFORM_FACTS}
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages,
-        temperature: 0.1, // تبريد النموذج لأقصى درجات الدقة والالتزام بالأمثلة المحددة
+        temperature: 0.6, // تبريد النموذج لأقصى درجات الدقة والالتزام بالأمثلة المحددة
         max_tokens: 120,
       }),
     });
