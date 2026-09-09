@@ -5,7 +5,7 @@ const { google } = require("googleapis");
 const prisma = require("../lib/prisma");
 
 const YOUTUBE_SCOPES = Object.freeze([
-  "https://www.googleapis.com/auth/youtube", // Full management scope for embedding fixes
+  "https://www.googleapis.com/auth/youtube",
   "https://www.googleapis.com/auth/youtube.upload",
   "https://www.googleapis.com/auth/youtube.readonly",
 ]);
@@ -36,9 +36,8 @@ function getEncryptionKey() {
 function ensureConfigured() {
   const cid = getClientId();
   const csec = getClientSecret();
-  console.log(`YouTube Config Check: CID_LEN=${cid.length}, CSEC_LEN=${csec.length}`);
   if (!cid || !csec) {
-    const error = new Error(`لم يتم إعداد بيانات YouTube OAuth في الخادم بعد. (CID:${cid.length}, SEC:${csec.length})`);
+    const error = new Error(`لم يتم إعداد بيانات YouTube OAuth في الخادم بعد.`);
     error.code = "YOUTUBE_NOT_CONFIGURED";
     throw error;
   }
@@ -208,6 +207,60 @@ async function uploadVideo({ stream, mimeType = "video/webm", title, description
   };
 }
 
+/**
+ * فتح جلسة رفع مباشر ومستأنف لـ YouTube (Resumable Upload Session)
+ * تتيح رفع الفيديوهات الطويلة (ساعتان فأكثر) مباشرة إلى خوادم Google دون قيود البروكسي
+ */
+async function createResumableUploadSession({ title, description = "", mimeType = "video/webm", fileSize }) {
+  const auth = await getAuthorizedClient();
+  const tokenResponse = await auth.getAccessToken();
+  const accessToken = typeof tokenResponse === "string" ? tokenResponse : tokenResponse?.token;
+
+  if (!accessToken) {
+    throw new Error("تعذر الحصول على رمز الوصول الصالح لـ YouTube.");
+  }
+
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json; charset=UTF-8",
+    "X-Upload-Content-Type": mimeType,
+  };
+  if (fileSize && Number(fileSize) > 0) {
+    headers["X-Upload-Content-Length"] = String(fileSize);
+  }
+
+  const requestBody = {
+    snippet: {
+      title: String(title || "حصة مسجلة").slice(0, 100),
+      description: String(description || "").slice(0, 5000),
+      categoryId: "27",
+    },
+    status: {
+      privacyStatus: "unlisted",
+      embeddable: true,
+      selfDeclaredMadeForKids: false,
+    },
+  };
+
+  const response = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    throw new Error(`فشل فتح جلسة الرفع إلى YouTube: ${response.status} ${errText}`);
+  }
+
+  const uploadUrl = response.headers.get("location");
+  if (!uploadUrl) {
+    throw new Error("لم تُرجع Google رابط الرفع المباشر.");
+  }
+
+  return { uploadUrl };
+}
+
 module.exports = {
   YOUTUBE_SCOPES,
   getRedirectUri,
@@ -216,13 +269,9 @@ module.exports = {
   getConnectionStatus,
   listRecentVideos,
   uploadVideo,
-  getYouTubeApi, // Added for maintenance tasks
+  createResumableUploadSession,
+  getYouTubeApi,
 };
 
 module.exports._private = { encrypt, decrypt, getClientId, getClientSecret };
 
-// Keep the service importable in local syntax tests without requiring secrets.
-void TOKEN_ALGORITHM;
-void saveTokens;
-void getAuthorizedClient;
-void getStoredCredential;
