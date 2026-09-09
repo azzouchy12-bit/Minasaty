@@ -15,11 +15,11 @@ const {
   getConnectionStatus,
   listRecentVideos,
   uploadVideo,
+  createResumableUploadSession,
 } = require("../services/youtubeService");
 
 const router = express.Router();
 
-// Use a guaranteed writable system temp directory
 const uploadDirectory = path.join(os.tmpdir(), "minasaty-uploads");
 if (!fs.existsSync(uploadDirectory)) {
   fs.mkdirSync(uploadDirectory, { recursive: true });
@@ -27,8 +27,7 @@ if (!fs.existsSync(uploadDirectory)) {
 
 const upload = multer({
   dest: uploadDirectory,
-  limits: { fileSize: 2_000 * 1024 * 1024 }, // Increased to 2GB
-  // Removed fileFilter to prevent silent rejections
+  limits: { fileSize: 4_000 * 1024 * 1024 }, // 4GB limit for legacy fallback
 });
 
 function getJwtSecret() {
@@ -121,8 +120,6 @@ async function attachVideoToNearestScheduledClass({ req, level, subject, videoId
   const recordedDate = new Date(recordedAt || Date.now());
   const timestamp = Number.isFinite(recordedDate.getTime()) ? recordedDate : new Date();
   const recordingParts = getAlgiersDateParts(timestamp);
-  // Before 17:00 or at/after 21:00, treat the upload as an experiment. It stays
-  // on YouTube and is deliberately not attached to the official registry.
   if (!recordingParts || !isOfficialRecordingTime(timestamp)) return null;
 
   const displayLevel = Object.entries(LEVEL_ALIASES).find(([, canonical]) => canonical === normalizedLevel)?.[0];
@@ -209,72 +206,75 @@ router.get("/videos", verifyToken, isTeacher, async (req, res) => {
   }
 });
 
-
-
-router.post("/upload", verifyToken, isTeacher, (req, res, next) => {
-  // Use manual invocation to catch Multer errors specifically
-  upload.single("video")(req, res, (err) => {
-    if (err instanceof multer.MulterError) {
-      console.error("Multer Error during upload:", err);
-      return res.status(400).json({ error: `خطأ في رفع الملف: ${err.message}` });
-    } else if (err) {
-      console.error("Unknown error during upload:", err);
-      return res.status(500).json({ error: "حدث خطأ غير متوقع أثناء معالجة الملف." });
-    }
-    next();
-  });
-}, async (req, res) => {
-  console.log("YouTube Upload Request Received:", {
-    hasFile: !!req.file,
-    fileInfo: req.file ? { size: req.file.size, mimetype: req.file.mimetype, originalname: req.file.originalname } : null,
-    body: req.body
-  });
-  const uploadedPath = req.file?.path;
+/**
+ * 1. بدء جلسة رفع مباشر ومستأنف لـ YouTube (Resumable Upload)
+ * تحل مشكلة الـ 502 لحصص الساعتين لأن المتصفح يرفع مباشرة لـ Google
+ */
+router.post("/resumable-session", verifyToken, isTeacher, async (req, res) => {
   try {
-    if (!req.file) {
-      console.error("Upload Error: No file found in request after Multer processing.");
-      return res.status(400).json({ error: "تعذر العثور على ملف الفيديو في الطلب. يرجى التحقق من المتصفح." });
+    const title = String(req.body?.title || "حصة مسجلة").slice(0, 100);
+    const description = String(req.body?.description || "").slice(0, 5000);
+    const mimeType = String(req.body?.mimeType || "video/webm").trim();
+    const fileSize = Number(req.body?.fileSize) || 0;
+
+    const session = await createResumableUploadSession({ title, description, mimeType, fileSize });
+    return res.status(200).json({ status: "success", uploadUrl: session.uploadUrl });
+  } catch (error) {
+    console.error("Unable to init resumable YouTube upload:", error);
+    return res.status(500).json({ error: error.message || "تعذر فتح جلسة الرفع إلى YouTube." });
+  }
+});
+
+/**
+ * 2. إتمام تسجيل الفيديو في المنصة وربطه بالقسم بعد انتهاء الرفع المباشر
+ */
+router.post("/resumable-finish", verifyToken, isTeacher, async (req, res) => {
+  try {
+    const videoId = String(req.body?.videoId || "").trim();
+    if (!videoId) {
+      return res.status(400).json({ error: "معرّف الفيديو مطلوب." });
     }
+
     const level = String(req.body?.level || "").trim();
     const subject = String(req.body?.subject || "").trim();
     const recordedAt = String(req.body?.recordedAt || "").trim();
     const scheduledClassId = String(req.body?.scheduledClassId || "").trim();
-    const title = String(req.body?.title || `حصة ${subject || "مباشرة"} - ${level || "الأكاديمية"} - ${new Date().toLocaleDateString("ar-DZ")}`).slice(0, 100);
-    const description = String(req.body?.description || `تسجيل من أكاديمية التفوق للفيزياء والرياضيات\nالمستوى: ${level}\nالمادة: ${subject}`).slice(0, 5000);
-    
-    // Force a video mime type even if the browser/multer misidentified it
-    let mimeType = req.file.mimetype;
-    if (!mimeType || !mimeType.startsWith("video/")) {
-      console.warn(`MimeType mismatch: Received ${mimeType}, forcing video/webm`);
-      mimeType = "video/webm";
-    }
-    
-    const result = await uploadVideo({ stream: fs.createReadStream(req.file.path), mimeType, title, description });
-    
-    // 1. Attach to registry
-    const registryClass = await attachVideoToNearestScheduledClass({ req, level, subject, videoId: result.id, recordedAt, scheduledClassId }).catch((error) => {
-      console.error("Unable to attach uploaded YouTube video to the class registry:", error);
+    const title = String(req.body?.title || "").slice(0, 100);
+
+    const result = {
+      id: videoId,
+      embedUrl: `https://www.youtube.com/embed/${videoId}?controls=1&fs=1&rel=0&playsinline=1&enablejsapi=1&origin=https://dr.africacold.fr`,
+      privacyStatus: "unlisted",
+    };
+
+    const registryClass = await attachVideoToNearestScheduledClass({
+      req,
+      level,
+      subject,
+      videoId,
+      recordedAt,
+      scheduledClassId,
+    }).catch((err) => {
+      console.error("Attach registry error:", err);
       return null;
     });
 
-    // Official recordings are also available to the lesson repository. Experimental
-    // recordings remain on YouTube only and never enter either official registry.
     let repositoryVideo = null;
     if (registryClass) {
       try {
         const repositoryType = canonicalSubject(subject);
         repositoryVideo = await prisma.lessonVideo.create({
           data: {
-            title: title.slice(0, 160),
+            title: title.slice(0, 160) || `حصة ${subject}`,
             level: registryClass.level,
-            driveFileId: result.id,
+            driveFileId: videoId,
             driveUrl: result.embedUrl,
             repositoryType,
           },
         });
-        console.log(`Official YouTube video ${result.id} added to Lesson Repository for ${registryClass.level}`);
-      } catch (repoError) {
-        console.error("Failed to add official YouTube video to Lesson Repository:", repoError);
+        console.log(`Official YouTube video ${videoId} added to Lesson Repository for ${registryClass.level}`);
+      } catch (repoErr) {
+        console.error("Lesson repo error:", repoErr);
       }
     }
 
@@ -288,28 +288,74 @@ router.post("/upload", verifyToken, isTeacher, (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error("Unable to upload video to YouTube:", error);
-    const rawError = `${error?.message || ""} ${error?.response?.data?.error || ""} ${error?.response?.data?.error_description || ""}`.toLowerCase();
-    const reauthRequired = rawError.includes("invalid_grant") || rawError.includes("invalid grant");
-    if (reauthRequired) {
-      let authorizationUrl = null;
-      try {
-        authorizationUrl = getAuthorizationUrl(makeState());
-      } catch (authError) {
-        console.error("Unable to create YouTube reauthorization URL:", authError);
-      }
-      return res.status(409).json({
-        error: "انتهت صلاحية ربط YouTube. أعد ربط القناة ثم أعد رفع التسجيل.",
-        code: "YOUTUBE_REAUTH_REQUIRED",
-        reauthRequired: true,
-        authorizationUrl,
-      });
+    console.error("Resumable finish error:", error);
+    return res.status(500).json({ error: error.message || "تعذر إتمام ربط الفيديو بالمنصة." });
+  }
+});
+
+// المسار التقليدي القديم (مع رفع الحد إلى 4 جيجابايت كاحتياط)
+router.post("/upload", verifyToken, isTeacher, (req, res, next) => {
+  upload.single("video")(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      console.error("Multer Error during upload:", err);
+      return res.status(400).json({ error: `خطأ في رفع الملف: ${err.message}` });
+    } else if (err) {
+      console.error("Unknown error during upload:", err);
+      return res.status(500).json({ error: "حدث خطأ غير متوقع أثناء معالجة الملف." });
     }
-    const status = error.code === "YOUTUBE_NOT_CONNECTED" ? 409 : 503;
-    return res.status(status).json({ error: error.message || "تعذر رفع التسجيل إلى YouTube." });
+    next();
+  });
+}, async (req, res) => {
+  const uploadedPath = req.file?.path;
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "تعذر العثور على ملف الفيديو في الطلب." });
+    }
+    const level = String(req.body?.level || "").trim();
+    const subject = String(req.body?.subject || "").trim();
+    const recordedAt = String(req.body?.recordedAt || "").trim();
+    const scheduledClassId = String(req.body?.scheduledClassId || "").trim();
+    const title = String(req.body?.title || `حصة ${subject || "مباشرة"} - ${level || "الأكاديمية"}`).slice(0, 100);
+    const description = String(req.body?.description || "").slice(0, 5000);
+    
+    let mimeType = req.file.mimetype;
+    if (!mimeType || !mimeType.startsWith("video/")) mimeType = "video/webm";
+    
+    const result = await uploadVideo({ stream: fs.createReadStream(req.file.path), mimeType, title, description });
+    const registryClass = await attachVideoToNearestScheduledClass({ req, level, subject, videoId: result.id, recordedAt, scheduledClassId }).catch(() => null);
+
+    let repositoryVideo = null;
+    if (registryClass) {
+      try {
+        const repositoryType = canonicalSubject(subject);
+        repositoryVideo = await prisma.lessonVideo.create({
+          data: {
+            title: title.slice(0, 160),
+            level: registryClass.level,
+            driveFileId: result.id,
+            driveUrl: result.embedUrl,
+            repositoryType,
+          },
+        });
+      } catch (_) {}
+    }
+
+    return res.status(201).json({
+      status: "success",
+      data: {
+        ...result,
+        registryClass,
+        isExperimental: !registryClass,
+        repositoryVideoId: repositoryVideo?.id || null,
+      },
+    });
+  } catch (error) {
+    console.error("Unable to upload video to YouTube:", error);
+    return res.status(500).json({ error: error.message || "تعذر رفع التسجيل إلى YouTube." });
   } finally {
     if (uploadedPath) fs.promises.unlink(uploadedPath).catch(() => {});
   }
 });
 
 module.exports = router;
+
