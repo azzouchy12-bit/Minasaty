@@ -250,7 +250,7 @@ ${PLATFORM_FACTS}
       body: JSON.stringify({
         model: "gpt-4o",
         messages,
-        temperature: 0.6, // تبريد النموذج لأقصى درجات الدقة والالتزام بالأمثلة المحددة
+        temperature: 0.9, // تبريد النموذج لأقصى درجات الدقة والالتزام بالأمثلة المحددة
         max_tokens: 120,
       }),
     });
