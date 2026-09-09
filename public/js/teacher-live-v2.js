@@ -1,4 +1,5 @@
-"use strict";
+﻿"use strict";
+
 
 /**
  * Teacher live-streaming controller.
@@ -8,6 +9,7 @@
  * those connections, while Socket.io forwards the SDP and ICE messages to the
  * exact target socket ID.
  */
+
 
 // Socket.io is served by the Express server at /socket.io/socket.io.js.
 // Start explicitly so the studio can wait for a healthy signaling connection
@@ -24,6 +26,7 @@ const socket = io({
   reconnectionDelayMax: 5000,
   timeout: 10000,
 });
+
 
 // STUN helps browsers discover a viable peer-to-peer route. A TURN server is
 // still recommended for a production deployment where restrictive networks
@@ -44,10 +47,12 @@ if (typeof window.getMinasatyRtcConfig === "function") {
   void window.getMinasatyRtcConfig().then((config) => Object.assign(rtcConfig, config));
 }
 
+
 // Required broadcaster state requested for this phase.
 const peerConnections = Object.create(null);
 let screenStream;
 let cameraStream;
+
 
 // Extra state used to make negotiation and cleanup predictable.
 const pendingIceCandidates = Object.create(null);
@@ -131,6 +136,7 @@ let youtubeUploadInProgress = false;
 let googleIdentityLoadPromise = null;
 let studioDurationStartedAt = 0;
 
+
 const elements = {
   localVideo: document.getElementById("local-video"),
   teacherCanvas: document.getElementById("teacher-canvas"),
@@ -193,6 +199,7 @@ const elements = {
   closeQuestionImageModalButton: document.getElementById("close-question-image-modal"),
 };
 
+
 const UNIVERSITY_LEVEL = "طالب جامعي";
 const GLOBAL_FREE_LEVEL = "FREE";
 const SECONDARY_CLASS_OPTIONS = [
@@ -209,9 +216,11 @@ const VALID_CLASS_TYPES = new Set([
   ...UNIVERSITY_SUBSCRIPTION_OPTIONS.map(({ value }) => value),
 ]);
 
+
 function isUniversityLevel(level) {
   return level === UNIVERSITY_LEVEL;
 }
+
 
 function getClassTypeName(level, classType) {
   if (level === GLOBAL_FREE_LEVEL) return "حصة مجانية";
@@ -219,9 +228,11 @@ function getClassTypeName(level, classType) {
     return classType === "PAID" ? "اشتراك مدفوع" : "اشتراك مجاني";
   }
 
+
   if (classType === "FREE") return "حصة مجانية";
   return classType === "PHYSICS" ? "الفيزياء" : "الرياضيات";
 }
+
 
 function syncClassTypeSelector({ selectedValue = "" } = {}) {
   const selectedLevel = elements.levelSelect?.value || "";
@@ -237,6 +248,7 @@ function syncClassTypeSelector({ selectedValue = "" } = {}) {
     : options.some(({ value }) => value === selectedValue)
       ? selectedValue
       : options[0].value;
+
 
   const isFreeClass = nextValue === "FREE";
   if (elements.subjectSelectField) elements.subjectSelectField.hidden = isGlobalFree;
@@ -257,6 +269,7 @@ function syncClassTypeSelector({ selectedValue = "" } = {}) {
   }
 }
 
+
 function setStudioStatus(message, mode = "neutral") {
   if (elements.liveStatusText) elements.liveStatusText.textContent = message;
   if (elements.liveStatus) {
@@ -264,6 +277,7 @@ function setStudioStatus(message, mode = "neutral") {
     elements.liveStatus.classList.toggle("is-error", mode === "error");
   }
 }
+
 
 function setStageMode(mode = "idle") {
   const stage = elements.videoStage;
@@ -279,10 +293,12 @@ function setStageMode(mode = "idle") {
   if (elements.teacherCanvas) elements.teacherCanvas.hidden = true;
 }
 
+
 function getQuestionImagePanBounds() {
   const viewport = elements.questionImageModalViewport;
   const image = elements.questionImageModalImage;
   if (!viewport || !image) return { x: 0, y: 0 };
+
 
   return {
     x: Math.max(0, (image.offsetWidth * questionImageZoom - viewport.clientWidth) / 2),
@@ -290,11 +306,13 @@ function getQuestionImagePanBounds() {
   };
 }
 
+
 function clampQuestionImagePan() {
   const bounds = getQuestionImagePanBounds();
   questionImagePanX = Math.min(bounds.x, Math.max(-bounds.x, questionImagePanX));
   questionImagePanY = Math.min(bounds.y, Math.max(-bounds.y, questionImagePanY));
 }
+
 
 function updateQuestionImageZoom() {
   clampQuestionImagePan();
@@ -307,6 +325,7 @@ function updateQuestionImageZoom() {
   }
   elements.questionImageModalViewport?.classList.toggle("is-zoomed", questionImageZoom > 1);
 }
+
 
 function resetQuestionImageZoom() {
   questionImageZoom = QUESTION_IMAGE_MIN_ZOOM;
@@ -321,6 +340,7 @@ function resetQuestionImageZoom() {
   updateQuestionImageZoom();
 }
 
+
 function startQuestionImageDrag(event) {
   if (event.button !== 0 || questionImageZoom <= QUESTION_IMAGE_MIN_ZOOM) return;
   questionImageDragging = true;
@@ -334,6 +354,7 @@ function startQuestionImageDrag(event) {
   event.preventDefault();
 }
 
+
 function moveQuestionImageDrag(event) {
   if (!questionImageDragging || event.pointerId !== questionImageDragPointerId) return;
   questionImagePanX = questionImageDragOriginX + event.clientX - questionImageDragStartX;
@@ -341,6 +362,7 @@ function moveQuestionImageDrag(event) {
   updateQuestionImageZoom();
   event.preventDefault();
 }
+
 
 function stopQuestionImageDrag(event) {
   if (!questionImageDragging || (event.pointerId != null && event.pointerId !== questionImageDragPointerId)) return;
@@ -350,10 +372,12 @@ function stopQuestionImageDrag(event) {
   elements.questionImageModalViewport?.classList.remove("is-dragging");
 }
 
+
 function handleQuestionImageWheel(event) {
   if (elements.questionImageModal?.hidden || !elements.questionImageModalImage) return;
   event.preventDefault();
   event.stopPropagation();
+
 
   const direction = event.deltaY < 0 ? 1 : -1;
   questionImageZoom = Math.min(
@@ -366,10 +390,12 @@ function handleQuestionImageWheel(event) {
   updateQuestionImageZoom();
 }
 
+
 function openQuestionImageModal(imageUrl) {
   if (!elements.questionImageModal || !elements.questionImageModalImage || !imageUrl) {
     return;
   }
+
 
   questionImageModalPreviousFocus = document.activeElement;
   resetQuestionImageZoom();
@@ -379,10 +405,12 @@ function openQuestionImageModal(imageUrl) {
   elements.closeQuestionImageModalButton?.focus();
 }
 
+
 function closeQuestionImageModal() {
   if (!elements.questionImageModal || elements.questionImageModal.hidden) {
     return;
   }
+
 
   elements.questionImageModal.hidden = true;
   resetQuestionImageZoom();
@@ -392,10 +420,12 @@ function closeQuestionImageModal() {
   questionImageModalPreviousFocus = null;
 }
 
+
 function persistLiveClassRecovery() {
   if (!activeLevel || !activeSubject || !classResumeToken) {
     return;
   }
+
 
   sessionStorage.setItem(
     TEACHER_LIVE_RECOVERY_KEY,
@@ -403,11 +433,13 @@ function persistLiveClassRecovery() {
   );
 }
 
+
 function clearLiveClassRecovery() {
   sessionStorage.removeItem(TEACHER_LIVE_RECOVERY_KEY);
   localStorage.removeItem("minasaty_is_recording");
   pendingPageRecovery = null;
 }
+
 
 function readLiveClassRecovery() {
   try {
@@ -423,31 +455,39 @@ function readLiveClassRecovery() {
     }
   } catch {}
 
+
   sessionStorage.removeItem(TEACHER_LIVE_RECOVERY_KEY);
   return null;
 }
+
 
 function createClassResumeToken() {
   if (window.crypto?.randomUUID) {
     return window.crypto.randomUUID();
   }
 
+
   const values = new Uint32Array(4);
   window.crypto?.getRandomValues?.(values);
   return Array.from(values, (value) => value.toString(36)).join("-") || `${Date.now()}-studio-recovery`;
 }
 
+
 const MAX_CHAT_MESSAGE_LENGTH = 800;
+
 
 function normalizeChatMessage(value) {
   return typeof value === "string" ? value.trim().slice(0, MAX_CHAT_MESSAGE_LENGTH) : "";
 }
 
+
 const CHAT_URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>]+/giu;
+
 
 function parseChatUrl(value) {
   const trimmed = String(value || "").replace(/[.,!؟،؛:;)]*$/u, "");
   const withProtocol = /^www\./iu.test(trimmed) ? `https://${trimmed}` : trimmed;
+
 
   try {
     const parsed = new URL(withProtocol);
@@ -457,10 +497,12 @@ function parseChatUrl(value) {
   }
 }
 
+
 function isFacebookUrl(parsedUrl) {
   const host = parsedUrl.hostname.toLowerCase().replace(/^www\./u, "");
   return host === "facebook.com" || host.endsWith(".facebook.com") || host === "fb.watch" || host === "fb.com";
 }
+
 
 function openChatLinkInSeparateView(event, url) {
   const parsedUrl = parseChatUrl(url);
@@ -468,8 +510,10 @@ function openChatLinkInSeparateView(event, url) {
     return;
   }
 
+
   event.preventDefault();
   const openedWindow = window.open(parsedUrl.href, "_blank", "noopener,noreferrer");
+
 
   if (!openedWindow) {
     const temporaryLink = document.createElement("a");
@@ -482,9 +526,11 @@ function openChatLinkInSeparateView(event, url) {
   }
 }
 
+
 function appendChatBodyWithLinks(container, message) {
   const text = String(message || "");
   let cursor = 0;
+
 
   for (const match of text.matchAll(CHAT_URL_PATTERN)) {
     const rawUrl = match[0];
@@ -492,13 +538,16 @@ function appendChatBodyWithLinks(container, message) {
     const matchIndex = match.index ?? 0;
     const parsedUrl = parseChatUrl(displayUrl);
 
+
     if (!parsedUrl) {
       continue;
     }
 
+
     if (matchIndex > cursor) {
       container.append(document.createTextNode(text.slice(cursor, matchIndex)));
     }
+
 
     const link = document.createElement("a");
     link.className = "chat-external-link";
@@ -517,19 +566,23 @@ function appendChatBodyWithLinks(container, message) {
     cursor = matchIndex + rawUrl.length;
   }
 
+
   if (cursor < text.length || !container.childNodes.length) {
     container.append(document.createTextNode(text.slice(cursor)));
   }
 }
 
+
 function isViewingLatestMessages(container, threshold = 36) {
   return container.scrollHeight - container.scrollTop - container.clientHeight <= threshold;
 }
+
 
 function closeStudentChatMicMenu() {
   activeStudentChatMicMenu?.menu.remove();
   activeStudentChatMicMenu = null;
 }
+
 
 function openStudentChatMicMenu({ anchor, socketId, studentId = "", studentName = "تلميذ" }) {
   if (!anchor || !socketId) return;
@@ -538,11 +591,13 @@ function openStudentChatMicMenu({ anchor, socketId, studentId = "", studentName 
     return;
   }
 
+
   closeStudentChatMicMenu();
   const menu = document.createElement("div");
   menu.className = "student-chat-mic-menu";
   menu.setAttribute("role", "menu");
   menu.setAttribute("aria-label", `تحكم في ميكروفون ${studentName}`);
+
 
   const action = document.createElement("button");
   action.type = "button";
@@ -557,10 +612,12 @@ function openStudentChatMicMenu({ anchor, socketId, studentId = "", studentName 
     void setStudentMicrophone(socketId, !enabled, action);
   });
 
+
   menu.append(action);
   anchor.closest(".chat-message-sender-wrap")?.append(menu);
   activeStudentChatMicMenu = { anchor, menu };
 }
+
 
 document.addEventListener("click", (event) => {
   if (!activeStudentChatMicMenu) return;
@@ -575,21 +632,26 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeStudentChatMicMenu();
 });
 
+
 function appendTeacherChatMessage({ sender, message = "", kind, imageUrl = null, studentSocketId = "", studentId = "" }) {
   const safeMessage = normalizeChatMessage(message);
   if ((!safeMessage && !imageUrl) || !elements.chatBox) {
     return null;
   }
 
+
   const shouldFollowNewestMessage = isViewingLatestMessages(elements.chatBox);
   elements.chatEmpty?.remove();
+
 
   const bubble = document.createElement("article");
   bubble.className = `chat-message ${kind === "teacher" ? "teacher-message" : "student-message"}`;
 
+
   const senderLabel = document.createElement("strong");
   senderLabel.className = "chat-message-sender";
   senderLabel.textContent = sender;
+
 
   if (kind === "student" && studentSocketId) {
     const senderWrap = document.createElement("span");
@@ -612,12 +674,14 @@ function appendTeacherChatMessage({ sender, message = "", kind, imageUrl = null,
     bubble.append(senderLabel);
   }
 
+
   if (safeMessage) {
     const body = document.createElement("span");
     body.className = "chat-message-body";
     appendChatBodyWithLinks(body, safeMessage);
     bubble.append(body);
   }
+
 
   if (imageUrl) {
     const image = document.createElement("img");
@@ -638,7 +702,9 @@ function appendTeacherChatMessage({ sender, message = "", kind, imageUrl = null,
     bubble.append(image);
   }
 
+
   elements.chatBox.append(bubble);
+
 
   if (shouldFollowNewestMessage) {
     requestAnimationFrame(() => {
@@ -646,8 +712,10 @@ function appendTeacherChatMessage({ sender, message = "", kind, imageUrl = null,
     });
   }
 
+
   return bubble;
 }
+
 
 function updateTeacherChatImagePreview() {
   const hasImage = Boolean(pendingTeacherChatImageData);
@@ -660,10 +728,12 @@ function updateTeacherChatImagePreview() {
   updateControls();
 }
 
+
 function clearTeacherChatImage() {
   pendingTeacherChatImageData = "";
   updateTeacherChatImagePreview();
 }
+
 
 function imageFileToTeacherChatDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -671,6 +741,7 @@ function imageFileToTeacherChatDataUrl(file) {
       reject(new Error("الصيغ المدعومة هي PNG وJPEG وWebP فقط."));
       return;
     }
+
 
     const objectUrl = URL.createObjectURL(file);
     const image = new Image();
@@ -708,6 +779,7 @@ function imageFileToTeacherChatDataUrl(file) {
   });
 }
 
+
 async function handleTeacherChatPaste(event) {
   const imageItems = Array.from(event.clipboardData?.items || []).filter(
     (clipboardItem) => clipboardItem.kind === "file" && clipboardItem.type.startsWith("image/")
@@ -722,6 +794,7 @@ async function handleTeacherChatPaste(event) {
     return;
   }
 
+
   event.preventDefault();
   try {
     pendingTeacherChatImageData = await imageFileToTeacherChatDataUrl(file);
@@ -733,11 +806,13 @@ async function handleTeacherChatPaste(event) {
   }
 }
 
+
 async function loadQuestionImage(imageId) {
   const token = sessionStorage.getItem("teacherToken");
   if (!token || !imageId) {
     throw new Error("تعذر التحقق من صلاحية عرض صورة السؤال.");
   }
+
 
   const response = await fetch(`/api/live-chat/question-image/${encodeURIComponent(imageId)}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "image/*" },
@@ -747,15 +822,18 @@ async function loadQuestionImage(imageId) {
     throw new Error(payload.error || "تعذر تحميل صورة السؤال.");
   }
 
+
   const imageUrl = URL.createObjectURL(await response.blob());
   renderedQuestionImageUrls.add(imageUrl);
   return imageUrl;
 }
 
+
 function clearTeacherChat() {
   if (!elements.chatBox) {
     return;
   }
+
 
   closeQuestionImageModal();
   renderedQuestionImageUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -769,10 +847,12 @@ function clearTeacherChat() {
   elements.chatEmpty = empty;
 }
 
+
 async function restoreTeacherChatHistory(messages = []) {
   clearTeacherChat();
   for (const entry of Array.isArray(messages) ? messages : []) {
     if (!entry?.message && !entry?.imageId && !entry?.imageData) continue;
+
 
     let imageUrl = entry.imageData || null;
     if (!imageUrl && entry.imageId) {
@@ -782,6 +862,7 @@ async function restoreTeacherChatHistory(messages = []) {
         console.warn("Unable to restore a student chat image:", error);
       }
     }
+
 
     appendTeacherChatMessage({
       sender: entry.kind === "teacher" ? "الأستاذ" : entry.studentName || "تلميذ",
@@ -794,8 +875,10 @@ async function restoreTeacherChatHistory(messages = []) {
   }
 }
 
+
 async function sendTeacherChatMessage(event) {
   event.preventDefault();
+
 
   const message = normalizeChatMessage(elements.chatInput.value);
   const imageData = pendingTeacherChatImageData;
@@ -803,7 +886,9 @@ async function sendTeacherChatMessage(event) {
     return;
   }
 
+
   elements.chatSendButton.disabled = true;
+
 
   try {
     await emitWithAcknowledgement("teacher_send_message", {
@@ -811,6 +896,7 @@ async function sendTeacherChatMessage(event) {
       message,
       imageData,
     });
+
 
     appendTeacherChatMessage({ sender: "أنا", message, kind: "teacher", imageUrl: imageData || null });
     elements.chatInput.value = "";
@@ -823,6 +909,7 @@ async function sendTeacherChatMessage(event) {
   }
 }
 
+
 function setButtonLabel(button, label) {
   const labelElement = button?.querySelector("span") || button;
   if (labelElement) {
@@ -830,9 +917,11 @@ function setButtonLabel(button, label) {
   }
 }
 
+
 function clampUnit(value) {
   return Math.min(1, Math.max(0, Number(value)));
 }
+
 
 function isValidAnnotationSegment(data) {
   return Boolean(
@@ -846,9 +935,11 @@ function isValidAnnotationSegment(data) {
   );
 }
 
+
 function getTeacherAnnotationContext() {
   return elements.teacherCanvas?.getContext("2d") || null;
 }
+
 
 function getTeacherCanvasCssSize() {
   const width = Math.round(elements.videoStage?.clientWidth || elements.localVideo?.clientWidth || 0);
@@ -856,12 +947,14 @@ function getTeacherCanvasCssSize() {
   return { width, height };
 }
 
+
 function drawTeacherSegment(segment) {
   const context = getTeacherAnnotationContext();
   const { width, height } = getTeacherCanvasCssSize();
   if (!context || width < 1 || height < 1) {
     return;
   }
+
 
   context.save();
   context.beginPath();
@@ -875,12 +968,14 @@ function drawTeacherSegment(segment) {
   context.restore();
 }
 
+
 function redrawTeacherBoard() {
   const context = getTeacherAnnotationContext();
   const { width, height } = getTeacherCanvasCssSize();
   if (!context || width < 1 || height < 1) {
     return;
   }
+
 
   context.clearRect(0, 0, width, height);
   if (elements.videoStage?.classList.contains("welcome-mode")) {
@@ -890,6 +985,7 @@ function redrawTeacherBoard() {
   annotationSegments.forEach(drawTeacherSegment);
 }
 
+
 function resizeTeacherCanvas() {
   const canvas = elements.teacherCanvas;
   const { width, height } = getTeacherCanvasCssSize();
@@ -897,9 +993,11 @@ function resizeTeacherCanvas() {
     return;
   }
 
+
   const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
   const backingWidth = Math.round(width * pixelRatio);
   const backingHeight = Math.round(height * pixelRatio);
+
 
   if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
     canvas.width = backingWidth;
@@ -910,8 +1008,10 @@ function resizeTeacherCanvas() {
     context?.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   }
 
+
   redrawTeacherBoard();
 }
+
 
 function getNormalizedTeacherPoint(event) {
   const rect = elements.teacherCanvas.getBoundingClientRect();
@@ -919,11 +1019,13 @@ function getNormalizedTeacherPoint(event) {
     return null;
   }
 
+
   return {
     x: clampUnit((event.clientX - rect.left) / rect.width),
     y: clampUnit((event.clientY - rect.top) / rect.height),
   };
 }
+
 
 function makeAnnotationSegment(start, end) {
   return {
@@ -936,38 +1038,46 @@ function makeAnnotationSegment(start, end) {
   };
 }
 
+
 function broadcastTeacherSegment(segment) {
   if (!classActive || !activeLevel || !socket.connected) {
     return;
   }
 
+
   socket.emit("draw_data", { level: activeLevel, ...segment });
 }
+
 
 function handleAnnotationMouseDown(event) {
   if (!classActive || isEnding || event.button !== 0) {
     return;
   }
 
+
   const point = getNormalizedTeacherPoint(event);
   if (!point) {
     return;
   }
+
 
   isDrawingAnnotation = true;
   previousAnnotationPoint = point;
   event.preventDefault();
 }
 
+
 function handleAnnotationMouseMove(event) {
   if (!isDrawingAnnotation || !previousAnnotationPoint) {
     return;
   }
 
+
   const point = getNormalizedTeacherPoint(event);
   if (!point) {
     return;
   }
+
 
   const segment = makeAnnotationSegment(previousAnnotationPoint, point);
   annotationSegments.push(segment);
@@ -977,10 +1087,12 @@ function handleAnnotationMouseMove(event) {
   event.preventDefault();
 }
 
+
 function stopAnnotationDrawing() {
   isDrawingAnnotation = false;
   previousAnnotationPoint = null;
 }
+
 
 function clearTeacherBoard({ broadcast = false } = {}) {
   annotationSegments.length = 0;
@@ -989,16 +1101,19 @@ function clearTeacherBoard({ broadcast = false } = {}) {
   context?.clearRect(0, 0, width, height);
   stopAnnotationDrawing();
 
+
   if (broadcast && classActive && activeLevel && socket.connected) {
     socket.emit("clear_board", { level: activeLevel });
   }
 }
+
 
 function initializeTeacherCanvas() {
   const canvas = elements.teacherCanvas;
   if (!canvas) {
     return;
   }
+
 
   canvas.addEventListener("mousedown", handleAnnotationMouseDown);
   canvas.addEventListener("mousemove", handleAnnotationMouseMove);
@@ -1013,13 +1128,16 @@ function initializeTeacherCanvas() {
   resizeTeacherCanvas();
 }
 
+
 function getAllAudioTracks() {
   return cameraStream?.getAudioTracks?.() || [];
 }
 
+
 function isLocalRecording() {
   return Boolean(localMediaRecorder && localMediaRecorder.state === "recording");
 }
+
 
 function canRecordLocalClass() {
   return Boolean(
@@ -1029,10 +1147,12 @@ function canRecordLocalClass() {
   );
 }
 
+
 function getLocalRecordingMimeType() {
   if (typeof window.MediaRecorder !== "function" || typeof MediaRecorder.isTypeSupported !== "function") {
     return "";
   }
+
 
   return [
     "video/webm;codecs=vp9,opus",
@@ -1041,10 +1161,12 @@ function getLocalRecordingMimeType() {
   ].find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || "";
 }
 
+
 function getLocalRecordingFileName() {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   return `recording-${stamp}.webm`;
 }
+
 
 function disposeLocalRecordingResources() {
   if (localRecordingAnimationFrame) {
@@ -1062,10 +1184,12 @@ function disposeLocalRecordingResources() {
   }
   localRecordingIs1080p = false;
 
+
   if (localRecordingSourceSyncTimer) {
     window.clearInterval(localRecordingSourceSyncTimer);
     localRecordingSourceSyncTimer = null;
   }
+
 
   localRecordingSourceNodes.forEach(({ node }) => {
     try {
@@ -1073,6 +1197,7 @@ function disposeLocalRecordingResources() {
     } catch {}
   });
   localRecordingSourceNodes.clear();
+
 
   if (localRecordingMixedAudioTrack) {
     localRecordingMixedAudioTrack.stop();
@@ -1087,16 +1212,19 @@ function disposeLocalRecordingResources() {
   }
 }
 
+
 function syncLocalRecordingAudioSources() {
   if (!localRecordingAudioContext || !localRecordingAudioDestination) {
     return;
   }
+
 
   const activeSources = new Map(
     Array.from(classroomAudioSources.entries())
       .filter(([, source]) => source?.enabled !== false)
       .map(([sourceKey, source]) => [sourceKey, source?.stream])
   );
+
 
   const fallbackSources = new Map([
     ["__teacher_microphone__", cameraStream],
@@ -1108,11 +1236,13 @@ function syncLocalRecordingAudioSources() {
     }
   });
 
+
   Array.from(activeSources.entries()).forEach(([sourceKey, stream]) => {
     if (!stream?.getAudioTracks?.().some((track) => track.readyState === "live")) {
       activeSources.delete(sourceKey);
     }
   });
+
 
   localRecordingSourceNodes.forEach(({ stream, node }, sourceKey) => {
     const currentStream = activeSources.get(sourceKey);
@@ -1120,16 +1250,19 @@ function syncLocalRecordingAudioSources() {
       return;
     }
 
+
     try {
       node.disconnect();
     } catch {}
     localRecordingSourceNodes.delete(sourceKey);
   });
 
+
   activeSources.forEach((stream, sourceKey) => {
     if (localRecordingSourceNodes.has(sourceKey)) {
       return;
     }
+
 
     try {
       const node = localRecordingAudioContext.createMediaStreamSource(stream);
@@ -1141,6 +1274,7 @@ function syncLocalRecordingAudioSources() {
   });
 }
 
+
 function build1080pRecordingVideoTrack(sourceTrack) {
   const CanvasConstructor = window.HTMLCanvasElement;
   const VideoConstructor = window.HTMLVideoElement;
@@ -1148,11 +1282,13 @@ function build1080pRecordingVideoTrack(sourceTrack) {
     return sourceTrack;
   }
 
+
   const canvas = document.createElement("canvas");
   canvas.width = LOCAL_RECORDING_WIDTH;
   canvas.height = LOCAL_RECORDING_HEIGHT;
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) return sourceTrack;
+
 
   const video = document.createElement("video");
   video.muted = true;
@@ -1160,6 +1296,7 @@ function build1080pRecordingVideoTrack(sourceTrack) {
   video.playsInline = true;
   video.srcObject = new MediaStream([sourceTrack]);
   void video.play().catch(() => {});
+
 
   localRecordingCanvas = canvas;
   localRecordingCanvasContext = context;
@@ -1182,6 +1319,7 @@ function build1080pRecordingVideoTrack(sourceTrack) {
   };
   drawFrame();
 
+
   const capturedStream = canvas.captureStream(LOCAL_RECORDING_FRAME_RATE);
   const capturedTrack = capturedStream.getVideoTracks()[0];
   if (!capturedTrack) {
@@ -1193,23 +1331,28 @@ function build1080pRecordingVideoTrack(sourceTrack) {
   return capturedTrack;
 }
 
+
 function buildLocalRecordingStream() {
   const sourceVideoTrack = screenStream?.getVideoTracks?.().find((track) => track.readyState === "live");
   if (!sourceVideoTrack) {
     throw new Error("لا توجد شاشة نشطة لتسجيل الحصة.");
   }
 
+
   const videoTrack = build1080pRecordingVideoTrack(sourceVideoTrack);
   const recordingStream = new MediaStream([videoTrack]);
+
 
   const recordingSourceStreams = Array.from(classroomAudioSources.values())
     .filter((source) => source?.enabled !== false)
     .map((source) => source?.stream)
     .filter((stream) => stream?.getAudioTracks?.().some((track) => track.readyState === "live"));
 
+
   const fallbackSourceStreams = [screenStream, cameraStream]
     .filter(Boolean)
     .filter((stream) => stream.getAudioTracks().some((track) => track.readyState === "live"));
+
 
   const uniqueAudioStreams = Array.from(new Set(
     (recordingSourceStreams.length ? recordingSourceStreams : fallbackSourceStreams)
@@ -1218,15 +1361,18 @@ function buildLocalRecordingStream() {
     .flatMap((stream) => stream.getAudioTracks())
     .filter((track) => track.readyState === "live");
 
+
   if (!liveAudioTracks.length) {
     return recordingStream;
   }
+
 
   const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextConstructor) {
     recordingStream.addTrack(liveAudioTracks[0]);
     return recordingStream;
   }
+
 
   const audioContext = new AudioContextConstructor();
   const destination = audioContext.createMediaStreamDestination();
@@ -1235,7 +1381,9 @@ function buildLocalRecordingStream() {
   localRecordingSourceNodes = new Map();
   syncLocalRecordingAudioSources();
 
+
   localRecordingSourceSyncTimer = window.setInterval(syncLocalRecordingAudioSources, 500);
+
 
   if (audioContext.state === "suspended") {
     audioContext.resume().catch(() => {});
@@ -1245,26 +1393,32 @@ function buildLocalRecordingStream() {
     recordingStream.addTrack(localRecordingMixedAudioTrack);
   }
 
+
   return recordingStream;
 }
+
 
 function createLocalRecordingArtifact(chunks, mimeType) {
   if (!chunks.length) {
     return null;
   }
 
+
   const blob = new Blob(chunks, { type: mimeType || "video/webm" });
   if (blob.size === 0) {
     return null;
   }
 
+
   return { ...getLocalRecordingMetadata(), blob };
 }
+
 
 function downloadLocalRecording(recording) {
   if (!recording?.blob || !recording.fileName) {
     return false;
   }
+
 
   const fileUrl = URL.createObjectURL(recording.blob);
   const link = document.createElement("a");
@@ -1277,6 +1431,7 @@ function downloadLocalRecording(recording) {
   window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60_000);
   return true;
 }
+
 
 function getLocalRecordingMetadata() {
   const safeLabel = (value, fallback) => String(value || fallback)
@@ -1301,6 +1456,7 @@ function getLocalRecordingMetadata() {
   };
 }
 
+
 function updateDriveUploadUi({ visible = false, text = "", progress = 0 } = {}) {
   if (!elements.driveUploadState) return;
   elements.driveUploadState.hidden = !visible;
@@ -1308,12 +1464,14 @@ function updateDriveUploadUi({ visible = false, text = "", progress = 0 } = {}) 
   elements.driveUploadProgress.value = Math.max(0, Math.min(100, Number(progress) || 0));
 }
 
+
 function updateYoutubeUploadUi({ visible = false, text = "", progress = 0 } = {}) {
   if (!elements.youtubeUploadState) return;
   elements.youtubeUploadState.hidden = !visible;
   elements.youtubeUploadText.textContent = text;
   elements.youtubeUploadProgress.value = Math.max(0, Math.min(100, Number(progress) || 0));
 }
+
 
 function uploadFormDataWithProgress(url, formData, { token, onProgress } = {}) {
   return new Promise((resolve, reject) => {
@@ -1338,124 +1496,122 @@ function uploadFormDataWithProgress(url, formData, { token, onProgress } = {}) {
   });
 }
 
+
 async function uploadRecordingToYouTube(recording) {
-  if (!recording?.blob || youtubeUploadInProgress) return null;
-  
-  if (recording.blob.size === 0) {
-    console.error("YouTube Upload Error: Recording blob is empty.");
-    updateYoutubeUploadUi({ visible: true, text: "تعذر رفع التسجيل: ملف الفيديو فارغ. يرجى إعادة المحاولة.", progress: 0 });
-    return null;
-  }
-
+  if (!recording || !recording.blob) return;
   const token = sessionStorage.getItem("teacherToken");
-  if (!token) {
-    updateYoutubeUploadUi({ visible: true, text: "تعذر رفع التسجيل: انتهت جلسة الأستاذ. احفظه يدوياً في Google Drive.", progress: 0 });
-    return null;
+  if (!token) return;
+
+  const roomState = typeof getRoomState === "function" ? getRoomState() : {};
+  const level = roomState?.level || "";
+  const subject = roomState?.subject || "";
+  const scheduledClassId = roomState?.scheduledClassId || "";
+  const title = `حصة ${subject || "مباشرة"} - ${level || "الأكاديمية"} - ${new Date().toLocaleDateString("ar-DZ")}`;
+  const description = `تسجيل من أكاديمية التفوق للفيزياء والرياضيات\nالمستوى: ${level}\nالمادة: ${subject}`;
+  const fileSize = recording.blob.size;
+  const mimeType = recording.blob.type || "video/webm";
+
+  updateYoutubeUploadUi({ visible: true, text: "جاري تجهيز رابط الرفع المباشر إلى Google...", progress: 1 });
+
+  try {
+    // 1. فتح جلسة رفع مباشر مع خوادم Google YouTube (Resumable Upload)
+    const initRes = await fetch("/api/youtube/resumable-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ title, description, mimeType, fileSize, level, subject, scheduledClassId }),
+    });
+
+    if (initRes.ok) {
+      const { uploadUrl } = await initRes.json();
+      if (uploadUrl) {
+        // 2. رفع الفيديو مباشرة إلى Google مع النسبة المئوية
+        const videoId = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("PUT", uploadUrl, true);
+          xhr.setRequestHeader("Content-Type", mimeType);
+
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const percent = Math.round((event.loaded / event.total) * 100);
+              updateYoutubeUploadUi({
+                visible: true,
+                text: `جاري الرفع المباشر إلى YouTube... (${percent}%)`,
+                progress: percent,
+              });
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const data = JSON.parse(xhr.responseText);
+                resolve(data.id);
+              } catch (_) {
+                resolve(null);
+              }
+            } else {
+              reject(new Error(`فشل رفع الفيديو لليوتيوب (كود: ${xhr.status})`));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error("انقطع الاتصال أثناء الرفع المباشر إلى YouTube."));
+          xhr.send(recording.blob);
+        });
+
+        if (videoId) {
+          updateYoutubeUploadUi({ visible: true, text: "تم الرفع بنجاح! جاري حفظ الحصة في السجل...", progress: 100 });
+          const finishRes = await fetch("/api/youtube/resumable-finish", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ videoId, level, subject, scheduledClassId, title, recordedAt: new Date().toISOString() }),
+          });
+          const finishPayload = await finishRes.json();
+          setTimeout(() => updateYoutubeUploadUi({ visible: false }), 4000);
+          return finishPayload;
+        }
+      }
+    }
+  } catch (directUploadErr) {
+    console.warn("Direct resumable upload failed, falling back to server upload:", directUploadErr);
   }
 
-  youtubeUploadInProgress = true;
-  updateYoutubeUploadUi({ visible: true, text: "جارٍ رفع تسجيل الحصة إلى YouTube…", progress: 8 });
-  updateControls();
+  // في حال تعذر الرفع المباشر، اللجوء للرفع عبر السيرفر
   try {
-    const videoBlob = recording.blob.type.startsWith("video/") 
-      ? recording.blob 
-      : new Blob([recording.blob], { type: "video/webm" });
-      
     const formData = new FormData();
-    formData.append("video", videoBlob, recording.fileName || "recording.webm");
-    formData.append("level", recording.registryLevel || recording.level || "");
-    formData.append("subject", recording.registrySubject || "");
-    formData.append("recordedAt", recording.recordedAt || new Date().toISOString());
-    if (recording.scheduledClassId) formData.append("scheduledClassId", recording.scheduledClassId);
-    if (recording.youtubeVideoId) formData.append("youtubeVideoId", recording.youtubeVideoId);
-    formData.append("title", `حصة ${recording.classType || "مباشرة"} — ${recording.registryLevel || recording.level || "الأكاديمية"}`.slice(0, 100));
-    formData.append("description", `تسجيل تلقائي من أكاديمية التفوق للفيزياء والرياضيات\nالمستوى: ${recording.registryLevel || recording.level}\nنوع الحصة: ${recording.classType || recording.registrySubject}`);
+    formData.append("video", recording.blob, recording.fileName || "class-recording.webm");
+    formData.append("title", title);
+    formData.append("description", description);
+    formData.append("level", level);
+    formData.append("subject", subject);
+    if (scheduledClassId) formData.append("scheduledClassId", scheduledClassId);
 
     const payload = await uploadFormDataWithProgress("/api/youtube/upload", formData, {
       token,
       onProgress: (progress) => updateYoutubeUploadUi({
         visible: true,
-        text: `جاري معالجة ورفع تسجيل الحصة إلى اليوتيوب... (${progress}%)`,
+        text: `جاري رفع تسجيل الحصة إلى اليوتيوب... (${progress}%)`,
         progress,
       }),
     });
 
-    const registryMessage = payload.data?.registryClass
-      ? " وتم ربطه تلقائياً بسجل الحصة الرسمية وإتاحته حسب الصلاحيات."
-      : " هذا تسجيل تجريبي محفوظ على YouTube فقط ولم يُدرج في السجل الرسمي.";
-    updateYoutubeUploadUi({ visible: true, text: `تم حفظ ورفع التسجيل بنجاح!${registryMessage}`, progress: 100 });
-    setStudioStatus(
-      payload.data?.registryClass
-        ? "✅ تم رفع الحصة الرسمية وربطها بالسجل تلقائياً."
-        : "✅ تم حفظ التسجيل التجريبي على YouTube فقط.",
-      "live"
-    );
-    window.dispatchEvent(new CustomEvent("class-registry-refresh"));
-    return payload.data || null;
+    updateYoutubeUploadUi({ visible: true, text: "تم رفع الحصة إلى YouTube بنجاح!", progress: 100 });
+    setTimeout(() => updateYoutubeUploadUi({ visible: false }), 4000);
+    return payload;
   } catch (error) {
-    console.error("Unable to upload the class recording to YouTube:", error);
-    updateYoutubeUploadUi({ visible: true, text: error.message || "تعذر رفع التسجيل إلى YouTube. يمكنك حفظه يدوياً في Google Drive.", progress: 0 });
-    if (classActive && !isEnding) setStudioStatus(error.message || "تعذر رفع التسجيل إلى YouTube.", "error");
-    return null;
-  } finally {
-    youtubeUploadInProgress = false;
-    updateControls();
+    console.error("Unable to upload recording to YouTube:", error);
+    updateYoutubeUploadUi({
+      visible: true,
+      text: `فشل الرفع: ${error.message} (الملف محفوظ في جهازك)`,
+      progress: 0,
+    });
+    setTimeout(() => updateYoutubeUploadUi({ visible: false }), 8000);
   }
-}
-
-function isGoogleDriveTokenUsable() {
-  return Boolean(googleDriveAccessToken && Date.now() < googleDriveTokenExpiresAt - 60_000);
-}
-
-function ensureGoogleIdentityServices() {
-  if (window.google?.accounts?.oauth2) {
-    return Promise.resolve();
-  }
-
-  if (googleIdentityLoadPromise) {
-    return googleIdentityLoadPromise;
-  }
-
-  googleIdentityLoadPromise = new Promise((resolve, reject) => {
-    const scriptId = "google-identity-services";
-    let script = document.getElementById(scriptId);
-    if (!script) {
-      script = document.createElement("script");
-      script.id = scriptId;
-      script.src = "https://accounts.google.com/gsi/client";
-      script.defer = true;
-      document.head.append(script);
-    }
-
-    let settled = false;
-    const finish = (callback, value) => {
-      if (settled) return;
-      settled = true;
-      window.clearInterval(checkTimer);
-      window.clearTimeout(timeoutTimer);
-      callback(value);
-    };
-    const ready = () => {
-      if (window.google?.accounts?.oauth2) {
-        finish(resolve);
-      }
-    };
-    const checkTimer = window.setInterval(ready, 100);
-    const timeoutTimer = window.setTimeout(() => {
-      finish(reject, new Error("تعذر تحميل خدمة Google. تحقق من اتصال الإنترنت أو من أن Chrome لا يمنع accounts.google.com."));
-    }, 10_000);
-    script.addEventListener("load", ready, { once: true });
-    script.addEventListener("error", () => {
-      finish(reject, new Error("تعذر تحميل خدمة Google. تحقق من اتصال الإنترنت أو من أن Chrome لا يمنع accounts.google.com."));
-    }, { once: true });
-    ready();
-  }).finally(() => {
-    if (!window.google?.accounts?.oauth2) {
-      googleIdentityLoadPromise = null;
-    }
-  });
-
-  return googleIdentityLoadPromise;
 }
 
 async function requestGoogleDriveAccessToken() {
@@ -1463,7 +1619,9 @@ async function requestGoogleDriveAccessToken() {
     return googleDriveAccessToken;
   }
 
+
   await ensureGoogleIdentityServices();
+
 
   return new Promise((resolve, reject) => {
     const tokenClient = google.accounts.oauth2.initTokenClient({
@@ -1487,6 +1645,7 @@ async function requestGoogleDriveAccessToken() {
   });
 }
 
+
 async function googleDriveRequest(url, options, accessToken) {
   const response = await fetch(url, {
     ...options,
@@ -1496,17 +1655,21 @@ async function googleDriveRequest(url, options, accessToken) {
     },
   });
 
+
   if (!response.ok) {
     const details = await response.json().catch(() => null);
     throw new Error(details?.error?.message || `تعذر الاتصال بـ Google Drive (${response.status}).`);
   }
 
+
   return response;
 }
+
 
 function escapeDriveQueryValue(value) {
   return String(value || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
+
 
 async function ensureGoogleDriveFolder(name, parentId, accessToken) {
   const conditions = [
@@ -1529,6 +1692,7 @@ async function ensureGoogleDriveFolder(name, parentId, accessToken) {
     return existing.files[0].id;
   }
 
+
   const metadata = {
     name,
     mimeType: "application/vnd.google-apps.folder",
@@ -1549,6 +1713,7 @@ async function ensureGoogleDriveFolder(name, parentId, accessToken) {
   }
   return created.id;
 }
+
 
 async function createGoogleDriveUploadSession(recording, accessToken) {
   const metadata = {
@@ -1576,12 +1741,14 @@ async function createGoogleDriveUploadSession(recording, accessToken) {
   return sessionUrl;
 }
 
+
 async function uploadRecordingToGoogleDrive(recording, accessToken) {
   const rootFolderId = await ensureGoogleDriveFolder(GOOGLE_DRIVE_ROOT_FOLDER, null, accessToken);
   const levelFolderId = await ensureGoogleDriveFolder(recording.level, rootFolderId, accessToken);
   recording.folderId = await ensureGoogleDriveFolder(recording.classType, levelFolderId, accessToken);
   const sessionUrl = await createGoogleDriveUploadSession(recording, accessToken);
   let offset = 0;
+
 
   while (offset < recording.blob.size) {
     const end = Math.min(offset + GOOGLE_DRIVE_UPLOAD_CHUNK_SIZE, recording.blob.size);
@@ -1595,6 +1762,7 @@ async function uploadRecordingToGoogleDrive(recording, accessToken) {
       body: chunk,
     });
 
+
     if (response.status === 308) {
       offset = end;
       updateDriveUploadUi({
@@ -1605,25 +1773,31 @@ async function uploadRecordingToGoogleDrive(recording, accessToken) {
       continue;
     }
 
+
     if (!response.ok) {
       const details = await response.json().catch(() => null);
       throw new Error(details?.error?.message || `تعذر رفع جزء من التسجيل (${response.status}).`);
     }
 
+
     return response.json();
   }
 
+
   throw new Error("لم يكتمل رفع التسجيل إلى Google Drive.");
 }
+
 
 async function saveLastRecordingToGoogleDrive() {
   if (!lastLocalRecording || googleDriveUploadInProgress) {
     return;
   }
 
+
   googleDriveUploadInProgress = true;
   elements.saveDriveButton.disabled = true;
   updateDriveUploadUi({ visible: true, text: "جارٍ فتح موافقة Google Drive…", progress: 0 });
+
 
   try {
     const accessToken = await requestGoogleDriveAccessToken();
@@ -1645,6 +1819,7 @@ async function saveLastRecordingToGoogleDrive() {
   }
 }
 
+
 async function stopRecordingAndSaveToGoogleDrive() {
   const permissionPromise = requestGoogleDriveAccessToken();
   const saved = await stopLocalRecording({ download: false });
@@ -1652,6 +1827,7 @@ async function stopRecordingAndSaveToGoogleDrive() {
     await permissionPromise.catch(() => {});
     return;
   }
+
 
   try {
     const accessToken = await permissionPromise;
@@ -1675,6 +1851,7 @@ async function stopRecordingAndSaveToGoogleDrive() {
   }
 }
 
+
 function showRecordingReadyModal() {
   if (!elements.recordingReadyModal || !lastLocalRecording) return;
   elements.recordingReadyModal.hidden = false;
@@ -1682,17 +1859,20 @@ function showRecordingReadyModal() {
   elements.uploadYoutubeAfterEndButton?.focus();
 }
 
+
 function closeRecordingReadyModal() {
   if (!elements.recordingReadyModal) return;
   elements.recordingReadyModal.hidden = true;
   elements.recordingReadyModal.classList.remove("is-open");
 }
 
+
 function finalizeLocalRecording() {
   if (localRecordingFinalized) {
     return;
   }
   localRecordingFinalized = true;
+
 
   const chunks = localRecordingChunks;
   const mimeType = localRecordingMimeType;
@@ -1713,6 +1893,7 @@ function finalizeLocalRecording() {
   }
   disposeLocalRecordingResources();
 
+
   const downloaded = shouldDownload && downloadLocalRecording(recording);
   if (downloaded && classActive && !isEnding && !isPageNavigatingAway) {
     setStudioStatus("تم حفظ تسجيل الحصة محليًا على جهازك.", "live");
@@ -1726,10 +1907,12 @@ function finalizeLocalRecording() {
   }
 }
 
+
 function startLocalRecording() {
   if (!canRecordLocalClass() || isLocalRecording()) {
     return;
   }
+
 
   try {
     localRecordingStream = buildLocalRecordingStream();
@@ -1776,11 +1959,13 @@ function startLocalRecording() {
   }
 }
 
+
 function stopLocalRecording({ download = true } = {}) {
   const recorder = localMediaRecorder;
   if (!recorder) {
     return Promise.resolve(false);
   }
+
 
   localRecordingDownloadRequested = download;
   elements.recordLocalButton.disabled = true;
@@ -1811,6 +1996,7 @@ function stopLocalRecording({ download = true } = {}) {
   });
 }
 
+
 function toggleLocalRecording() {
   if (isLocalRecording()) {
     void stopLocalRecording({ download: false });
@@ -1818,6 +2004,7 @@ function toggleLocalRecording() {
     startLocalRecording();
   }
 }
+
 
 function handleGoogleDriveButton() {
   const existingFileUrl = elements.saveDriveButton.dataset.driveFileUrl;
@@ -1827,6 +2014,7 @@ function handleGoogleDriveButton() {
   }
   void saveLastRecordingToGoogleDrive();
 }
+
 
 function updateControls() {
   const hasAudio = getAllAudioTracks().length > 0;
@@ -1840,6 +2028,7 @@ function updateControls() {
         : "استوديو البث المباشر";
     elements.studioTopbarTitle.classList.toggle("is-live", Boolean(classActive));
   }
+
 
   if (elements.startButton) elements.startButton.disabled = isStarting || isEnding || classActive;
   if (elements.levelSelect) elements.levelSelect.disabled = isStarting || isEnding || classActive;
@@ -1856,6 +2045,7 @@ function updateControls() {
   if (elements.chatInput) elements.chatInput.disabled = !classActive || isEnding;
   if (elements.chatSendButton) elements.chatSendButton.disabled = !classActive || isEnding || (!normalizeChatMessage(elements.chatInput.value) && !pendingTeacherChatImageData);
 
+
   const hasSavedClassToResume = Boolean(pendingPageRecovery && !classActive && !isStarting);
   if (elements.startButton) {
     elements.startButton.classList.toggle("is-live", classActive);
@@ -1870,11 +2060,13 @@ function updateControls() {
     );
   }
 
+
   const audioIsEnabled = hasAudio && getAllAudioTracks().some((track) => track.enabled);
   if (elements.toggleMicButton) {
     setButtonLabel(elements.toggleMicButton, audioIsEnabled ? "إيقاف المايك" : "تشغيل المايك");
   }
 }
+
 
 function updateAttendeeCount() {
   const count = attendeeElements.size;
@@ -1886,6 +2078,7 @@ function updateAttendeeCount() {
   if (elements.attendeesEmpty) elements.attendeesEmpty.hidden = count > 0;
   filterAttendees();
 }
+
 
 function setSidebarTab(tabName) {
   if (!elements.sidebarTabs.length) return;
@@ -1901,6 +2094,7 @@ function setSidebarTab(tabName) {
   });
 }
 
+
 function setSidebarCollapsed(sidebarName, collapsed) {
   const className = sidebarName === "attendance" ? "attendance-collapsed" : "chat-collapsed";
   const button = sidebarName === "attendance" ? elements.attendanceSidebarToggle : elements.chatSidebarToggle;
@@ -1910,6 +2104,7 @@ function setSidebarCollapsed(sidebarName, collapsed) {
   window.requestAnimationFrame(() => resizeTeacherCanvas());
 }
 
+
 function filterAttendees() {
   const query = String(elements.attendeeSearch?.value || "").trim().toLocaleLowerCase("ar");
   attendeeElements.forEach((item) => {
@@ -1918,9 +2113,11 @@ function filterAttendees() {
   });
 }
 
+
 function reorderOpenMicrophoneAttendees() {
   const list = elements.attendeesList;
   if (!list) return;
+
 
   const items = Array.from(list.children);
   items.sort((first, second) => {
@@ -1931,12 +2128,14 @@ function reorderOpenMicrophoneAttendees() {
   items.forEach((item) => list.append(item));
 }
 
+
 function formatStudioDuration(totalSeconds) {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
 }
+
 
 function refreshStudioDuration() {
   if (!elements.studioDuration) return;
@@ -1952,7 +2151,9 @@ function refreshStudioDuration() {
   elements.studioDuration.textContent = formatStudioDuration(elapsed);
 }
 
+
 window.setInterval(refreshStudioDuration, 1000);
+
 
 function displayInitials(name) {
   const words = String(name || "تلميذ")
@@ -1960,11 +2161,13 @@ function displayInitials(name) {
     .split(/\s+/)
     .filter(Boolean);
 
+
   return words
     .slice(0, 2)
     .map((word) => word.charAt(0))
     .join("") || "ت";
 }
+
 
 function refreshChatStudentSocketTarget(studentId, socketId) {
   const normalizedStudentId = String(studentId || "").trim();
@@ -1976,6 +2179,7 @@ function refreshChatStudentSocketTarget(studentId, socketId) {
   });
 }
 
+
 function upsertAttendee(socketId, studentId, studentName = "تلميذ", participationCount = 0) {
   const stableStudentId = String(studentId || "").trim();
   const previousSocketId = stableStudentId ? attendeeSocketByStudentId.get(stableStudentId) : null;
@@ -1983,7 +2187,9 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
     removeStudentConnection(previousSocketId);
   }
 
+
   let item = attendeeElements.get(socketId);
+
 
   if (item) {
     if (stableStudentId) {
@@ -1998,32 +2204,40 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
     return item;
   }
 
+
   item = document.createElement("li");
   item.className = "attendee-item";
   item.dataset.socketId = socketId;
   if (stableStudentId) item.dataset.studentId = stableStudentId;
+
 
   const avatar = document.createElement("span");
   avatar.className = "attendee-avatar";
   avatar.setAttribute("aria-hidden", "true");
   avatar.textContent = displayInitials(studentName);
 
+
   const details = document.createElement("div");
   details.className = "attendee-details";
+
 
   const name = document.createElement("strong");
   name.className = "attendee-name";
   name.textContent = studentName;
 
+
   const state = document.createElement("span");
   state.className = "attendee-state";
+
 
   const stateDot = document.createElement("span");
   stateDot.className = "attendee-state-dot";
   stateDot.setAttribute("aria-hidden", "true");
 
+
   const stateLabel = document.createElement("span");
   stateLabel.textContent = "متصل الآن";
+
 
   state.append(stateDot, stateLabel);
   const qos = document.createElement("small");
@@ -2035,6 +2249,7 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
   details.append(name, state, qos, participation);
   item.append(avatar, details);
 
+
   elements.attendeesList.append(item);
   attendeeElements.set(socketId, item);
   if (stableStudentId) {
@@ -2043,8 +2258,10 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
   }
   updateAttendeeCount();
 
+
   return item;
 }
+
 
 function removeAttendee(socketId) {
   const item = attendeeElements.get(socketId);
@@ -2059,10 +2276,12 @@ function removeAttendee(socketId) {
   }
 }
 
+
 function removeAttendeeByStudentId(studentId) {
   const socketId = attendeeSocketByStudentId.get(String(studentId || "").trim());
   if (socketId) removeAttendee(socketId);
 }
+
 
 function clearAttendees() {
   attendeeElements.forEach((item) => item.remove());
@@ -2071,11 +2290,13 @@ function clearAttendees() {
   updateAttendeeCount();
 }
 
+
 function removeStudentAudio(socketId) {
   const audio = studentAudioElements.get(socketId);
   if (!audio) {
     return;
   }
+
 
   audio.pause();
   audio.srcObject = null;
@@ -2083,9 +2304,11 @@ function removeStudentAudio(socketId) {
   studentAudioElements.delete(socketId);
 }
 
+
 function getClassroomAudioContextConstructor() {
   return window.AudioContext || window.webkitAudioContext || null;
 }
+
 
 function rebuildClassroomAudioGraph() {
   classroomAudioSources.forEach(({ node }) => {
@@ -2094,15 +2317,18 @@ function rebuildClassroomAudioGraph() {
     } catch {}
   });
 
+
   classroomAudioDestinations.forEach((destination, destinationSocketId) => {
     const teacherSource = classroomAudioSources.get("__teacher_microphone__");
     const screenSource = classroomAudioSources.get("__screen_audio__");
+
 
     [teacherSource, screenSource].forEach((source) => {
       if (source?.enabled) {
         source.node.connect(destination);
       }
     });
+
 
     classroomAudioSources.forEach((source, sourceKey) => {
       if (
@@ -2117,11 +2343,13 @@ function rebuildClassroomAudioGraph() {
   });
 }
 
+
 function removeClassroomAudioSource(sourceKey) {
   const source = classroomAudioSources.get(sourceKey);
   if (!source) {
     return;
   }
+
 
   try {
     source.node.disconnect();
@@ -2130,20 +2358,24 @@ function removeClassroomAudioSource(sourceKey) {
   rebuildClassroomAudioGraph();
 }
 
+
 function ensureStudentAudioDestination(studentSocketId) {
   if (!classroomAudioContext || !studentSocketId) {
     return null;
   }
+
 
   const existing = classroomAudioDestinations.get(studentSocketId);
   if (existing?.stream?.getAudioTracks?.().some((track) => track.readyState === "live")) {
     return existing;
   }
 
+
   if (existing) {
     existing.stream.getTracks().forEach((track) => track.stop());
     classroomAudioDestinations.delete(studentSocketId);
   }
+
 
   try {
     const destination = classroomAudioContext.createMediaStreamDestination();
@@ -2161,11 +2393,13 @@ function ensureStudentAudioDestination(studentSocketId) {
   }
 }
 
+
 function removeStudentAudioDestination(studentSocketId) {
   const destination = classroomAudioDestinations.get(studentSocketId);
   if (!destination) {
     return;
   }
+
 
   try {
     destination.disconnect();
@@ -2175,6 +2409,7 @@ function removeStudentAudioDestination(studentSocketId) {
   rebuildClassroomAudioGraph();
 }
 
+
 function getStudentAudioTrack(studentSocketId) {
   return classroomAudioDestinations
     .get(studentSocketId)
@@ -2183,9 +2418,11 @@ function getStudentAudioTrack(studentSocketId) {
     .find((track) => track.readyState === "live") || null;
 }
 
+
 function getStudentAudioSender(peerConnection) {
   return peerConnection?.getSenders?.().find((sender) => sender.__classroomMixMinusAudio === true) || null;
 }
+
 
 function ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate = true } = {}) {
   const destination = ensureStudentAudioDestination(studentSocketId);
@@ -2193,6 +2430,7 @@ function ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate
   if (!peerConnection || !destination || !audioTrack || peerConnection.signalingState === "closed") {
     return null;
   }
+
 
   const existingSender = getStudentAudioSender(peerConnection);
   if (existingSender) {
@@ -2204,6 +2442,7 @@ function ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate
     return existingSender;
   }
 
+
   const sender = peerConnection.addTrack(audioTrack, destination.stream);
   sender.__classroomMixMinusAudio = true;
   sender.__classroomAudioDestinationSocketId = studentSocketId;
@@ -2214,24 +2453,29 @@ function ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate
   return sender;
 }
 
+
 function syncMixMinusAudioToAllPeers() {
   Object.entries(peerConnections).forEach(([studentSocketId, peerConnection]) => {
     ensureStudentAudioSender(peerConnection, studentSocketId);
   });
 }
 
+
 function applyStudentMicrophoneState(studentSocketId, enabled) {
   if (!studentSocketId) {
     return;
   }
 
+
   studentMicStates.set(studentSocketId, Boolean(enabled));
+
 
   if (enabled) {
     approvedStudentMicrophones.add(studentSocketId);
   } else {
     approvedStudentMicrophones.delete(studentSocketId);
   }
+
 
   const attendee = attendeeElements.get(studentSocketId);
   if (attendee) {
@@ -2242,6 +2486,7 @@ function applyStudentMicrophoneState(studentSocketId, enabled) {
     reorderOpenMicrophoneAttendees();
   }
 
+
   const source = classroomAudioSources.get(studentSocketId);
   if (source) {
     source.enabled = Boolean(enabled);
@@ -2249,13 +2494,16 @@ function applyStudentMicrophoneState(studentSocketId, enabled) {
   rebuildClassroomAudioGraph();
 }
 
+
 function getLiveScreenAudioTrack() {
   return screenStream?.getAudioTracks?.().find((track) => track.readyState === "live") || null;
 }
 
+
 function getActiveTeacherVideoTrack() {
   return screenStream?.getVideoTracks?.().find((track) => track.readyState === "live") || null;
 }
+
 
 const LEVEL_WELCOME_IMAGES = {
   "السنة الأولى": "/assets/level-welcome/year-1.webp",
@@ -2264,12 +2512,14 @@ const LEVEL_WELCOME_IMAGES = {
   "السنة الرابعة": "/assets/level-welcome/year-4.jpg",
 };
 
+
 function setTeacherWelcomeImage(levelName) {
   const imageUrl = LEVEL_WELCOME_IMAGES[levelName];
   if (!elements.teacherWelcomeImage || !imageUrl) return;
   elements.teacherWelcomeImage.src = imageUrl;
   elements.teacherWelcomeImage.alt = `صورة انتظار ${levelName} متوسط`;
 }
+
 
 async function syncTeacherVideoTrackToAllPeers() {
   const track = getActiveTeacherVideoTrack();
@@ -2296,12 +2546,15 @@ async function syncTeacherVideoTrackToAllPeers() {
   };
 }
 
+
 function addClassroomAudioSource(sourceKey, stream, { enabled = true } = {}) {
   if (!classroomAudioContext || !stream?.getAudioTracks?.().length) {
     return false;
   }
 
+
   removeClassroomAudioSource(sourceKey);
+
 
   try {
     const node = classroomAudioContext.createMediaStreamSource(stream);
@@ -2314,6 +2567,7 @@ function addClassroomAudioSource(sourceKey, stream, { enabled = true } = {}) {
   }
 }
 
+
 function clearClassroomAudioGraph() {
   classroomAudioSources.forEach(({ node }) => {
     try {
@@ -2321,6 +2575,7 @@ function clearClassroomAudioGraph() {
     } catch {}
   });
   classroomAudioSources.clear();
+
 
   classroomAudioDestinations.forEach((destination) => {
     try {
@@ -2331,11 +2586,13 @@ function clearClassroomAudioGraph() {
   classroomAudioDestinations.clear();
 }
 
+
 function primeClassroomAudioContext() {
   const AudioContextConstructor = getClassroomAudioContextConstructor();
   if (!AudioContextConstructor || (classroomAudioContext && classroomAudioContext.state !== "closed")) {
     return;
   }
+
 
   try {
     classroomAudioContext = new AudioContextConstructor();
@@ -2348,19 +2605,23 @@ function primeClassroomAudioContext() {
   }
 }
 
+
 async function initializeClassroomAudioMix() {
   clearClassroomAudioGraph();
   primeClassroomAudioContext();
+
 
   if (!classroomAudioContext) {
     console.warn("Web Audio API is unavailable; classroom mix-minus cannot start.");
     return false;
   }
 
+
   try {
     if (classroomAudioContext.state === "suspended") {
       await classroomAudioContext.resume();
     }
+
 
     addClassroomAudioSource("__teacher_microphone__", cameraStream, { enabled: true });
     addClassroomAudioSource("__screen_audio__", screenStream, { enabled: true });
@@ -2372,8 +2633,10 @@ async function initializeClassroomAudioMix() {
   }
 }
 
+
 function stopClassroomAudioMix() {
   clearClassroomAudioGraph();
+
 
   const context = classroomAudioContext;
   classroomAudioContext = undefined;
@@ -2382,11 +2645,13 @@ function stopClassroomAudioMix() {
   }
 }
 
+
 function attachStudentAudio(peerConnection, studentSocketId) {
   peerConnection.ontrack = (event) => {
     if (event.track?.kind !== 'audio') {
       return;
     }
+
 
     let audio = studentAudioElements.get(studentSocketId);
     if (!audio) {
@@ -2400,6 +2665,7 @@ function attachStudentAudio(peerConnection, studentSocketId) {
       studentAudioElements.set(studentSocketId, audio);
     }
 
+
     const incomingStream = event.streams?.[0] || new MediaStream([event.track]);
     audio.srcObject = incomingStream;
     addClassroomAudioSource(studentSocketId, incomingStream, {
@@ -2409,6 +2675,7 @@ function attachStudentAudio(peerConnection, studentSocketId) {
       console.warn('Unable to play approved student microphone:', error);
     });
 
+
     event.track.addEventListener('ended', () => {
       approvedStudentMicrophones.delete(studentSocketId);
       removeStudentAudio(studentSocketId);
@@ -2417,12 +2684,14 @@ function attachStudentAudio(peerConnection, studentSocketId) {
   };
 }
 
+
 function clearIceDisconnectTimer(socketId) {
   if (iceDisconnectTimers[socketId]) {
     window.clearTimeout(iceDisconnectTimers[socketId]);
     delete iceDisconnectTimers[socketId];
   }
 }
+
 
 function removeStudentConnection(socketId, { statusMessage } = {}) {
   clearIceDisconnectTimer(socketId);
@@ -2431,14 +2700,17 @@ function removeStudentConnection(socketId, { statusMessage } = {}) {
   closePeerConnection(socketId);
   removeAttendee(socketId);
 
+
   if (statusMessage && classActive) {
     setStudioStatus(statusMessage, "error");
   }
 }
 
+
 function closePeerConnection(socketId) {
   clearIceDisconnectTimer(socketId);
   const peerConnection = peerConnections[socketId];
+
 
   if (peerConnection) {
     peerConnection.onicecandidate = null;
@@ -2446,12 +2718,15 @@ function closePeerConnection(socketId) {
     peerConnection.onconnectionstatechange = null;
     peerConnection.oniceconnectionstatechange = null;
 
+
     if (peerConnection.signalingState !== "closed") {
       peerConnection.close();
     }
 
+
     delete peerConnections[socketId];
   }
+
 
   delete pendingIceCandidates[socketId];
   teacherQosAllocations.delete(socketId);
@@ -2459,6 +2734,7 @@ function closePeerConnection(socketId) {
   removeClassroomAudioSource(socketId);
   removeStudentAudioDestination(socketId);
 }
+
 
 function closeAllPeerConnections() {
   approvedStudentMicrophones.clear();
@@ -2471,6 +2747,7 @@ function closeAllPeerConnections() {
   stopClassroomAudioMix();
 }
 
+
 const teacherQosLast = new Map();
 const teacherQosAllocations = new Map();
 const AUDIO_BITRATE_FLOOR = 24_000;
@@ -2478,11 +2755,13 @@ const AUDIO_BITRATE_CEILING = 96_000;
 const VIDEO_BITRATE_FLOOR = 40_000;
 const VIDEO_BITRATE_CEILING = 6_000_000;
 
+
 function computeContinuousBandwidthAllocation(totalAvailableBitrate) {
   const total = Math.max(0, Number(totalAvailableBitrate) || 0);
   if (total <= AUDIO_BITRATE_FLOOR) {
     return { audioBitrate: total, videoBitrate: 0 };
   }
+
 
   const audioRange = AUDIO_BITRATE_CEILING - AUDIO_BITRATE_FLOOR;
   const audioBitrate = Math.min(
@@ -2494,11 +2773,13 @@ function computeContinuousBandwidthAllocation(totalAvailableBitrate) {
     return { audioBitrate: Math.min(AUDIO_BITRATE_CEILING, total), videoBitrate: 0 };
   }
 
+
   return {
     audioBitrate: Math.min(audioBitrate, total),
     videoBitrate: Math.min(videoBitrate, Math.max(0, total - audioBitrate)),
   };
 }
+
 
 async function applyAdaptiveVideoQuality(studentSocketId, peerConnection, allocation) {
   const videoSender = peerConnection?.getSenders?.().find((sender) => sender.__classroomVideoTrack === true);
@@ -2519,6 +2800,7 @@ async function applyAdaptiveVideoQuality(studentSocketId, peerConnection, alloca
   }
 }
 
+
 async function applyAdaptiveAudioQuality(peerConnection, allocation) {
   const audioSender = getStudentAudioSender(peerConnection);
   if (!audioSender || typeof audioSender.setParameters !== "function") return;
@@ -2533,6 +2815,7 @@ async function applyAdaptiveAudioQuality(peerConnection, allocation) {
     console.debug("Adaptive audio quality was not applied:", error);
   }
 }
+
 
 async function refreshTeacherQos() {
   for (const [studentSocketId, peerConnection] of Object.entries(peerConnections)) {
@@ -2585,12 +2868,15 @@ async function refreshTeacherQos() {
   }
 }
 
+
 window.setInterval(() => { void refreshTeacherQos(); }, 3000);
+
 
 async function tuneOutboundSender(sender, kind) {
   try {
     const parameters = sender.getParameters();
     parameters.encodings = parameters.encodings?.length ? parameters.encodings : [{}];
+
 
     if (kind === "video") {
       parameters.encodings[0].maxBitrate = VIDEO_BITRATE_CEILING;
@@ -2602,11 +2888,13 @@ async function tuneOutboundSender(sender, kind) {
       parameters.encodings[0].networkPriority = "high";
     }
 
+
     await sender.setParameters(parameters);
   } catch (error) {
     console.debug("Sender quality tuning was not applied:", error);
   }
 }
+
 
 function addTeacherTracks(peerConnection, studentSocketId) {
   const videoStream = screenStream;
@@ -2618,29 +2906,36 @@ function addTeacherTracks(peerConnection, studentSocketId) {
     void tuneOutboundSender(sender, "video");
   }
 
+
   ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate: false });
 }
 
+
 function createPeerConnection(studentSocketId) {
   closePeerConnection(studentSocketId);
+
 
   const peerConnection = new RTCPeerConnection(rtcConfig);
   peerConnections[studentSocketId] = peerConnection;
   pendingIceCandidates[studentSocketId] = [];
 
+
   addTeacherTracks(peerConnection, studentSocketId);
   attachStudentAudio(peerConnection, studentSocketId);
+
 
   peerConnection.onicecandidate = (event) => {
     if (!event.candidate || !classActive || !socket.connected) {
       return;
     }
 
+
     socket.emit("webrtc_ice_candidate", {
       targetSocketId: studentSocketId,
       candidate: event.candidate.toJSON(),
     });
   };
+
 
   peerConnection.onconnectionstatechange = () => {
     if (peerConnection.connectionState === "failed") {
@@ -2651,13 +2946,16 @@ function createPeerConnection(studentSocketId) {
     }
   };
 
+
   peerConnection.oniceconnectionstatechange = () => {
     const { iceConnectionState } = peerConnection;
+
 
     if (iceConnectionState === "connected" || iceConnectionState === "completed") {
       clearIceDisconnectTimer(studentSocketId);
       return;
     }
+
 
     if (iceConnectionState === "failed") {
       console.warn(`ICE failed for student ${studentSocketId}.`);
@@ -2667,6 +2965,7 @@ function createPeerConnection(studentSocketId) {
       return;
     }
 
+
     if (iceConnectionState === "disconnected" && !iceDisconnectTimers[studentSocketId]) {
       iceDisconnectTimers[studentSocketId] = window.setTimeout(async () => {
         const currentPeer = peerConnections[studentSocketId];
@@ -2674,7 +2973,9 @@ function createPeerConnection(studentSocketId) {
           return;
         }
 
+
         await createAndSendOffer(studentSocketId, { iceRestart: true });
+
 
         iceDisconnectTimers[studentSocketId] = window.setTimeout(() => {
           const recoveredPeer = peerConnections[studentSocketId];
@@ -2688,18 +2989,23 @@ function createPeerConnection(studentSocketId) {
     }
   };
 
+
   return peerConnection;
 }
+
 
 async function flushPendingIceCandidates(studentSocketId) {
   const peerConnection = peerConnections[studentSocketId];
   const candidates = pendingIceCandidates[studentSocketId] || [];
 
+
   if (!peerConnection || !peerConnection.remoteDescription) {
     return;
   }
 
+
   pendingIceCandidates[studentSocketId] = [];
+
 
   for (const candidate of candidates) {
     try {
@@ -2712,8 +3018,10 @@ async function flushPendingIceCandidates(studentSocketId) {
   }
 }
 
+
 function waitForSocketConnection(timeoutMs = 12_000) {
   if (socket.connected) return Promise.resolve(true);
+
 
   return new Promise((resolve) => {
     let settled = false;
@@ -2727,10 +3035,12 @@ function waitForSocketConnection(timeoutMs = 12_000) {
     };
     const handleConnect = () => finish(true);
 
+
     socket.once("connect", handleConnect);
     socket.connect();
   });
 }
+
 
 async function emitWithAcknowledgement(eventName, payload, timeoutMs = 10_000) {
   if (!socket.connected) {
@@ -2740,18 +3050,22 @@ async function emitWithAcknowledgement(eventName, payload, timeoutMs = 10_000) {
     }
   }
 
+
   return new Promise((resolve, reject) => {
     const timeoutId = window.setTimeout(() => {
       reject(new Error("انتهت مهلة الاستجابة من الخادم."));
     }, timeoutMs);
 
+
     socket.emit(eventName, payload, (response) => {
       window.clearTimeout(timeoutId);
+
 
       if (response?.ok) {
         resolve(response);
         return;
       }
+
 
       reject(
         new Error(
@@ -2762,16 +3076,20 @@ async function emitWithAcknowledgement(eventName, payload, timeoutMs = 10_000) {
   });
 }
 
+
 async function createAndSendOffer(studentSocketId, { iceRestart = false } = {}) {
   if (!classActive || !getActiveTeacherVideoTrack()) {
     return;
   }
 
+
   let peerConnection = peerConnections[studentSocketId];
+
 
   if (!peerConnection) {
     peerConnection = createPeerConnection(studentSocketId);
   }
+
 
   if (
     peerConnection.makingOffer ||
@@ -2781,11 +3099,14 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false } = {}) 
     return;
   }
 
+
   peerConnection.makingOffer = true;
+
 
   try {
     const offer = await peerConnection.createOffer({ iceRestart });
     await peerConnection.setLocalDescription(offer);
+
 
     await emitWithAcknowledgement("webrtc_offer", {
       targetSocketId: studentSocketId,
@@ -2802,6 +3123,7 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false } = {}) 
   }
 }
 
+
 function stopLocalStreams() {
   [screenStream, cameraStream].filter(Boolean).forEach((stream) => {
     stream.getTracks().forEach((track) => {
@@ -2810,20 +3132,24 @@ function stopLocalStreams() {
     });
   });
 
+
   screenStream = undefined;
   cameraStream = undefined;
   if (elements.localVideo) elements.localVideo.srcObject = null;
   setStageMode("idle");
 }
 
+
 async function resumeLiveClassAfterSocketReconnect() {
   if (!classActive || !activeLevel || !activeSubject || !classResumeToken || reconnectingLiveClass) {
     return;
   }
 
+
   if (!socket.connected) {
     return;
   }
+
 
   reconnectingLiveClass = true;
   try {
@@ -2835,9 +3161,11 @@ async function resumeLiveClassAfterSocketReconnect() {
       resumeToken: classResumeToken,
     }, 12_000);
 
+
     if (!response?.resumed) {
       throw new Error("تعذر استعادة جلسة الحصة الحالية.");
     }
+
 
     setStudioStatus("تمت استعادة الحصة. جارٍ إعادة ربط التلاميذ بالبث…", "live");
   } catch (error) {
@@ -2848,10 +3176,12 @@ async function resumeLiveClassAfterSocketReconnect() {
   }
 }
 
+
 async function leaveLiveStudio() {
   if (!classActive || isEnding || !activeLevel || !classResumeToken) {
     return;
   }
+
 
   const levelToLeave = activeLevel;
   const resumeToken = classResumeToken;
@@ -2859,6 +3189,7 @@ async function leaveLiveStudio() {
   isPageNavigatingAway = true;
   elements.leaveStudioButton.disabled = true;
   setStudioStatus("تمت مغادرة الاستوديو. تبقى الحصة مفتوحة حتى تعود أو تنهيها صراحةً.", "neutral");
+
 
   try {
     if (socket.connected) {
@@ -2886,10 +3217,12 @@ async function leaveLiveStudio() {
   }
 }
 
+
 async function endLiveClass({ notifyServer = true, statusMessage, preserveRecovery = false } = {}) {
   if (isEnding) {
     return;
   }
+
 
   const levelToEnd = activeLevel;
   const subjectToRecover = activeSubject;
@@ -2905,6 +3238,7 @@ async function endLiveClass({ notifyServer = true, statusMessage, preserveRecove
   isEnding = true;
   classActive = false;
   updateControls();
+
 
   try {
     if (notifyServer && hadActiveClass && levelToEnd && socket.connected) {
@@ -2934,21 +3268,26 @@ async function endLiveClass({ notifyServer = true, statusMessage, preserveRecove
   }
 }
 
+
 function getMediaErrorMessage(error, source) {
   if (error?.name === "NotAllowedError") {
     return `لم تسمح للمتصفح بالوصول إلى ${source}.`;
   }
 
+
   if (error?.name === "NotFoundError") {
     return `لم يتم العثور على جهاز مناسب لـ${source}.`;
   }
+
 
   if (error?.name === "NotReadableError") {
     return `يتعذر استخدام ${source} لأنه مستخدم من تطبيق آخر.`;
   }
 
+
   return `تعذر تشغيل ${source}. حاول مرة أخرى.`;
 }
+
 
 async function publishScreenShareState(active) {
   if (!activeLevel || !socket.connected) return;
@@ -2964,6 +3303,7 @@ async function publishScreenShareState(active) {
   }
 }
 
+
 async function stopScreenShare() {
   const streamToStop = screenStream;
   screenStream = undefined;
@@ -2978,6 +3318,7 @@ async function stopScreenShare() {
   setStudioStatus(classActive ? "عادت صورة المستوى؛ بقيت الحصة والصوت مفتوحين." : "تم إيقاف مشاركة الشاشة.", classActive ? "live" : "neutral");
   updateControls();
 }
+
 
 async function replaceScreenShareStream() {
   if (!classActive || isEnding || !navigator.mediaDevices?.getDisplayMedia) return;
@@ -3012,6 +3353,7 @@ async function replaceScreenShareStream() {
   }
 }
 
+
 async function toggleScreenShare() {
   if (!classActive) {
     await startLiveClass();
@@ -3024,12 +3366,15 @@ async function toggleScreenShare() {
   await replaceScreenShareStream();
 }
 
+
 let openScheduledClassNotice = null;
+
 
 function clearOpenScheduledClassNotice() {
   openScheduledClassNotice?.remove();
   openScheduledClassNotice = null;
 }
+
 
 function isLiveRecoveryMessage(message = "") {
   const normalized = String(message).replace(/\s+/g, " ").trim();
@@ -3040,15 +3385,18 @@ function isLiveRecoveryMessage(message = "") {
     normalized.includes("حصة جارية حالياً");
 }
 
+
 function showOpenScheduledClassNotice(scheduledClass = null, serverMessage = "") {
   clearOpenScheduledClassNotice();
   if (classActive || !document.body) return;
+
 
   const storedRecovery = pendingPageRecovery || readLiveClassRecovery();
   const level = scheduledClass?.level || storedRecovery?.level || elements.levelSelect?.value || "";
   const subject = scheduledClass?.subject || storedRecovery?.subject || elements.subjectSelect?.value || "";
   const resumeToken = storedRecovery?.resumeToken || createClassResumeToken();
   if (!level || !subject) return;
+
 
   pendingPageRecovery = { level, subject, resumeToken };
   if (elements.levelSelect && elements.levelSelect.value !== level) {
@@ -3057,6 +3405,7 @@ function showOpenScheduledClassNotice(scheduledClass = null, serverMessage = "")
   } else if (elements.subjectSelect && elements.subjectSelect.value !== subject) {
     syncClassTypeSelector({ selectedValue: subject });
   }
+
 
   const modal = document.createElement("div");
   modal.className = "live-recovery-modal";
@@ -3089,6 +3438,7 @@ function showOpenScheduledClassNotice(scheduledClass = null, serverMessage = "")
     setStudioStatus("تم إلغاء الاستعادة، يمكنك الآن اختيار المستوى وبدء حصة جديدة.", "neutral");
   });
 
+
   // إغلاق المودال عند النقر في أي مكان فارغ بالخارج
   modal.addEventListener("click", (e) => {
     if (e.target === modal) {
@@ -3096,14 +3446,17 @@ function showOpenScheduledClassNotice(scheduledClass = null, serverMessage = "")
     }
   });
 
+
   resumeButton.addEventListener("click", async () => {
     const level = scheduledClass?.level || elements.levelSelect?.value || "";
     const subject = scheduledClass?.subject || elements.subjectSelect?.value || "";
     const resumeToken = scheduledClass?.resumeToken || pendingPageRecovery?.resumeToken || readLiveClassRecovery()?.resumeToken || "";
     const customErrorMessage = serverMessage || "تعذر استعادة الجلسة السابقة.";
 
+
     resumeButton.disabled = true;
     resumeButton.textContent = "جاري استعادة الحصة والاتصال...";
+
 
     pendingPageRecovery = { level, subject, resumeToken, isRecovery: true, forceResume: true };
     if (elements.levelSelect && level) {
@@ -3113,7 +3466,9 @@ function showOpenScheduledClassNotice(scheduledClass = null, serverMessage = "")
       syncClassTypeSelector({ selectedValue: subject });
     }
 
+
     clearOpenScheduledClassNotice();
+
 
     try {
       await startLiveClass();
@@ -3130,12 +3485,14 @@ function showOpenScheduledClassNotice(scheduledClass = null, serverMessage = "")
     }
   });
 
+
   panel.append(title, details, resumeButton, dismissButton);
   modal.append(panel);
   document.body.append(modal);
   openScheduledClassNotice = modal;
   resumeButton.focus();
 }
+
 
 async function checkForOpenScheduledClass() {
   if (classActive || isStarting || isEnding || !socket.connected) return;
@@ -3151,10 +3508,12 @@ async function checkForOpenScheduledClass() {
   }
 }
 
+
 async function startLiveClass() {
   if (classActive || isStarting || isEnding) {
     return;
   }
+
 
   const selectedLevel = elements.levelSelect.value;
   const selectedSubject = elements.subjectSelect.value;
@@ -3169,6 +3528,7 @@ async function startLiveClass() {
   isStarting = true;
   let microphoneUnavailableMessage = "";
 
+
   try {
     updateControls();
     setStudioStatus("جارٍ بدء الحصة — صورة المستوى والصوت جاهزان…", "neutral");
@@ -3177,6 +3537,7 @@ async function startLiveClass() {
     setTeacherWelcomeImage(selectedLevel);
     setStageMode("welcome");
     primeClassroomAudioContext();
+
 
     if (navigator.mediaDevices?.getUserMedia) {
       try {
@@ -3194,15 +3555,18 @@ async function startLiveClass() {
       }
     }
 
+
     const classroomMixReady = await initializeClassroomAudioMix();
     if (!classroomMixReady) {
       microphoneUnavailableMessage = microphoneUnavailableMessage || "تعذر تجهيز صوت الصف الموحد";
     }
 
+
     activeLevel = selectedLevel;
     activeSubject = selectedSubject;
     classResumeToken = pageRecovery?.resumeToken || createClassResumeToken();
     classActive = true;
+
 
     if (!socket.connected) {
       setStudioStatus("تم اختيار الشاشة. جارٍ الاتصال بخادم الحصة…", "neutral");
@@ -3212,6 +3576,7 @@ async function startLiveClass() {
       }
     }
 
+
     const roomResponse = await emitWithAcknowledgement("teacher_start_room", {
       level: selectedLevel,
       subject: selectedSubject,
@@ -3219,6 +3584,7 @@ async function startLiveClass() {
       isRecovery: Boolean(pageRecovery?.isRecovery || isResumingAfterPageRefresh),
       forceResume: Boolean(pageRecovery?.forceResume || isResumingAfterPageRefresh),
     });
+
 
     activeScheduledClassId = roomResponse?.scheduledClassId || null;
     activeYoutubeVideoId = roomResponse?.youtubeVideoId || null;
@@ -3256,23 +3622,28 @@ async function startLiveClass() {
   }
 }
 
+
 function toggleMicrophone() {
   const audioTracks = getAllAudioTracks();
   if (!classActive || audioTracks.length === 0) {
     return;
   }
 
+
   const shouldEnable = !audioTracks.some((track) => track.enabled);
   audioTracks.forEach((track) => {
     track.enabled = shouldEnable;
   });
 
+
   setStudioStatus(shouldEnable ? "تم تشغيل المايك." : "تم إيقاف المايك.", "live");
   updateControls();
 }
 
+
 function syncStudentMicButton(attendee, socketId, enabled = false) {
   let button = attendee.querySelector(".attendee-mic-button");
+
 
   if (!button) {
     button = document.createElement("button");
@@ -3285,15 +3656,18 @@ function syncStudentMicButton(attendee, socketId, enabled = false) {
     attendee.append(button);
   }
 
+
   button.dataset.enabled = String(enabled);
   button.classList.toggle("is-open", enabled);
   button.textContent = enabled ? "إغلاق المايك" : "فتح المايك";
   return button;
 }
 
+
 function markHandRaised(socketId, studentName) {
   const attendee = upsertAttendee(socketId, null, studentName);
   attendee.classList.add("is-hand-raised");
+
 
   if (!attendee.querySelector(".attendee-hand")) {
     const handLabel = document.createElement("span");
@@ -3302,18 +3676,22 @@ function markHandRaised(socketId, studentName) {
     attendee.querySelector(".attendee-details").append(handLabel);
   }
 
+
   syncStudentMicButton(attendee, socketId, false);
 }
+
 
 async function setStudentMicrophone(socketId, enabled, button) {
   if (!classActive) {
     return;
   }
 
+
   if (button) {
     button.disabled = true;
     button.textContent = enabled ? "جارٍ فتح الـ microphone…" : "جارٍ غلق الـ microphone…";
   }
+
 
   try {
     await emitWithAcknowledgement("teacher_set_mic", {
@@ -3321,7 +3699,9 @@ async function setStudentMicrophone(socketId, enabled, button) {
       enabled,
     });
 
+
     applyStudentMicrophoneState(socketId, enabled);
+
 
     setStudioStatus(
       enabled ? "تم فتح مايك التلميذ وأصبح صوته مسموعًا للصف." : "تم إغلاق مايك التلميذ.",
@@ -3339,22 +3719,26 @@ async function setStudentMicrophone(socketId, enabled, button) {
   }
 }
 
+
 socket.on("connect", () => {
   if (classActive && classResumeToken) {
     void resumeLiveClassAfterSocketReconnect();
     return;
   }
 
+
   if (isStarting) {
     setStudioStatus("تم الاتصال بالخادم. جارٍ تجهيز الحصة…", "neutral");
     return;
   }
+
 
   if (!classActive) {
     setStudioStatus("الاستوديو جاهز", "neutral");
     void checkForOpenScheduledClass();
   }
 });
+
 
 socket.on("connect_error", () => {
   if (classActive) {
@@ -3366,6 +3750,7 @@ socket.on("connect_error", () => {
   }
 });
 
+
 socket.on("room_ready", (data) => {
   if (data?.role === "teacher" && classActive) {
     const statusMessage = data.globalFree
@@ -3375,22 +3760,27 @@ socket.on("room_ready", (data) => {
   }
 });
 
+
 socket.on("student_joined", async (data = {}) => {
   const { socketId, studentId, studentName, participationCount } = data;
+
 
   if (!classActive || !socketId) {
     return;
   }
+
 
   const attendee = upsertAttendee(socketId, studentId, studentName || "تلميذ", participationCount);
   syncStudentMicButton(attendee, socketId, false);
   await createAndSendOffer(socketId);
 });
 
+
 socket.on("student_mic_state_changed", (data = {}) => {
   const { socketId, enabled } = data;
   applyStudentMicrophoneState(socketId, Boolean(enabled));
 });
+
 
 socket.on("student_participation_updated", (data = {}) => {
   if (!data.socketId) return;
@@ -3399,15 +3789,18 @@ socket.on("student_participation_updated", (data = {}) => {
   if (participation) participation.textContent = `المشاركات: ${Math.max(0, Number(data.count) || 0)}`;
 });
 
+
 socket.on("recovery_students", async (data = {}) => {
   if (!classActive || !Array.isArray(data.students)) {
     return;
   }
 
+
   for (const student of data.students) {
     if (!student?.socketId) {
       continue;
     }
+
 
     const attendee = upsertAttendee(student.socketId, student.studentId, student.studentName || "تلميذ", student.participationCount);
     syncStudentMicButton(attendee, student.socketId, Boolean(student.micEnabled));
@@ -3416,13 +3809,16 @@ socket.on("recovery_students", async (data = {}) => {
   }
 });
 
+
 socket.on("webrtc_answer", async (data = {}) => {
   const { fromSocketId, sdp } = data;
   const peerConnection = peerConnections[fromSocketId];
 
+
   if (!peerConnection || !sdp) {
     return;
   }
+
 
   try {
     await peerConnection.setRemoteDescription(sdp);
@@ -3433,9 +3829,11 @@ socket.on("webrtc_answer", async (data = {}) => {
   }
 });
 
+
 socket.on("webrtc_renegotiation_offer", async (data = {}) => {
   const { fromSocketId, sdp } = data;
   const peerConnection = peerConnections[fromSocketId];
+
 
   if (
     !classActive ||
@@ -3446,16 +3844,20 @@ socket.on("webrtc_renegotiation_offer", async (data = {}) => {
     return;
   }
 
+
   try {
     if (peerConnection.signalingState !== "stable") {
       return;
     }
 
+
     await peerConnection.setRemoteDescription(sdp);
     await flushPendingIceCandidates(fromSocketId);
 
+
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
+
 
     await emitWithAcknowledgement("webrtc_renegotiation_answer", {
       targetSocketId: fromSocketId,
@@ -3467,18 +3869,22 @@ socket.on("webrtc_renegotiation_offer", async (data = {}) => {
   }
 });
 
+
 socket.on("webrtc_ice_candidate", async (data = {}) => {
   const { fromSocketId, candidate } = data;
   const peerConnection = peerConnections[fromSocketId];
+
 
   if (!fromSocketId || candidate === undefined) {
     return;
   }
 
+
   if (!peerConnection || !peerConnection.remoteDescription) {
     (pendingIceCandidates[fromSocketId] ||= []).push(candidate);
     return;
   }
+
 
   try {
     if (candidate) {
@@ -3489,20 +3895,24 @@ socket.on("webrtc_ice_candidate", async (data = {}) => {
   }
 });
 
+
 socket.on("hand_raised", (data = {}) => {
   if (!data.socketId || !classActive) {
     return;
   }
 
+
   markHandRaised(data.socketId, data.studentName || "تلميذ");
   setStudioStatus("هناك طلب جديد للتحدث.", "live");
 });
+
 
 socket.on("hand_lowered", (data = {}) => {
   const attendee = attendeeElements.get(data.socketId);
   if (!attendee) {
     return;
   }
+
 
   attendee.classList.remove("is-hand-raised");
   attendee.querySelector(".attendee-hand")?.remove();
@@ -3511,18 +3921,22 @@ socket.on("hand_lowered", (data = {}) => {
   }
 });
 
+
 socket.on("classroom_chat_history", (data = {}) => {
   if (!classActive || data.level !== activeLevel) return;
   void restoreTeacherChatHistory(data.messages);
 });
+
 
 socket.on("student_message_received", async (data = {}) => {
   if (!classActive || (!data?.message && !data?.imageId)) {
     return;
   }
 
+
   let imageUrl = null;
   let fallbackMessage = data.message || "";
+
 
   if (data.imageId) {
     try {
@@ -3534,6 +3948,7 @@ socket.on("student_message_received", async (data = {}) => {
     }
   }
 
+
   appendTeacherChatMessage({
     sender: data.studentName || "تلميذ",
     message: fallbackMessage,
@@ -3544,6 +3959,7 @@ socket.on("student_message_received", async (data = {}) => {
   });
 });
 
+
 socket.on("student_left", (data = {}) => {
   const socketId = data.socketId || attendeeSocketByStudentId.get(String(data.studentId || "").trim());
   if (socketId) {
@@ -3553,10 +3969,12 @@ socket.on("student_left", (data = {}) => {
   if (data.studentId) removeAttendeeByStudentId(data.studentId);
 });
 
+
 socket.on("class_ended", (data = {}) => {
   if (!classActive || isEnding) {
     return;
   }
+
 
   endLiveClass({
     notifyServer: false,
@@ -3568,6 +3986,7 @@ socket.on("class_ended", (data = {}) => {
   });
 });
 
+
 socket.on("classroom_error", (data = {}) => {
   if (data.message) {
     setStudioStatus(data.message, "error");
@@ -3577,11 +3996,13 @@ socket.on("classroom_error", (data = {}) => {
   }
 });
 
+
 socket.on("disconnect", () => {
   if (!classActive) {
     if (isStarting) setStudioStatus("انقطع الاتصال. جارٍ إعادة الاتصال قبل بدء الحصة…", "neutral");
     return;
   }
+
 
   closeAllPeerConnections();
   clearAttendees();
@@ -3589,7 +4010,9 @@ socket.on("disconnect", () => {
   updateControls();
 });
 
+
 socket.connect();
+
 
 elements.startButton?.addEventListener("click", () => {
   void startLiveClass().catch((error) => {
@@ -3599,6 +4022,7 @@ elements.startButton?.addEventListener("click", () => {
     updateControls();
   });
 });
+
 
 elements.sidebarTabs.forEach((tab) => {
   tab.addEventListener("click", () => setSidebarTab(tab.dataset.sidebarTab));
@@ -3617,6 +4041,7 @@ try {
 } catch (error) {
   console.error("Unable to initialize optional studio controls:", error);
 }
+
 
 elements.levelSelect.addEventListener("change", () => {
   if (!classActive && !isStarting && !isEnding) {
@@ -3673,6 +4098,7 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
+
 function preserveClassroomForPageRefresh() {
   isPageNavigatingAway = true;
   if (classActive) {
@@ -3680,11 +4106,13 @@ function preserveClassroomForPageRefresh() {
   }
 }
 
+
 window.addEventListener("beforeunload", preserveClassroomForPageRefresh);
 window.addEventListener("pagehide", () => {
   preserveClassroomForPageRefresh();
   closeAllPeerConnections();
 });
+
 
 pendingPageRecovery = readLiveClassRecovery();
 if (pendingPageRecovery) {
@@ -3695,6 +4123,7 @@ if (pendingPageRecovery) {
   syncClassTypeSelector();
 }
 
+
 void checkForOpenScheduledClass();
 updateAttendeeCount();
 try {
@@ -3703,5 +4132,3 @@ try {
   console.error("Unable to initialize studio controls:", error);
   setStudioStatus("تعذر تهيئة عناصر الاستوديو. أعد تحميل الصفحة وحاول مرة أخرى.", "error");
 }
-
-
