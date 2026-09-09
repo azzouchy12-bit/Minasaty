@@ -211,7 +211,7 @@ async function uploadVideo({ stream, mimeType = "video/webm", title, description
  * فتح جلسة رفع مباشر ومستأنف لـ YouTube (Resumable Upload Session)
  * تتيح رفع الفيديوهات الطويلة (ساعتان فأكثر) مباشرة إلى خوادم Google دون قيود البروكسي
  */
-async function createResumableUploadSession({ title, description = "", mimeType = "video/webm", fileSize }) {
+async function createResumableUploadSession({ title, description = "", mimeType = "video/webm", fileSize, origin }) {
   const auth = await getAuthorizedClient();
   const tokenResponse = await auth.getAccessToken();
   const accessToken = typeof tokenResponse === "string" ? tokenResponse : tokenResponse?.token;
@@ -227,6 +227,9 @@ async function createResumableUploadSession({ title, description = "", mimeType 
   };
   if (fileSize && Number(fileSize) > 0) {
     headers["X-Upload-Content-Length"] = String(fileSize);
+  }
+  if (origin) {
+    headers["Origin"] = origin;
   }
 
   const requestBody = {
