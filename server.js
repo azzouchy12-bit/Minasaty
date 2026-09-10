@@ -244,7 +244,9 @@ app.get("/teacher-chat", (_req, res) => {
 app.get("/student-chat", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "student-chat.html"));
 });
-
+app.get("/application", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "application.html"));
+});
 app.get("/api/google-picker/config", verifyToken, isTeacher, (_req, res) => {
   const apiKey = String(process.env.GOOGLE_PICKER_API_KEY || "").trim();
   if (!apiKey) {
