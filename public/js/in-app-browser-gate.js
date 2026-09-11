@@ -1,24 +1,43 @@
 "use strict";
-
 (function () {
   /**
-   * فحص دقيق وشامل لاكتشاف ما إذا كان المستخدم داخل التطبيق (APK أو PWA):
-   * 1. فحص LocalStorage للحفاظ على استمرارية حالة "داخل التطبيق"
-   * 2. فحص معاملات الرابط (Query Parameters) عند بدء تشغيل الـ APK / PWA
-   * 3. فحص وضع العرض المستقل (PWA Standalone & Fullscreen)
-   * 4. فحص متصفح أندرويد الداخلي (Android WebView المستخدم في حزم الـ APK)
-   * 5. فحص مصدر الدخول عبر تطبيق أندرويد (android-app:// referrer)
-   * 6. فحص جسور الاتصال البرمجية (Android Javascript Interfaces)
+   * فحص دقيق وشامل ومؤكد 100% للتأكد من أن المستخدم يتصفح من داخل التطبيق:
+   * 1. فحص توقيع تطبيق أندرويد الخاص بالأكاديمية: "MinasatyApp" في الـ User-Agent
+   * 2. فحص كائن الجافاسكريبت المحقون من أندرويد ستوديو (window.MinasatyApp)
+   * 3. فحص معاملات الرابط (?app=true أو ?mode=app أو ?source=apk)
+   * 4. فحص الذاكرة المحلية (localStorage) لتثبيت حالة "داخل التطبيق"
+   * 5. فحص نمط الشاشة المستقلة PWA Standalone / Fullscreen
+   * 6. فحص المتصفحات الداخلية وحزم WebView العامة
    */
   function checkIfInApp() {
-    // 1. فحص الذاكرة المحلية
+    // 1. فحص توقيع التطبيق الرسمي في الـ User-Agent (MinasatyApp)
+    const ua = navigator.userAgent || navigator.vendor || window.opera || "";
+    if (/MinasatyApp|Minasaty/i.test(ua)) {
+      try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
+      return true;
+    }
+
+    // 2. فحص كائنات البيئة البرمجية المحقونة من تطبيق أندرويد
+    if (
+      typeof window.MinasatyApp !== "undefined" ||
+      typeof window.Android !== "undefined" ||
+      typeof window.AndroidInterface !== "undefined" ||
+      typeof window.ReactNativeWebView !== "undefined" ||
+      window.IS_APP === true ||
+      document.body?.classList?.contains("is-app")
+    ) {
+      try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
+      return true;
+    }
+
+    // 3. فحص الذاكرة المحلية إذا تم تأكيد وجود المستخدم داخل التطبيق مسبقاً
     try {
       if (localStorage.getItem("minasaty_in_app") === "true") {
         return true;
       }
     } catch (_) {}
 
-    // 2. فحص معلمات الرابط عند فتح التطبيق
+    // 4. فحص معلمات الرابط عند تشغيل التطبيق (URL Search Params / Hash)
     try {
       const urlParams = new URLSearchParams(window.location.search);
       if (
@@ -37,7 +56,7 @@
       }
     } catch (_) {}
 
-    // 3. فحص نمط PWA Standalone / Fullscreen
+    // 5. فحص نمط الـ PWA المستقل (iOS Safari & Android Chrome Standalone)
     const isPwaStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       window.matchMedia("(display-mode: fullscreen)").matches ||
@@ -50,34 +69,16 @@
       return true;
     }
 
-    // 4. فحص بيئة Android WebView (تطبيقات الـ APK المنشأة للأندرويد)
-    const ua = navigator.userAgent || navigator.vendor || window.opera || "";
+    // 6. فحص المتصفحات المدمجة العامة (Android WebViews / Crosswalk / WebIntoApp)
     const isAndroid = /Android/i.test(ua);
-    const isAndroidWebView =
-      /;\s*wv/i.test(ua) || // العلامة الدقيقة والمباشرة للـ WebView في أندرويد
-      (isAndroid && /Version\/[0-9.]+/i.test(ua) && !/Chrome\/[0-9.]+\s+Mobile/i.test(ua)) ||
-      (isAndroid && /Version\/[0-9.]+\s+Chrome/i.test(ua)) ||
-      /WebIntoApp|gonative|median|hermit|capacitor|cordova|Crosswalk/i.test(ua);
+    const isGenericWebView =
+      /;\s*wv/i.test(ua) ||
+(isAndroid && /Version\/[0-9.]+/i.test(ua) && !/Chrome\/[0-9.]+\s+Mobile/i.test(ua)) ||
+(isAndroid && /Version\/[0-9.]+\s+Chrome/i.test(ua)) ||
+/WebIntoApp|gonative|median|hermit|capacitor|cordova/i.test(ua) ||
+(document.referrer && document.referrer.startsWith("android-app://"));
 
-    if (isAndroidWebView) {
-      try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
-      return true;
-    }
-
-    // 5. فحص مصدر الدخول من تطبيق أندرويد
-    if (document.referrer && document.referrer.startsWith("android-app://")) {
-      try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
-      return true;
-    }
-
-    // 6. فحص كائنات البيئة المحقونة
-    if (
-      typeof window.Android !== "undefined" ||
-      typeof window.AndroidInterface !== "undefined" ||
-      typeof window.ReactNativeWebView !== "undefined" ||
-      window.IS_APP === true ||
-      document.body?.classList?.contains("is-app")
-    ) {
+    if (isGenericWebView) {
       try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
       return true;
     }
@@ -85,27 +86,25 @@
     return false;
   }
 
-  // إذا كان المستخدم يتصفح من داخل التطبيق، نمنع ظهور أي نافذة أو زر نهائياً
+  // إذا كان المستخدم داخل التطبيق، نوقف تشغيل الكود كلياً ونحذف أي عنصر فوراً
   if (checkIfInApp()) {
-    const removeElements = () => {
+    // حقن CSS فوري لمنع أي وميض أو ظهور للعناصر نهائياً
+    const style = document.createElement("style");
+    style.id = "minasaty-hide-app-elements";
+    style.innerHTML = "#minasaty-floating-app-btn, #minasaty-app-modal { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }";
+    document.head?.appendChild(style);
+
+    const cleanup = () => {
       document.getElementById("minasaty-floating-app-btn")?.remove();
       document.getElementById("minasaty-app-modal")?.remove();
     };
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", removeElements);
+      document.addEventListener("DOMContentLoaded", cleanup);
     } else {
-      removeElements();
+      cleanup();
     }
     return;
   }
-
-  const STORAGE_KEY = "minasaty_app_modal_dismissed_until";
-
-  function isDismissed() {
-    try {
-      const until = Number(localStorage.getItem(STORAGE_KEY) || 0);
-      return Date.now() < until;
-    } catch (_) {
       return false;
     }
   }
@@ -243,3 +242,4 @@
     initAppModal();
   }
 })();
+
