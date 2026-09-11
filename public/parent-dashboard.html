@@ -2142,12 +2142,12 @@
       </div>
     </div>
 
-    <!-- زر عائم مخفي افتراضياً - يظهر فقط في المتصفحات الخارجية (كروم وسفاري) ويختفي 100% داخل التطبيق -->
-    <button id="pwa-dash-float-btn" class="pwa-dash-floating-btn" type="button" onclick="openAppInstallModal();" title="تحميل وتثبيت تطبيق الأكاديمية" style="display: none !important;">
+    <!-- زر عائم يظهر دائماً في أي متصفح (كروم، سفاري، إلخ) ويختفي فقط داخل التطبيق -->
+    <button id="pwa-dash-float-btn" class="pwa-dash-floating-btn" type="button" onclick="openAppInstallModal();" title="تحميل وتثبيت تطبيق الأكاديمية" style="display: none;">
       <span>📲 إضغط هنا وحمل تطبيق المنصة و اتهنى</span>
     </button>
 
-    <!-- سكربت التشغيل المباشر والتعرف الذكي على التطبيق -->
+    <!-- سكربت التحكم: يظهر في المتصفحات دائماً مهما كان الحال ويختفي فقط داخل التطبيق -->
     <script>
       // فتح النافذة المنبثقة
       function openAppInstallModal() {
@@ -2161,25 +2161,26 @@
         if (modal) modal.style.display = 'none';
       }
 
+      // الفحص الفوري: إظهار الزر في أي متصفح دائماً وإخفاؤه في التطبيق فقط
       (function() {
         var ua = navigator.userAgent || '';
-        
-        // فحص ما إذا كان التلميذ داخل التطبيق المثبت (APK / WebView / PWA)
+
+        // فحص ما إذا كان التصفح من داخل تطبيق الأندرويد (APK / WebView / Standalone)
+        var isAndroidWebView = /;\s*wv\b|Version\/4\.0.*Chrome|MinasatyApp|com\.comminasatyacadimia/i.test(ua);
         var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-        var isAndroidApp = /;\s*wv\b|Version\/4\.0|MinasatyApp|minasaty|com\.comminasatyacadimia/i.test(ua);
 
-        // 🚨 إذا كان المستخدم داخل التطبيق، نضمن عدم ظهور الزر نهائياً
-        if (isStandalone || isAndroidApp) {
-          return; // خروج فوري ويبقى الزر مخفياً تماماً
+        var btn = document.getElementById('pwa-dash-float-btn');
+        if (!btn) return;
+
+        if (isAndroidWebView || isStandalone) {
+          // 🚨 داخل التطبيق: لا يظهر نهائياً
+          btn.style.setProperty('display', 'none', 'important');
+        } else {
+          // 🌐 في أي متصفح (كروم، سفاري، فايرفوكس): يظهر دائماً مهما كان الحال!
+          btn.style.setProperty('display', 'flex', 'important');
         }
 
-        // إظهار الزر فقط لمن يتصفح عبر المتصفح العادي (Google Chrome أو Safari)
-        var floatBtn = document.getElementById('pwa-dash-float-btn');
-        if (floatBtn) {
-          floatBtn.style.setProperty('display', 'flex', 'important');
-        }
-
-        // ضبط محتوى النافذة حسب نوع الجهاز (آيفون أم أندرويد)
+        // إعداد محتوى النافذة حسب نوع الجهاز (آيفون أم أندرويد)
         var isIos = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         var androidWrap = document.getElementById('pwa-dash-android-wrap');
         var iosWrap = document.getElementById('pwa-dash-ios-wrap');
