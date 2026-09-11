@@ -2122,5 +2122,38 @@
     <script src="./js/class-registry-parent.js?v=panel-scroll-1"></script>
     <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
     
+  
+    <script>
+      // تأكيد توجيه تسجيل الخروج مباشرة إلى الصفحة الأولى الترحيبية للمنصة
+      (function() {
+        function redirectToHome(e) {
+          if (e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+          // مسح بيانات الجلسة المؤقتة
+          try {
+            localStorage.clear();
+            sessionStorage.clear();
+          } catch (_) {}
+
+          // التوجيه المباشر إلى الصفحة الأولى الترحيبية (/) بدلاً من خانة الدخول
+          window.location.replace('/');
+        }
+
+        window.addEventListener('DOMContentLoaded', function() {
+          var logoutBtn1 = document.getElementById('logout-btn');
+          var logoutBtn2 = document.getElementById('parent-sidebar-logout');
+
+          if (logoutBtn1) {
+            logoutBtn1.addEventListener('click', redirectToHome, true);
+          }
+          if (logoutBtn2) {
+            logoutBtn2.addEventListener('click', redirectToHome, true);
+          }
+        });
+      })();
+    </script>
+
   </body>
 </html>
