@@ -2098,18 +2098,128 @@
     <!-- ============================================================ -->
     <!-- 📲 نافذة تثبيت التطبيق وتفعيل التنبيهات للأستاذ عز الدين شارف -->
     <!-- ============================================================ -->
-    <!-- زر عائم أنيق في زاوية الشاشة لفتح النافذة في أي وقت -->
-    <a id="pwa-dash-float-btn" href="/application" class="pwa-dash-floating-btn" title="تحميل وتثبيت تطبيق الأكاديمية">
-      <span>📲  إضغط هنا وحمل تطبيق المنصة و اتهنى</span>
-    </a>
+
+    <!-- النافذة المنبثقة الشاملة لتثبيت التطبيق والتنبيهات -->
+    <div id="pwa-dash-modal" class="pwa-dash-overlay" style="display: none;" onclick="if(event.target === this) closeAppInstallModal();">
+      <div class="pwa-dash-card" onclick="event.stopPropagation();">
+        <button class="pwa-dash-close" type="button" onclick="closeAppInstallModal();" aria-label="إغلاق">✕</button>
+        
+        <!-- صورة الأستاذ عز الدين شارف -->
+        <div class="pwa-dash-avatar">
+          <img src="/assets/teacher.jpg" onerror="this.src='/assets/icon-192.png'" alt="الأستاذ عز الدين شارف" />
+        </div>
+        
+        <h2>تطبيق أكاديمية التفوق متاح الآن! 📲</h2>
+        <p class="pwa-dash-sub">حمّل التطبيق على هاتفك لدخول أسرع للحصص وتلقي تنبيهات فورية بمواعيد البث المباشر والواجبات.</p>
+
+        <!-- لأجهزة أندرويد: زر تحميل APK المباشر -->
+        <div id="pwa-dash-android-wrap" style="display: block;">
+          <a href="/acadimia.apk" download="acadimia.apk" class="pwa-dash-btn-apk">
+            <span>📥 تحميل تطبيق أندرويد المباشر (APK)</span>
+          </a>
+          <small class="pwa-dash-apk-hint">حجم خفيف وسريع • متوافق مع كافة الهواتف</small>
+        </div>
+
+        <!-- لأجهزة آيفون وآيباد ومتصفح Safari: طريقة التثبيت -->
+        <div id="pwa-dash-ios-wrap" class="pwa-dash-ios-steps" style="display: none;">
+          <strong>🍏 طريقة التثبيت على الآيفون والآيباد (Safari):</strong>
+          <ol>
+            <li>اضغط على زر المشاركة <strong>[ ⎋ ]</strong> أسفل متصفح Safari.</li>
+            <li>اختر: <strong>[ ➕ إضافة إلى الشاشة الرئيسية ]</strong>.</li>
+            <li>اضغط <strong>[ إضافة ]</strong> في الأعلى وسيظهر التطبيق فوراً!</li>
+          </ol>
+        </div>
+
+        <!-- زر تفعيل التنبيهات المباشر -->
+        <button id="pwa-dash-notif-btn" class="pwa-dash-btn-notif" type="button" onclick="enableInstantNotifications();">
+          <span id="notif-btn-label">🔔 تفعيل التنبيهات الفورية للحصص</span>
+        </button>
+
+        <!-- زر المتابعة وإغلاق النافذة -->
+        <button class="pwa-dash-btn-dismiss" type="button" onclick="closeAppInstallModal();">
+          المتابعة عبر المتصفح
+        </button>
+      </div>
+    </div>
+
+    <!-- زر عائم أنيق في زاوية الشاشة يفتح النافذة بضغطة واحدة مضمونة -->
+    <button id="pwa-dash-float-btn" class="pwa-dash-floating-btn" type="button" onclick="openAppInstallModal();" title="تحميل وتثبيت تطبيق الأكاديمية">
+      <span>📲 إضغط هنا وحمل تطبيق المنصة و اتهنى</span>
+    </button>
+
+    <!-- سكربت التشغيل المباشر 100% -->
     <script>
-      // إذا كان التلميذ يتصفح من داخل تطبيقنا الأندرويد الرسمي، نخفي الزر تماماً
+      // فتح النافذة المنبثقة
+      function openAppInstallModal() {
+        var modal = document.getElementById('pwa-dash-modal');
+        if (modal) {
+          modal.style.display = 'flex';
+        }
+      }
+
+      // إغلاق النافذة المنبثقة
+      function closeAppInstallModal() {
+        var modal = document.getElementById('pwa-dash-modal');
+        if (modal) {
+          modal.style.display = 'none';
+        }
+      }
+
+      // فحص نوع الجهاز (آيفون أم أندرويد)
       (function() {
+        var isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        var androidWrap = document.getElementById('pwa-dash-android-wrap');
+        var iosWrap = document.getElementById('pwa-dash-ios-wrap');
+
+        if (isIos) {
+          if (androidWrap) androidWrap.style.display = 'none';
+          if (iosWrap) iosWrap.style.display = 'block';
+        }
+
+        // إذا كان التلميذ يتصفح من داخل تطبيق الأندرويد المثبت بالفعل، نخفي الزر تماماً
         if (navigator.userAgent.indexOf('MinasatyApp') !== -1 || navigator.userAgent.indexOf('com.comminasatyacadimia.minasaty') !== -1) {
-          var btn = document.getElementById('pwa-dash-float-btn');
-          if (btn) btn.style.display = 'none';
+          var floatBtn = document.getElementById('pwa-dash-float-btn');
+          if (floatBtn) floatBtn.style.display = 'none';
         }
       })();
+
+      // تفعيل التنبيهات
+      function enableInstantNotifications() {
+        if ('Notification' in window) {
+          Notification.requestPermission().then(function(perm) {
+            var lbl = document.getElementById('notif-btn-label');
+            var btn = document.getElementById('pwa-dash-notif-btn');
+            if (perm === 'granted') {
+              if (lbl) lbl.textContent = '✓ تم تفعيل التنبيهات بنجاح!';
+              if (btn) btn.classList.add('is-granted');
+            } else {
+              alert('يرجى السماح بالإشعارات من إعدادات المتصفح لتصلك مواعيد الحصص.');
+            }
+          });
+        } else {
+          alert('هذا المتصفح لا يدعم التنبيهات المباشرة.');
+        }
+      }
+
+      // توجيه تسجيل الخروج مباشرة إلى الصفحة الأولى الترحيبية للمنصة (/)
+      function handleDirectLogout(e) {
+        if (e) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+        } catch (_) {}
+        window.location.replace('/');
+      }
+
+      window.addEventListener('DOMContentLoaded', function() {
+        var logoutBtn1 = document.getElementById('logout-btn');
+        var logoutBtn2 = document.getElementById('parent-sidebar-logout');
+        if (logoutBtn1) logoutBtn1.addEventListener('click', handleDirectLogout, true);
+        if (logoutBtn2) logoutBtn2.addEventListener('click', handleDirectLogout, true);
+      });
     </script>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -2121,39 +2231,5 @@
     <script src="./js/browser-notifications.js?v=session-takeover-1"></script>
     <script src="./js/class-registry-parent.js?v=panel-scroll-1"></script>
     <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
-    
-  
-    <script>
-      // تأكيد توجيه تسجيل الخروج مباشرة إلى الصفحة الأولى الترحيبية للمنصة
-      (function() {
-        function redirectToHome(e) {
-          if (e) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
-          }
-          // مسح بيانات الجلسة المؤقتة
-          try {
-            localStorage.clear();
-            sessionStorage.clear();
-          } catch (_) {}
-
-          // التوجيه المباشر إلى الصفحة الأولى الترحيبية (/) بدلاً من خانة الدخول
-          window.location.replace('/');
-        }
-
-        window.addEventListener('DOMContentLoaded', function() {
-          var logoutBtn1 = document.getElementById('logout-btn');
-          var logoutBtn2 = document.getElementById('parent-sidebar-logout');
-
-          if (logoutBtn1) {
-            logoutBtn1.addEventListener('click', redirectToHome, true);
-          }
-          if (logoutBtn2) {
-            logoutBtn2.addEventListener('click', redirectToHome, true);
-          }
-        });
-      })();
-    </script>
-
   </body>
 </html>
