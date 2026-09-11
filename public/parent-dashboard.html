@@ -2089,183 +2089,26 @@
       </section>
     </div>
 
-    <div id="parent-push-prompt" class="parent-push-prompt" role="dialog" aria-modal="true" aria-labelledby="parent-push-prompt-title" aria-describedby="parent-push-prompt-message" hidden>
-      <section class="parent-push-prompt-card">
-        <button id="parent-push-prompt-close" class="parent-push-prompt-close" type="button" aria-label="إغلاق نافذة التنبيهات">×</button>
-        <div class="parent-push-prompt-icon" aria-hidden="true">🔔</div>
-        <p class="parent-push-prompt-kicker">تنبيهات أكاديمية التفوق</p>
-        <h2 id="parent-push-prompt-title">لا تفوّت بداية حصتك</h2>
-        <p id="parent-push-prompt-message">فعّل تنبيهات المنصة لتصلك تنبيهات بداية الحصص والرسائل المهمة من الأستاذ.</p>
-        <ul class="parent-push-prompt-benefits" aria-label="فوائد تفعيل التنبيهات">
-          <li>تذكير بموعد بداية الحصة.</li>
-          <li>تنبيه عند وجود رسالة أو إعلان مهم.</li>
-          <li>يمكنك إيقافها لاحقًا من إعدادات المتصفح.</li>
-        </ul>
-        <p id="parent-push-prompt-status" class="parent-push-prompt-status" role="status" aria-live="polite" hidden></p>
-        <div class="parent-push-prompt-actions">
-          <button id="parent-push-prompt-enable" class="parent-push-prompt-enable" type="button">تفعيل تنبيهات الحصص</button>
-          <button id="parent-push-prompt-later" class="parent-push-prompt-later" type="button">ليس الآن</button>
-        </div>
-        <small class="parent-push-prompt-note">سيطلب Chrome أو Safari الإذن بعد ضغطك على زر التفعيل. لا يمكن للمنصة فتح نافذة الإذن الأصلية تلقائيًا دون موافقتك.</small>
-      </section>
-    </div>
-
-    
-    <div id="pwa-dash-modal" class="pwa-dash-overlay" style="display: none;">
-      <div class="pwa-dash-card">
-        <button class="pwa-dash-close" id="pwa-dash-close-btn" aria-label="إغلاق">✕</button>
-        <div class="pwa-dash-avatar">
-          <img src="/assets/teacher.jpg" onerror="this.src='/assets/icon-192.png'" alt="الأستاذ عز الدين شارف" />
-        </div>
-        <h2>تطبيق أكاديمية التفوق متاح الآن! 📲</h2>
-        <p class="pwa-dash-sub">حمّل التطبيق على هاتفك لدخول أسرع للحصص وتلقي تنبيهات فورية بمواعيد البث المباشر والواجبات.</p>
-
-        <!-- لأجهزة أندرويد وكروم -->
-        <div id="pwa-dash-android-wrap">
-          <a href="/acadimia.apk" download="acadimia.apk" class="pwa-dash-btn-apk">
-            <span>📥 تحميل تطبيق أندرويد المباشر (APK)</span>
-          </a>
-          <small class="pwa-dash-apk-hint">حجم خفيف (أقل من 1 ميغابايت) • متوافق مع كافة الهواتف</small>
-        </div>
-
-        <!-- لأجهزة آيفون وآيباد وسفاري -->
-        <div id="pwa-dash-ios-wrap" class="pwa-dash-ios-steps" style="display: none;">
-          <strong>🍏 طريقة التثبيت على الآيفون والآيباد:</strong>
-          <ol>
-            <li>اضغط على زر المشاركة <strong>[ ⎋ ]</strong> أسفل متصفح Safari.</li>
-            <li>اختر: <strong>[ ➕ إضافة إلى الشاشة الرئيسية ]</strong>.</li>
-            <li>اضغط <strong>[ إضافة ]</strong> وسيظهر التطبيق على شاشتك فوراً!</li>
-          </ol>
-        </div>
-
-        <!-- زر التنبيهات السريع -->
-        <button id="pwa-dash-notif-btn" class="pwa-dash-btn-notif" type="button">
-          <span>🔔 تفعيل التنبيهات الفورية للحصص</span>
-        </button>
-
-        <button id="pwa-dash-dismiss-btn" class="pwa-dash-btn-dismiss" type="button">
-          المتابعة عبر المتصفح
-        </button>
-      </div>
-    </div>
-
-    <!-- زر عائم أنيق في زاوية الشاشة لفتح النافذة في أي وقت -->
-    <button id="pwa-dash-float-btn" class="pwa-dash-floating-btn" type="button" title="تثبيت تطبيق الأكاديمية">
-      <span>📲 تطبيق المنصة</span>
-    </button>
-
     <!-- ============================================================ -->
-    <!-- 📲 نافذة تثبيت التطبيق وتفعيل التنبيهات للأستاذ عز الدين شارف -->
+    <!-- 📲 زر تحميل تطبيق المنصة - رابط مباشر 100% إلى صفحة /application -->
     <!-- ============================================================ -->
-
-    <!-- النافذة المنبثقة الشاملة -->
-    <div id="pwa-dash-modal" class="pwa-dash-overlay" onclick="if(event.target === this) closeAppInstallModal();">
-      <div class="pwa-dash-card" onclick="event.stopPropagation();">
-        <button class="pwa-dash-close" type="button" onclick="closeAppInstallModal();" aria-label="إغلاق">✕</button>
-        
-        <!-- صورة الأستاذ عز الدين شارف -->
-        <div class="pwa-dash-avatar">
-          <img src="/assets/teacher.jpg" onerror="this.src='/assets/icon-192.png'" alt="الأستاذ عز الدين شارف" />
-        </div>
-        
-        <h2>تطبيق أكاديمية التفوق متاح الآن! 📲</h2>
-        <p class="pwa-dash-sub">حمّل التطبيق على هاتفك لدخول أسرع للحصص وتلقي تنبيهات فورية بمواعيد البث المباشر والواجبات.</p>
-
-        <!-- لأجهزة أندرويد: زر تحميل APK المباشر -->
-        <div id="pwa-dash-android-wrap">
-          <a href="/acadimia.apk" download="acadimia.apk" class="pwa-dash-btn-apk">
-            <span>📥 تحميل تطبيق أندرويد المباشر (APK)</span>
-          </a>
-          <small class="pwa-dash-apk-hint">حجم خفيف وسريع • متوافق مع كافة الهواتف</small>
-        </div>
-
-        <!-- لأجهزة آيفون وآيباد ومتصفح Safari: طريقة التثبيت -->
-        <div id="pwa-dash-ios-wrap" class="pwa-dash-ios-steps" style="display: none;">
-          <strong>🍏 طريقة التثبيت على الآيفون والآيباد (Safari):</strong>
-          <ol>
-            <li>اضغط على زر المشاركة <strong>[ ⎋ ]</strong> أسفل متصفح Safari.</li>
-            <li>اختر: <strong>[ ➕ إضافة إلى الشاشة الرئيسية ]</strong>.</li>
-            <li>اضغط <strong>[ إضافة ]</strong> في الأعلى وسيظهر التطبيق فوراً!</li>
-          </ol>
-        </div>
-
-        <!-- زر تفعيل التنبيهات المباشر -->
-        <button id="pwa-dash-notif-btn" class="pwa-dash-btn-notif" type="button" onclick="enableInstantNotifications();">
-          <span id="notif-btn-label">🔔 تفعيل التنبيهات الفورية للحصص</span>
-        </button>
-
-        <!-- زر المتابعة وإغلاق النافذة -->
-        <button class="pwa-dash-btn-dismiss" type="button" onclick="closeAppInstallModal();">
-          المتابعة عبر المتصفح
-        </button>
-      </div>
-    </div>
-
-    <!-- زر عائم يظهر دائماً في أي متصفح (كروم، سفاري، إلخ) ويختفي فقط داخل التطبيق -->
-    <button id="pwa-dash-float-btn" class="pwa-dash-floating-btn" type="button" onclick="openAppInstallModal();" title="تحميل وتثبيت تطبيق الأكاديمية">
+    <a id="pwa-dash-float-btn" href="/application" class="pwa-dash-floating-btn" title="تحميل وتثبيت تطبيق الأكاديمية">
       <span>📲 إضغط هنا وحمل تطبيق المنصة و اتهنى</span>
-    </button>
+    </a>
 
-    <!-- سكربت التحكم الشامل والمباشر -->
     <script>
-      // فتح النافذة المنبثقة
-      function openAppInstallModal() {
-        var modal = document.getElementById('pwa-dash-modal');
-        if (modal) {
-          modal.classList.add('is-active');
-        }
-      }
-
-      // إغلاق النافذة المنبثقة
-      function closeAppInstallModal() {
-        var modal = document.getElementById('pwa-dash-modal');
-        if (modal) {
-          modal.classList.remove('is-active');
-        }
-      }
-
-      // ضبط ظهور الزر ومحتوى النافذة
+      // إخفاء الزر تماماً إذا كان التلميذ يتصفح من داخل تطبيق الأندرويد المثبت
       (function() {
         var ua = navigator.userAgent || '';
-
-        // فحص دقيق: هل التلميذ يتصفح من داخل تطبيق الأندرويد المثبت (APK / WebView)؟
         var isAndroidApp = /;\s*wv\b|MinasatyApp|com\.comminasatyacadimia/i.test(ua);
         var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
         if (isAndroidApp || isStandalone) {
-          // 🚨 داخل التطبيق: نضيف الكلاس ليختفي الزر تماماً
           document.body.classList.add('inside-native-app');
           var btn = document.getElementById('pwa-dash-float-btn');
           if (btn) btn.style.setProperty('display', 'none', 'important');
         }
-
-        // إذا كان الجهاز آيفون أو آيباد نعرض له خطوات سفاري
-        var isIos = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        var androidWrap = document.getElementById('pwa-dash-android-wrap');
-        var iosWrap = document.getElementById('pwa-dash-ios-wrap');
-        if (isIos) {
-          if (androidWrap) androidWrap.style.display = 'none';
-          if (iosWrap) iosWrap.style.display = 'block';
-        }
       })();
-
-      // تفعيل التنبيهات
-      function enableInstantNotifications() {
-        if ('Notification' in window) {
-          Notification.requestPermission().then(function(perm) {
-            var lbl = document.getElementById('notif-btn-label');
-            var btn = document.getElementById('pwa-dash-notif-btn');
-            if (perm === 'granted') {
-              if (lbl) lbl.textContent = '✓ تم تفعيل التنبيهات بنجاح!';
-              if (btn) btn.classList.add('is-granted');
-            } else {
-              alert('يرجى السماح بالإشعارات من إعدادات المتصفح لتصلك مواعيد الحصص.');
-            }
-          });
-        } else {
-          alert('هذا المتصفح لا يدعم التنبيهات المباشرة.');
-        }
-      }
 
       // توجيه تسجيل الخروج مباشرة إلى الصفحة الأولى الترحيبية للمنصة (/)
       function handleDirectLogout(e) {
