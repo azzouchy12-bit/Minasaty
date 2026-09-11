@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>تثبيت تطبيق أكاديمية التفوق | الفيزياء والرياضيات</title>
+  <title>تحميل تطبيق أكاديمية التفوق | الفيزياء والرياضيات</title>
   
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#0d6efd" />
@@ -44,19 +44,23 @@
 
     .app-icon-wrap {
       position: relative;
-      width: 100px;
-      height: 100px;
-      margin: 0 auto 20px;
-      border-radius: 22px;
-      background: #0d6efd;
-      padding: 10px;
-      box-shadow: 0 10px 25px rgba(13, 110, 253, 0.4);
+      width: 105px;
+      height: 105px;
+      margin: 0 auto 18px;
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
-    .app-icon-wrap img { width: 100%; height: 100%; object-fit: contain; border-radius: 14px; }
+    .app-icon-wrap img {
+      width: 105px;
+      height: 105px;
+      object-fit: cover;
+      border-radius: 50%;
+      border: 3.5px solid #0d6efd;
+      box-shadow: 0 8px 25px rgba(13, 110, 253, 0.5);
+    }
 
     h1 { font-size: 24px; font-weight: 800; margin-bottom: 6px; color: #fff; }
     .app-subtitle { font-size: 14px; color: #94a3b8; margin-bottom: 18px; line-height: 1.5; }
@@ -64,7 +68,7 @@
     .app-badges {
       display: flex;
       justify-content: center;
-      gap: 12px;
+      gap: 10px;
       margin-bottom: 24px;
     }
 
@@ -72,33 +76,70 @@
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 12px;
-      padding: 8px 14px;
-      font-size: 12px;
+      padding: 8px 12px;
+      font-size: 11px;
       color: #cbd5e1;
     }
     .badge-item strong { display: block; font-size: 14px; color: #38bdf8; }
 
-    .btn-install {
+    /* زر تحميل ملف الـ APK المباشر */
+    .btn-download-apk {
       width: 100%;
       padding: 16px 20px;
       border-radius: 16px;
       border: none;
-      background: linear-gradient(135deg, #0d6efd, #2563eb);
+      background: linear-gradient(135deg, #16a34a, #15803d);
       color: #fff;
       font-size: 16px;
-      font-weight: 700;
+      font-weight: 800;
       cursor: pointer;
-      box-shadow: 0 8px 20px rgba(13, 110, 253, 0.4);
+      box-shadow: 0 8px 20px rgba(22, 163, 74, 0.4);
       transition: all 0.2s ease;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
-      margin-bottom: 14px;
+      text-decoration: none;
+      margin-bottom: 8px;
     }
 
-    .btn-install:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(13, 110, 253, 0.5); }
-    .btn-install:active { transform: translateY(0); }
+    .btn-download-apk:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 26px rgba(22, 163, 74, 0.5);
+      background: linear-gradient(135deg, #15803d, #166534);
+    }
+
+    .apk-meta {
+      font-size: 11px;
+      color: #86efac;
+      margin-bottom: 18px;
+    }
+
+    /* تنبيه تثبيت أندرويد للمصادر الخارجية */
+    .install-hint-box {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      text-align: right;
+      font-size: 12px;
+      color: #fef08a;
+      line-height: 1.5;
+    }
+    .install-hint-box strong { color: #fbbf24; display: block; margin-bottom: 4px; }
+
+    /* قسم الآيفون والآيباد */
+    .ios-box {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      border-radius: 14px;
+      padding: 14px;
+      text-align: right;
+      margin-bottom: 16px;
+    }
+    .ios-box h3 { font-size: 13px; color: #60a5fa; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .ios-box ol { padding-right: 18px; font-size: 12px; color: #cbd5e1; line-height: 1.6; }
 
     .btn-secondary {
       width: 100%;
@@ -107,7 +148,7 @@
       background: transparent;
       border: 1px solid rgba(255, 255, 255, 0.15);
       color: #94a3b8;
-      font-size: 14px;
+      font-size: 13px;
       cursor: pointer;
       text-decoration: none;
       display: inline-block;
@@ -115,31 +156,21 @@
     }
     .btn-secondary:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
 
-    .install-instructions {
-      background: rgba(13, 110, 253, 0.15);
-      border: 1px solid rgba(13, 110, 253, 0.35);
-      border-radius: 16px;
-      padding: 16px;
-      text-align: right;
-      margin-bottom: 16px;
-      display: none;
-    }
-
-    .install-instructions h3 { font-size: 14px; color: #60a5fa; margin-bottom: 8px; }
-    .install-instructions ol { padding-right: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6; }
-
-    .features-list { margin-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 18px; display: flex; flex-direction: column; gap: 8px; text-align: right; font-size: 12px; color: #94a3b8; }
+    .features-list { margin-top: 18px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 16px; display: flex; flex-direction: column; gap: 6px; text-align: right; font-size: 12px; color: #94a3b8; }
     .features-list span::before { content: "✓ "; color: #22c55e; font-weight: bold; }
   </style>
 </head>
 <body>
 
   <div class="app-card">
-    <div class="app-icon-wrap" style="background: transparent; padding: 0; box-shadow: none;">
-  <img src="/assets/teacher.jpg" alt="الأستاذ شارف عز الدين" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #0d6efd; box-shadow: 0 8px 25px rgba(13, 110, 253, 0.5);" />
-</div>
+    
+    <!-- صورة الأستاذ عز الدين شارف الدائرية -->
+    <div class="app-icon-wrap">
+      <img src="/assets/teacher.jpg" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAFJklEQVR4nO3WOXIUQRRF0Q8+BCZ7YG+wFhbHHjAJfAZDVCC1urqm/FO+e1xAlZm8S/Dm3edffwwQ9Tb7AEAmAoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0AoA0Akj28yt/BZl4/UTL+IkgDy+f5Hb0RJCDV0+wNnYiiMeLB9saORHE4rUD7R03EcThpYMcHTURxOCVA5wdMxH444WdXR0xEfjidR2NGi8R+OFlnYweLRH44FUdeI2VCMbjRQfzHikRjMVrDhQ1TiIYh5ccJHqURDAGrzhA1hiJ4Dpe8KLsEWZ/vzte74Iq46tyjo54uZOqja7aebrg1U6oOraq56qMFzuo+siqn68aXuuALuPqcs4KeKmduo2q23mz8Eo7dB1T13NH4oU2dB9R9/N743UemGU8s9zDAy+zImo0Hz5+CvkOEdzHq9wRPX4iyMOL3Mj6l58IcvAaz2T/t4cI4vES/2SPf++vj0IET3gFqzP+o7/vKiIggHLjP/v7z1KPQPr2Vcd/9c8dpRyB7M2rj3/Un99LNQLJW3cZ/+ifs0UxArkbdxu/189boxaB1G27jt/7595SikDmpt3HH/XzFyoRSNxylvFHf0chgulvONv4o783ewRT327W8Ud/d+YIpr3Z7OOP/v6sEUx5K5XxL4jgvOlupDb+BRGcM9VtVMe/IILjprmJ+vgXRHDMFLdg/C8RwX7tb8D47yOCfVqfnvE/RgTb2p6c8e9DBI+1PDXjP4YI1rU7MeM/hwjua3Vaxn8NEbzW5qSMfwwieKnFKRn/WETwX/kTMn4fRPCk9OkYvy8iKBwA44+hHkHNU5nZ+y+/Q77z4/u3kO9UFXX/qL/Po8oGYEYE3tTHb1Y8ADMi8ML4n5QPwIwIRmP8/7UIwIwIRmH8L7UJwIwIrmL8r7UKwIwIzmL897ULwIwIjmL861oGYEYEezH+x9oGYEYEWxj/ttYBmBHBGsa/T/sAzIjgFuPfb4oAzIhgwfiPmSYAMyJg/MdNFYCZbgSM/5zpAjDTi4DxnzdlAGY6ETD+a6YNwGz+CBj/dVMHYDZvBIx/jOkDMJsvAsY/jkQAZvNEwPjHkgnArH8EjH88qQDM+kbA+H3IBWDWLwLG70cyALM+ETB+X7IBmNWPgPH7kw7ArG4EjD+GfABm9SJg/HEI4J8qETD+WATwTHYEjD8eAdzIioDx5yCAO6IjYPx5CGBF9n+HRmP89xHAA7OMZpZ7eCCADd3H0/383ghgh64j6nruSASwU7cxdTtvFgI4oMuoupyzAgI4qPq4qp+vGgI4oerIqp6rMgI4qdrYqp2nCwK4oMroqpyjIwK4KHt82d/vjgAGyBoh47+OAAaJHiPjH4MABooaJeMfhwAG8x4n4x+LABx4jZTxj0cATkaPlfH7IABHo0bL+P0QgLOr42X8vgggwNkRM35/BBDk6JgZfwwCCLR31Iw/DgEE2xo3449FAAnWRs744xFAktuxM/4cBJBoGT3jz0MAyRh/LgKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKANAKAtL/k2iYV3TG9OQAAAABJRU5ErkJggg=='" alt="الأستاذ شارف عز الدين" />
+    </div>
+
     <h1>أكاديمية التفوق</h1>
-    <p class="app-subtitle">المنصة التعليمية للفيزياء والرياضيات<br>مع الأستاذ عز الدين شارف</p>
+    <p class="app-subtitle">المنصة الرسمية للفيزياء والرياضيات<br>مع الأستاذ عز الدين شارف</p>
 
     <div class="app-badges">
       <div class="badge-item">
@@ -156,30 +187,37 @@
       </div>
     </div>
 
-    <button id="btn-install" class="btn-install">
-      <span>📲 تثبيت التطبيق الآن على جهازك</span>
-    </button>
+    <!-- زر تحميل الـ APK المباشر لهواتف أندرويد -->
+    <a href="/downloads/acadimia.apk" download="acadimia.apk" id="btn-apk" class="btn-download-apk">
+      <span>📥 تحميل تطبيق أندرويد المباشر (APK)</span>
+    </a>
+    <p class="apk-meta">ملف تنصيب APK رسمي وخفيف (3.5 MB) • متوافق مع كافة هواتف أندرويد</p>
 
-    <div id="install-guide" class="install-instructions">
-      <h3 id="guide-title">💡 لتثبيت التطبيق على جهازك الآن:</h3>
-      <ol id="guide-steps">
-        <li>اضغط على قائمة المتصفح (الثلاث نقاط <strong>⋮</strong> أو <strong>≡</strong> في أعلى المتصفح).</li>
-        <li>اختر: <strong>[تثبيت التطبيق]</strong> أو <strong>[إضافة إلى الشاشة الرئيسية]</strong>.</li>
-        <li>اضغط <strong>[تثبيت]</strong> وسيظهر تطبيق الأكاديمية على شاشتك فوراً!</li>
+    <!-- إرشاد بسيط للتثبيت السلس في أندرويد -->
+    <div class="install-hint-box">
+      <strong>💡 ملاحظة سريعة عند التحميل:</strong>
+      إذا ظهر لك تنبيه أندرويد <em>(قد يكون الملف ضاراً)</em> اضغط <strong>[التنزيل على أي حال / Télécharger quand même]</strong> ثم افتح الملف واضغط <strong>[تثبيت / Installer]</strong>.
+    </div>
+
+    <!-- تعليمات خاصة بأجهزة الآيفون والآيباد -->
+    <div class="ios-box" id="ios-box">
+      <h3>🍏 لمستخدمي هواتف iPhone وأجهزة iPad:</h3>
+      <ol>
+        <li>نظام آبل لا يدعم ملفات APK؛ يمكنك تثبيته مباشرة:</li>
+        <li>اضغط على زر المشاركة <strong>[ ⎋ ]</strong> أسفل متصفح Safari.</li>
+        <li>اختر: <strong>[ ➕ إضافة إلى الشاشة الرئيسية / Sur l'écran d'accueil ]</strong>.</li>
       </ol>
     </div>
 
     <a href="/" class="btn-secondary">أو الدخول عبر المتصفح مباشرة 🌐</a>
 
     <div class="features-list">
-      <span>تطبيق خفيف جداً (أقل من 2 ميغابايت) ولا يستهلك ذاكرة الجهاز</span>
-      <span>دخول سريع ومباشر للحصص والبث بدون روابط خارجية</span>
-      <span>يعمل على جميع الهواتف (أندرويد، آيفون، تابلت، كمبيوتر)</span>
+      <span>تطبيق رسمي مباشر وسريع ولا يستهلك ذاكرة الهاتف</span>
+      <span>دخول فوري للحصص المباشرة وتسجيلات الدروس بدقة عالية</span>
+      <span>إشعارات فورية بمواعيد الحصص والواجبات المدرسية</span>
     </div>
   </div>
 
-  <!-- تحميل السكربت كملف خارجي ليتوافق 100% مع سياسة الأمان CSP -->
-  <script src="/js/application.js" defer></script>
 </body>
 </html>
 
