@@ -2142,44 +2142,50 @@
       </div>
     </div>
 
-    <!-- زر عائم أنيق في زاوية الشاشة يفتح النافذة بضغطة واحدة مضمونة -->
-    <button id="pwa-dash-float-btn" class="pwa-dash-floating-btn" type="button" onclick="openAppInstallModal();" title="تحميل وتثبيت تطبيق الأكاديمية">
+    <!-- زر عائم مخفي افتراضياً - يظهر فقط في المتصفحات الخارجية (كروم وسفاري) ويختفي 100% داخل التطبيق -->
+    <button id="pwa-dash-float-btn" class="pwa-dash-floating-btn" type="button" onclick="openAppInstallModal();" title="تحميل وتثبيت تطبيق الأكاديمية" style="display: none !important;">
       <span>📲 إضغط هنا وحمل تطبيق المنصة و اتهنى</span>
     </button>
 
-    <!-- سكربت التشغيل المباشر 100% -->
+    <!-- سكربت التشغيل المباشر والتعرف الذكي على التطبيق -->
     <script>
       // فتح النافذة المنبثقة
       function openAppInstallModal() {
         var modal = document.getElementById('pwa-dash-modal');
-        if (modal) {
-          modal.style.display = 'flex';
-        }
+        if (modal) modal.style.display = 'flex';
       }
 
       // إغلاق النافذة المنبثقة
       function closeAppInstallModal() {
         var modal = document.getElementById('pwa-dash-modal');
-        if (modal) {
-          modal.style.display = 'none';
-        }
+        if (modal) modal.style.display = 'none';
       }
 
-      // فحص نوع الجهاز (آيفون أم أندرويد)
       (function() {
-        var isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        var ua = navigator.userAgent || '';
+        
+        // فحص ما إذا كان التلميذ داخل التطبيق المثبت (APK / WebView / PWA)
+        var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        var isAndroidApp = /;\s*wv\b|Version\/4\.0|MinasatyApp|minasaty|com\.comminasatyacadimia/i.test(ua);
+
+        // 🚨 إذا كان المستخدم داخل التطبيق، نضمن عدم ظهور الزر نهائياً
+        if (isStandalone || isAndroidApp) {
+          return; // خروج فوري ويبقى الزر مخفياً تماماً
+        }
+
+        // إظهار الزر فقط لمن يتصفح عبر المتصفح العادي (Google Chrome أو Safari)
+        var floatBtn = document.getElementById('pwa-dash-float-btn');
+        if (floatBtn) {
+          floatBtn.style.setProperty('display', 'flex', 'important');
+        }
+
+        // ضبط محتوى النافذة حسب نوع الجهاز (آيفون أم أندرويد)
+        var isIos = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         var androidWrap = document.getElementById('pwa-dash-android-wrap');
         var iosWrap = document.getElementById('pwa-dash-ios-wrap');
-
         if (isIos) {
           if (androidWrap) androidWrap.style.display = 'none';
           if (iosWrap) iosWrap.style.display = 'block';
-        }
-
-        // إذا كان التلميذ يتصفح من داخل تطبيق الأندرويد المثبت بالفعل، نخفي الزر تماماً
-        if (navigator.userAgent.indexOf('MinasatyApp') !== -1 || navigator.userAgent.indexOf('com.comminasatyacadimia.minasaty') !== -1) {
-          var floatBtn = document.getElementById('pwa-dash-float-btn');
-          if (floatBtn) floatBtn.style.display = 'none';
         }
       })();
 
