@@ -1,156 +1,245 @@
-// إذا كان الدخول من تطبيق الأكاديمية الرسمي، تجاوز التنبيه وادخل مباشرة
-if (navigator.userAgent.includes("MinasatyApp") || navigator.userAgent.includes("com.comminasatyacadimia.minasaty")) {
-    return;
-}
-(() => {
-  "use strict";
-(() => {
-  "use strict";
+"use strict";
 
-  // 🚨 إذا كان الدخول من تطبيق الأكاديمية الرسمي، احذف زر التحميل وتجاوز التنبيه تماماً
-  if (
-    navigator.userAgent.includes("MinasatyApp") ||
-    navigator.userAgent.includes("com.comminasatyacadimia.minasaty") ||
-    navigator.userAgent.includes("WebIntoApp") ||
-    /;\s*wv\b|Android.*Version\//i.test(navigator.userAgent) ||
-    window.matchMedia("(display-mode: standalone)").matches ||
-    window.navigator.standalone === true
-  ) {
-    // 1. حقن كود CSS فوري في رأس الصفحة لإخفاء الزر نهائياً
-    const hideStyle = document.createElement("style");
-    hideStyle.textContent = "#pwa-dash-float-btn, .pwa-dash-floating-btn { display: none !important; }";
-    if (document.head) {
-      document.head.appendChild(hideStyle);
-    } else {
-      document.addEventListener("DOMContentLoaded", () => document.head.appendChild(hideStyle));
-    }
-
-    // 2. حذف الزر تماماً من عناصر الصفحة
-    const removeBtn = () => {
-      const btn = document.getElementById("pwa-dash-float-btn");
-      if (btn) {
-        btn.style.setProperty("display", "none", "important");
-        btn.remove();
+(function () {
+  /**
+   * فحص دقيق وشامل لاكتشاف ما إذا كان المستخدم داخل التطبيق (APK أو PWA):
+   * 1. فحص LocalStorage للحفاظ على استمرارية حالة "داخل التطبيق"
+   * 2. فحص معاملات الرابط (Query Parameters) عند بدء تشغيل الـ APK / PWA
+   * 3. فحص وضع العرض المستقل (PWA Standalone & Fullscreen)
+   * 4. فحص متصفح أندرويد الداخلي (Android WebView المستخدم في حزم الـ APK)
+   * 5. فحص مصدر الدخول عبر تطبيق أندرويد (android-app:// referrer)
+   * 6. فحص جسور الاتصال البرمجية (Android Javascript Interfaces)
+   */
+  function checkIfInApp() {
+    // 1. فحص الذاكرة المحلية
+    try {
+      if (localStorage.getItem("minasaty_in_app") === "true") {
+        return true;
       }
-    };
-    removeBtn();
-    document.addEventListener("DOMContentLoaded", removeBtn);
-    window.addEventListener("load", removeBtn);
+    } catch (_) {}
 
-    // 3. إنهاء السكربت فوراً بدون إظهار أي نافذة
-    return;
-  }
-  function ensureFallbackStyles() {
-    if (document.querySelector('link[href*="/css/style.css"], link[href*="./css/style.css"]') || document.getElementById("in-app-browser-fallback-style")) return;
-    const style = document.createElement("style");
-    style.id = "in-app-browser-fallback-style";
-    style.textContent = `
-      .in-app-browser-modal { position: fixed; z-index: 2147483640; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgba(2,6,23,.82); font-family: Arial,Tahoma,sans-serif; }
-      .in-app-browser-modal[hidden] { display: none; }
-      .in-app-browser-card { width: min(100%, 31rem); padding: 2rem; color: #e2e8f0; text-align: center; background: linear-gradient(145deg,#142d55,#0b1c34); border: 1px solid #93c5fd; border-radius: 1.2rem; box-shadow: 0 25px 75px rgba(0,0,0,.46); }
-      .in-app-browser-card h2 { margin: .4rem 0; color: #fff; }
-      .in-app-browser-copy,.in-app-browser-instruction { color: #cbd5e1; line-height: 1.8; }
-      .in-app-browser-actions { margin-top: 1rem; }
-      .in-app-browser-primary { width: 100%; min-height: 2.9rem; color: #052e16; background: #4ade80; border: 1px solid #86efac; border-radius: .7rem; font: inherit; font-weight: 900; cursor: pointer; }
-    `;
-    document.head.append(style);
-  }
+    // 2. فحص معلمات الرابط عند فتح التطبيق
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (
+        urlParams.get("mode") === "app" ||
+        urlParams.get("app") === "true" ||
+        urlParams.get("app") === "1" ||
+        urlParams.get("source") === "apk" ||
+        urlParams.get("source") === "app" ||
+        urlParams.get("source") === "pwa" ||
+        urlParams.get("standalone") === "true" ||
+        window.location.hash.includes("app-mode") ||
+        window.location.hash.includes("standalone")
+      ) {
+        localStorage.setItem("minasaty_in_app", "true");
+        return true;
+      }
+    } catch (_) {}
 
-  function ensureGateMarkup() {
-    let modal = document.getElementById("in-app-browser-modal");
-    if (modal) return modal;
+    // 3. فحص نمط PWA Standalone / Fullscreen
+    const isPwaStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.matchMedia("(display-mode: fullscreen)").matches ||
+      window.matchMedia("(display-mode: minimal-ui)").matches ||
+      window.matchMedia("(display-mode: window-controls-overlay)").matches ||
+      window.navigator.standalone === true;
 
-    modal = document.createElement("div");
-    modal.id = "in-app-browser-modal";
-    modal.className = "in-app-browser-modal";
-    modal.setAttribute("role", "dialog");
-    modal.setAttribute("aria-modal", "true");
-    modal.setAttribute("aria-labelledby", "in-app-browser-title");
-    modal.hidden = true;
-    modal.innerHTML = `
-      <section class="in-app-browser-card">
-        <div class="in-app-browser-icon" aria-hidden="true">↗</div>
-        <p class="in-app-browser-kicker">تنبيه لتحسين تجربة التصفح</p>
-        <h2 id="in-app-browser-title">افتح الموقع في متصفح كامل</h2>
-        <p class="in-app-browser-copy">للاستفادة من جميع مزايا الموقع، افتحه خارج المتصفح الداخلي لتطبيق Telegram أو Facebook أو Messenger.</p>
-        <p id="in-app-browser-instruction" class="in-app-browser-instruction"></p>
-        <div class="in-app-browser-actions">
-          <button id="open-external-browser-btn" class="in-app-browser-primary" type="button">اضغط هنا للدخول فقط</button>
-        </div>
-      </section>
-    `;
-    document.body.append(modal);
-    return modal;
-  }
-
-  const userAgent = navigator.userAgent || "";
-  const referrer = document.referrer || "";
-  const isAndroid = /Android/i.test(userAgent);
-  const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
-  const hasTelegramReferrer = /(?:telegram|org\.telegram\.messenger|t\.me)/i.test(referrer);
-  const hasTelegramRuntime = Boolean(
-    window.TelegramWebviewProxy ||
-    window.TelegramGameProxy ||
-    window.Telegram?.WebApp
-  );
-  const isStandalone = Boolean(
-    window.navigator.standalone === true ||
-    window.matchMedia?.("(display-mode: standalone)").matches
-  );
-  const hasInAppToken = /(FBAN|FBAV|FB_IAB|Instagram|Messenger|Telegram|TDesktop|TelegramBot|Line\/|Twitter|Snapchat|TikTok|GSA\/)/i.test(userAgent);
-  const isAndroidWebView = isAndroid && (
-    /;\s*wv\)/i.test(userAgent) ||
-    (/Version\/4\.0/i.test(userAgent) && /Chrome\//i.test(userAgent))
-  );
-  const isIOSWebView = isIOS && !/Safari\//i.test(userAgent) && !/CriOS|FxiOS|OPiOS/i.test(userAgent);
-  // Telegram may open the link in a Chrome Custom Tab whose User-Agent looks
-  // like ordinary Chrome. The Android referrer and Telegram runtime markers
-  // cover that case without storing any dismissal state.
-  const isInAppBrowser = !isStandalone && (
-    hasInAppToken ||
-    hasTelegramReferrer ||
-    hasTelegramRuntime ||
-    isAndroidWebView ||
-    isIOSWebView
-  );
-
-  if (!isInAppBrowser) return;
-
-  ensureFallbackStyles();
-  const modal = ensureGateMarkup();
-  const openButton = document.getElementById("open-external-browser-btn");
-  const instruction = document.getElementById("in-app-browser-instruction");
-  if (!modal || !openButton) return;
-
-  const currentUrl = window.location.href;
-  if (instruction) {
-    instruction.textContent = isAndroid
-      ? "اضغط على الزر الأخضر للانتقال إلى Google Chrome."
-      : isIOS
-        ? "اضغط على الزر الأخضر لفتح الموقع في Safari أو متصفح خارجي."
-        : "اضغط على الزر الأخضر لفتح الموقع في متصفح كامل.";
-  }
-
-  const showModal = () => {
-    modal.hidden = false;
-    modal.classList.add("is-open");
-    document.body.classList.add("in-app-browser-notice-open");
-    openButton.focus();
-  };
-
-  openButton.addEventListener("click", () => {
-    if (isAndroid) {
-      const intentUrl = `intent://${window.location.host}${window.location.pathname}${window.location.search}${window.location.hash}#Intent;scheme=https;package=com.android.chrome;end`;
-      window.location.href = intentUrl;
-      return;
+    if (isPwaStandalone) {
+      try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
+      return true;
     }
 
-    // iOS and desktop in-app browsers only allow an external tab after a user gesture.
-    const openedWindow = window.open(currentUrl, "_blank", "noopener,noreferrer");
-    if (!openedWindow) window.location.href = currentUrl;
-  });
+    // 4. فحص بيئة Android WebView (تطبيقات الـ APK المنشأة للأندرويد)
+    const ua = navigator.userAgent || navigator.vendor || window.opera || "";
+    const isAndroid = /Android/i.test(ua);
+    const isAndroidWebView =
+      /;\s*wv/i.test(ua) || // العلامة الدقيقة والمباشرة للـ WebView في أندرويد
+      (isAndroid && /Version\/[0-9.]+/i.test(ua) && !/Chrome\/[0-9.]+\s+Mobile/i.test(ua)) ||
+      (isAndroid && /Version\/[0-9.]+\s+Chrome/i.test(ua)) ||
+      /WebIntoApp|gonative|median|hermit|capacitor|cordova|Crosswalk/i.test(ua);
 
-  // No dismissal state is stored: Telegram, Facebook, Messenger, and other
-  // in-app browsers must show this gate on every visit.
-  window.setTimeout(showModal, 120);
+    if (isAndroidWebView) {
+      try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
+      return true;
+    }
+
+    // 5. فحص مصدر الدخول من تطبيق أندرويد
+    if (document.referrer && document.referrer.startsWith("android-app://")) {
+      try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
+      return true;
+    }
+
+    // 6. فحص كائنات البيئة المحقونة
+    if (
+      typeof window.Android !== "undefined" ||
+      typeof window.AndroidInterface !== "undefined" ||
+      typeof window.ReactNativeWebView !== "undefined" ||
+      window.IS_APP === true ||
+      document.body?.classList?.contains("is-app")
+    ) {
+      try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
+      return true;
+    }
+
+    return false;
+  }
+
+  // إذا كان المستخدم يتصفح من داخل التطبيق، نمنع ظهور أي نافذة أو زر نهائياً
+  if (checkIfInApp()) {
+    const removeElements = () => {
+      document.getElementById("minasaty-floating-app-btn")?.remove();
+      document.getElementById("minasaty-app-modal")?.remove();
+    };
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", removeElements);
+    } else {
+      removeElements();
+    }
+    return;
+  }
+
+  const STORAGE_KEY = "minasaty_app_modal_dismissed_until";
+
+  function isDismissed() {
+    try {
+      const until = Number(localStorage.getItem(STORAGE_KEY) || 0);
+      return Date.now() < until;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function dismiss(hours = 24) {
+    try {
+      localStorage.setItem(STORAGE_KEY, String(Date.now() + hours * 3600 * 1000));
+    } catch (_) {}
+    const modal = document.getElementById("minasaty-app-modal");
+    if (modal) modal.style.display = "none";
+  }
+
+  const ua = navigator.userAgent || navigator.vendor || window.opera || "";
+  const isIos =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  // بناء عناصر النافذة والزر العائم لمتصفح الويب العادي فقط
+  function initAppModal() {
+    if (checkIfInApp()) return;
+    if (document.getElementById("minasaty-app-modal")) return;
+
+    // الزر العائم الصغير في زاوية الشاشة
+    const floatingBtn = document.createElement("button");
+    floatingBtn.id = "minasaty-floating-app-btn";
+    floatingBtn.className = "minasaty-floating-btn";
+    floatingBtn.innerHTML = "<span>📱 تطبيق المنصة</span>";
+    floatingBtn.title = "تحميل وتثبيت تطبيق الأكاديمية";
+    floatingBtn.addEventListener("click", () => showModal());
+    document.body.appendChild(floatingBtn);
+
+    // كود المودال المنبثق
+    const modal = document.createElement("div");
+    modal.id = "minasaty-app-modal";
+    modal.className = "minasaty-modal-overlay";
+    modal.style.display = isDismissed() ? "none" : "flex";
+
+    const contentHtml = `
+      <div class="minasaty-modal-card">
+        <button class="minasaty-modal-close" id="minasaty-modal-close-btn" aria-label="إغلاق">✕</button>
+        
+        <div class="minasaty-modal-avatar">
+          <img src="/assets/teacher.jpg" onerror="this.src='/assets/icon-192.png'" alt="الأستاذ عز الدين شارف" />
+        </div>
+
+        <h2>تطبيق أكاديمية التفوق متاح الآن! 📱</h2>
+        <p class="minasaty-modal-sub">حمّل التطبيق على هاتفك لدخول أسرع للحصص المباشرة وتلقي تنبيهات فورية بالدروس والواجبات.</p>
+
+        <div class="minasaty-modal-actions">
+          ${
+            isIos
+              ? `
+            <div class="minasaty-ios-steps">
+              <strong>🍏 طريقة التثبيت على الآيفون والآيباد:</strong>
+              <ol>
+                <li>اضغط على زر المشاركة <strong>[ ⎋ ]</strong> أسفل متصفح Safari.</li>
+                <li>اختر: <strong>[ ➕ إضافة إلى الشاشة الرئيسية ]</strong>.</li>
+                <li>اضغط <strong>[ إضافة ]</strong> وسيظهر التطبيق على شاشتك فوراً!</li>
+              </ol>
+            </div>
+            `
+              : `
+            <a href="/downloads/acadimia.apk" download="acadimia.apk" class="minasaty-btn-download-apk" id="minasaty-apk-action-btn">
+              <span>📥 تحميل تطبيق أندرويد المباشر (APK)</span>
+            </a>
+            <small class="minasaty-apk-hint">حجم خفيف جداً • متوافق مع كافة هواتف أندرويد</small>
+            `
+          }
+
+          <button id="minasaty-enable-notifications-btn" class="minasaty-btn-notifications">
+            <span>🔔 تفعيل التنبيهات الفورية للحصص</span>
+          </button>
+        </div>
+
+        <button id="minasaty-continue-web-btn" class="minasaty-btn-dismiss">
+          المتابعة عبر المتصفح
+        </button>
+      </div>
+    `;
+
+    modal.innerHTML = contentHtml;
+    document.body.appendChild(modal);
+
+    // تفعيل أزرار الإغلاق
+    document
+      .getElementById("minasaty-modal-close-btn")
+      ?.addEventListener("click", () => dismiss(24));
+
+    document
+      .getElementById("minasaty-continue-web-btn")
+      ?.addEventListener("click", () => dismiss(24));
+
+    // إغلاق عند النقر في الخلفية
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) dismiss(24);
+    });
+
+    // تفعيل التنبيهات
+    const notifBtn = document.getElementById("minasaty-enable-notifications-btn");
+    if ("Notification" in window) {
+      if (Notification.permission === "granted") {
+        if (notifBtn) {
+          notifBtn.innerHTML = "<span>✓ التنبيهات مفعلة بنجاح</span>";
+          notifBtn.classList.add("is-granted");
+          notifBtn.disabled = true;
+        }
+      } else {
+        notifBtn?.addEventListener("click", async () => {
+          try {
+            const perm = await Notification.requestPermission();
+            if (perm === "granted") {
+              notifBtn.innerHTML = "<span>✓ تم تفعيل التنبيهات بنجاح!</span>";
+              notifBtn.classList.add("is-granted");
+              notifBtn.disabled = true;
+            } else {
+              alert("يرجى تفعيل التنبيهات من إعدادات المتصفح لتلقي مواعيد الحصص.");
+            }
+          } catch (_) {}
+        });
+      }
+    } else {
+      if (notifBtn) notifBtn.style.display = "none";
+    }
+  }
+
+  function showModal() {
+    if (checkIfInApp()) return;
+    const modal = document.getElementById("minasaty-app-modal");
+    if (modal) modal.style.display = "flex";
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initAppModal);
+  } else {
+    initAppModal();
+  }
 })();
