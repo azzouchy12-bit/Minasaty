@@ -1,3 +1,7 @@
+// إذا كان الدخول من تطبيق الأكاديمية الرسمي، تجاوز التنبيه وادخل مباشرة
+if (navigator.userAgent.includes("MinasatyApp") || navigator.userAgent.includes("com.comminasatyacadimia.minasaty")) {
+    return;
+}
 (() => {
   "use strict";
 
