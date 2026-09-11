@@ -2097,16 +2097,27 @@
     </a>
 
     <script>
-      // إخفاء الزر تماماً إذا كان التلميذ يتصفح من داخل تطبيق الأندرويد المثبت
+      // إخفاء وحذف الزر فوراً وقطعياً إذا كان التلميذ داخل تطبيق الهاتف المثبت
       (function() {
         var ua = navigator.userAgent || '';
-        var isAndroidApp = /;\s*wv\b|MinasatyApp|com\.comminasatyacadimia/i.test(ua);
+        
+        // 1. فحص شامل لجميع أنواع تطبيقات أندرويد وآبل (WebView / APK / Standalone)
+        var isAndroidApp = /;\s*wv\b|Android.*Version\/|MinasatyApp|com\.comminasatyacadimia|WebIntoApp/i.test(ua);
+        var isIosApp = /(iPhone|iPad|iPod).*Mobile\/(?!.*Safari)/i.test(ua);
         var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
-        if (isAndroidApp || isStandalone) {
+        var isInsideApp = isAndroidApp || isIosApp || isStandalone;
+
+        if (isInsideApp) {
+          // 🚨 داخل التطبيق: نحذف الزر نهائياً من الصفحة
           document.body.classList.add('inside-native-app');
           var btn = document.getElementById('pwa-dash-float-btn');
-          if (btn) btn.style.setProperty('display', 'none', 'important');
+          if (btn) {
+            btn.style.setProperty('display', 'none', 'important');
+            if (btn.parentNode) {
+              btn.parentNode.removeChild(btn); // حذف كامل من شجرة الصفحة
+            }
+          }
         }
       })();
 
