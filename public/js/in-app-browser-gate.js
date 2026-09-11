@@ -4,7 +4,42 @@ if (navigator.userAgent.includes("MinasatyApp") || navigator.userAgent.includes(
 }
 (() => {
   "use strict";
+(() => {
+  "use strict";
 
+  // 🚨 إذا كان الدخول من تطبيق الأكاديمية الرسمي، احذف زر التحميل وتجاوز التنبيه تماماً
+  if (
+    navigator.userAgent.includes("MinasatyApp") ||
+    navigator.userAgent.includes("com.comminasatyacadimia.minasaty") ||
+    navigator.userAgent.includes("WebIntoApp") ||
+    /;\s*wv\b|Android.*Version\//i.test(navigator.userAgent) ||
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  ) {
+    // 1. حقن كود CSS فوري في رأس الصفحة لإخفاء الزر نهائياً
+    const hideStyle = document.createElement("style");
+    hideStyle.textContent = "#pwa-dash-float-btn, .pwa-dash-floating-btn { display: none !important; }";
+    if (document.head) {
+      document.head.appendChild(hideStyle);
+    } else {
+      document.addEventListener("DOMContentLoaded", () => document.head.appendChild(hideStyle));
+    }
+
+    // 2. حذف الزر تماماً من عناصر الصفحة
+    const removeBtn = () => {
+      const btn = document.getElementById("pwa-dash-float-btn");
+      if (btn) {
+        btn.style.setProperty("display", "none", "important");
+        btn.remove();
+      }
+    };
+    removeBtn();
+    document.addEventListener("DOMContentLoaded", removeBtn);
+    window.addEventListener("load", removeBtn);
+
+    // 3. إنهاء السكربت فوراً بدون إظهار أي نافذة
+    return;
+  }
   function ensureFallbackStyles() {
     if (document.querySelector('link[href*="/css/style.css"], link[href*="./css/style.css"]') || document.getElementById("in-app-browser-fallback-style")) return;
     const style = document.createElement("style");
