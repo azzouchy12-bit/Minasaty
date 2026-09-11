@@ -2150,6 +2150,78 @@
     <script src="./js/browser-notifications.js?v=session-takeover-1"></script>
     <script src="./js/class-registry-parent.js?v=panel-scroll-1"></script>
     <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
-    <script src="./js/app-install-modal.js" defer></script>
+    <script>
+  // كود تشغيل نافذة التطبيق والزر العائم مدمج مباشرة
+  (function() {
+    var modal = document.getElementById('pwa-dash-modal');
+    var floatBtn = document.getElementById('pwa-dash-float-btn');
+    var closeBtn = document.getElementById('pwa-dash-close-btn');
+    var dismissBtn = document.getElementById('pwa-dash-dismiss-btn');
+    var notifBtn = document.getElementById('pwa-dash-notif-btn');
+    var iosWrap = document.getElementById('pwa-dash-ios-wrap');
+    var androidWrap = document.getElementById('pwa-dash-android-wrap');
+
+    // 1. إذا كان التلميذ يتصفح من داخل تطبيقنا الأندرويد الرسمي، نخفي الزر والنافذة تماماً
+    if (navigator.userAgent.indexOf('MinasatyApp') !== -1 || navigator.userAgent.indexOf('com.comminasatyacadimia.minasaty') !== -1) {
+      if (floatBtn) floatBtn.style.display = 'none';
+      if (modal) modal.style.display = 'none';
+      return;
+    }
+
+    // 2. إذا كان الجهاز آيفون أو آيباد نظهر له خطوات سفاري ونخفي زر الـ APK
+    var isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isIos) {
+      if (androidWrap) androidWrap.style.display = 'none';
+      if (iosWrap) iosWrap.style.display = 'block';
+    }
+
+    function openModal(e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeModal(e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      if (modal) modal.style.display = 'none';
+    }
+
+    if (floatBtn) {
+      floatBtn.onclick = openModal;
+      floatBtn.addEventListener('click', openModal);
+      floatBtn.addEventListener('touchend', openModal);
+    }
+    if (closeBtn) {
+      closeBtn.onclick = closeModal;
+    }
+    if (dismissBtn) {
+      dismissBtn.onclick = closeModal;
+    }
+
+    // إغلاق عند الضغط على الخلفية المعتمة
+    if (modal) {
+      modal.onclick = function(e) {
+        if (e.target === modal) closeModal(e);
+      };
+    }
+
+    // تفعيل التنبيهات
+    if (notifBtn) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        notifBtn.classList.add('is-granted');
+        notifBtn.innerHTML = '<span>✓ التنبيهات مفعّلة بالفعل على جهازك</span>';
+      }
+      notifBtn.onclick = function() {
+        if ('Notification' in window) {
+          Notification.requestPermission().then(function(perm) {
+            if (perm === 'granted') {
+              notifBtn.classList.add('is-granted');
+              notifBtn.innerHTML = '<span>✓ تم تفعيل التنبيهات بنجاح!</span>';
+            }
+          });
+        }
+      };
+    }
+  })();
+</script>
   </body>
 </html>
