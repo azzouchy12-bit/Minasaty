@@ -1458,6 +1458,133 @@
       .parent-dashboard-page.has-multiple-students #live-classes-entry-card {
         order: 2;
       }
+
+      /* ============================================================ */
+      /* 📲 نافذة تثبيت التطبيق وتفعيل التنبيهات الذكية للداشبورد */
+      /* ============================================================ */
+      .pwa-dash-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.78);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        direction: rtl;
+        animation: pwaFadeIn 0.25s ease-out;
+      }
+      @keyframes pwaFadeIn { from { opacity: 0; } to { opacity: 1; } }
+      .pwa-dash-card {
+        background: #1e293b;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 24px;
+        width: 100%;
+        max-width: 420px;
+        padding: 28px 20px;
+        text-align: center;
+        position: relative;
+        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+        color: #f8fafc;
+      }
+      .pwa-dash-close {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        background: rgba(255, 255, 255, 0.08);
+        border: none;
+        color: #94a3b8;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .pwa-dash-avatar {
+        width: 85px;
+        height: 85px;
+        margin: 0 auto 12px;
+        border-radius: 50%;
+        overflow: hidden;
+        border: 3px solid #0d6efd;
+        box-shadow: 0 8px 20px rgba(13, 110, 253, 0.45);
+      }
+      .pwa-dash-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+      .pwa-dash-card h2 { font-size: 19px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+      .pwa-dash-sub { font-size: 13px; color: #94a3b8; line-height: 1.5; margin-bottom: 18px; }
+      .pwa-dash-btn-apk {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: linear-gradient(135deg, #16a34a, #15803d);
+        color: #fff;
+        text-decoration: none;
+        padding: 14px 18px;
+        border-radius: 14px;
+        font-weight: 700;
+        font-size: 15px;
+        box-shadow: 0 6px 18px rgba(22, 163, 74, 0.35);
+        margin-bottom: 6px;
+      }
+      .pwa-dash-btn-apk:hover { background: linear-gradient(135deg, #15803d, #166534); }
+      .pwa-dash-apk-hint { font-size: 11px; color: #86efac; display: block; margin-bottom: 12px; }
+      .pwa-dash-ios-steps {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        border-radius: 14px;
+        padding: 12px 14px;
+        text-align: right;
+        font-size: 12px;
+        margin-bottom: 12px;
+      }
+      .pwa-dash-ios-steps strong { color: #60a5fa; display: block; margin-bottom: 6px; }
+      .pwa-dash-ios-steps ol { padding-right: 18px; color: #cbd5e1; line-height: 1.5; }
+      .pwa-dash-btn-notif {
+        width: 100%;
+        background: rgba(13, 110, 253, 0.15);
+        color: #60a5fa;
+        border: 1px solid rgba(13, 110, 253, 0.35);
+        padding: 10px 14px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 12px;
+        cursor: pointer;
+        margin-bottom: 12px;
+      }
+      .pwa-dash-btn-notif.is-granted {
+        background: rgba(34, 197, 94, 0.15);
+        color: #4ade80;
+        border-color: rgba(34, 197, 94, 0.3);
+      }
+      .pwa-dash-btn-dismiss {
+        background: transparent;
+        border: none;
+        color: #64748b;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .pwa-dash-floating-btn {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        background: linear-gradient(135deg, #0d6efd, #2563eb);
+        color: #fff;
+        border: none;
+        border-radius: 30px;
+        padding: 9px 15px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 6px 18px rgba(13, 110, 253, 0.4);
+        z-index: 9998;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        direction: rtl;
+      }
     </style>
     <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=receipt-decision-2" />
     <link rel="stylesheet" href="./css/live-classes-entry.css?v=live-entry-1" />
@@ -1968,14 +2095,61 @@
       </section>
     </div>
 
+    <!-- ============================================================ -->
+    <!-- 📲 نافذة تثبيت التطبيق وتفعيل التنبيهات للأستاذ عز الدين شارف -->
+    <!-- ============================================================ -->
+    <div id="pwa-dash-modal" class="pwa-dash-overlay" style="display: none;">
+      <div class="pwa-dash-card">
+        <button class="pwa-dash-close" id="pwa-dash-close-btn" aria-label="إغلاق">✕</button>
+        <div class="pwa-dash-avatar">
+          <img src="/assets/teacher.jpg" onerror="this.src='/assets/icon-192.png'" alt="الأستاذ عز الدين شارف" />
+        </div>
+        <h2>تطبيق أكاديمية التفوق متاح الآن! 📲</h2>
+        <p class="pwa-dash-sub">حمّل التطبيق على هاتفك لدخول أسرع للحصص وتلقي تنبيهات فورية بمواعيد البث المباشر والواجبات.</p>
+
+        <!-- لأجهزة أندرويد وكروم -->
+        <div id="pwa-dash-android-wrap">
+          <a href="/acadimia.apk" download="acadimia.apk" class="pwa-dash-btn-apk">
+            <span>📥 تحميل تطبيق أندرويد المباشر (APK)</span>
+          </a>
+          <small class="pwa-dash-apk-hint">حجم خفيف (أقل من 1 ميغابايت) • متوافق مع كافة الهواتف</small>
+        </div>
+
+        <!-- لأجهزة آيفون وآيباد وسفاري -->
+        <div id="pwa-dash-ios-wrap" class="pwa-dash-ios-steps" style="display: none;">
+          <strong>🍏 طريقة التثبيت على الآيفون والآيباد:</strong>
+          <ol>
+            <li>اضغط على زر المشاركة <strong>[ ⎋ ]</strong> أسفل متصفح Safari.</li>
+            <li>اختر: <strong>[ ➕ إضافة إلى الشاشة الرئيسية ]</strong>.</li>
+            <li>اضغط <strong>[ إضافة ]</strong> وسيظهر التطبيق على شاشتك فوراً!</li>
+          </ol>
+        </div>
+
+        <!-- زر التنبيهات السريع -->
+        <button id="pwa-dash-notif-btn" class="pwa-dash-btn-notif" type="button">
+          <span>🔔 تفعيل التنبيهات الفورية للحصص</span>
+        </button>
+
+        <button id="pwa-dash-dismiss-btn" class="pwa-dash-btn-dismiss" type="button">
+          المتابعة عبر المتصفح
+        </button>
+      </div>
+    </div>
+
+    <!-- زر عائم أنيق في زاوية الشاشة لفتح النافذة في أي وقت -->
+    <button id="pwa-dash-float-btn" class="pwa-dash-floating-btn" type="button" title="تثبيت تطبيق الأكاديمية">
+      <span>📲 تطبيق المنصة</span>
+    </button>
+
     <script src="/socket.io/socket.io.js"></script>
     <script src="./js/session-storage.js?v=single-session-1"></script>
     <script src="./js/message-notifications.js"></script>
     <script src="./js/parent-referral.js?v=referral-ui-1"></script>
-    <script src="./js/parent-dashboard.js"?v=payment-review-frame-1"></script>
+    <script src="./js/parent-dashboard.js?v=payment-review-frame-1"></script>
     <script src="./js/parent-push-prompt.js?v=parent-push-prompt-1"></script>
     <script src="./js/browser-notifications.js?v=session-takeover-1"></script>
     <script src="./js/class-registry-parent.js?v=panel-scroll-1"></script>
-  <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
-</body>
+    <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
+    <script src="./js/app-install-modal.js" defer></script>
+  </body>
 </html>
