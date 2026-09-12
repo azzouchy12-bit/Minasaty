@@ -4,6 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
     <meta name="theme-color" content="#0b1220" />
+    <script>
+      (function () {
+        try {
+          var completed = false;
+          if (window.localStorage) {
+            if (
+              localStorage.getItem("studentLivePrejoinCompleted:v1") === "true" ||
+              localStorage.getItem("studentLiveMicPermission:v1") === "granted"
+            ) {
+              completed = true;
+            }
+          }
+          if (!completed && document.cookie && document.cookie.indexOf("studentLivePrejoinCompleted=true") !== -1) {
+            completed = true;
+          }
+          if (completed) {
+            document.documentElement.classList.add("student-prejoin-completed-user");
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -57,8 +78,19 @@
         backdrop-filter: blur(12px);
       }
 
+      html.student-prejoin-completed-user #student-prejoin-overlay,
+      html.student-prejoin-completed-user .student-prejoin-overlay {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        opacity: 0 !important;
+        z-index: -1 !important;
+      }
+
       .student-prejoin-overlay[hidden] {
-        display: none;
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
       }
 
       .student-prejoin-card {
@@ -5073,7 +5105,7 @@
     <script src="./js/message-notifications.js"></script>
     <script src="./js/student-desktop.js?v=desktop-css-only-1"></script>
     <script src="./js/webrtc-ice.js?v=coturn-1"></script>
-    <script src="./js/student-live.js?v=rotation-fix-1"></script>
+    <script src="./js/student-live.js?v=prejoin-once-1"></script>
   <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
   </body>
 </html>

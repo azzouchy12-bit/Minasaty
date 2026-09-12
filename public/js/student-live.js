@@ -80,6 +80,7 @@ let recoveryAttempts = 0;
 let recoveryTimer = null;
 const MAX_RECOVERY_ATTEMPTS = 8;
 const STUDENT_MIC_PERMISSION_STORAGE_KEY = "studentLiveMicPermission:v1";
+const STUDENT_PREJOIN_COMPLETED_KEY = "studentLivePrejoinCompleted:v1";
 const pendingIceCandidates = [];
 const MAX_QUESTION_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 const ACCEPTED_QUESTION_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -269,9 +270,69 @@ const currentStudent = storedStudent;
 const studentId = currentStudent.studentId;
 const studentName = currentStudent.studentName;
 const level = canonicalLevel(currentStudent.level);
+
+function markPermanentStudentPrejoinCompleted() {
+  try {
+    localStorage.setItem(STUDENT_PREJOIN_COMPLETED_KEY, "true");
+    localStorage.setItem(STUDENT_MIC_PERMISSION_STORAGE_KEY, "granted");
+    if (studentId) {
+      localStorage.setItem(`${STUDENT_PREJOIN_COMPLETED_KEY}:${studentId}`, "true");
+    }
+  } catch (error) {
+    console.info("Unable to save prejoin completion in localStorage:", error);
+  }
+  try {
+    document.cookie = "studentLivePrejoinCompleted=true; path=/; max-age=63072000; SameSite=Lax";
+    if (studentId) {
+      document.cookie = `studentLivePrejoin_${encodeURIComponent(studentId)}=true; path=/; max-age=63072000; SameSite=Lax`;
+    }
+  } catch (error) {
+    console.info("Unable to save prejoin completion in cookie:", error);
+  }
+  try {
+    sessionStorage.setItem(STUDENT_PREJOIN_COMPLETED_KEY, "true");
+  } catch (ignored) {}
+  document.documentElement.classList.add("student-prejoin-completed-user");
+}
+
+function hasPermanentStudentPrejoinCompleted() {
+  try {
+    if (
+      localStorage.getItem(STUDENT_PREJOIN_COMPLETED_KEY) === "true" ||
+      localStorage.getItem(STUDENT_MIC_PERMISSION_STORAGE_KEY) === "granted" ||
+      (studentId && localStorage.getItem(`${STUDENT_PREJOIN_COMPLETED_KEY}:${studentId}`) === "true")
+    ) {
+      return true;
+    }
+  } catch (error) {}
+
+  try {
+    if (
+      document.cookie &&
+      (document.cookie.includes("studentLivePrejoinCompleted=true") ||
+       (studentId && document.cookie.includes(`studentLivePrejoin_${encodeURIComponent(studentId)}=true`)))
+    ) {
+      return true;
+    }
+  } catch (error) {}
+
+  try {
+    if (sessionStorage.getItem(STUDENT_PREJOIN_COMPLETED_KEY) === "true") {
+      return true;
+    }
+  } catch (error) {}
+
+  return document.documentElement.classList.contains("student-prejoin-completed-user");
+}
+
+prejoinCompleted = hasPermanentStudentPrejoinCompleted();
+if (prejoinCompleted) {
+  document.documentElement.classList.add("student-prejoin-completed-user");
+}
+
 // The classroom is entered from the parent dashboard. Once identity is known,
 // keep the viewer hands-free even after a teacher ends and later restarts class.
-initialAutoJoinPending = initialAutoJoinPending || Boolean(studentId && level);
+initialAutoJoinPending = initialAutoJoinPending || Boolean(studentId && level) || prejoinCompleted;
 
 /**
  * Keep status text accessible and use explicit modes rather than injecting
@@ -1656,7 +1717,6 @@ async function prepareStudentMicrophone() {
   } catch (error) {
     microphonePrepared = false;
     if (error?.name === "NotAllowedError") {
-      clearRememberedStudentMicrophonePermission();
       setViewerStatus("يمكنك متابعة الحصة بصوت الأستاذ. لن يعمل مايكك إلا بعد السماح للمتصفح.", "warning");
     } else if (error?.name === "NotFoundError") {
       setViewerStatus("لم يتم العثور على مايك متاح. ستتابع الحصة بصوت الأستاذ.", "warning");
@@ -1680,13 +1740,14 @@ function rememberStudentMicrophonePermission() {
 
 function hasRememberedStudentMicrophonePermission() {
   try {
-    return localStorage.getItem(STUDENT_MIC_PERMISSION_STORAGE_KEY) === "granted";
+    return localStorage.getItem(STUDENT_MIC_PERMISSION_STORAGE_KEY) === "granted" || hasPermanentStudentPrejoinCompleted();
   } catch (error) {
-    return false;
+    return hasPermanentStudentPrejoinCompleted();
   }
 }
 
 function clearRememberedStudentMicrophonePermission() {
+  if (hasPermanentStudentPrejoinCompleted()) return;
   try {
     localStorage.removeItem(STUDENT_MIC_PERMISSION_STORAGE_KEY);
   } catch (error) {
@@ -1769,6 +1830,9 @@ function setStudentPrejoinHidden(hidden) {
   overlay.style.pointerEvents = hidden ? "none" : "auto";
   overlay.style.visibility = hidden ? "hidden" : "visible";
   overlay.setAttribute("aria-hidden", hidden ? "true" : "false");
+  if (hidden) {
+    document.documentElement.classList.add("student-prejoin-completed-user");
+  }
 }
 
 function setStudentSessionActive(active) {
@@ -1785,13 +1849,16 @@ async function continueFromStudentPrejoin() {
     }
   }
 
+  markPermanentStudentPrejoinCompleted();
   await completeStudentPrejoinAndJoin();
 }
 
 async function completeStudentPrejoinAndJoin() {
+  markPermanentStudentPrejoinCompleted();
   prejoinCompleted = true;
   initialAutoJoinPending = true;
   setStudentPrejoinHidden(true);
+  setStudentSessionActive(true);
   setPlaceholder("جاري الدخول إلى الحصة", "سيظهر بث الأستاذ تلقائياً عند توفر الحصة.");
   setViewerStatus("جارٍ الدخول إلى الحصة…", "warning");
   if (socket.connected) {
@@ -1802,28 +1869,37 @@ async function completeStudentPrejoinAndJoin() {
 async function initializeStudentPrejoin() {
   if (!elements.prejoinOverlay) return;
 
-  prejoinCompleted = false;
-  initialAutoJoinPending = false;
+  if (hasPermanentStudentPrejoinCompleted()) {
+    prejoinCompleted = true;
+    initialAutoJoinPending = true;
+    setStudentPrejoinHidden(true);
+    setStudentSessionActive(true);
+    markPermanentStudentPrejoinCompleted();
 
-  const rememberedPermission = hasRememberedStudentMicrophonePermission();
-  setStudentPrejoinHidden(rememberedPermission);
-  updatePrejoinControls("يجب تفعيل الميكروفون أولاً قبل دخول الحصة.");
-
-  const browserPermission = await readBrowserMicrophonePermission();
-  const canReusePermission = rememberedPermission && browserPermission !== "prompt" && browserPermission !== "denied";
-
-  if (canReusePermission) {
-    const ready = await prepareStudentMicrophone();
-    if (ready) {
-      await completeStudentPrejoinAndJoin();
-      return;
+    // Silently attempt background microphone preparation if browser already permitted it,
+    // but never block entry or show the prejoin modal.
+    if (!microphonePrepared && navigator.mediaDevices?.getUserMedia) {
+      void (async () => {
+        try {
+          const browserPermission = await readBrowserMicrophonePermission();
+          if (browserPermission === "granted") {
+            await prepareStudentMicrophone();
+          }
+        } catch (ignored) {}
+      })();
     }
-    clearRememberedStudentMicrophonePermission();
+
+    if (socket.connected && !joinedClass && !isJoining) {
+      void joinClass();
+    }
+    return;
   }
 
-  // A completed or in-progress join must never reopen the click-blocking layer.
-  if (joinedClass || isJoining || prejoinCompleted) return;
+  prejoinCompleted = false;
+  initialAutoJoinPending = false;
   setStudentPrejoinHidden(false);
+  updatePrejoinControls("يجب تفعيل الميكروفون أولاً قبل دخول الحصة.");
+
   const micWasPreparedDuringEntry = sessionStorage.getItem("studentMicPreflight") === "granted";
   sessionStorage.removeItem("studentMicPreflight");
   if (micWasPreparedDuringEntry) {
@@ -2975,9 +3051,14 @@ if (!studentId || !studentName || !level) {
   if (elements.classSubjectLabel) elements.classSubjectLabel.textContent = "المادة";
   elements.exitClassButton?.addEventListener("click", exitLiveClass);
   setLevelWelcomeImage();
-  setPlaceholder("جاري تجهيز الدخول إلى الحصة", "ستظهر صورة مستواك وصوت الأستاذ بعد إكمال فحص الميكروفون.");
+  if (prejoinCompleted) {
+    setPlaceholder("جاري الدخول إلى الحصة", "سيظهر بث الأستاذ تلقائياً عند توفر الحصة.");
+    setViewerStatus("جارٍ الدخول إلى الحصة…", "warning");
+  } else {
+    setPlaceholder("جاري تجهيز الدخول إلى الحصة", "ستظهر صورة مستواك وصوت الأستاذ بعد إكمال فحص الميكروفون.");
+    setViewerStatus("بانتظار تجهيز الميكروفون…", "neutral");
+  }
   updateMicControl();
   updateChatControls();
-  setViewerStatus("بانتظار تجهيز الميكروفون…", "neutral");
   void initializeStudentPrejoin();
 }
