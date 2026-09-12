@@ -2325,19 +2325,16 @@ body.public-class-modal-open { overflow: hidden; }
   }
 }
 
-/* 9. Disable Pull-to-Refresh & Overscroll on live classrooms & native app */
+/* 9. Disable Pull-to-Refresh & Overscroll exclusively on live classrooms */
 html.student-live-context,
 body.student-live-page,
 body.teacher-live-page,
 .student-live-page,
 .teacher-live-page,
-html.inside-native-app,
-body.inside-native-app,
-html.is-app,
-body.is-app,
 html.student-landscape-mode,
 html.student-virtual-landscape-mode {
   overscroll-behavior: none !important;
   overscroll-behavior-y: none !important;
   overscroll-behavior-x: none !important;
 }
+

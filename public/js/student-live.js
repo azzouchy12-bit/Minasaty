@@ -952,6 +952,31 @@ function disableNativeSwipeRefresh() {
   }
 }
 
+function enableNativeSwipeRefresh() {
+  const bridgeCandidates = [
+    window.Android,
+    window.AndroidInterface,
+    window.Minasaty,
+    window.MinasatyApp,
+    window.MinassatiApp,
+    window.JSBridge,
+    window.webkit?.messageHandlers?.Android,
+  ];
+
+  for (const bridge of bridgeCandidates) {
+    if (!bridge) continue;
+    try {
+      if (typeof bridge.enableSwipeRefresh === "function") bridge.enableSwipeRefresh();
+      if (typeof bridge.setSwipeRefreshEnabled === "function") bridge.setSwipeRefreshEnabled(true);
+      if (typeof bridge.setSwipeRefresh === "function") bridge.setSwipeRefresh(true);
+      if (typeof bridge.enablePullToRefresh === "function") bridge.enablePullToRefresh(true);
+      if (typeof bridge.setRefreshEnabled === "function") bridge.setRefreshEnabled(true);
+      if (typeof bridge.setPullToRefreshEnabled === "function") bridge.setPullToRefreshEnabled(true);
+      if (typeof bridge.setEnabled === "function") bridge.setEnabled(true);
+    } catch (_) {}
+  }
+}
+
 function installPullToRefreshBlocker() {
   disableNativeSwipeRefresh();
 
@@ -3147,12 +3172,17 @@ elements.subscriptionDeclineButton?.addEventListener("click", () => {
 initializeStudentKeyboardLayout();
 
 window.addEventListener("pagehide", () => {
+  enableNativeSwipeRefresh();
   clearHandResetTimer();
   clearRecoveryTimer();
   clearSelectedQuestionImage();
   closeSubscriptionUpgradeModal();
   closePeerConnection();
   stopLocalAudio();
+});
+
+window.addEventListener("beforeunload", () => {
+  enableNativeSwipeRefresh();
 });
 
 if (!studentId || !studentName || !level) {
