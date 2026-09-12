@@ -172,7 +172,13 @@ const elements = {
   youtubeUploadState: document.getElementById("youtube-upload-state"),
   youtubeUploadText: document.getElementById("youtube-upload-text"),
   youtubeUploadProgress: document.getElementById("youtube-upload-progress"),
+  downloadRecordingButton: document.getElementById("download-recording-btn"),
+  forceUploadYoutubeButton: document.getElementById("force-upload-youtube-btn"),
+  topbarRecordingActions: document.getElementById("topbar-recording-actions"),
+  topbarDownloadRecordingButton: document.getElementById("topbar-download-recording-btn"),
+  topbarUploadYoutubeButton: document.getElementById("topbar-upload-youtube-btn"),
   recordingReadyModal: document.getElementById("recording-ready-modal"),
+  modalDownloadRecordingButton: document.getElementById("modal-download-device-btn"),
   uploadYoutubeAfterEndButton: document.getElementById("upload-youtube-after-end-btn"),
   closeRecordingReadyButton: document.getElementById("close-recording-ready-btn"),
   leaveStudioButton: document.getElementById("leave-studio-btn"),
@@ -1417,21 +1423,78 @@ function createLocalRecordingArtifact(chunks, mimeType) {
 
 
 function downloadLocalRecording(recording) {
-  if (!recording?.blob || !recording.fileName) {
+  if (!recording?.blob) {
     return false;
   }
 
-
+  const fileName = recording.fileName || `recording-${Date.now()}.webm`;
   const fileUrl = URL.createObjectURL(recording.blob);
   const link = document.createElement("a");
   link.href = fileUrl;
-  link.download = recording.fileName;
+  link.download = fileName;
   link.style.display = "none";
   document.body.append(link);
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60_000);
   return true;
+}
+
+
+function handleDownloadRecordingClick() {
+  if (lastLocalRecording?.blob && lastLocalRecording.blob.size > 0) {
+    const downloaded = downloadLocalRecording(lastLocalRecording);
+    if (downloaded) {
+      setStudioStatus("✅ بدأ تنزيل ملف تسجيل الحصة على جهازك (مجلد التحميلات).", "live");
+    } else {
+      setStudioStatus("تعذر تنزيل الملف محلياً. حاول مرة أخرى.", "error");
+    }
+    return;
+  }
+  if (isLocalRecording()) {
+    alert("التسجيل جارٍ حالياً. اضغط على «إيقاف التسجيل» أو «إنهاء الحصة» أولاً لتنزيل الحصة كاملة.");
+    return;
+  }
+  alert("لا يوجد تسجيل متاح بعد. ابدأ تسجيل الحصة أولاً.");
+}
+
+
+async function handleForceUploadYoutubeClick() {
+  if (!lastLocalRecording?.blob || lastLocalRecording.blob.size === 0) {
+    if (isLocalRecording()) {
+      alert("التسجيل جارٍ حالياً. اضغط على «إيقاف التسجيل» أو «إنهاء الحصة» أولاً لرفعها.");
+      return;
+    }
+    alert("لا يوجد تسجيل متاح لرفعه إلى YouTube.");
+    return;
+  }
+
+  // نحرر القفل ونجبر الرفع في حال كان هناك رفع سابق معلق بسبب خطأ في الشبكة
+  youtubeUploadInProgress = false;
+
+  updateYoutubeUploadUi({
+    visible: true,
+    text: "جارٍ إجبار إعادة رفع تسجيل الحصة إلى YouTube...",
+    progress: 3,
+  });
+  setStudioStatus("جارٍ إعادة محاولة الرفع إلى YouTube...", "live");
+
+  try {
+    const result = await uploadRecordingToYouTube(lastLocalRecording, { force: true });
+    if (result) {
+      setStudioStatus("✅ تم رفع التسجيل بنجاح إلى YouTube وربطه بالحصة.", "live");
+    }
+  } catch (error) {
+    console.error("Force YouTube upload error:", error);
+    updateYoutubeUploadUi({
+      visible: true,
+      text: `تعذر الرفع: ${error.message || "خطأ في الاتصال"}. يمكنك إعادة المحاولة بالضغط على الزر مرة أخرى.`,
+      progress: 0,
+    });
+    setStudioStatus("تعذر الرفع إلى YouTube؛ ملف الفيديو محفوظ بجهازك ويمكنك إعادة المحاولة بالزر الأحمر.", "error");
+  } finally {
+    updateControls();
+  }
 }
 
 
@@ -1499,7 +1562,10 @@ function uploadFormDataWithProgress(url, formData, { token, onProgress } = {}) {
 }
 
 
-async function uploadRecordingToYouTube(recording) {
+async function uploadRecordingToYouTube(recording, { force = false } = {}) {
+  if (force) {
+    youtubeUploadInProgress = false;
+  }
   if (!recording?.blob || youtubeUploadInProgress) return null;
 
   if (recording.blob.size === 0) {
@@ -1571,10 +1637,20 @@ async function uploadRecordingToYouTube(recording) {
     console.error("Unable to upload recording to YouTube:", error);
     updateYoutubeUploadUi({
       visible: true,
-      text: `تعذر الرفع إلى YouTube: ${error.message} (الملف محفوظ في جهازك)`,
+      text: `تعذر الرفع إلى YouTube: ${error.message} (الملف محفوظ في جهازك ويمكنك إعادة المحاولة بالزر الأحمر)`,
       progress: 0,
     });
-    setStudioStatus("تعذر رفع التسجيل إلى YouTube؛ الملف محفوظ في جهازك.", "error");
+    setStudioStatus("تعذر رفع التسجيل إلى YouTube؛ الملف محفوظ بجهازك ويمكنك إعادة الرفع بالزر الأحمر.", "error");
+
+    // تنزيل احتياطي تلقائي لضمان سلامة الملف في مجلد التحميلات في حال فشل الرفع
+    try {
+      if (recording && !recording._autoDownloaded) {
+        recording._autoDownloaded = true;
+        downloadLocalRecording(recording);
+        console.log("Auto-downloaded local recording to PC as backup after YouTube upload failure.");
+      }
+    } catch (_) {}
+
     setTimeout(() => updateYoutubeUploadUi({ visible: false }), 9000);
     return null;
   } finally {
@@ -1872,6 +1948,7 @@ function finalizeLocalRecording() {
   updateControls();
   resolver?.(Boolean(recording));
   if (recording) {
+    showRecordingReadyModal();
     void uploadRecordingToYouTube(recording);
   }
 }
@@ -2005,6 +2082,29 @@ function updateControls() {
   if (elements.toggleMicButton) elements.toggleMicButton.disabled = !classActive || !hasAudio || isEnding;
   if (elements.recordLocalButton) elements.recordLocalButton.disabled = (!canRecordLocalClass() && !isLocalRecording()) || isEnding;
   if (elements.saveDriveButton) elements.saveDriveButton.disabled = !lastLocalRecording || googleDriveUploadInProgress;
+
+  const hasRecording = Boolean(lastLocalRecording?.blob && lastLocalRecording.blob.size > 0);
+  if (elements.downloadRecordingButton) {
+    elements.downloadRecordingButton.disabled = !hasRecording;
+    elements.downloadRecordingButton.classList.toggle("has-recording", hasRecording);
+  }
+  if (elements.forceUploadYoutubeButton) {
+    elements.forceUploadYoutubeButton.disabled = !hasRecording || youtubeUploadInProgress;
+    elements.forceUploadYoutubeButton.classList.toggle("has-recording", hasRecording);
+  }
+  if (elements.topbarRecordingActions) {
+    elements.topbarRecordingActions.hidden = !hasRecording;
+  }
+  if (elements.topbarDownloadRecordingButton) {
+    elements.topbarDownloadRecordingButton.disabled = !hasRecording;
+  }
+  if (elements.topbarUploadYoutubeButton) {
+    elements.topbarUploadYoutubeButton.disabled = !hasRecording || youtubeUploadInProgress;
+  }
+  if (elements.modalDownloadRecordingButton) {
+    elements.modalDownloadRecordingButton.disabled = !hasRecording;
+  }
+
   if (elements.leaveStudioButton) elements.leaveStudioButton.disabled = !classActive || isEnding;
   if (elements.endClassButton) elements.endClassButton.disabled = !classActive || isEnding;
   if (elements.screenShareButton) {
@@ -3362,6 +3462,9 @@ async function endLiveClass({ notifyServer = true, statusMessage, preserveRecove
     isEnding = false;
     updateControls();
     setStudioStatus(statusMessage || "تم إنهاء الحصة المباشرة.", "neutral");
+    if (lastLocalRecording) {
+      showRecordingReadyModal();
+    }
   }
 }
 
@@ -4169,10 +4272,13 @@ elements.subjectSelect?.addEventListener("change", () => void checkForOpenSchedu
 elements.screenShareButton?.addEventListener("click", () => void toggleScreenShare());
 elements.toggleMicButton.addEventListener("click", toggleMicrophone);
 elements.recordLocalButton.addEventListener("click", toggleLocalRecording);
+elements.downloadRecordingButton?.addEventListener("click", handleDownloadRecordingClick);
+elements.forceUploadYoutubeButton?.addEventListener("click", handleForceUploadYoutubeClick);
+elements.topbarDownloadRecordingButton?.addEventListener("click", handleDownloadRecordingClick);
+elements.topbarUploadYoutubeButton?.addEventListener("click", handleForceUploadYoutubeClick);
+elements.modalDownloadRecordingButton?.addEventListener("click", handleDownloadRecordingClick);
 elements.saveDriveButton.addEventListener("click", handleGoogleDriveButton);
-elements.uploadYoutubeAfterEndButton?.addEventListener("click", () => {
-  if (lastLocalRecording) void uploadRecordingToYouTube(lastLocalRecording);
-});
+elements.uploadYoutubeAfterEndButton?.addEventListener("click", handleForceUploadYoutubeClick);
 elements.closeRecordingReadyButton?.addEventListener("click", closeRecordingReadyModal);
 elements.recordingReadyModal?.addEventListener("click", (event) => {
   if (event.target === elements.recordingReadyModal) closeRecordingReadyModal();

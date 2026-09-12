@@ -470,9 +470,9 @@
 
       .studio-controls {
         display: grid;
-        grid-template-columns: minmax(10rem, 1.35fr) repeat(3, minmax(7rem, 1fr));
-        gap: 0.7rem;
-        padding: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(8.2rem, 1fr));
+        gap: 0.65rem;
+        padding: 0.85rem 1rem;
         background: rgba(8, 17, 31, 0.48);
         border-top: 1px solid var(--studio-border);
       }
@@ -621,6 +621,149 @@
 
       .studio-button.drive:hover:not(:disabled) {
         background: rgba(21, 128, 61, 0.75);
+      }
+
+      .studio-button.download-device {
+        color: #e0f2fe;
+        background: rgba(14, 116, 144, 0.65);
+        border-color: rgba(56, 189, 248, 0.45);
+      }
+
+      .studio-button.download-device:hover:not(:disabled) {
+        color: #ffffff;
+        background: rgba(14, 116, 144, 0.95);
+        border-color: #38bdf8;
+        box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
+      }
+
+      .studio-button.download-device.has-recording {
+        color: #ffffff;
+        background: #0284c7;
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 0.16rem rgba(56, 189, 248, 0.3);
+      }
+
+      .studio-button.force-youtube {
+        color: #ffffff;
+        background: rgba(185, 28, 28, 0.68);
+        border-color: rgba(248, 113, 113, 0.45);
+      }
+
+      .studio-button.force-youtube:hover:not(:disabled) {
+        background: #dc2626;
+        border-color: #f87171;
+        box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
+      }
+
+      .studio-button.force-youtube.has-recording {
+        background: #b91c1c;
+        border-color: #ef4444;
+        box-shadow: 0 0 0 0.16rem rgba(239, 68, 68, 0.3);
+      }
+
+      .topbar-recording-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-inline-start: 0.5rem;
+      }
+
+      .topbar-recording-actions[hidden] {
+        display: none !important;
+      }
+
+      .topbar-quick-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.32rem 0.6rem;
+        border-radius: 0.5rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: all 0.2s ease;
+      }
+
+      .topbar-quick-btn svg {
+        width: 0.85rem;
+        height: 0.85rem;
+        fill: none;
+        stroke: currentColor;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 2;
+      }
+
+      .topbar-quick-btn.download {
+        color: #e0f2fe;
+        background: #0284c7;
+        border-color: #38bdf8;
+      }
+
+      .topbar-quick-btn.download:hover:not(:disabled) {
+        background: #0369a1;
+      }
+
+      .topbar-quick-btn.youtube {
+        color: #ffffff;
+        background: #b91c1c;
+        border-color: #ef4444;
+      }
+
+      .topbar-quick-btn.youtube:hover:not(:disabled) {
+        background: #991b1b;
+      }
+
+      .topbar-quick-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .recording-ready-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 1200;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.25rem;
+        background: rgba(15, 23, 42, 0.82);
+        backdrop-filter: blur(6px);
+      }
+
+      .recording-ready-modal[hidden] {
+        display: none !important;
+      }
+
+      .recording-ready-card {
+        width: 100%;
+        max-width: 28rem;
+        padding: 1.6rem;
+        background: #0f172a;
+        border: 1px solid rgba(96, 165, 250, 0.35);
+        border-radius: 1rem;
+        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.65);
+        text-align: center;
+      }
+
+      .recording-ready-card h2 {
+        margin: 0 0 0.5rem;
+        color: #f8fafc;
+        font-size: 1.25rem;
+      }
+
+      .recording-ready-card p {
+        margin: 0 0 1.25rem;
+        color: #94a3b8;
+        font-size: 0.88rem;
+        line-height: 1.5;
+      }
+
+      .recording-ready-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
       }
 
       .drive-upload-state {
@@ -1298,6 +1441,16 @@
             <span id="live-status-text">الاستوديو جاهز</span>
           </div>
           <span id="studio-duration" class="studio-duration" role="timer" aria-label="مدة الحصة" hidden>00:00:00</span>
+          <div id="topbar-recording-actions" class="topbar-recording-actions" hidden>
+            <button id="topbar-download-recording-btn" class="topbar-quick-btn download" type="button" title="تنزيل تسجيل الحصة مباشرة إلى جهاز الكمبيوتر (.webm)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.75v11.5M7.5 10.75l4.5 4.5 4.5-4.5M4.75 19.25h14.5" /></svg>
+              <span>تنزيل بالحاسوب</span>
+            </button>
+            <button id="topbar-upload-youtube-btn" class="topbar-quick-btn youtube" type="button" title="إجبار إعادة رفع التسجيل إلى YouTube وربطه بالحصة">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16.25V4.75m-4.5 4.5L12 4.75l4.5 4.5M4.75 19.25h14.5" /></svg>
+              <span>إجبار الرفع لليوتيوب</span>
+            </button>
+          </div>
         </div>
         <div class="studio-topbar-actions">
           <div class="topbar-select-field"><label for="level-select">المستوى</label><select id="level-select" aria-label="اختر المستوى الدراسي للحصة"><option value="السنة الأولى">السنة الأولى متوسط</option><option value="السنة الثانية">السنة الثانية متوسط</option><option value="السنة الثالثة">السنة الثالثة متوسط</option><option value="السنة الرابعة">السنة الرابعة متوسط</option><option value="طالب جامعي">طالب جامعي</option><option value="FREE">مجاني</option></select></div>
@@ -1344,11 +1497,22 @@
           <div class="studio-controls floating-toolbar" aria-label="أدوات التحكم في الحصة">
             <button id="start-class-btn" class="studio-button primary" type="button" title="بدء الحصة المباشرة"><span>بدء الحصة</span></button>
             <button id="record-local-btn" class="studio-button record" type="button" title="بدء أو إيقاف التسجيل المحلي" disabled><span>تسجيل</span></button>
+
+            <button id="download-recording-btn" class="studio-button download-device" type="button" title="تنزيل تسجيل الحصة مباشرة إلى جهاز الكمبيوتر (.webm)" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.75v11.5M7.5 10.75l4.5 4.5 4.5-4.5M4.75 19.25h14.5" /></svg>
+              <span>💾 تنزيل بالجهاز</span>
+            </button>
+
+            <button id="force-upload-youtube-btn" class="studio-button force-youtube" type="button" title="إجبار إعادة رفع تسجيل الحصة إلى YouTube وربطه بالحصة" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16.25V4.75m-4.5 4.5L12 4.75l4.5 4.5M4.75 19.25h14.5" /></svg>
+              <span>☁️ إجبار الرفع لليوتيوب</span>
+            </button>
+
             <button id="end-class-btn" class="studio-button danger" type="button" title="إنهاء الحصة لجميع التلاميذ" disabled><span>إنهاء الحصة</span></button>
 
             <button id="save-drive-btn" class="studio-button drive" type="button" title="حفظ آخر تسجيل في Google Drive" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.25 3.75h5.5L20 16.25l-2.75 4H11.75L7.25 12.5 10 7.75m2.75-4-2.75 4M7.25 12.5H14m3.25 7.75L14 16.25" /></svg>
-              <span>حفظ آخر تسجيل في Google Drive</span>
+              <span>حفظ في Google Drive</span>
             </button>
 
             <button id="toggle-mic-btn" class="studio-button" type="button" title="تشغيل أو إيقاف مايك الأستاذ" disabled>
@@ -1412,9 +1576,10 @@
     <div id="recording-ready-modal" class="recording-ready-modal" role="dialog" aria-modal="true" aria-labelledby="recording-ready-title" hidden>
       <section class="recording-ready-card">
         <h2 id="recording-ready-title">تم تسجيل الحصة بنجاح</h2>
-        <p>يمكنك الآن رفع التسجيل إلى YouTube وربطه بسجل الحصص حسب شروط النشر.</p>
+        <p>يمكنك الآن تنزيل التسجيل مباشرة إلى جهازك (الحاسوب) أو إعادة رفعه إلى YouTube وربطه بسجل الحصص.</p>
         <div class="recording-ready-actions">
-          <button id="upload-youtube-after-end-btn" class="studio-button primary" type="button"><span>☁ رفع التسجيل إلى YouTube</span></button>
+          <button id="modal-download-device-btn" class="studio-button download-device" type="button"><span>💾 تنزيل في الجهاز (الحاسوب)</span></button>
+          <button id="upload-youtube-after-end-btn" class="studio-button force-youtube" type="button"><span>☁ إجبار الرفع إلى YouTube</span></button>
           <button id="close-recording-ready-btn" class="studio-button" type="button"><span>إغلاق</span></button>
         </div>
       </section>
