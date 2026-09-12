@@ -4982,6 +4982,37 @@
           <span id="live-start-notice-copy" class="live-start-notice-copy">بدأت الحصة الآن</span>
         </div>
         <span id="student-participation-count" class="student-participation-count" dir="rtl" lang="ar" aria-live="polite">مشاركاتي: 0</span>
+        <div class="student-quality-wrapper" id="student-quality-wrapper" dir="rtl" lang="ar">
+          <button id="student-quality-btn" class="student-quality-btn" type="button" aria-haspopup="listbox" aria-expanded="false" title="اختيار جودة البث" aria-label="جودة البث">
+            <svg viewBox="0 0 24 24" class="quality-icon" aria-hidden="true">
+              <path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+            <span id="student-quality-label" class="student-quality-label">تلقائية</span>
+            <span class="quality-arrow" aria-hidden="true">▾</span>
+          </button>
+          <div id="student-quality-menu" class="student-quality-menu" role="listbox" aria-label="خيارات جودة البث" hidden>
+            <button type="button" role="option" data-quality="auto" class="quality-option is-active" aria-selected="true">
+              <span class="quality-check-dot" aria-hidden="true"></span>
+              <span class="quality-name">تلقائية</span>
+              <span class="quality-tag">تكيّف ذكي</span>
+            </button>
+            <button type="button" role="option" data-quality="high" class="quality-option" aria-selected="false">
+              <span class="quality-check-dot" aria-hidden="true"></span>
+              <span class="quality-name">عالية</span>
+              <span class="quality-tag">1080p</span>
+            </button>
+            <button type="button" role="option" data-quality="medium" class="quality-option" aria-selected="false">
+              <span class="quality-check-dot" aria-hidden="true"></span>
+              <span class="quality-name">متوسطة</span>
+              <span class="quality-tag">720p</span>
+            </button>
+            <button type="button" role="option" data-quality="low" class="quality-option" aria-selected="false">
+              <span class="quality-check-dot" aria-hidden="true"></span>
+              <span class="quality-name">ضعيفة</span>
+              <span class="quality-tag">480p</span>
+            </button>
+          </div>
+        </div>
         <span id="class-subject-label" class="viewer-subject" dir="rtl" lang="ar">المادة</span>
         <button id="student-exit-class-btn" class="student-exit-class-button" type="button" aria-label="الخروج من الحصة" title="الخروج من الحصة">X</button>
         <a class="message-bell" data-message-bell href="./student-chat.html" target="_blank" rel="noopener" aria-label="مراسلتي مع الأستاذ"><span aria-hidden="true">✉</span><b data-message-badge hidden>0</b></a>

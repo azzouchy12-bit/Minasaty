@@ -79,6 +79,7 @@ body.student-live-page {
   body.student-live-page .viewer-level,
   body.student-live-page .viewer-subject,
   body.student-live-page .student-participation-count,
+  body.student-live-page .student-quality-wrapper,
   body.student-live-page .student-exit-class-button {
     flex: 0 1 auto !important;
     min-width: 0 !important;
@@ -88,7 +89,7 @@ body.student-live-page {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    max-width: 39% !important;
+    max-width: 32% !important;
     min-height: 2.2rem !important;
     padding: .32rem .5rem !important;
     color: #dbeafe !important;
@@ -114,7 +115,7 @@ body.student-live-page {
 
   body.student-live-page .viewer-subject {
     display: block !important;
-    max-width: 22% !important;
+    max-width: 18% !important;
     color: #cbd5e1 !important;
     font-size: clamp(.6rem, 2.7vw, .76rem) !important;
     font-weight: 800 !important;
@@ -123,7 +124,7 @@ body.student-live-page {
 
   body.student-live-page .student-participation-count {
     display: block !important;
-    max-width: 24% !important;
+    max-width: 22% !important;
     overflow: hidden !important;
     color: #a7f3d0 !important;
     font-size: clamp(.56rem, 2.35vw, .68rem) !important;
@@ -131,6 +132,20 @@ body.student-live-page {
     line-height: 1.2 !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
+  }
+
+  body.student-live-page .student-quality-wrapper {
+    display: inline-flex !important;
+    align-items: center !important;
+    max-width: 24% !important;
+  }
+
+  body.student-live-page .student-quality-btn {
+    max-width: 100% !important;
+    min-height: 2.2rem !important;
+    padding: .28rem .45rem !important;
+    font-size: clamp(.55rem, 2.3vw, .68rem) !important;
+    border-radius: .65rem !important;
   }
 
   body.student-live-page .student-exit-class-button {
@@ -621,18 +636,27 @@ body.student-live-page {
     }
 
     body.student-live-page .viewer-level {
-      max-width: 35% !important;
+      max-width: 30% !important;
       padding-inline: .32rem !important;
       font-size: .54rem !important;
     }
 
     body.student-live-page .viewer-subject {
-      max-width: 20% !important;
+      max-width: 17% !important;
       font-size: .56rem !important;
     }
 
     body.student-live-page .student-participation-count {
-      max-width: 25% !important;
+      max-width: 22% !important;
+      font-size: .52rem !important;
+    }
+
+    body.student-live-page .student-quality-wrapper {
+      max-width: 22% !important;
+    }
+
+    body.student-live-page .student-quality-btn {
+      padding-inline: .3rem !important;
       font-size: .52rem !important;
     }
 

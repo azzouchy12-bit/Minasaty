@@ -114,10 +114,27 @@ html.student-virtual-landscape-mode body.student-live-page {
   }
 
   html.student-landscape-mode body.student-live-page .viewer-header,
-  html.student-virtual-landscape-mode body.student-live-page .viewer-header,
+  html.student-virtual-landscape-mode body.student-live-page .viewer-header {
+    display: contents !important;
+  }
+
+  html.student-landscape-mode body.student-live-page .viewer-brand,
+  html.student-virtual-landscape-mode body.student-live-page .viewer-brand,
+  html.student-landscape-mode body.student-live-page .viewer-level,
+  html.student-virtual-landscape-mode body.student-live-page .viewer-level,
+  html.student-landscape-mode body.student-live-page .live-start-notice,
+  html.student-virtual-landscape-mode body.student-live-page .live-start-notice,
+  html.student-landscape-mode body.student-live-page .student-participation-count,
+  html.student-virtual-landscape-mode body.student-live-page .student-participation-count,
+  html.student-landscape-mode body.student-live-page .viewer-subject,
+  html.student-virtual-landscape-mode body.student-live-page .viewer-subject,
+  html.student-landscape-mode body.student-live-page .student-exit-class-button,
+  html.student-virtual-landscape-mode body.student-live-page .student-exit-class-button,
+  html.student-landscape-mode body.student-live-page .message-bell,
+  html.student-virtual-landscape-mode body.student-live-page .message-bell,
   html.student-landscape-mode body.student-live-page .student-chat-head,
   html.student-virtual-landscape-mode body.student-live-page .student-chat-head,
-  html.student-landscape-mode body.student-live-page .student-chat-box,
+  html.student-live-page .student-chat-box,
   html.student-virtual-landscape-mode body.student-live-page .student-chat-box,
   html.student-landscape-mode body.student-live-page .question-image-preview,
   html.student-virtual-landscape-mode body.student-live-page .question-image-preview,
@@ -126,6 +143,24 @@ html.student-virtual-landscape-mode body.student-live-page {
   html.student-landscape-mode body.student-live-page #chat-compose-modal,
   html.student-virtual-landscape-mode body.student-live-page #chat-compose-modal {
     display: none !important;
+  }
+
+  html.student-landscape-mode body.student-live-page .student-quality-wrapper,
+  html.student-virtual-landscape-mode body.student-live-page .student-quality-wrapper {
+    display: inline-flex !important;
+    position: fixed !important;
+    top: max(8px, env(safe-area-inset-top)) !important;
+    left: max(10px, env(safe-area-inset-left)) !important;
+    z-index: 2147483640 !important;
+  }
+
+  html.student-landscape-mode body.student-live-page .student-quality-btn,
+  html.student-virtual-landscape-mode body.student-live-page .student-quality-btn {
+    background: rgba(15, 23, 42, 0.75) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border-color: rgba(96, 165, 250, 0.45) !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45) !important;
   }
 
   /* Flatten the existing containers without moving DOM nodes. */

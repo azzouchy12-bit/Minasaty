@@ -2717,6 +2717,7 @@ function removeStudentConnection(socketId, { statusMessage } = {}) {
   clearIceDisconnectTimer(socketId);
   approvedStudentMicrophones.delete(socketId);
   studentMicStates.delete(socketId);
+  studentQualityPreferences.delete(socketId);
   closePeerConnection(socketId);
   removeAttendee(socketId);
 
@@ -2801,19 +2802,58 @@ function computeContinuousBandwidthAllocation(totalAvailableBitrate) {
 }
 
 
+const studentQualityPreferences = new Map();
+
+function getAdaptiveVideoQualityProfile(quality = "auto", allocation = null) {
+  const normalized = String(quality || "auto").trim().toLowerCase();
+  if (normalized === "high") {
+    return {
+      maxBitrate: 6_000_000,
+      maxFramerate: 60,
+      scaleResolutionDownBy: 1.0,
+      degradationPreference: "maintain-resolution",
+    };
+  }
+  if (normalized === "medium") {
+    return {
+      maxBitrate: 800_000,
+      maxFramerate: 30,
+      scaleResolutionDownBy: 1.8,
+      degradationPreference: "balanced",
+    };
+  }
+  if (normalized === "low") {
+    return {
+      maxBitrate: 220_000,
+      maxFramerate: 15,
+      scaleResolutionDownBy: 2.5,
+      degradationPreference: "maintain-framerate",
+    };
+  }
+  // Auto adaptive mode based on network bandwidth allocation
+  const videoBitrate = allocation?.videoBitrate ?? 1_800_000;
+  return {
+    maxBitrate: Math.min(6_000_000, videoBitrate || 10_000),
+    maxFramerate: videoBitrate >= 4_000_000 ? 60 : videoBitrate >= 1_000_000 ? 30 : 15,
+    scaleResolutionDownBy: videoBitrate
+      ? Math.min(2.5, Math.max(1, Math.sqrt(VIDEO_BITRATE_CEILING / videoBitrate)))
+      : 2.5,
+    degradationPreference: "balanced",
+  };
+}
+
 async function applyAdaptiveVideoQuality(studentSocketId, peerConnection, allocation) {
   const videoSender = peerConnection?.getSenders?.().find((sender) => sender.__classroomVideoTrack === true);
   if (!videoSender || typeof videoSender.setParameters !== "function") return;
   try {
+    const studentPref = studentQualityPreferences.get(studentSocketId) || "auto";
+    const profile = getAdaptiveVideoQualityProfile(studentPref, allocation);
     const parameters = videoSender.getParameters();
     parameters.encodings = parameters.encodings?.length ? parameters.encodings : [{}];
-    const videoBitrate = allocation.videoBitrate;
-    parameters.encodings[0].maxBitrate = videoBitrate || 10_000;
-    parameters.encodings[0].maxFramerate = videoBitrate >= 4_000_000 ? 60 : videoBitrate >= 1_000_000 ? 30 : 15;
-    parameters.encodings[0].scaleResolutionDownBy = videoBitrate
-      ? Math.min(2.5, Math.max(1, Math.sqrt(VIDEO_BITRATE_CEILING / videoBitrate)))
-      : 2.5;
-    parameters.degradationPreference = "balanced";
+    parameters.encodings[0].maxBitrate = profile.maxBitrate;
+    parameters.encodings[0].maxFramerate = profile.maxFramerate;
+    parameters.encodings[0].scaleResolutionDownBy = profile.scaleResolutionDownBy;
+    parameters.degradationPreference = profile.degradationPreference;
     await videoSender.setParameters(parameters);
   } catch (error) {
     console.debug("Adaptive video quality was not applied:", error);
@@ -3384,7 +3424,7 @@ async function replaceScreenShareStream() {
       video: {
         width: { ideal: 1920, max: 1920 },
         height: { ideal: 1080, max: 1080 },
-        frameRate: { ideal: 30, max: 30 },
+        frameRate: { ideal: 60, max: 60 },
       },
       audio: true,
     });
@@ -3950,6 +3990,24 @@ socket.on("webrtc_ice_candidate", async (data = {}) => {
     }
   } catch (error) {
     console.warn("Unable to add a student ICE candidate:", error);
+  }
+});
+
+
+socket.on("student_quality_preference", async (data = {}) => {
+  const studentSocketId = data.studentSocketId;
+  const quality = String(data.quality || "auto").trim().toLowerCase();
+  if (!studentSocketId) return;
+  studentQualityPreferences.set(studentSocketId, quality);
+  const pc = peerConnections[studentSocketId];
+  if (pc && pc.connectionState !== "closed") {
+    const lastAllocation = teacherQosAllocations.get(studentSocketId);
+    let parsedAllocation = null;
+    if (lastAllocation) {
+      const [audioBitrate, videoBitrate] = lastAllocation.split(":").map(Number);
+      parsedAllocation = { audioBitrate, videoBitrate };
+    }
+    await applyAdaptiveVideoQuality(studentSocketId, pc, parsedAllocation);
   }
 });
 

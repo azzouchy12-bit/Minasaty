@@ -2144,6 +2144,35 @@ io.on("connection", (socket) => {
   });
 
   /**
+   * A student updates their preferred video quality (auto, high, medium, low).
+   * Relayed to the room's active teacher so the teacher's RTCRtpSender adapts video bitrate/scale.
+   * Payload: { quality: 'auto' | 'high' | 'medium' | 'low' }
+   */
+  socket.on("student_set_video_quality", (data = {}, acknowledgement) => {
+    const level = socket.data.roomLevel;
+    const teacherSocketId = activeTeachersByLevel.get(level);
+    const teacherSocket = teacherSocketId ? io.sockets.sockets.get(teacherSocketId) : null;
+    const rawQuality = String(data.quality || "").trim().toLowerCase();
+    const quality = ["auto", "high", "medium", "low"].includes(rawQuality) ? rawQuality : "auto";
+
+    socket.data.videoQualityPreference = quality;
+
+    if (
+      socket.data.role === "student" &&
+      isValidLevel(level || "") &&
+      teacherSocket &&
+      shareSameClassroom(socket, teacherSocket, level)
+    ) {
+      io.to(teacherSocketId).emit("student_quality_preference", {
+        studentSocketId: socket.id,
+        quality,
+      });
+    }
+
+    acknowledge(acknowledgement, { ok: true, quality });
+  });
+
+  /**
    * Teacher directly opens or closes a same-level student's microphone.
    * This command is independent of hand-raising, while preserving the same
    * room and role authorization boundaries.

@@ -114,6 +114,10 @@ const elements = {
   screenShareNotice: document.getElementById("screen-share-notice"),
   screenShareWatchButton: document.getElementById("screen-share-watch-btn"),
   participationCount: document.getElementById("student-participation-count"),
+  qualityWrapper: document.getElementById("student-quality-wrapper"),
+  qualityButton: document.getElementById("student-quality-btn"),
+  qualityLabel: document.getElementById("student-quality-label"),
+  qualityMenu: document.getElementById("student-quality-menu"),
   joinButton: document.getElementById("join-class-btn"),
   raiseHandButton: document.getElementById("raise-hand-btn"),
   handWaitingActions: document.getElementById("hand-waiting-actions"),
@@ -1276,6 +1280,137 @@ function setParticipationCount(value) {
   if (elements.participationCount) {
     elements.participationCount.textContent = `مشاركاتي: ${participationCount}`;
   }
+}
+
+const STUDENT_VIDEO_QUALITY_KEY = "studentLiveVideoQuality:v1";
+const VIDEO_QUALITY_LABELS = {
+  auto: "تلقائية",
+  high: "عالية",
+  medium: "متوسطة",
+  low: "ضعيفة",
+};
+
+let currentVideoQuality = (() => {
+  try {
+    const saved = localStorage.getItem(STUDENT_VIDEO_QUALITY_KEY);
+    if (saved && ["auto", "high", "medium", "low"].includes(saved)) {
+      return saved;
+    }
+  } catch {}
+  return "auto";
+})();
+
+function updateQualityUI(quality) {
+  const normalized = ["auto", "high", "medium", "low"].includes(quality) ? quality : "auto";
+  const label = VIDEO_QUALITY_LABELS[normalized] || "تلقائية";
+  if (elements.qualityLabel) {
+    elements.qualityLabel.textContent = label;
+  }
+  if (elements.qualityButton) {
+    elements.qualityButton.setAttribute("title", `جودة البث: ${label}`);
+    elements.qualityButton.setAttribute("aria-label", `جودة البث: ${label}`);
+  }
+  const options = document.querySelectorAll(".quality-option");
+  options.forEach((btn) => {
+    const optQuality = btn.getAttribute("data-quality");
+    const isSelected = optQuality === normalized;
+    btn.classList.toggle("is-active", isSelected);
+    btn.setAttribute("aria-selected", isSelected ? "true" : "false");
+  });
+}
+
+function setStudentVideoQuality(quality, { notifyServer = true, showToast = false } = {}) {
+  const normalized = ["auto", "high", "medium", "low"].includes(quality) ? quality : "auto";
+  currentVideoQuality = normalized;
+  try {
+    localStorage.setItem(STUDENT_VIDEO_QUALITY_KEY, normalized);
+  } catch {}
+
+  updateQualityUI(normalized);
+
+  if (notifyServer && socket && socket.connected) {
+    socket.emit("student_set_video_quality", { quality: normalized });
+  }
+
+  // Adjust local video track constraints if supported
+  try {
+    const remoteStream = elements.remoteVideo?.srcObject;
+    const videoTrack = remoteStream?.getVideoTracks?.()[0];
+    if (videoTrack && typeof videoTrack.applyConstraints === "function") {
+      if (normalized === "low") {
+        videoTrack.applyConstraints({ frameRate: { max: 15 } }).catch(() => {});
+      } else if (normalized === "medium") {
+        videoTrack.applyConstraints({ frameRate: { max: 30 } }).catch(() => {});
+      } else {
+        videoTrack.applyConstraints({ frameRate: { max: 60 } }).catch(() => {});
+      }
+    }
+  } catch {}
+
+  if (showToast) {
+    const label = VIDEO_QUALITY_LABELS[normalized] || normalized;
+    showMobileControlToast(`تم ضبط جودة البث: ${label}`);
+  }
+}
+
+function openQualityMenu() {
+  if (!elements.qualityWrapper || !elements.qualityMenu) return;
+  elements.qualityWrapper.classList.add("is-open");
+  elements.qualityMenu.hidden = false;
+  elements.qualityButton?.setAttribute("aria-expanded", "true");
+}
+
+function closeQualityMenu() {
+  if (!elements.qualityWrapper || !elements.qualityMenu) return;
+  elements.qualityWrapper.classList.remove("is-open");
+  elements.qualityMenu.hidden = true;
+  elements.qualityButton?.setAttribute("aria-expanded", "false");
+}
+
+function toggleQualityMenu(event) {
+  event?.stopPropagation?.();
+  if (!elements.qualityMenu) return;
+  const isOpen = !elements.qualityMenu.hidden;
+  if (isOpen) {
+    closeQualityMenu();
+  } else {
+    openQualityMenu();
+  }
+}
+
+function initializeQualitySelector() {
+  elements.qualityWrapper = document.getElementById("student-quality-wrapper");
+  elements.qualityButton = document.getElementById("student-quality-btn");
+  elements.qualityLabel = document.getElementById("student-quality-label");
+  elements.qualityMenu = document.getElementById("student-quality-menu");
+
+  if (!elements.qualityButton || !elements.qualityMenu) return;
+
+  updateQualityUI(currentVideoQuality);
+
+  elements.qualityButton.addEventListener("click", toggleQualityMenu);
+
+  const options = document.querySelectorAll(".quality-option");
+  options.forEach((optBtn) => {
+    optBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const q = optBtn.getAttribute("data-quality");
+      setStudentVideoQuality(q, { notifyServer: true, showToast: true });
+      closeQualityMenu();
+    });
+  });
+
+  document.addEventListener("click", (e) => {
+    if (elements.qualityWrapper && !elements.qualityWrapper.contains(e.target)) {
+      closeQualityMenu();
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeQualityMenu();
+    }
+  });
 }
 
 const LEVEL_WELCOME_IMAGES = {
@@ -2752,6 +2887,7 @@ socket.on("room_joined", (data = {}) => {
     screenShareActive = Boolean(data.screenShareActive);
     setParticipationCount(data.participationCount);
     updateRemoteVideoPresentation();
+    setStudentVideoQuality(currentVideoQuality, { notifyServer: true, showToast: false });
   }
 });
 
@@ -3169,7 +3305,8 @@ elements.subscriptionDeclineButton?.addEventListener("click", () => {
 });
   initializeMobileControls();
   initializeDesktopFullscreen();
-initializeStudentKeyboardLayout();
+  initializeStudentKeyboardLayout();
+  initializeQualitySelector();
 
 window.addEventListener("pagehide", () => {
   enableNativeSwipeRefresh();
