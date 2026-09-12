@@ -118,6 +118,10 @@ const elements = {
   qualityButton: document.getElementById("student-quality-btn"),
   qualityLabel: document.getElementById("student-quality-label"),
   qualityMenu: document.getElementById("student-quality-menu"),
+  qualityModal: document.getElementById("student-quality-modal"),
+  closeQualityModalBtn: document.getElementById("close-quality-modal-btn"),
+  dismissQualityModalBtn: document.getElementById("dismiss-quality-modal-btn"),
+  qualityBackdrop: document.getElementById("student-quality-backdrop"),
   joinButton: document.getElementById("join-class-btn"),
   raiseHandButton: document.getElementById("raise-hand-btn"),
   handWaitingActions: document.getElementById("hand-waiting-actions"),
@@ -1353,42 +1357,69 @@ function setStudentVideoQuality(quality, { notifyServer = true, showToast = fals
   }
 }
 
-function openQualityMenu() {
-  if (!elements.qualityWrapper || !elements.qualityMenu) return;
-  elements.qualityWrapper.classList.add("is-open");
-  elements.qualityMenu.hidden = false;
+function openQualityModal() {
+  const modal = elements.qualityModal || document.getElementById("student-quality-modal");
+  if (!modal) return;
+  modal.hidden = false;
+  elements.qualityWrapper?.classList.add("is-open");
   elements.qualityButton?.setAttribute("aria-expanded", "true");
+  document.body.classList.add("quality-modal-open");
 }
 
-function closeQualityMenu() {
-  if (!elements.qualityWrapper || !elements.qualityMenu) return;
-  elements.qualityWrapper.classList.remove("is-open");
-  elements.qualityMenu.hidden = true;
+function closeQualityModal() {
+  const modal = elements.qualityModal || document.getElementById("student-quality-modal");
+  if (!modal) return;
+  modal.hidden = true;
+  elements.qualityWrapper?.classList.remove("is-open");
   elements.qualityButton?.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("quality-modal-open");
 }
 
-function toggleQualityMenu(event) {
+function toggleQualityModal(event) {
   event?.stopPropagation?.();
-  if (!elements.qualityMenu) return;
-  const isOpen = !elements.qualityMenu.hidden;
-  if (isOpen) {
-    closeQualityMenu();
+  const modal = elements.qualityModal || document.getElementById("student-quality-modal");
+  if (!modal) return;
+  if (modal.hidden) {
+    openQualityModal();
   } else {
-    openQualityMenu();
+    closeQualityModal();
   }
 }
+
+const openQualityMenu = openQualityModal;
+const closeQualityMenu = closeQualityModal;
+const toggleQualityMenu = toggleQualityModal;
 
 function initializeQualitySelector() {
   elements.qualityWrapper = document.getElementById("student-quality-wrapper");
   elements.qualityButton = document.getElementById("student-quality-btn");
   elements.qualityLabel = document.getElementById("student-quality-label");
   elements.qualityMenu = document.getElementById("student-quality-menu");
+  elements.qualityModal = document.getElementById("student-quality-modal");
+  elements.closeQualityModalBtn = document.getElementById("close-quality-modal-btn");
+  elements.dismissQualityModalBtn = document.getElementById("dismiss-quality-modal-btn");
+  elements.qualityBackdrop = document.getElementById("student-quality-backdrop");
 
-  if (!elements.qualityButton || !elements.qualityMenu) return;
+  if (!elements.qualityButton) return;
 
   updateQualityUI(currentVideoQuality);
 
-  elements.qualityButton.addEventListener("click", toggleQualityMenu);
+  elements.qualityButton.addEventListener("click", toggleQualityModal);
+
+  elements.closeQualityModalBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeQualityModal();
+  });
+
+  elements.dismissQualityModalBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeQualityModal();
+  });
+
+  elements.qualityBackdrop?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeQualityModal();
+  });
 
   const options = document.querySelectorAll(".quality-option");
   options.forEach((optBtn) => {
@@ -1396,19 +1427,13 @@ function initializeQualitySelector() {
       e.stopPropagation();
       const q = optBtn.getAttribute("data-quality");
       setStudentVideoQuality(q, { notifyServer: true, showToast: true });
-      closeQualityMenu();
+      closeQualityModal();
     });
-  });
-
-  document.addEventListener("click", (e) => {
-    if (elements.qualityWrapper && !elements.qualityWrapper.contains(e.target)) {
-      closeQualityMenu();
-    }
   });
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      closeQualityMenu();
+      closeQualityModal();
     }
   });
 }
