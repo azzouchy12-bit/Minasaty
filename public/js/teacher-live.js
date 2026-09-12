@@ -73,6 +73,8 @@ let isStarting = false;
 let isEnding = false;
 let classResumeToken = null;
 let reconnectingLiveClass = false;
+let reconnectRetryTimer = null;
+let reconnectRetryCount = 0;
 const renderedQuestionImageUrls = new Set();
 let questionImageModalPreviousFocus = null;
 const TEACHER_LIVE_RECOVERY_KEY = "teacherLiveClassRecovery";
@@ -1811,6 +1813,56 @@ async function initializeClassroomAudioMix() {
   }
 }
 
+async function ensureTeacherMicrophoneActive() {
+  let micTrack = cameraStream?.getAudioTracks?.().find((track) => track.readyState === "live");
+
+  if (!micTrack && navigator.mediaDevices?.getUserMedia) {
+    try {
+      const freshMicStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      });
+      if (freshMicStream?.getAudioTracks?.().length) {
+        if (cameraStream) {
+          try {
+            cameraStream.getAudioTracks().forEach((t) => t.stop());
+          } catch (ignored) {}
+        }
+        cameraStream = freshMicStream;
+        micTrack = cameraStream.getAudioTracks()[0];
+      }
+    } catch (error) {
+      console.warn("Unable to re-acquire teacher microphone track:", error);
+    }
+  }
+
+  if (!classroomAudioContext || classroomAudioContext.state === "closed") {
+    primeClassroomAudioContext();
+  }
+  if (classroomAudioContext && classroomAudioContext.state === "suspended") {
+    try {
+      await classroomAudioContext.resume();
+    } catch (error) {
+      console.warn("Unable to resume suspended classroomAudioContext:", error);
+    }
+  }
+
+  if (classroomAudioContext && cameraStream) {
+    addClassroomAudioSource("__teacher_microphone__", cameraStream, { enabled: true });
+    if (screenStream) {
+      addClassroomAudioSource("__screen_audio__", screenStream, { enabled: true });
+    }
+    rebuildClassroomAudioGraph();
+  }
+
+  syncMixMinusAudioToAllPeers();
+  return Boolean(micTrack);
+}
+
 function stopClassroomAudioMix() {
   clearClassroomAudioGraph();
 
@@ -2181,6 +2233,8 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false } = {}) 
     peerConnection = createPeerConnection(studentSocketId);
   }
 
+  ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate: false });
+
   if (
     peerConnection.makingOffer ||
     peerConnection.signalingState !== "stable" ||
@@ -2198,11 +2252,12 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false } = {}) 
     await emitWithAcknowledgement("webrtc_offer", {
       targetSocketId: studentSocketId,
       sdp: peerConnection.localDescription,
-    });
+    }, 20_000);
   } catch (error) {
-    console.error("Unable to create or relay a WebRTC offer:", error);
-    setStudioStatus("تعذر ربط أحد التلاميذ بالبث.", "error");
-    closePeerConnection(studentSocketId);
+    console.warn(`[WebRTC] Unable to create or relay offer to student ${studentSocketId}:`, error.message || error);
+    if (error?.message?.includes("تعذر توجيه")) {
+      closePeerConnection(studentSocketId);
+    }
   } finally {
     if (peerConnections[studentSocketId]) {
       peerConnections[studentSocketId].makingOffer = false;
@@ -2243,21 +2298,45 @@ async function resumeLiveClassAfterSocketReconnect() {
   reconnectingLiveClass = true;
   try {
     persistLiveClassRecovery();
-    setStudioStatus("عاد الاتصال بالخادم. جارٍ استعادة الحصة دون إيقاف الشاشة…", "live");
+    setStudioStatus("عاد الاتصال بالخادم. جارٍ استعادة الحصة وإعادة دمج الصوت والبث…", "live");
     const response = await emitWithAcknowledgement("teacher_start_room", {
       level: activeLevel,
       subject: activeSubject,
       resumeToken: classResumeToken,
-    }, 12_000);
+      isRecovery: true,
+    }, 25_000);
 
-    if (!response?.resumed) {
+    if (!response?.ok && !response?.resumed) {
       throw new Error("تعذر استعادة جلسة الحصة الحالية.");
     }
 
-    setStudioStatus("تمت استعادة الحصة. جارٍ إعادة ربط التلاميذ بالبث…", "live");
+    reconnectRetryCount = 0;
+    if (reconnectRetryTimer) {
+      window.clearTimeout(reconnectRetryTimer);
+      reconnectRetryTimer = null;
+    }
+
+    await ensureTeacherMicrophoneActive();
+
+    const studentSocketIds = Object.keys(peerConnections);
+    for (const studentSocketId of studentSocketIds) {
+      void createAndSendOffer(studentSocketId, { iceRestart: true });
+    }
+
+    setStudioStatus("تمت استعادة الحصة ومسار الميكروفون بنجاح.", "live");
   } catch (error) {
     console.error("Unable to restore live classroom after Socket reconnect:", error);
-    setStudioStatus(error.message || "تعذر استعادة الحصة بعد عودة الاتصال.", "error");
+    reconnectRetryCount++;
+    if (reconnectRetryCount <= 5 && classActive && socket.connected) {
+      const delayMs = Math.min(reconnectRetryCount * 2_000, 8_000);
+      setStudioStatus(`تعذر ربط الحصة مؤقتاً (${error.message || "خطأ اتصال"}). إعادة المحاولة تلقائياً بعد ${delayMs / 1000} ثوانٍ…`, "warning");
+      window.clearTimeout(reconnectRetryTimer);
+      reconnectRetryTimer = window.setTimeout(() => {
+        void resumeLiveClassAfterSocketReconnect();
+      }, delayMs);
+    } else {
+      setStudioStatus(error.message || "تعذر استعادة الحصة بعد عودة الاتصال.", "error");
+    }
   } finally {
     reconnectingLiveClass = false;
   }
@@ -2693,6 +2772,8 @@ socket.on("recovery_students", async (data = {}) => {
     return;
   }
 
+  await ensureTeacherMicrophoneActive();
+
   for (const student of data.students) {
     if (!student?.socketId) {
       continue;
@@ -2701,7 +2782,7 @@ socket.on("recovery_students", async (data = {}) => {
     const attendee = upsertAttendee(student.socketId, student, student.participationCount);
     syncStudentMicButton(attendee, student.socketId, Boolean(student.micEnabled));
     applyStudentMicrophoneState(student.socketId, Boolean(student.micEnabled));
-    await createAndSendOffer(student.socketId);
+    await createAndSendOffer(student.socketId, { iceRestart: true });
   }
 });
 

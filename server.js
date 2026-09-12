@@ -1473,12 +1473,30 @@ io.on("connection", (socket) => {
         ? io.sockets.sockets.get(currentTeacherSocketId)
         : null;
       const scheduledClass = activeScheduledClassByLevel.get(level) || await findOpenScheduledClass(level, subject);
-      const isResuming = Boolean(pendingRecovery || (scheduledClass && !currentTeacherSocket));
 
-      // At this stage a level accepts one active broadcaster. Authentication
-      // middleware should later ensure that only an authenticated teacher can
-      // initiate this event.
-      if (currentTeacherSocket && currentTeacherSocket.id !== socket.id) {
+      // Check if this incoming socket is the teacher resuming the same active session
+      const isSameTeacherSession = Boolean(
+        currentTeacherSocket &&
+        currentTeacherSocket.id !== socket.id &&
+        (
+          (isValidRecoveryToken(resumeToken) &&
+           (currentTeacherSocket.data?.classResumeToken === resumeToken || pendingRecovery?.resumeToken === resumeToken)) ||
+          (currentTeacherSocket.data?.teacherId &&
+           authenticatedTeacher?.id &&
+           String(currentTeacherSocket.data.teacherId) === String(authenticatedTeacher.id)) ||
+          recoveryRequested
+        )
+      );
+
+      if (isSameTeacherSession && currentTeacherSocket) {
+        console.info(`[Socket.io] Teacher reconnecting on level ${level}: replacing stale socket ${currentTeacherSocket.id} with ${socket.id}`);
+        try {
+          currentTeacherSocket.data.replacedByNewSocket = true;
+          currentTeacherSocket.leave(level);
+          currentTeacherSocket.disconnect(true);
+        } catch (ignored) {}
+        activeTeachersByLevel.delete(level);
+      } else if (currentTeacherSocket && currentTeacherSocket.id !== socket.id) {
         return emitClassroomError(
           socket,
           "teacher_start_room",
@@ -1486,6 +1504,13 @@ io.on("connection", (socket) => {
           acknowledgement
         );
       }
+
+      const isResuming = Boolean(
+        isSameTeacherSession ||
+        pendingRecovery ||
+        (isValidRecoveryToken(resumeToken) && activeSubjectByLevel.has(level)) ||
+        (scheduledClass && (!currentTeacherSocket || isSameTeacherSession))
+      );
 
       // Only the teacher that started this class can reclaim it during the
       // short recovery window. This prevents another browser from hijacking a
@@ -1524,6 +1549,7 @@ io.on("connection", (socket) => {
       socket.data.roomLevel = level;
       socket.data.studentName = null;
       socket.data.classResumeToken = effectiveResumeToken;
+      socket.data.teacherId = authenticatedTeacher?.id || null;
       activeTeachersByLevel.set(level, socket.id);
       activeSubjectByLevel.set(level, subject);
       if (scheduledClass?.id) activeScheduledClassByLevel.set(level, scheduledClass);
@@ -2612,6 +2638,10 @@ io.on("connection", (socket) => {
     }
 
     if (role === "teacher" && activeTeachersByLevel.get(level) === socket.id) {
+      if (socket.data?.replacedByNewSocket) {
+        console.info(`[Socket.io] Stale teacher socket ${socket.id} closed after replacement for level ${level}.`);
+        return;
+      }
       const resumeToken = socket.data.classResumeToken;
 
       if (holdClassroomForTeacherReturn(level, resumeToken)) {
