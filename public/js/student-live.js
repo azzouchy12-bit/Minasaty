@@ -1930,8 +1930,33 @@ function setButtonLabel(button, label) {
 }
 
 function setRaisedHandState({ waiting = false } = {}) {
-  const canInteract = joinedClass && !microphonePermissionGranted;
+  const canInteract = joinedClass;
   const button = elements.raiseHandButton;
+  if (!button) return;
+
+  if (microphonePermissionGranted) {
+    button.hidden = false;
+    button.disabled = false;
+    button.classList.remove("hand-raised");
+    button.classList.add("microphone-active");
+    button.setAttribute("aria-pressed", "true");
+    button.setAttribute(
+      "aria-label",
+      "الميكروفون مفتوح — الأستاذ يستمع إليك"
+    );
+    button.title = "الميكروفون مفتوح — الأستاذ يستمع إليك";
+    const icon = button.querySelector("span[aria-hidden]") || button.querySelector("span:first-child");
+    if (icon) icon.textContent = "🎙️";
+    setButtonLabel(button, "ميكروفون مفتوح");
+
+    elements.handWaitingActions.hidden = true;
+    elements.handWaitingActions.classList.remove("hand-raised");
+    const waitingLabel = elements.handWaitingActions.querySelector(".hand-waiting-label");
+    if (waitingLabel) waitingLabel.textContent = "";
+    return;
+  }
+
+  button.classList.remove("microphone-active");
   button.hidden = !canInteract;
   button.disabled = !canInteract;
   button.classList.toggle("hand-raised", waiting);
@@ -1941,6 +1966,8 @@ function setRaisedHandState({ waiting = false } = {}) {
     waiting ? "تنزيل اليد وإلغاء طلب التحدث" : "رفع اليد وطلب التحدث"
   );
   button.title = waiting ? "تنزيل اليد وإلغاء طلب التحدث" : "رفع اليد وطلب التحدث";
+  const icon = button.querySelector("span[aria-hidden]") || button.querySelector("span:first-child");
+  if (icon) icon.textContent = "✋";
   setButtonLabel(button, waiting ? "تنزيل اليد" : "رفع اليد");
 
   // The same primary button is the complete toggle. Keep the legacy waiting
@@ -1952,6 +1979,10 @@ function setRaisedHandState({ waiting = false } = {}) {
 }
 
 function toggleRaisedHand() {
+  if (microphonePermissionGranted) {
+    showMobileControlToast("الميكروفون مفتوح حالياً — الأستاذ يستمع إلى صوتك");
+    return;
+  }
   if (elements.raiseHandButton.classList.contains("hand-raised")) {
     lowerHand();
     return;
@@ -2674,6 +2705,7 @@ async function enableApprovedMicrophone() {
   } catch (error) {
     console.error("Unable to access student microphone:", error);
     microphonePermissionGranted = false;
+    setRaisedHandState({ waiting: false });
     updateMicControl();
 
     if (error?.name === "NotAllowedError") {
@@ -3164,10 +3196,9 @@ socket.on("permission_granted", async () => {
 
   microphonePermissionGranted = true;
   clearHandResetTimer();
-  // Resolve the student's request immediately. The waiting controls disappear
-  // and the teacher-owned microphone track is opened without a self-mute UI.
+  // Resolve the student's request immediately and switch button to active microphone indicator.
   setRaisedHandState({ waiting: false });
-  elements.raiseHandButton.hidden = true;
+  elements.raiseHandButton.hidden = false;
   elements.handWaitingActions.hidden = true;
   updateMicControl();
   await enableApprovedMicrophone();
