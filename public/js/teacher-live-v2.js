@@ -174,9 +174,6 @@ const elements = {
   youtubeUploadProgress: document.getElementById("youtube-upload-progress"),
   downloadRecordingButton: document.getElementById("download-recording-btn"),
   forceUploadYoutubeButton: document.getElementById("force-upload-youtube-btn"),
-  topbarRecordingActions: document.getElementById("topbar-recording-actions"),
-  topbarDownloadRecordingButton: document.getElementById("topbar-download-recording-btn"),
-  topbarUploadYoutubeButton: document.getElementById("topbar-upload-youtube-btn"),
   recordingReadyModal: document.getElementById("recording-ready-modal"),
   modalDownloadRecordingButton: document.getElementById("modal-download-device-btn"),
   uploadYoutubeAfterEndButton: document.getElementById("upload-youtube-after-end-btn"),
@@ -2091,15 +2088,6 @@ function updateControls() {
   if (elements.forceUploadYoutubeButton) {
     elements.forceUploadYoutubeButton.disabled = !hasRecording || youtubeUploadInProgress;
     elements.forceUploadYoutubeButton.classList.toggle("has-recording", hasRecording);
-  }
-  if (elements.topbarRecordingActions) {
-    elements.topbarRecordingActions.hidden = !hasRecording;
-  }
-  if (elements.topbarDownloadRecordingButton) {
-    elements.topbarDownloadRecordingButton.disabled = !hasRecording;
-  }
-  if (elements.topbarUploadYoutubeButton) {
-    elements.topbarUploadYoutubeButton.disabled = !hasRecording || youtubeUploadInProgress;
   }
   if (elements.modalDownloadRecordingButton) {
     elements.modalDownloadRecordingButton.disabled = !hasRecording;
@@ -4274,8 +4262,6 @@ elements.toggleMicButton.addEventListener("click", toggleMicrophone);
 elements.recordLocalButton.addEventListener("click", toggleLocalRecording);
 elements.downloadRecordingButton?.addEventListener("click", handleDownloadRecordingClick);
 elements.forceUploadYoutubeButton?.addEventListener("click", handleForceUploadYoutubeClick);
-elements.topbarDownloadRecordingButton?.addEventListener("click", handleDownloadRecordingClick);
-elements.topbarUploadYoutubeButton?.addEventListener("click", handleForceUploadYoutubeClick);
 elements.modalDownloadRecordingButton?.addEventListener("click", handleDownloadRecordingClick);
 elements.saveDriveButton.addEventListener("click", handleGoogleDriveButton);
 elements.uploadYoutubeAfterEndButton?.addEventListener("click", handleForceUploadYoutubeClick);
