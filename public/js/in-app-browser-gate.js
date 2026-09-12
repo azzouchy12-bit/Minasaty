@@ -68,10 +68,78 @@
     if (isOfficialAppSignature || isAppStorageOrParam || isStandaloneMode) {
       try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
 
-      // حقن كود CSS فوري وقاطع لإخفاء الزر العائم ونافذة التثبيت في كامل صفحات الموقع
+      // تعطيل ميزة السحب للتحديث في واجهة التطبيق الأصلي (Android Native Bridge)
+      const disableNativeSwipeRefresh = () => {
+        const bridgeCandidates = [
+          window.Android,
+          window.AndroidInterface,
+          window.Minasaty,
+          window.MinasatyApp,
+          window.MinassatiApp,
+          window.JSBridge,
+          window.webkit?.messageHandlers?.Android,
+        ];
+        for (const bridge of bridgeCandidates) {
+          if (!bridge) continue;
+          try {
+            if (typeof bridge.disableSwipeRefresh === "function") bridge.disableSwipeRefresh();
+            if (typeof bridge.setSwipeRefreshEnabled === "function") bridge.setSwipeRefreshEnabled(false);
+            if (typeof bridge.setSwipeRefresh === "function") bridge.setSwipeRefresh(false);
+            if (typeof bridge.disablePullToRefresh === "function") bridge.disablePullToRefresh();
+            if (typeof bridge.enablePullToRefresh === "function") bridge.enablePullToRefresh(false);
+            if (typeof bridge.setRefreshEnabled === "function") bridge.setRefreshEnabled(false);
+            if (typeof bridge.setPullToRefreshEnabled === "function") bridge.setPullToRefreshEnabled(false);
+            if (typeof bridge.setEnabled === "function") bridge.setEnabled(false);
+          } catch (_) {}
+        }
+      };
+      disableNativeSwipeRefresh();
+
+      // منع السحب للتحديث عبر Touch Events في التطبيق
+      let appTouchStartY = 0;
+      window.addEventListener("touchstart", (e) => {
+        if (e.touches && e.touches.length === 1) {
+          appTouchStartY = e.touches[0].clientY;
+        }
+        disableNativeSwipeRefresh();
+      }, { passive: true });
+
+      window.addEventListener("touchmove", (e) => {
+        if (!e.touches || e.touches.length !== 1) return;
+        const deltaY = e.touches[0].clientY - appTouchStartY;
+        if (deltaY > 0) {
+          let target = e.target;
+          let scrollable = null;
+          while (target && target !== document.body && target !== document.documentElement) {
+            const overflowY = window.getComputedStyle(target).overflowY;
+            if ((overflowY === "auto" || overflowY === "scroll") && target.scrollHeight > target.clientHeight) {
+              scrollable = target;
+              break;
+            }
+            target = target.parentElement;
+          }
+          const pageScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+          if (!scrollable && pageScroll <= 0) {
+            if (e.cancelable) e.preventDefault();
+          } else if (scrollable && scrollable.scrollTop <= 0) {
+            if (e.cancelable) e.preventDefault();
+          }
+        }
+      }, { passive: false });
+
+      // حقن كود CSS فوري وقاطع لإخفاء أزرار التحميل ومنع السحب للتحديث نهائياً
       const hideStyle = document.createElement("style");
       hideStyle.id = "minasaty-hide-app-download-elements";
       hideStyle.textContent = `
+        :root,
+        html,
+        body,
+        html.inside-native-app,
+        body.inside-native-app {
+          overscroll-behavior: none !important;
+          overscroll-behavior-y: none !important;
+          overscroll-behavior-x: none !important;
+        }
         #pwa-dash-float-btn,
         .pwa-dash-floating-btn,
         .pwa-dash-overlay,

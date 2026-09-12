@@ -32,9 +32,20 @@
         --studio-warning: #f59e0b;
       }
 
+      :root,
+      html,
+      body {
+        overscroll-behavior: none !important;
+        overscroll-behavior-y: none !important;
+        overscroll-behavior-x: none !important;
+      }
+
       .teacher-live-page {
         min-height: 100vh;
         margin: 0;
+        overscroll-behavior: none !important;
+        overscroll-behavior-y: none !important;
+        overscroll-behavior-x: none !important;
         color: var(--studio-text);
         background:
           radial-gradient(circle at 87% 10%, rgba(37, 99, 235, 0.16), transparent 27rem),

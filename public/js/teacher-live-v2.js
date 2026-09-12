@@ -4190,3 +4190,48 @@ try {
   console.error("Unable to initialize studio controls:", error);
   setStudioStatus("تعذر تهيئة عناصر الاستوديو. أعد تحميل الصفحة وحاول مرة أخرى.", "error");
 }
+
+function installPullToRefreshBlocker() {
+  try {
+    document.documentElement.style.setProperty("overscroll-behavior", "none", "important");
+    document.documentElement.style.setProperty("overscroll-behavior-y", "none", "important");
+    document.documentElement.style.setProperty("overscroll-behavior-x", "none", "important");
+    if (document.body) {
+      document.body.style.setProperty("overscroll-behavior", "none", "important");
+      document.body.style.setProperty("overscroll-behavior-y", "none", "important");
+      document.body.style.setProperty("overscroll-behavior-x", "none", "important");
+    }
+  } catch (_) {}
+
+  let touchStartY = 0;
+  window.addEventListener("touchstart", (e) => {
+    if (e.touches && e.touches.length === 1) {
+      touchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
+  window.addEventListener("touchmove", (e) => {
+    if (!e.touches || e.touches.length !== 1) return;
+    const deltaY = e.touches[0].clientY - touchStartY;
+    if (deltaY > 0) {
+      let target = e.target;
+      let scrollable = null;
+      while (target && target !== document.body && target !== document.documentElement) {
+        const overflowY = window.getComputedStyle(target).overflowY;
+        if ((overflowY === "auto" || overflowY === "scroll") && target.scrollHeight > target.clientHeight) {
+          scrollable = target;
+          break;
+        }
+        target = target.parentElement;
+      }
+      const pageScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+      if (!scrollable && pageScroll <= 0) {
+        if (e.cancelable) e.preventDefault();
+      } else if (scrollable && scrollable.scrollTop <= 0) {
+        if (e.cancelable) e.preventDefault();
+      }
+    }
+  }, { passive: false });
+}
+installPullToRefreshBlocker();
+

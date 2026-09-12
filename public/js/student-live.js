@@ -924,6 +924,126 @@ function tryNativeAppOrientation(orientation) {
   return false;
 }
 
+function disableNativeSwipeRefresh() {
+  const bridgeCandidates = [
+    window.Android,
+    window.AndroidInterface,
+    window.Minasaty,
+    window.MinasatyApp,
+    window.MinassatiApp,
+    window.JSBridge,
+    window.webkit?.messageHandlers?.Android,
+  ];
+
+  for (const bridge of bridgeCandidates) {
+    if (!bridge) continue;
+    try {
+      if (typeof bridge.disableSwipeRefresh === "function") bridge.disableSwipeRefresh();
+      if (typeof bridge.setSwipeRefreshEnabled === "function") bridge.setSwipeRefreshEnabled(false);
+      if (typeof bridge.setSwipeRefresh === "function") bridge.setSwipeRefresh(false);
+      if (typeof bridge.disablePullToRefresh === "function") bridge.disablePullToRefresh();
+      if (typeof bridge.enablePullToRefresh === "function") bridge.enablePullToRefresh(false);
+      if (typeof bridge.setRefreshEnabled === "function") bridge.setRefreshEnabled(false);
+      if (typeof bridge.setPullToRefreshEnabled === "function") bridge.setPullToRefreshEnabled(false);
+      if (typeof bridge.setEnabled === "function") bridge.setEnabled(false);
+    } catch (e) {
+      console.warn("Native bridge disable swipe refresh call error:", e);
+    }
+  }
+}
+
+function installPullToRefreshBlocker() {
+  disableNativeSwipeRefresh();
+
+  try {
+    document.documentElement.style.setProperty("overscroll-behavior", "none", "important");
+    document.documentElement.style.setProperty("overscroll-behavior-y", "none", "important");
+    document.documentElement.style.setProperty("overscroll-behavior-x", "none", "important");
+    if (document.body) {
+      document.body.style.setProperty("overscroll-behavior", "none", "important");
+      document.body.style.setProperty("overscroll-behavior-y", "none", "important");
+      document.body.style.setProperty("overscroll-behavior-x", "none", "important");
+    }
+  } catch (_) {}
+
+  let touchStartY = 0;
+  let touchStartX = 0;
+
+  window.addEventListener(
+    "touchstart",
+    (e) => {
+      if (e.touches && e.touches.length === 1) {
+        touchStartY = e.touches[0].clientY;
+        touchStartX = e.touches[0].clientX;
+      }
+      disableNativeSwipeRefresh();
+    },
+    { passive: true }
+  );
+
+  window.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!e.touches || e.touches.length !== 1) return;
+      const touchY = e.touches[0].clientY;
+      const touchX = e.touches[0].clientX;
+      const deltaY = touchY - touchStartY;
+      const deltaX = touchX - touchStartX;
+
+      const isLandscapeMode =
+        document.documentElement.classList.contains("student-landscape-mode") ||
+        document.documentElement.classList.contains("student-virtual-landscape-mode") ||
+        window.innerWidth > window.innerHeight;
+
+      let target = e.target;
+      let scrollableContainer = null;
+      while (target && target !== document.body && target !== document.documentElement) {
+        const style = window.getComputedStyle(target);
+        const overflowY = style.overflowY;
+        if (
+          (overflowY === "auto" || overflowY === "scroll") &&
+          target.scrollHeight > target.clientHeight
+        ) {
+          scrollableContainer = target;
+          break;
+        }
+        target = target.parentElement;
+      }
+
+      if (isLandscapeMode) {
+        if (!scrollableContainer) {
+          if (e.cancelable) e.preventDefault();
+          return;
+        }
+        if (deltaY > 0 && scrollableContainer.scrollTop <= 0) {
+          if (e.cancelable) e.preventDefault();
+        } else if (
+          deltaY < 0 &&
+          scrollableContainer.scrollTop + scrollableContainer.clientHeight >= scrollableContainer.scrollHeight - 1
+        ) {
+          if (e.cancelable) e.preventDefault();
+        }
+        return;
+      }
+
+      if (deltaY > 0) {
+        const pageScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+        if (!scrollableContainer && pageScrollY <= 0) {
+          if (e.cancelable) e.preventDefault();
+        } else if (scrollableContainer && scrollableContainer.scrollTop <= 0) {
+          if (e.cancelable) e.preventDefault();
+        }
+      }
+    },
+    { passive: false }
+  );
+}
+
+installPullToRefreshBlocker();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", installPullToRefreshBlocker);
+}
+
 async function lockStudentOrientation(orientation) {
   const isLandscape = String(orientation || "").startsWith("landscape");
   const state = getStudentRotationState();

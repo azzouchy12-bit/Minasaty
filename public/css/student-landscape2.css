@@ -4,6 +4,17 @@
  * It does not change portrait, desktop, WebRTC, audio, video, or chat logic.
  */
 
+html.student-landscape-mode,
+html.student-virtual-landscape-mode,
+html.student-landscape-mode body,
+html.student-virtual-landscape-mode body,
+html.student-landscape-mode body.student-live-page,
+html.student-virtual-landscape-mode body.student-live-page {
+  overscroll-behavior: none !important;
+  overscroll-behavior-y: none !important;
+  overscroll-behavior-x: none !important;
+}
+
 @media screen and (max-width: 1200px) {
   html.student-landscape-mode body.student-live-page,
   html.student-virtual-landscape-mode body.student-live-page {
@@ -12,6 +23,9 @@
     min-height: 0 !important;
     margin: 0 !important;
     overflow: hidden !important;
+    overscroll-behavior: none !important;
+    overscroll-behavior-y: none !important;
+    overscroll-behavior-x: none !important;
     background: #020617 !important;
   }
 
@@ -20,6 +34,9 @@
     position: fixed !important;
     inset: 0 !important;
     z-index: 2147483000 !important;
+    overscroll-behavior: none !important;
+    overscroll-behavior-y: none !important;
+    overscroll-behavior-x: none !important;
     display: grid !important;
     grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
     grid-template-rows: minmax(0, 7fr) minmax(0, 1fr) !important;

@@ -35,15 +35,35 @@
         --viewer-red: #ef4444;
       }
 
+      :root,
+      html,
+      body {
+        overscroll-behavior: none !important;
+        overscroll-behavior-y: none !important;
+        overscroll-behavior-x: none !important;
+      }
+
       .student-live-page {
         min-height: 100vh;
         margin: 0;
         overflow-x: hidden;
         overflow-y: auto;
+        overscroll-behavior: none !important;
+        overscroll-behavior-y: none !important;
+        overscroll-behavior-x: none !important;
         color: var(--viewer-text);
         background:
           radial-gradient(circle at 82% 0%, rgba(37, 99, 235, 0.13), transparent 27rem),
           var(--viewer-bg);
+      }
+
+      .viewer-shell,
+      .viewer-stage,
+      .video-frame,
+      #landscape-viewport {
+        overscroll-behavior: none !important;
+        overscroll-behavior-y: none !important;
+        overscroll-behavior-x: none !important;
       }
 
       .student-prejoin-overlay {
