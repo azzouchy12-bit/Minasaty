@@ -8,65 +8,110 @@
 "use strict";
 
 (function () {
-  // 1. فحص شامل ومؤكد لاستثناء تطبيق المنصة الرسمي الخاص بك (MinasatyApp)
   const ua = navigator.userAgent || navigator.vendor || window.opera || "";
-  
-  // فحص توقيع التطبيق في الـ User-Agent أو كائنات الواجهة البرمجية المحقونة
-  const isOfficialAppSignature =
-    /MinasatyApp|com\.comminasatyacadimia\.minasaty|Minasaty/i.test(ua) ||
-    typeof window.MinasatyApp !== "undefined" ||
-    typeof window.Android !== "undefined" ||
-    typeof window.AndroidInterface !== "undefined" ||
-    typeof window.ReactNativeWebView !== "undefined" ||
-    window.IS_APP === true ||
-    document.body?.classList?.contains("is-app");
+  const referrer = document.referrer || "";
 
-  // فحص معلمات الرابط أو الذاكرة المحلية الخاصة بالتطبيق
-  let isAppStorageOrParam = false;
-  try {
-    if (localStorage.getItem("minasaty_in_app") === "true") {
-      isAppStorageOrParam = true;
-    }
-    const params = new URLSearchParams(window.location.search);
-    if (
-      params.get("mode") === "app" ||
-      params.get("app") === "true" ||
-      params.get("app") === "1" ||
-      params.get("source") === "apk" ||
-      params.get("source") === "app" ||
-      params.get("standalone") === "true" ||
-      window.location.hash.includes("app-mode") ||
-      window.location.hash.includes("standalone")
-    ) {
-      localStorage.setItem("minasaty_in_app", "true");
-      isAppStorageOrParam = true;
-    }
-  } catch (_) {}
-
-  // فحص نمط الشاشة المستقلة PWA Standalone
-  const isStandaloneMode =
-    window.matchMedia?.("(display-mode: standalone)")?.matches ||
-    window.matchMedia?.("(display-mode: fullscreen)")?.matches ||
-    window.navigator.standalone === true;
-
-  // إذا كان الزائر داخل تطبيقك الخاص بالمنصة، يتم إيقاف السكربت فوراً وبشكل كلي
-  if (isOfficialAppSignature || isAppStorageOrParam || isStandaloneMode) {
-    try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
-    return;
-  }
-
-  // 2. كشف التطبيقات المدمجة المستهدفة
+  // استبعاد شبكات التواصل الاجتماعي للتأكد من عمل تنبيه كروم لها دائماً
   const isFacebook = /FBAN|FBAV|FB_IAB|FB4A|FBIOS/i.test(ua);
   const isMessenger = /Messenger/i.test(ua);
   const isInstagram = /Instagram/i.test(ua);
-  const referrer = document.referrer || "";
   const isTelegram =
     /Telegram|TDesktop|TelegramBot|org\.telegram\.messenger/i.test(ua) ||
     /(?:telegram|t\.me)/i.test(referrer) ||
     Boolean(window.TelegramWebviewProxy || window.TelegramGameProxy || window.Telegram?.WebApp);
 
-  const isInApp = isFacebook || isMessenger || isInstagram || isTelegram;
-  if (!isInApp) {
+  const isSocialInApp = isFacebook || isMessenger || isInstagram || isTelegram;
+
+  // 1. فحص شامل ومؤكد لتطبيق الأندرويد الرسمي الخاص بالمنصة (MinasatyApp)
+  if (!isSocialInApp) {
+    const isAndroid = /Android/i.test(ua);
+    const isOfficialAppSignature =
+      /MinasatyApp|com\.comminasatyacadimia|Minasaty|acadimia|WebIntoApp/i.test(ua) ||
+      typeof window.MinasatyApp !== "undefined" ||
+      typeof window.Android !== "undefined" ||
+      typeof window.AndroidInterface !== "undefined" ||
+      typeof window.ReactNativeWebView !== "undefined" ||
+      window.IS_APP === true ||
+      document.body?.classList?.contains("inside-native-app") ||
+      document.body?.classList?.contains("is-app") ||
+      (isAndroid && /;\s*wv\b|Version\/[0-9.]+/i.test(ua)) ||
+      (document.referrer && document.referrer.indexOf("android-app://") === 0);
+
+    let isAppStorageOrParam = false;
+    try {
+      if (localStorage.getItem("minasaty_in_app") === "true" || sessionStorage.getItem("minasaty_in_app") === "true") {
+        isAppStorageOrParam = true;
+      }
+      const params = new URLSearchParams(window.location.search);
+      if (
+        params.get("mode") === "app" ||
+        params.get("app") === "true" ||
+        params.get("app") === "1" ||
+        params.get("source") === "apk" ||
+        params.get("source") === "app" ||
+        params.get("standalone") === "true" ||
+        window.location.hash.includes("app-mode") ||
+        window.location.hash.includes("standalone")
+      ) {
+        localStorage.setItem("minasaty_in_app", "true");
+        isAppStorageOrParam = true;
+      }
+    } catch (_) {}
+
+    const isStandaloneMode =
+      window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      window.matchMedia?.("(display-mode: fullscreen)")?.matches ||
+      window.matchMedia?.("(display-mode: minimal-ui)")?.matches ||
+      window.navigator.standalone === true;
+
+    // إذا كان الزائر داخل تطبيق المنصة الرسمي:
+    if (isOfficialAppSignature || isAppStorageOrParam || isStandaloneMode) {
+      try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
+
+      // حقن كود CSS فوري وقاطع لإخفاء الزر العائم ونافذة التثبيت في كامل صفحات الموقع
+      const hideStyle = document.createElement("style");
+      hideStyle.id = "minasaty-hide-app-download-elements";
+      hideStyle.textContent = `
+        #pwa-dash-float-btn,
+        .pwa-dash-floating-btn,
+        .pwa-dash-overlay,
+        #minasaty-floating-app-btn,
+        #minasaty-app-modal {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+        }
+      `;
+      if (document.head) {
+        document.head.appendChild(hideStyle);
+      } else {
+        document.addEventListener("DOMContentLoaded", () => document.head?.appendChild(hideStyle));
+      }
+
+      // حذف العناصر فورياً من DOM بمجرد جاهزية الصفحة
+      const removeAppDownloadElements = () => {
+        document.documentElement.classList.add("inside-native-app");
+        document.body?.classList?.add("inside-native-app");
+        document.getElementById("pwa-dash-float-btn")?.remove();
+        document.querySelectorAll(".pwa-dash-floating-btn, .pwa-dash-overlay, #minasaty-floating-app-btn, #minasaty-app-modal").forEach((el) => {
+          el?.remove();
+        });
+      };
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", removeAppDownloadElements);
+      } else {
+        removeAppDownloadElements();
+      }
+
+      // إيقاف تشغيل السكربت نهائياً لمستخدمي التطبيق الرسمي (لا يظهر لهم تنبيه كروم ولا زر التحميل)
+      return;
+    }
+  }
+
+  // 2. إذا لم يكن متصفح مدمج من تطبيقات التواصل، لا تفعل شيئاً (يظل زر التحميل ظاهراً لزوار كروم وسفاري)
+  if (!isSocialInApp) {
     return;
   }
 

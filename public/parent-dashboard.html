@@ -1593,14 +1593,61 @@
         direction: rtl;
         text-decoration: none;
       }
-      /* إخفاء الزر فقط داخل التطبيق المثبت */
+      /* إخفاء الزر فقط داخل التطبيق الرسمي */
       body.inside-native-app .pwa-dash-floating-btn,
-      @media all and (display-mode: standalone) {
-        .pwa-dash-floating-btn {
+      body.inside-native-app #pwa-dash-float-btn,
+      body.is-app .pwa-dash-floating-btn,
+      body.is-app #pwa-dash-float-btn,
+      .inside-native-app .pwa-dash-floating-btn,
+      .inside-native-app #pwa-dash-float-btn {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+      @media all and (display-mode: standalone), all and (display-mode: fullscreen) {
+        .pwa-dash-floating-btn,
+        #pwa-dash-float-btn,
+        .pwa-dash-overlay {
           display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
         }
       }
     </style>
+    <script>
+      // كشف فوري لتطبيق المنصة الرسمي في رأس الصفحة لمنع أي وميض للزر
+      (function() {
+        try {
+          var ua = navigator.userAgent || '';
+          var isSocial = /FBAN|FBAV|FB_IAB|FB4A|FBIOS|Messenger|Instagram|Telegram|TelegramBot/i.test(ua);
+          if (!isSocial) {
+            var isOfficial = /MinasatyApp|com\.comminasatyacadimia|Minasaty|acadimia|WebIntoApp/i.test(ua) ||
+              typeof window.MinasatyApp !== 'undefined' ||
+              typeof window.Android !== 'undefined' ||
+              typeof window.AndroidInterface !== 'undefined' ||
+              typeof window.ReactNativeWebView !== 'undefined' ||
+              window.IS_APP === true ||
+              /;\s*wv\b|Version\/[0-9.]+/i.test(ua) ||
+              (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+              window.navigator.standalone === true ||
+              (document.referrer && document.referrer.indexOf('android-app://') === 0) ||
+              localStorage.getItem('minasaty_in_app') === 'true' ||
+              sessionStorage.getItem('minasaty_in_app') === 'true';
+
+            if (isOfficial) {
+              localStorage.setItem('minasaty_in_app', 'true');
+              document.documentElement.classList.add('inside-native-app');
+              var style = document.createElement('style');
+              style.id = 'hide-pwa-float-btn-early';
+              style.textContent = '#pwa-dash-float-btn, .pwa-dash-floating-btn, .pwa-dash-overlay { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
+              document.head.appendChild(style);
+            }
+          }
+        } catch (_) {}
+      })();
+    </script>
     <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=receipt-decision-2" />
     <link rel="stylesheet" href="./css/live-classes-entry.css?v=live-entry-1" />
 </head>
@@ -2097,28 +2144,42 @@
     </a>
 
     <script>
-      // إخفاء وحذف الزر فوراً وقطعياً إذا كان التلميذ داخل تطبيق الهاتف المثبت
+      // إخفاء وحذف الزر فوراً وقطعياً إذا كان المستخدم داخل تطبيق الهاتف المثبت
       (function() {
-        var ua = navigator.userAgent || '';
-        
-        // 1. فحص شامل لجميع أنواع تطبيقات أندرويد وآبل (WebView / APK / Standalone)
-        var isAndroidApp = /;\s*wv\b|Android.*Version\/|MinasatyApp|com\.comminasatyacadimia|WebIntoApp/i.test(ua);
-        var isIosApp = /(iPhone|iPad|iPod).*Mobile\/(?!.*Safari)/i.test(ua);
-        var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        try {
+          var ua = navigator.userAgent || '';
+          var isSocial = /FBAN|FBAV|FB_IAB|FB4A|FBIOS|Messenger|Instagram|Telegram|TelegramBot/i.test(ua);
+          if (isSocial) return;
 
-        var isInsideApp = isAndroidApp || isIosApp || isStandalone;
+          var isOfficial = /MinasatyApp|com\.comminasatyacadimia|Minasaty|acadimia|WebIntoApp/i.test(ua) ||
+            typeof window.MinasatyApp !== 'undefined' ||
+            typeof window.Android !== 'undefined' ||
+            typeof window.AndroidInterface !== 'undefined' ||
+            typeof window.ReactNativeWebView !== 'undefined' ||
+            window.IS_APP === true ||
+            /;\s*wv\b|Version\/[0-9.]+/i.test(ua) ||
+            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+            window.navigator.standalone === true ||
+            (document.referrer && document.referrer.indexOf('android-app://') === 0) ||
+            localStorage.getItem('minasaty_in_app') === 'true' ||
+            sessionStorage.getItem('minasaty_in_app') === 'true';
 
-        if (isInsideApp) {
-          // 🚨 داخل التطبيق: نحذف الزر نهائياً من الصفحة
-          document.body.classList.add('inside-native-app');
-          var btn = document.getElementById('pwa-dash-float-btn');
-          if (btn) {
-            btn.style.setProperty('display', 'none', 'important');
-            if (btn.parentNode) {
-              btn.parentNode.removeChild(btn); // حذف كامل من شجرة الصفحة
+          if (isOfficial) {
+            localStorage.setItem('minasaty_in_app', 'true');
+            document.body.classList.add('inside-native-app');
+            var btn = document.getElementById('pwa-dash-float-btn');
+            if (btn) {
+              btn.style.setProperty('display', 'none', 'important');
+              if (btn.parentNode) {
+                btn.parentNode.removeChild(btn);
+              }
             }
+            var allBtns = document.querySelectorAll('.pwa-dash-floating-btn, .pwa-dash-overlay');
+            allBtns.forEach(function(el) {
+              if (el && el.parentNode) el.parentNode.removeChild(el);
+            });
           }
-        }
+        } catch (_) {}
       })();
 
       // توجيه تسجيل الخروج مباشرة إلى الصفحة الأولى الترحيبية للمنصة (/)
