@@ -641,21 +641,36 @@ function syncLandscapeComposerVisibility(isLandscape) {
   document.body.classList.add("student-chat-compose-open");
 }
 
+function isPhysicalLandscapeMode() {
+  return Boolean(
+    (window.matchMedia?.("(orientation: landscape)").matches || false) ||
+    (typeof window.innerWidth === "number" && typeof window.innerHeight === "number" && window.innerWidth > window.innerHeight)
+  );
+}
+
 function updateRotationControls() {
   // The phone sensor must not change this page by itself. The in-app rotate
   // button is the only control that enables the landscape interface.
   const rotationState = getStudentRotationState();
-  const nativeLandscape = rotationState.requested && (window.matchMedia?.("(orientation: landscape)").matches || false);
+  const physicallyLandscape = isPhysicalLandscapeMode();
+
+  // If the device is physically held in landscape, we don't need CSS 90deg rotation
+  if (rotationState.requested && physicallyLandscape) {
+    rotationState.virtual = false;
+  }
+
+  const nativeLandscape = rotationState.requested && physicallyLandscape;
   const isLandscape = rotationState.requested && (nativeLandscape || rotationState.virtual);
   const showUnrotate = isLandscape;
+
   if (elements.rotateButton) elements.rotateButton.hidden = isLandscape;
   if (elements.unrotateButton) elements.unrotateButton.hidden = !showUnrotate;
   if (elements.centerRotateButton) elements.centerRotateButton.hidden = showUnrotate;
   if (elements.centerUnrotateButton) elements.centerUnrotateButton.hidden = !showUnrotate;
   syncLandscapeCaptureButton(showUnrotate);
   document.documentElement.classList.toggle("student-landscape-mode", isLandscape);
-  document.documentElement.classList.toggle("student-virtual-landscape-mode", rotationState.virtual);
-  document.body.classList.toggle("hide-ui-for-rotation", rotationState.virtual);
+  document.documentElement.classList.toggle("student-virtual-landscape-mode", Boolean(rotationState.requested && rotationState.virtual));
+  document.body.classList.toggle("hide-ui-for-rotation", Boolean(rotationState.requested && rotationState.virtual));
   syncLandscapeComposerVisibility(isLandscape);
 
   // Keep zoom and one-finger panning available in both mobile orientations.
@@ -807,52 +822,93 @@ function initializeStudentZoom() {
   target.addEventListener("pointerleave", handleStudentZoomPointerEnd, { passive: true });
 }
 
+function tryNativeAppOrientation(orientation) {
+  const isLandscape = String(orientation || "").startsWith("landscape");
+  const bridgeCandidates = [
+    window.Android,
+    window.AndroidInterface,
+    window.Minasaty,
+    window.MinasatyApp,
+    window.MinassatiApp,
+    window.JSBridge,
+    window.webkit?.messageHandlers?.Android,
+  ];
+
+  for (const bridge of bridgeCandidates) {
+    if (!bridge) continue;
+    try {
+      if (isLandscape) {
+        if (typeof bridge.setLandscape === "function") { bridge.setLandscape(); return true; }
+        if (typeof bridge.setOrientation === "function") { bridge.setOrientation("landscape"); return true; }
+        if (typeof bridge.setOrientationLandscape === "function") { bridge.setOrientationLandscape(); return true; }
+        if (typeof bridge.lockOrientation === "function") { bridge.lockOrientation("landscape"); return true; }
+        if (typeof bridge.rotateToLandscape === "function") { bridge.rotateToLandscape(); return true; }
+        if (typeof bridge.rotateScreen === "function") { bridge.rotateScreen("landscape"); return true; }
+        if (typeof bridge.rotate === "function") { bridge.rotate("landscape"); return true; }
+        if (typeof bridge.setRequestedOrientation === "function") { bridge.setRequestedOrientation(0); return true; }
+      } else {
+        if (typeof bridge.setPortrait === "function") { bridge.setPortrait(); return true; }
+        if (typeof bridge.setOrientation === "function") { bridge.setOrientation("portrait"); return true; }
+        if (typeof bridge.setOrientationPortrait === "function") { bridge.setOrientationPortrait(); return true; }
+        if (typeof bridge.unlockOrientation === "function") { bridge.unlockOrientation(); return true; }
+        if (typeof bridge.rotateToPortrait === "function") { bridge.rotateToPortrait(); return true; }
+        if (typeof bridge.rotateScreen === "function") { bridge.rotateScreen("portrait"); return true; }
+        if (typeof bridge.rotate === "function") { bridge.rotate("portrait"); return true; }
+        if (typeof bridge.setRequestedOrientation === "function") { bridge.setRequestedOrientation(1); return true; }
+      }
+    } catch (e) {
+      console.warn("Native bridge orientation call error:", e);
+    }
+  }
+  return false;
+}
+
 async function lockStudentOrientation(orientation) {
+  const isLandscape = String(orientation || "").startsWith("landscape");
+  const state = getStudentRotationState();
+
+  if (!isLandscape) {
+    return unrotateStudentScreen();
+  }
+
+  state.requested = true;
+
+  // 1. Fullscreen request (safe attempt without throwing)
   try {
     if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
       await document.documentElement.requestFullscreen();
     }
-
-    if (orientation.startsWith("landscape")) {
-      const orientationController = screen.orientation;
-      if (!orientationController?.lock) {
-        throw new Error("Screen orientation lock is unavailable.");
-      }
-
-      // The lock is requested only from the student's in-app button. The phone
-      // sensor is not listened to as an independent trigger.
-      await orientationController.lock("landscape");
-      getStudentRotationState().virtual = false;
-      updateRotationControls();
-      showMobileControlToast("تم تفعيل التدوير اليدوي داخل المنصة.");
-      return true;
-    }
-
-    getStudentRotationState().virtual = false;
-    updateRotationControls();
-    showMobileControlToast("تم إلغاء تدوير الشاشة.");
-    return true;
-  } catch (error) {
-    // Never leave the page sideways inside a portrait viewport. A CSS rotation
-    // fallback looks broken on real phones, so keep the page portrait and tell
-    // the student exactly why the request could not be completed.
-    console.warn("Unable to lock student screen orientation:", error);
-    getStudentRotationState().virtual = false;
-    getStudentRotationState().requested = false;
-    document.documentElement.classList.remove("student-landscape-mode", "student-virtual-landscape-mode");
-    document.body.classList.remove("hide-ui-for-rotation");
-    try {
-      screen.orientation?.unlock?.();
-      if (document.fullscreenElement && document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-    } catch (cleanupError) {
-      console.warn("Unable to clean up failed student orientation request:", cleanupError);
-    }
-    updateRotationControls();
-    showMobileControlToast("تعذر تدوير الشاشة. افتح الحصة في Chrome ثم اضغط الزر مرة أخرى.");
-    return false;
+  } catch (fsError) {
+    console.info("Safe fullscreen bypass in live viewer:", fsError);
   }
+
+  // 2. Try native Android App bridge if exposed by the Android application wrapper
+  const appBridgeRotated = tryNativeAppOrientation("landscape");
+
+  // 3. Try standard W3C screen orientation lock (supported in mobile Chrome)
+  let nativeLockSucceeded = false;
+  try {
+    const orientationController = screen.orientation;
+    if (orientationController && typeof orientationController.lock === "function") {
+      await orientationController.lock("landscape");
+      nativeLockSucceeded = true;
+    }
+  } catch (orientationError) {
+    console.info("Native screen orientation lock not supported in this WebView environment, using in-app landscape mode:", orientationError);
+  }
+
+  // 4. If device is physically landscape or native rotation succeeded, use direct landscape mode.
+  // Otherwise (e.g. inside official Android App WebView holding phone in portrait), activate virtual landscape rotation.
+  const physicallyLandscape = isPhysicalLandscapeMode();
+  if (nativeLockSucceeded || appBridgeRotated || physicallyLandscape) {
+    state.virtual = false;
+  } else {
+    state.virtual = true;
+  }
+
+  updateRotationControls();
+  showMobileControlToast("تم تدوير الشاشة بنجاح.");
+  return true;
 }
 
 async function rotateStudentScreen() {
@@ -862,25 +918,42 @@ async function rotateStudentScreen() {
 
 async function unrotateStudentScreen() {
   try {
-    getStudentRotationState().requested = false;
-    getStudentRotationState().virtual = false;
-    document.documentElement.classList.remove("student-virtual-landscape-mode");
+    const state = getStudentRotationState();
+    state.requested = false;
+    state.virtual = false;
+    document.documentElement.classList.remove("student-virtual-landscape-mode", "student-landscape-mode");
     document.body.classList.remove("hide-ui-for-rotation");
-    // Unlock only when the student explicitly presses the in-app cancel button;
-    // the phone sensor never starts this transition by itself.
+
+    // Unlock native orientation if supported
     if (screen.orientation?.unlock) {
-      screen.orientation.unlock();
+      try {
+        screen.orientation.unlock();
+      } catch (unlockErr) {
+        console.info("Screen orientation unlock skipped:", unlockErr);
+      }
     }
+
+    // Call native Android bridge for portrait
+    tryNativeAppOrientation("portrait");
+
+    // Exit fullscreen if active
     if (document.fullscreenElement && document.exitFullscreen) {
-      await document.exitFullscreen();
+      try {
+        await document.exitFullscreen();
+      } catch (exitFsErr) {
+        console.info("Exit fullscreen skipped:", exitFsErr);
+      }
     }
+
     resetStudentZoom();
     updateRotationControls();
     showMobileControlToast("تم إلغاء تدوير الشاشة.");
+    return true;
   } catch (error) {
     console.warn("Unable to unlock student screen orientation:", error);
     updateRotationControls();
-    showMobileControlToast("أدر الهاتف يدويًا إلى الوضع العمودي.");
+    showMobileControlToast("تم إلغاء تدوير الشاشة.");
+    return false;
   }
 }
 
