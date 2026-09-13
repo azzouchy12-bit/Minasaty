@@ -22,122 +22,395 @@
 
   const isSocialInApp = isFacebook || isMessenger || isInstagram || isTelegram;
 
-  // 1. فحص شامل ومؤكد لتطبيق الأندرويد الرسمي الخاص بالمنصة (MinasatyApp)
+  // 1. فحص وتمييز التطبيق الجديد عن التطبيق القديم عن المتصفحات العادية (Google Chrome, Safari, etc.)
   if (!isSocialInApp) {
     const isAndroid = /Android/i.test(ua);
-    const isOfficialAppSignature =
-      /MinasatyApp|com\.comminasatyacadimia|Minasaty|acadimia|WebIntoApp/i.test(ua) ||
-      typeof window.MinasatyApp !== "undefined" ||
-      typeof window.Android !== "undefined" ||
-      typeof window.AndroidInterface !== "undefined" ||
-      typeof window.ReactNativeWebView !== "undefined" ||
-      window.IS_APP === true ||
-      document.body?.classList?.contains("inside-native-app") ||
-      document.body?.classList?.contains("is-app") ||
-      (isAndroid && /;\s*wv\b|Version\/[0-9.]+/i.test(ua)) ||
-      (document.referrer && document.referrer.indexOf("android-app://") === 0);
 
-    let isAppStorageOrParam = false;
-    try {
-      if (localStorage.getItem("minasaty_in_app") === "true" || sessionStorage.getItem("minasaty_in_app") === "true") {
-        isAppStorageOrParam = true;
-      }
-      const params = new URLSearchParams(window.location.search);
-      if (
-        params.get("mode") === "app" ||
-        params.get("app") === "true" ||
-        params.get("app") === "1" ||
-        params.get("source") === "apk" ||
-        params.get("source") === "app" ||
-        params.get("standalone") === "true" ||
-        window.location.hash.includes("app-mode") ||
-        window.location.hash.includes("standalone")
-      ) {
-        localStorage.setItem("minasaty_in_app", "true");
-        isAppStorageOrParam = true;
-      }
-    } catch (_) {}
+    // أ) التحقق مما إذا كان الزائر يستخدم التطبيق الأصلي الحديث (النسخة الجديدة المحدثة)
+    const isNewNativeApp = Boolean(
+      (window.MinasatyNative && typeof window.MinasatyNative.startLiveService === "function") ||
+      (window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform())
+    );
 
-    const isStandaloneMode =
-      window.matchMedia?.("(display-mode: standalone)")?.matches ||
-      window.matchMedia?.("(display-mode: fullscreen)")?.matches ||
-      window.matchMedia?.("(display-mode: minimal-ui)")?.matches ||
-      window.navigator.standalone === true;
-
-    // إذا كان الزائر داخل تطبيق المنصة الرسمي:
-    if (isOfficialAppSignature || isAppStorageOrParam || isStandaloneMode) {
+    // إذا كان التطبيق الجديد: يعمل طبيعياً وبشكل كامل بدون أي نوافذ تحديث
+    if (isNewNativeApp) {
       try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
-
-      // إذا كانت الصفحة خارج البث المباشر، نضمن بقاء السحب للتحديث مفعّلاً في التطبيق
-      const pathname = window.location.pathname || "";
-      const isLivePage = pathname.includes("student-live") || pathname.includes("teacher-live");
-      if (!isLivePage) {
-        const bridgeCandidates = [
-          window.Android,
-          window.AndroidInterface,
-          window.Minasaty,
-          window.MinasatyApp,
-          window.MinassatiApp,
-          window.JSBridge,
-          window.webkit?.messageHandlers?.Android,
-        ];
-        for (const bridge of bridgeCandidates) {
-          if (!bridge) continue;
-          try {
-            if (typeof bridge.enableSwipeRefresh === "function") bridge.enableSwipeRefresh();
-            if (typeof bridge.setSwipeRefreshEnabled === "function") bridge.setSwipeRefreshEnabled(true);
-            if (typeof bridge.setSwipeRefresh === "function") bridge.setSwipeRefresh(true);
-            if (typeof bridge.enablePullToRefresh === "function") bridge.enablePullToRefresh(true);
-            if (typeof bridge.setRefreshEnabled === "function") bridge.setRefreshEnabled(true);
-            if (typeof bridge.setPullToRefreshEnabled === "function") bridge.setPullToRefreshEnabled(true);
-          } catch (_) {}
-        }
-      }
-
-      // حقن كود CSS فوري وقاطع لإخفاء الزر العائم ونافذة التثبيت في كامل صفحات الموقع
       const hideStyle = document.createElement("style");
       hideStyle.id = "minasaty-hide-app-download-elements";
       hideStyle.textContent = `
-        #pwa-dash-float-btn,
-        .pwa-dash-floating-btn,
-        .pwa-dash-overlay,
-        #minasaty-floating-app-btn,
-        #minasaty-app-modal {
-          display: none !important;
-          visibility: hidden !important;
-          opacity: 0 !important;
-          pointer-events: none !important;
+        #pwa-dash-float-btn, .pwa-dash-floating-btn, .pwa-dash-overlay, #minasaty-floating-app-btn, #minasaty-app-modal {
+          display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;
         }
       `;
-      if (document.head) {
-        document.head.appendChild(hideStyle);
-      } else {
-        document.addEventListener("DOMContentLoaded", () => document.head?.appendChild(hideStyle));
+      (document.head || document.documentElement).appendChild(hideStyle);
+      return; // خروج: التطبيق محدث بالفعل
+    }
+
+    // ب) التحقق بدقة مما إذا كان الزائر يفتح المنصة من داخل (التطبيق القديم) حصراً
+    // التطبيق القديم يضيف 'MinasatyApp/1.0' في UserAgent أو يحقن كلاس 'inside-native-app' أو نمط 'native-hide-app-download-style'
+    const isOldAppSignature = Boolean(
+      /MinasatyApp|com\.comminasatyacadimia/i.test(ua) ||
+      typeof window.MinasatyApp !== "undefined" ||
+      (typeof window.Android !== "undefined" && !isNewNativeApp) ||
+      (typeof window.AndroidInterface !== "undefined" && !isNewNativeApp) ||
+      document.body?.classList?.contains("inside-native-app") ||
+      Boolean(document.getElementById("native-hide-app-download-style")) ||
+      (isAndroid && (/;\s*wv\b|Version\/[0-9.]+\s+Chrome/i.test(ua) || window.location.search.includes("app=true")))
+    );
+
+    // إذا تم الكشف عن التطبيق القديم:
+    if (isOldAppSignature) {
+      // إزالة أي ستايل كان يحقنه التطبيق القديم لإخفاء نوافذ التحديث
+      const oldInjectedStyle = document.getElementById("native-hide-app-download-style");
+      if (oldInjectedStyle) {
+        try { oldInjectedStyle.remove(); } catch (_) {}
       }
 
-      // حذف العناصر فورياً من DOM بمجرد جاهزية الصفحة
-      const removeAppDownloadElements = () => {
-        document.documentElement.classList.add("inside-native-app");
-        document.body?.classList?.add("inside-native-app");
-        document.getElementById("pwa-dash-float-btn")?.remove();
-        document.querySelectorAll(".pwa-dash-floating-btn, .pwa-dash-overlay, #minasaty-floating-app-btn, #minasaty-app-modal").forEach((el) => {
-          el?.remove();
+      // فحص كتم التنبيه المؤقت للجلسة الحالية
+      const OLD_APP_STORAGE_KEY = "minasaty_old_app_prompt_dismissed";
+      try {
+        const dismissedTime = Number(sessionStorage.getItem(OLD_APP_STORAGE_KEY) || 0);
+        if (dismissedTime && Date.now() < dismissedTime) {
+          return;
+        }
+      } catch (_) {}
+
+      // عرض نافذة التحديث الإجباري للتطبيق القديم
+      function showOldAppUpdateModal() {
+        if (document.getElementById("minasaty-old-app-update-overlay")) return;
+
+        // حقن أنماط نافذة التحديث
+        const updateStyle = document.createElement("style");
+        updateStyle.id = "minasaty-old-app-update-styles";
+        updateStyle.textContent = `
+          #minasaty-old-app-update-overlay {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 2147483647 !important;
+            background: rgba(4, 12, 28, 0.92) !important;
+            backdrop-filter: blur(12px) !important;
+            -webkit-backdrop-filter: blur(12px) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 18px !important;
+            box-sizing: border-box !important;
+            direction: rtl !important;
+            text-align: right !important;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Cairo", Tahoma, sans-serif !important;
+            animation: minasatyFadeIn 0.25s ease forwards !important;
+          }
+          @keyframes minasatyFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes minasatyPopIn {
+            0% { opacity: 0; transform: scale(0.92) translateY(14px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+          }
+          .minasaty-old-app-card {
+            background: linear-gradient(155deg, #0d213f 0%, #061122 100%) !important;
+            border: 1.5px solid rgba(245, 158, 11, 0.5) !important;
+            border-radius: 22px !important;
+            width: 100% !important;
+            max-width: 430px !important;
+            padding: 24px 20px !important;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 35px rgba(245, 158, 11, 0.22) !important;
+            color: #ffffff !important;
+            box-sizing: border-box !important;
+            position: relative !important;
+            animation: minasatyPopIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+          }
+          .minasaty-old-badge {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            background: rgba(245, 158, 11, 0.16) !important;
+            border: 1px solid rgba(251, 191, 36, 0.45) !important;
+            color: #fbbf24 !important;
+            font-size: 0.82rem !important;
+            font-weight: 700 !important;
+            padding: 5px 12px !important;
+            border-radius: 20px !important;
+            margin-bottom: 14px !important;
+          }
+          .minasaty-old-icon-box {
+            display: flex !important;
+            justify-content: center !important;
+            margin: 4px 0 16px 0 !important;
+          }
+          .minasaty-old-pulse-icon {
+            width: 72px !important;
+            height: 72px !important;
+            border-radius: 20px !important;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            box-shadow: 0 10px 25px rgba(245, 158, 11, 0.38) !important;
+            color: #ffffff !important;
+          }
+          .minasaty-old-title {
+            font-size: 1.25rem !important;
+            font-weight: 800 !important;
+            color: #ffffff !important;
+            text-align: center !important;
+            margin: 0 0 8px 0 !important;
+            line-height: 1.4 !important;
+          }
+          .minasaty-old-subtitle {
+            font-size: 0.94rem !important;
+            font-weight: 700 !important;
+            color: #fca5a5 !important;
+            text-align: center !important;
+            margin: 0 0 14px 0 !important;
+          }
+          .minasaty-old-desc {
+            font-size: 0.92rem !important;
+            color: #cbd5e1 !important;
+            line-height: 1.65 !important;
+            margin: 0 0 16px 0 !important;
+            text-align: center !important;
+          }
+          .minasaty-old-perks {
+            background: rgba(15, 33, 64, 0.75) !important;
+            border: 1px solid rgba(147, 197, 253, 0.25) !important;
+            border-radius: 14px !important;
+            padding: 12px 14px !important;
+            margin-bottom: 18px !important;
+          }
+          .minasaty-old-perk-item {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            color: #e2e8f0 !important;
+            font-size: 0.88rem !important;
+            margin-bottom: 7px !important;
+            line-height: 1.4 !important;
+          }
+          .minasaty-old-perk-item:last-child {
+            margin-bottom: 0 !important;
+          }
+          .minasaty-old-perk-check {
+            color: #34d399 !important;
+            font-weight: 800 !important;
+            font-size: 1rem !important;
+            flex-shrink: 0 !important;
+          }
+          .minasaty-old-btn-update {
+            width: 100% !important;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            border: 1px solid #34d399 !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+            font-size: 1.05rem !important;
+            padding: 14px 18px !important;
+            border-radius: 14px !important;
+            cursor: pointer !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 10px !important;
+            box-shadow: 0 10px 24px rgba(16, 185, 129, 0.35) !important;
+            text-decoration: none !important;
+            box-sizing: border-box !important;
+            transition: transform 0.15s, filter 0.15s !important;
+          }
+          .minasaty-old-btn-update:active {
+            transform: scale(0.98) !important;
+          }
+          .minasaty-old-btn-update:hover {
+            filter: brightness(1.08) !important;
+          }
+          .minasaty-old-btn-chrome {
+            width: 100% !important;
+            background: rgba(255, 255, 255, 0.08) !important;
+            border: 1px solid rgba(255, 255, 255, 0.18) !important;
+            color: #93c5fd !important;
+            font-weight: 700 !important;
+            font-size: 0.88rem !important;
+            padding: 11px 16px !important;
+            border-radius: 12px !important;
+            cursor: pointer !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+            margin-top: 10px !important;
+            transition: all 0.2s !important;
+          }
+          .minasaty-old-btn-chrome:hover {
+            background: rgba(255, 255, 255, 0.15) !important;
+            color: #ffffff !important;
+          }
+          .minasaty-old-dismiss {
+            width: 100% !important;
+            background: transparent !important;
+            border: none !important;
+            color: #94a3b8 !important;
+            font-size: 0.85rem !important;
+            padding: 10px !important;
+            margin-top: 6px !important;
+            cursor: pointer !important;
+            text-decoration: underline !important;
+            text-underline-offset: 4px !important;
+            text-align: center !important;
+          }
+          .minasaty-old-status-box {
+            display: none;
+            background: rgba(16, 185, 129, 0.15) !important;
+            border: 1px solid rgba(52, 211, 153, 0.4) !important;
+            color: #6ee7b7 !important;
+            border-radius: 12px !important;
+            padding: 12px 14px !important;
+            font-size: 0.88rem !important;
+            line-height: 1.6 !important;
+            margin-top: 14px !important;
+            text-align: center !important;
+            animation: minasatyFadeIn 0.3s ease forwards !important;
+          }
+        `;
+        (document.head || document.documentElement).appendChild(updateStyle);
+
+        const overlay = document.createElement("div");
+        overlay.id = "minasaty-old-app-update-overlay";
+        overlay.setAttribute("role", "dialog");
+        overlay.setAttribute("aria-modal", "true");
+
+        overlay.innerHTML = `
+          <div class="minasaty-old-app-card">
+            <div style="text-align: center;">
+              <span class="minasaty-old-badge">⚠️ تطبيق المنصة بحاجة إلى تحديث</span>
+            </div>
+
+            <div class="minasaty-old-icon-box">
+              <div class="minasaty-old-pulse-icon">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </div>
+            </div>
+
+            <h2 class="minasaty-old-title">حدّث التطبيق لمتابعة الحصص</h2>
+            <p class="minasaty-old-subtitle">الإصدار القديم لم يعد يعمل بشكل ممتاز</p>
+
+            <p class="minasaty-old-desc">
+              أنت تستخدم حالياً <strong>النسخة القديمة</strong> من التطبيق ولن تتمكن من متابعة البث المباشر في الخلفية بصورة سليمة. يرجى تنزيل <strong>النسخة الجديدة المحدثة</strong> للاستمرار في الدراسة بسلاسة.
+            </p>
+
+            <div class="minasaty-old-perks">
+              <div class="minasaty-old-perk-item">
+                <span class="minasaty-old-perk-check">✓</span>
+                <span>استمرار الصوت والبث المباشر حتى عند قفل الشاشة</span>
+              </div>
+              <div class="minasaty-old-perk-item">
+                <span class="minasaty-old-perk-check">✓</span>
+                <span>ميزة الصورة داخل صورة (النافذة العائمة PiP)</span>
+              </div>
+              <div class="minasaty-old-perk-item">
+                <span class="minasaty-old-perk-check">✓</span>
+                <span>استقرار وسرعة اتصال ممتازة وحل مشاكل التقطيع</span>
+              </div>
+            </div>
+
+            <div class="minasaty-old-actions">
+              <button id="minasaty-old-btn-download" class="minasaty-old-btn-update" type="button">
+                <span>📥 تحديث التطبيق الآن (تنزيل النسخة الجديدة)</span>
+              </button>
+
+              <button id="minasaty-old-btn-chrome" class="minasaty-old-btn-chrome" type="button">
+                <span>🌐 إذا لم يبدأ التحميل: اضغط هنا للتحميل عبر Google Chrome</span>
+              </button>
+
+              <button id="minasaty-old-btn-dismiss" class="minasaty-old-dismiss" type="button">
+                المتابعة داخل النسخة القديمة مؤقتاً
+              </button>
+            </div>
+
+            <div id="minasaty-old-status-box" class="minasaty-old-status-box">
+              ⏳ <strong>جاري بدء التحميل...</strong><br />
+              تفقّد شريط الإشعارات أعلى الشاشة، وبمجرد اكتمال تنزيل الملف، افتحه واضغط على <strong>[تثبيت / Installer]</strong>.
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        // وظيفة بدء التحميل
+        const startDownload = () => {
+          const statusBox = document.getElementById("minasaty-old-status-box");
+          if (statusBox) statusBox.style.display = "block";
+
+          const updateBtn = document.getElementById("minasaty-old-btn-download");
+          if (updateBtn) {
+            updateBtn.innerHTML = "<span>⏳ جاري التحميل... تفقّد شريط الإشعارات</span>";
+            updateBtn.style.opacity = "0.85";
+          }
+
+          const apkUrl = "/acadimia.apk?v=" + Date.now();
+
+          // محاولة تحميل عبر رابط مباشر
+          const link = document.createElement("a");
+          link.href = apkUrl;
+          link.setAttribute("download", "acadimia.apk");
+          link.setAttribute("target", "_blank");
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => link.remove(), 1000);
+
+          // محاولة تحميل عبر تغيير رابط النافذة للتأكد من التقاطه
+          setTimeout(() => {
+            window.location.href = apkUrl;
+          }, 400);
+        };
+
+        // زر التحميل المباشر
+        document.getElementById("minasaty-old-btn-download")?.addEventListener("click", startDownload);
+
+        // زر التحميل عبر Google Chrome الخارجي في حال كان الـ WebView يمنع التنزيلات المباشرة
+        document.getElementById("minasaty-old-btn-chrome")?.addEventListener("click", () => {
+          const fullApkUrl = window.location.origin + "/acadimia.apk";
+          const hostAndPath = (window.location.host + "/acadimia.apk").replace(/^https?:\/\//i, "");
+          const intentUrl = "intent://" + hostAndPath + "#Intent;scheme=https;package=com.android.chrome;end;";
+          window.location.href = intentUrl;
+          setTimeout(() => {
+            window.open(fullApkUrl, "_blank");
+          }, 1200);
         });
-      };
+
+        // زر التخطي المؤقت
+        document.getElementById("minasaty-old-btn-dismiss")?.addEventListener("click", () => {
+          try {
+            sessionStorage.setItem(OLD_APP_STORAGE_KEY, String(Date.now() + 30 * 60 * 1000));
+          } catch (_) {}
+          overlay.style.transition = "opacity 0.25s ease, transform 0.25s ease";
+          overlay.style.opacity = "0";
+          setTimeout(() => overlay.remove(), 250);
+        });
+      }
 
       if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", removeAppDownloadElements);
+        document.addEventListener("DOMContentLoaded", showOldAppUpdateModal);
       } else {
-        removeAppDownloadElements();
+        showOldAppUpdateModal();
       }
 
-      // إيقاف تشغيل السكربت نهائياً لمستخدمي التطبيق الرسمي (لا يظهر لهم تنبيه كروم ولا زر التحميل)
-      return;
-    }
-  }
+      // فحص إضافي بعد ثوانٍ تحسباً لحقن الأنماط المتأخر في WebView القديم
+      setTimeout(() => {
+        const oldStyle = document.getElementById("native-hide-app-download-style");
+        if (oldStyle) {
+          try { oldStyle.remove(); } catch (_) {}
+        }
+        showOldAppUpdateModal();
+      }, 400);
 
-  // 2. إذا لم يكن متصفح مدمج من تطبيقات التواصل، لا تفعل شيئاً (يظل زر التحميل ظاهراً لزوار كروم وسفاري)
-  if (!isSocialInApp) {
+      return; // إنهاء السكربت للمستخدمين داخل التطبيق القديم بعد إظهار التنبيه
+    }
+
+    // ج) إذا كان المستخدم يتصفح عبر Google Chrome أو Safari أو غيرهما بشكل طبيعي:
+    // نتركه كما هو تماماً دون أي إزعاج أو نوافذ
     return;
   }
 
