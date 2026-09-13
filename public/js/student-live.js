@@ -1448,6 +1448,8 @@ let signalSamplingTimer = null;
 let lastPacketsLost = 0;
 let lastPacketsReceived = 0;
 let lastSignalScore = 0;
+let isSignalQualified = false;
+let signalQualifiedStartTime = null;
 
 function openSignalFinderModal() {
   const modal = elements.signalFinderModal || document.getElementById("student-signal-finder-modal");
@@ -1456,6 +1458,9 @@ function openSignalFinderModal() {
   document.body.classList.add("signal-modal-open");
   const btn = elements.signalFinderButton || document.getElementById("student-signal-finder-btn");
   if (btn) btn.setAttribute("aria-expanded", "true");
+
+  isSignalQualified = false;
+  signalQualifiedStartTime = null;
 
   // Run immediate sample then repeat every 600ms
   void sampleConnectionHealth();
@@ -1477,6 +1482,8 @@ function closeSignalFinderModal() {
     clearInterval(signalSamplingTimer);
     signalSamplingTimer = null;
   }
+  isSignalQualified = false;
+  signalQualifiedStartTime = null;
 }
 
 function toggleSignalFinderModal(event) {
@@ -1622,16 +1629,46 @@ async function sampleConnectionHealth() {
   if (sim1Pill) sim1Pill.classList.toggle("is-active", isSim1);
   if (sim2Pill) sim2Pill.classList.toggle("is-active", isSim2);
 
-  // 5. "Stop Here!" Smart Banner (Score >= 80% with low latency & 0 packet loss)
-  const stopBanner = document.getElementById("signal-stop-banner");
-  const guideHint = document.getElementById("signal-guide-hint");
-  if (stopBanner) {
-    if (score >= 80 && rttMs < 100 && lossRate === 0) {
-      stopBanner.hidden = false;
-      if (guideHint) guideHint.hidden = true;
+  // 5. Fixed Guidance Card Logic (Realistic Threshold: Score >= 50% or RTT <= 160ms with 0 loss stable for 2 seconds)
+  const guidanceCard = document.getElementById("signal-guidance-card");
+  const guidanceIcon = document.getElementById("guidance-card-icon");
+  const guidanceTitle = document.getElementById("guidance-card-title");
+  const guidanceSub = document.getElementById("guidance-card-sub");
+
+  const qualifies = (score >= 50) || (rttMs <= 160 && lossRate === 0);
+
+  if (qualifies) {
+    if (!signalQualifiedStartTime) {
+      signalQualifiedStartTime = Date.now();
+    }
+    // Must remain stable at or above this threshold for 2 consecutive seconds (2000ms)
+    if (Date.now() - signalQualifiedStartTime >= 2000) {
+      isSignalQualified = true;
+    }
+  } else {
+    // If the score drops below 40% (or heavy loss/latency), revert back to searching state
+    if (score < 40 || lossRate > 0.02 || rttMs > 220) {
+      isSignalQualified = false;
+      signalQualifiedStartTime = null;
+    }
+  }
+
+  if (guidanceCard && guidanceTitle) {
+    if (isSignalQualified) {
+      guidanceCard.classList.add("is-qualified");
+      if (guidanceIcon) guidanceIcon.textContent = "🎯";
+      guidanceTitle.textContent = "🎯 قف هنا! الإشارة في هذا المكان كافية وممتازة لمتابعة الحصة بدون تقطيع.";
+      if (guidanceSub) {
+        guidanceSub.textContent = "(يمكنك الاستقرار هنا، أو تجربة مكان آخر في المنزل إذا رغبت).";
+        guidanceSub.hidden = false;
+      }
     } else {
-      stopBanner.hidden = true;
-      if (guideHint) guideHint.hidden = false;
+      guidanceCard.classList.remove("is-qualified");
+      if (guidanceIcon) guidanceIcon.textContent = "🚶‍♂️";
+      guidanceTitle.textContent = "🚶‍♂️ تجول في المنزل وابحث عن مكان مناسب لمتابعة الحصة...";
+      if (guidanceSub) {
+        guidanceSub.hidden = true;
+      }
     }
   }
 }

@@ -205,11 +205,57 @@
     .signal-pill.is-active { color: #38bdf8; background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.45); }
     .signal-pill-dot { width: 6px; height: 6px; border-radius: 50%; background: #475569; }
     .signal-pill.is-active .signal-pill-dot { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
-    .signal-stop-banner { position: relative; overflow: hidden; margin-top: 0.5rem; padding: 0.85rem 1rem; color: #ffffff; background: linear-gradient(135deg, #22c55e, #16a34a); border: 1.5px solid #86efac; border-radius: 0.9rem; box-shadow: 0 8px 25px rgba(34, 197, 94, 0.45); text-align: center; }
-    .signal-stop-banner[hidden] { display: none !important; }
-    .signal-stop-banner-pulse { position: absolute; inset: 0; background: radial-gradient(circle, rgba(255,255,255,0.4), transparent 70%); }
-    .signal-stop-banner-content { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 800; }
-    .signal-guide-hint { margin-top: 0.45rem; padding: 0.5rem; font-size: 0.72rem; color: #94a3b8; line-height: 1.4; }
+    /* Guidance Frame (Permanent Status Box) */
+    .signal-guidance-card {
+      margin-top: 0.75rem;
+      padding: 0.85rem 1rem;
+      border-radius: 0.95rem;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+      text-align: right;
+      min-height: 4.2rem;
+      display: flex;
+      align-items: center;
+    }
+    .signal-guidance-card .guidance-card-content {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+    }
+    .signal-guidance-card .guidance-card-icon {
+      font-size: 1.5rem;
+      flex: 0 0 auto;
+      line-height: 1;
+    }
+    .signal-guidance-card .guidance-card-text {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .signal-guidance-card .guidance-card-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      line-height: 1.45;
+      color: #cbd5e1;
+      transition: color 0.3s ease;
+    }
+    .signal-guidance-card .guidance-card-sub {
+      font-size: 0.72rem;
+      color: #bbf7d0;
+      margin-top: 0.25rem;
+      line-height: 1.35;
+    }
+    .signal-guidance-card.is-qualified {
+      background: linear-gradient(135deg, rgba(22, 101, 52, 0.88), rgba(21, 128, 61, 0.92));
+      border: 1.5px solid #4ade80;
+      box-shadow: 0 8px 24px rgba(34, 197, 94, 0.32);
+    }
+    .signal-guidance-card.is-qualified .guidance-card-title {
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 0.85rem;
+    }
   </style>
 </head>
 <body>
@@ -380,16 +426,15 @@
         </div>
       </div>
 
-      <div id="signal-stop-banner" class="signal-stop-banner" hidden>
-        <div class="signal-stop-banner-pulse"></div>
-        <div class="signal-stop-banner-content">
-          <span>🎯</span>
-          <span>قف هنا! 🎯 الإشارة ممتازة وثابتة لمتابعة الحصة بدون تقطيع</span>
+      <!-- إطار التوجيه الثابت (Fixed Guidance Card) -->
+      <div id="signal-guidance-card" class="signal-guidance-card">
+        <div class="guidance-card-content">
+          <span id="guidance-card-icon" class="guidance-card-icon">🚶‍♂️</span>
+          <div class="guidance-card-text">
+            <div id="guidance-card-title" class="guidance-card-title">تجول في المنزل وابحث عن مكان مناسب لمتابعة الحصة...</div>
+            <div id="guidance-card-sub" class="guidance-card-sub" hidden>(يمكنك الاستقرار هنا، أو تجربة مكان آخر في المنزل إذا رغبت).</div>
+          </div>
         </div>
-      </div>
-
-      <div id="signal-guide-hint" class="signal-guide-hint">
-        <span>💡 تجوّل في منزلك مع الهاتف وابحث عن الزاوية الأعلى إشارة لتثبيت مكانك.</span>
       </div>
 
       <footer style="margin-top: 0.8rem;">
@@ -402,6 +447,9 @@
     (function() {
       let timer = null;
       let lastScore = 0;
+      let isQualified = false;
+      let qualifiedStartTime = null;
+
       const modal = document.getElementById('student-signal-finder-modal');
       const openBtn = document.getElementById('student-signal-finder-btn');
       const closeBtn = document.getElementById('close-signal-modal-btn');
@@ -410,6 +458,7 @@
 
       async function sample() {
         let rtt = 30;
+        let loss = 0;
         const conn = navigator.connection;
         if (conn && conn.rtt) rtt = conn.rtt;
         const t0 = performance.now();
@@ -431,15 +480,39 @@
         const rttEl = document.getElementById('signal-rtt-display');
         if (rttEl) rttEl.textContent = rtt + ' ms';
 
-        const stopBanner = document.getElementById('signal-stop-banner');
-        const guideHint = document.getElementById('signal-guide-hint');
-        if (stopBanner) {
-          if (score >= 80 && rtt < 100) {
-            stopBanner.hidden = false;
-            if (guideHint) guideHint.hidden = true;
+        // Guidance card logic (Score >= 50% or RTT <= 160ms with 0 loss stable for 2 seconds)
+        const qualifies = (score >= 50) || (rtt <= 160 && loss === 0);
+        if (qualifies) {
+          if (!qualifiedStartTime) qualifiedStartTime = Date.now();
+          if (Date.now() - qualifiedStartTime >= 2000) {
+            isQualified = true;
+          }
+        } else {
+          if (score < 40 || rtt > 220) {
+            isQualified = false;
+            qualifiedStartTime = null;
+          }
+        }
+
+        const card = document.getElementById('signal-guidance-card');
+        const icon = document.getElementById('guidance-card-icon');
+        const title = document.getElementById('guidance-card-title');
+        const sub = document.getElementById('guidance-card-sub');
+
+        if (card && title) {
+          if (isQualified) {
+            card.classList.add('is-qualified');
+            if (icon) icon.textContent = '🎯';
+            title.textContent = '🎯 قف هنا! الإشارة في هذا المكان كافية وممتازة لمتابعة الحصة بدون تقطيع.';
+            if (sub) {
+              sub.textContent = '(يمكنك الاستقرار هنا، أو تجربة مكان آخر في المنزل إذا رغبت).';
+              sub.hidden = false;
+            }
           } else {
-            stopBanner.hidden = true;
-            if (guideHint) guideHint.hidden = false;
+            card.classList.remove('is-qualified');
+            if (icon) icon.textContent = '🚶‍♂️';
+            title.textContent = '🚶‍♂️ تجول في المنزل وابحث عن مكان مناسب لمتابعة الحصة...';
+            if (sub) sub.hidden = true;
           }
         }
       }
@@ -447,6 +520,8 @@
       function openModal() {
         if (!modal) return;
         modal.hidden = false;
+        isQualified = false;
+        qualifiedStartTime = null;
         sample();
         if (timer) clearInterval(timer);
         timer = setInterval(sample, 600);
@@ -454,6 +529,8 @@
       function closeModal() {
         if (!modal) return;
         modal.hidden = true;
+        isQualified = false;
+        qualifiedStartTime = null;
         if (timer) { clearInterval(timer); timer = null; }
       }
 
