@@ -4955,95 +4955,136 @@
         }
 
         .student-signal-modal {
-          position: fixed;
-          z-index: 2500;
-          inset: 0;
-          display: grid;
-          place-items: center;
-          padding: 1rem;
-          box-sizing: border-box;
+          position: fixed !important;
+          z-index: 2147483647 !important;
+          inset: 0 !important;
+          display: grid !important;
+          place-items: center !important;
+          padding: 1rem !important;
+          box-sizing: border-box !important;
         }
         .student-signal-modal[hidden] {
           display: none !important;
         }
         .student-signal-backdrop {
-          position: absolute;
-          inset: 0;
-          background: rgba(2, 6, 23, 0.78);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
+          position: absolute !important;
+          inset: 0 !important;
+          z-index: 0 !important;
+          background: rgba(2, 6, 23, 0.85) !important;
+          backdrop-filter: blur(12px) !important;
+          -webkit-backdrop-filter: blur(12px) !important;
         }
         .student-signal-dialog {
-          position: relative;
-          z-index: 1;
-          width: 100%;
-          max-width: 26rem;
-          max-height: calc(100dvh - 2rem);
-          overflow-y: auto;
-          padding: 1.25rem;
-          color: #f8fafc;
-          background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
-          border: 1px solid rgba(56, 189, 248, 0.35);
-          border-radius: 1.25rem;
-          box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 35px rgba(56, 189, 248, 0.15);
-          text-align: center;
-          animation: modalScaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          position: relative !important;
+          z-index: 1 !important;
+          width: 100% !important;
+          max-width: 26rem !important;
+          max-height: calc(100dvh - 2rem) !important;
+          overflow-y: auto !important;
+          padding: 1.25rem !important;
+          color: #f8fafc !important;
+          background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%) !important;
+          border: 1px solid rgba(56, 189, 248, 0.35) !important;
+          border-radius: 1.25rem !important;
+          box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(56, 189, 248, 0.15) !important;
+          text-align: center !important;
+          animation: modalScaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
         }
         @keyframes modalScaleIn {
           from { opacity: 0; transform: scale(0.92) translateY(12px); }
           to { opacity: 1; transform: scale(1) translateY(0); }
         }
-        .student-signal-dialog-head {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.75rem;
-          padding-bottom: 0.75rem;
-          border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+
+        /* Prevent bottom chat box or controls from ever leaking over modal */
+        body.signal-modal-open .chat-compose-modal,
+        body.signal-modal-open #chat-compose-modal,
+        body.signal-modal-open .student-mobile-controls,
+        body.signal-modal-open .viewer-actions-control-row,
+        body.signal-modal-open #chat-form,
+        body.signal-modal-open .student-chat-form {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+          z-index: -1 !important;
+        }
+
+        /* Enforce transparent, sleek header that cannot be polluted by global header styles */
+        .student-signal-dialog .student-signal-dialog-head,
+        .student-signal-dialog header {
+          position: static !important;
+          top: auto !important;
+          z-index: auto !important;
+          background: transparent !important;
+          background-color: transparent !important;
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+          box-shadow: none !important;
+          border-top: none !important;
+          border-left: none !important;
+          border-right: none !important;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.16) !important;
+          border-radius: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          gap: 0.75rem !important;
+          padding: 0 0 0.85rem 0 !important;
+          margin-bottom: 0.5rem !important;
         }
         .student-signal-title-wrap {
-          display: flex;
-          align-items: center;
-          gap: 0.65rem;
-          text-align: right;
+          display: flex !important;
+          align-items: center !important;
+          gap: 0.75rem !important;
+          text-align: right !important;
+          background: transparent !important;
         }
         .student-signal-head-icon {
-          display: grid;
-          place-items: center;
-          width: 2.2rem;
-          height: 2.2rem;
-          color: #38bdf8;
-          background: rgba(56, 189, 248, 0.14);
-          border: 1px solid rgba(56, 189, 248, 0.3);
-          border-radius: 0.7rem;
+          display: grid !important;
+          place-items: center !important;
+          width: 2.35rem !important;
+          height: 2.35rem !important;
+          min-width: 2.35rem !important;
+          color: #38bdf8 !important;
+          background: rgba(56, 189, 248, 0.12) !important;
+          border: 1px solid rgba(56, 189, 248, 0.3) !important;
+          border-radius: 0.75rem !important;
+          box-shadow: 0 0 12px rgba(56, 189, 248, 0.15) !important;
         }
-        .student-signal-title-wrap h2 {
-          margin: 0;
-          font-size: 1rem;
-          font-weight: 800;
-          color: #f8fafc;
+        .student-signal-title-wrap h2,
+        #student-signal-modal-title {
+          margin: 0 !important;
+          font-size: 1.05rem !important;
+          font-weight: 800 !important;
+          color: #ffffff !important;
+          line-height: 1.3 !important;
+          letter-spacing: -0.01em !important;
         }
         .student-signal-title-wrap p {
-          margin: 0.15rem 0 0;
-          font-size: 0.72rem;
-          color: #94a3b8;
+          margin: 0.2rem 0 0 !important;
+          font-size: 0.74rem !important;
+          color: #94a3b8 !important;
+          line-height: 1.4 !important;
         }
         .close-signal-modal-btn {
-          display: grid;
-          place-items: center;
-          width: 1.85rem;
-          height: 1.85rem;
-          border: none;
-          border-radius: 0.55rem;
-          background: rgba(148, 163, 184, 0.12);
-          color: #cbd5e1;
-          font-size: 0.95rem;
-          cursor: pointer;
-          transition: background 0.15s ease;
+          display: grid !important;
+          place-items: center !important;
+          width: 2rem !important;
+          height: 2rem !important;
+          min-width: 2rem !important;
+          border: 1px solid rgba(148, 163, 184, 0.2) !important;
+          border-radius: 0.65rem !important;
+          background: rgba(148, 163, 184, 0.12) !important;
+          color: #cbd5e1 !important;
+          font-size: 0.95rem !important;
+          cursor: pointer !important;
+          transition: all 0.15s ease !important;
         }
-        .close-signal-modal-btn:hover {
-          background: rgba(239, 68, 68, 0.25);
-          color: #fca5a5;
+        .close-signal-modal-btn:hover,
+        .close-signal-modal-btn:active {
+          background: rgba(239, 68, 68, 0.25) !important;
+          border-color: rgba(239, 68, 68, 0.45) !important;
+          color: #fca5a5 !important;
         }
 
         /* Gauge Container */
@@ -5506,7 +5547,7 @@
       <div id="student-signal-finder-modal" class="student-signal-modal" role="dialog" aria-modal="true" aria-labelledby="student-signal-modal-title" hidden>
         <div class="student-signal-backdrop" id="student-signal-backdrop"></div>
         <div class="student-signal-dialog" dir="rtl" lang="ar">
-          <header class="student-signal-dialog-head">
+          <div class="student-signal-dialog-head">
             <div class="student-signal-title-wrap">
               <div class="student-signal-head-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14v-4"/><path d="M3.34 17a10 10 0 1 1 17.32 0"/><circle cx="12" cy="14" r="2.5" fill="currentColor"/></svg>
@@ -5517,7 +5558,7 @@
               </div>
             </div>
             <button id="close-signal-modal-btn" class="close-signal-modal-btn" type="button" aria-label="إغلاق النافذة">✕</button>
-          </header>
+          </div>
 
           <!-- عداد السرعة الدائري بتقنية Pure Inline SVG & CSS -->
           <div class="signal-gauge-wrap">

@@ -930,6 +930,24 @@ body.student-live-page {
     opacity: 1 !important;
   }
 
+  /* When Signal Radar or Quality modal is open, completely hide the sticky mobile composer and controls */
+  body.student-live-page.signal-modal-open .chat-compose-modal,
+  body.student-live-page.signal-modal-open #chat-compose-modal,
+  body.student-live-page.signal-modal-open .chat-compose-modal[hidden],
+  body.student-live-page.signal-modal-open #chat-compose-modal[hidden],
+  body.student-live-page.signal-modal-open .student-mobile-controls,
+  body.student-live-page.signal-modal-open .viewer-actions-control-row,
+  body.student-live-page.quality-modal-open .chat-compose-modal,
+  body.student-live-page.quality-modal-open #chat-compose-modal,
+  body.student-live-page.quality-modal-open .chat-compose-modal[hidden],
+  body.student-live-page.quality-modal-open #chat-compose-modal[hidden] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    z-index: -1 !important;
+  }
+
   /* Safe click protection: icons and text must never intercept button clicks. */
   body.student-live-page:not(.student-times-level-page) #raise-hand-btn *,
   body.student-live-page:not(.student-times-level-page) #student-center-rotate-btn *,

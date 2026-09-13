@@ -2173,11 +2173,11 @@ body.public-class-modal-open { overflow: hidden; }
    ========================================================================== */
 @media screen and (max-width: 768px) {
 
-  /* 1. Header Leak & Transparency Fix */
-  header, 
-  .header-navbar, 
-  .navbar, 
-  [class*="header"] {
+  /* 1. Header Leak & Transparency Fix (scoped to general pages only, strictly excluding modal dialogs and live classroom) */
+  body:not(.student-live-page) header:not(.student-signal-dialog-head):not(.student-quality-dialog-head):not(.chat-compose-head), 
+  body:not(.student-live-page) .header-navbar, 
+  body:not(.student-live-page) .navbar, 
+  body:not(.student-live-page) [class*="header"]:not(.student-signal-dialog-head):not(.student-quality-dialog-head):not(.chat-compose-head):not([class*="modal"]):not([class*="dialog"]) {
     position: sticky !important;
     top: 0 !important;
     z-index: 1050 !important;

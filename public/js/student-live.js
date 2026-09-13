@@ -1456,6 +1456,9 @@ function openSignalFinderModal() {
   if (!modal) return;
   modal.hidden = false;
   document.body.classList.add("signal-modal-open");
+  if (document.activeElement && typeof document.activeElement.blur === "function") {
+    try { document.activeElement.blur(); } catch (e) {}
+  }
   const btn = elements.signalFinderButton || document.getElementById("student-signal-finder-btn");
   if (btn) btn.setAttribute("aria-expanded", "true");
 
