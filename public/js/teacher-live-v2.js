@@ -174,6 +174,8 @@ const elements = {
   youtubeUploadProgress: document.getElementById("youtube-upload-progress"),
   downloadRecordingButton: document.getElementById("download-recording-btn"),
   forceUploadYoutubeButton: document.getElementById("force-upload-youtube-btn"),
+  uploadFromDeviceButton: document.getElementById("upload-from-device-btn"),
+  uploadFromDeviceInput: document.getElementById("upload-from-device-input"),
   recordingReadyModal: document.getElementById("recording-ready-modal"),
   modalDownloadRecordingButton: document.getElementById("modal-download-device-btn"),
   uploadYoutubeAfterEndButton: document.getElementById("upload-youtube-after-end-btn"),
@@ -1574,6 +1576,48 @@ function uploadFormDataWithProgress(url, formData, { token, onProgress } = {}) {
 }
 
 
+async function fixWebmDuration(blob, durationMs) {
+  const buf = new Uint8Array(await blob.slice(0, 256 * 1024).arrayBuffer());
+  const view = new DataView(buf.buffer);
+  for (let i = 0; i < buf.length - 11; i++) {
+    if (buf[i] === 0x44 && buf[i + 1] === 0x89 && buf[i + 2] === 0x88) {
+      const current = view.getFloat64(i + 3, false);
+      if (!current || current <= 0 || !Number.isFinite(current)) {
+        const full = new Uint8Array(await blob.arrayBuffer());
+        new DataView(full.buffer).setFloat64(i + 3, durationMs, false);
+        return new Blob([full], { type: blob.type || "video/webm" });
+      }
+      return blob;
+    }
+  }
+  return blob;
+}
+
+
+function directPutToGoogle(uploadUrl, blob, mimeType, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", uploadUrl);
+    xhr.setRequestHeader("Content-Type", mimeType);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)); } catch (_) { resolve({ id: null }); }
+      } else {
+        let msg = "تعذر رفع الفيديو مباشرة إلى YouTube.";
+        try { msg = JSON.parse(xhr.responseText)?.error?.message || msg; } catch (_) {}
+        reject(new Error(`${msg} (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("انقطع الاتصال أثناء الرفع المباشر إلى YouTube."));
+    xhr.onabort = () => reject(new Error("تم إلغاء الرفع المباشر."));
+    xhr.send(blob);
+  });
+}
+
+
 async function uploadRecordingToYouTube(recording, { force = false } = {}) {
   if (force) {
     youtubeUploadInProgress = false;
@@ -1602,38 +1646,57 @@ async function uploadRecordingToYouTube(recording, { force = false } = {}) {
   youtubeUploadInProgress = true;
   updateYoutubeUploadUi({
     visible: true,
-    text: `جارٍ بدء رفع تسجيل الحصة إلى YouTube (${fileSizeMb} MB)…`,
-    progress: 2,
+    text: `جارٍ تجهيز تسجيل الحصة للرفع المباشر إلى YouTube (${fileSizeMb} MB)…`,
+    progress: 1,
   });
   updateControls();
 
   try {
-    const videoBlob = recording.blob.type && recording.blob.type.startsWith("video/")
-      ? recording.blob
-      : new Blob([recording.blob], { type: "video/webm" });
+    // Step 1: Fix WebM duration metadata if possible
+    const durationMs = localRecordingStartedAt ? Date.now() - localRecordingStartedAt : 0;
+    let videoBlob = recording.blob;
+    if (durationMs > 0 && (videoBlob.type || "").includes("webm")) {
+      try { videoBlob = await fixWebmDuration(videoBlob, durationMs); } catch (_) {}
+    }
+    if (!videoBlob.type || !videoBlob.type.startsWith("video/")) {
+      videoBlob = new Blob([videoBlob], { type: "video/webm" });
+    }
 
-    const formData = new FormData();
-    formData.append("video", videoBlob, recording.fileName || "recording.webm");
-    formData.append("level", level);
-    formData.append("subject", subject);
-    formData.append("recordedAt", recording.recordedAt || new Date().toISOString());
-    if (scheduledClassId) formData.append("scheduledClassId", scheduledClassId);
-    formData.append("title", title);
-    formData.append("description", description);
-
-    // رفع واحد نظيف ومباشر عبر السيرفر مع متابعة دقيقة لشريط التقدم
-    const payload = await uploadFormDataWithProgress("/api/youtube/upload", formData, {
-      token,
-      onProgress: (progress) => {
-        updateYoutubeUploadUi({
-          visible: true,
-          text: `جارٍ معالجة ورفع تسجيل الحصة إلى YouTube... (${progress}%)`,
-          progress,
-        });
-      },
+    // Step 2: Request resumable upload session from backend
+    updateYoutubeUploadUi({ visible: true, text: "جارٍ فتح جلسة الرفع المباشر إلى YouTube…", progress: 2 });
+    const mimeType = videoBlob.type || "video/webm";
+    const sessionRes = await fetch("/api/youtube/resumable-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ title, description, mimeType, fileSize: videoBlob.size }),
     });
+    const sessionPayload = await sessionRes.json().catch(() => ({}));
+    if (!sessionRes.ok || !sessionPayload.uploadUrl) {
+      throw new Error(sessionPayload.error || "تعذر فتح جلسة الرفع المباشر إلى YouTube.");
+    }
 
-    const registryMsg = payload.data?.registryClass
+    // Step 3: PUT blob directly to Google (bypasses server proxy entirely)
+    updateYoutubeUploadUi({ visible: true, text: `جارٍ الرفع المباشر إلى YouTube (${fileSizeMb} MB)… 0%`, progress: 3 });
+    const googleResponse = await directPutToGoogle(sessionPayload.uploadUrl, videoBlob, mimeType, (progress) => {
+      updateYoutubeUploadUi({
+        visible: true,
+        text: `جارٍ الرفع المباشر إلى YouTube (${fileSizeMb} MB)… ${progress}%`,
+        progress,
+      });
+    });
+    const videoId = googleResponse?.id;
+    if (!videoId) throw new Error("لم تُرجع Google معرّف الفيديو بعد الرفع.");
+
+    // Step 4: Sync with backend — link video to scheduled class registry
+    updateYoutubeUploadUi({ visible: true, text: "جارٍ ربط الفيديو بسجل الحصة…", progress: 98 });
+    const finishRes = await fetch("/api/youtube/resumable-finish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ videoId, level, subject, recordedAt: recording.recordedAt || new Date().toISOString(), scheduledClassId, title }),
+    });
+    const finishPayload = await finishRes.json().catch(() => ({}));
+
+    const registryMsg = finishPayload.data?.registryClass
       ? " وتم ربطه تلقائياً بسجل الحصة الرسمية."
       : " (تسجيل محفوظ في قناتك على YouTube كفيديو غير مدرج).";
 
@@ -1644,7 +1707,7 @@ async function uploadRecordingToYouTube(recording, { force = false } = {}) {
     });
     setStudioStatus("✅ تم حفظ ورفع التسجيل إلى YouTube بنجاح.", "live");
     setTimeout(() => updateYoutubeUploadUi({ visible: false }), 7000);
-    return payload.data || null;
+    return finishPayload.data || { id: videoId };
   } catch (error) {
     console.error("Unable to upload recording to YouTube:", error);
     updateYoutubeUploadUi({
@@ -1670,6 +1733,75 @@ async function uploadRecordingToYouTube(recording, { force = false } = {}) {
     updateControls();
   }
 }
+
+
+function handleUploadFromDevice() {
+  const input = elements.uploadFromDeviceInput;
+  if (!input) return;
+  input.value = "";
+  input.click();
+}
+
+
+async function handleDeviceFileSelected(event) {
+  const file = event.target?.files?.[0];
+  if (!file || file.size === 0) { alert("الملف المحدد فارغ أو غير صالح."); return; }
+  const token = sessionStorage.getItem("teacherToken");
+  if (!token) { alert("انتهت جلسة الأستاذ. سجّل دخولك مرة أخرى."); return; }
+
+  const level = activeLevel || elements.levelSelect?.value || "الأكاديمية";
+  const subject = activeSubject || elements.subjectSelect?.value || "مباشرة";
+  const scheduledClassId = activeScheduledClassId || "";
+  const title = `حصة ${subject} — ${level} — ${new Date().toLocaleDateString("ar-DZ")}`.slice(0, 100);
+  const description = `تسجيل مرفوع يدوياً من أكاديمية التفوق\nالمستوى: ${level}\nالمادة: ${subject}`;
+  const fileSizeMb = (file.size / (1024 * 1024)).toFixed(1);
+
+  if (!confirm(`سيتم رفع "${file.name}" (${fileSizeMb} MB) مباشرة إلى YouTube.\nالمستوى: ${level} — المادة: ${subject}\n\nهل تريد المتابعة؟`)) return;
+
+  youtubeUploadInProgress = true;
+  updateYoutubeUploadUi({ visible: true, text: `جارٍ تجهيز "${file.name}" للرفع…`, progress: 1 });
+  updateControls();
+
+  try {
+    const mimeType = file.type || "video/webm";
+    const sessionRes = await fetch("/api/youtube/resumable-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ title, description, mimeType, fileSize: file.size }),
+    });
+    const sessionPayload = await sessionRes.json().catch(() => ({}));
+    if (!sessionRes.ok || !sessionPayload.uploadUrl) throw new Error(sessionPayload.error || "تعذر فتح جلسة الرفع.");
+
+    updateYoutubeUploadUi({ visible: true, text: `جارٍ الرفع المباشر (${fileSizeMb} MB)… 0%`, progress: 3 });
+    const googleResponse = await directPutToGoogle(sessionPayload.uploadUrl, file, mimeType, (progress) => {
+      updateYoutubeUploadUi({ visible: true, text: `جارٍ الرفع المباشر (${fileSizeMb} MB)… ${progress}%`, progress });
+    });
+    const videoId = googleResponse?.id;
+    if (!videoId) throw new Error("لم تُرجع Google معرّف الفيديو.");
+
+    updateYoutubeUploadUi({ visible: true, text: "جارٍ ربط الفيديو بسجل الحصة…", progress: 98 });
+    const finishRes = await fetch("/api/youtube/resumable-finish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ videoId, level, subject, recordedAt: new Date().toISOString(), scheduledClassId, title }),
+    });
+    const finishPayload = await finishRes.json().catch(() => ({}));
+    const registryMsg = finishPayload.data?.registryClass ? " وتم ربطه بسجل الحصة." : " (محفوظ كفيديو غير مدرج).";
+
+    updateYoutubeUploadUi({ visible: true, text: `✅ تم الرفع بنجاح!${registryMsg}`, progress: 100 });
+    setStudioStatus("✅ تم رفع الملف إلى YouTube بنجاح.", "live");
+    setTimeout(() => updateYoutubeUploadUi({ visible: false }), 7000);
+  } catch (error) {
+    console.error("Device file upload error:", error);
+    updateYoutubeUploadUi({ visible: true, text: `تعذر الرفع: ${error.message}`, progress: 0 });
+    setStudioStatus("تعذر رفع الملف إلى YouTube.", "error");
+    setTimeout(() => updateYoutubeUploadUi({ visible: false }), 9000);
+  } finally {
+    youtubeUploadInProgress = false;
+    updateControls();
+  }
+}
+
 
 async function requestGoogleDriveAccessToken() {
   if (isGoogleDriveTokenUsable()) {
@@ -2317,6 +2449,9 @@ function updateControls() {
   if (elements.forceUploadYoutubeButton) {
     elements.forceUploadYoutubeButton.disabled = !hasRecording || youtubeUploadInProgress;
     elements.forceUploadYoutubeButton.classList.toggle("has-recording", hasRecording);
+  }
+  if (elements.uploadFromDeviceButton) {
+    elements.uploadFromDeviceButton.disabled = youtubeUploadInProgress;
   }
   if (elements.modalDownloadRecordingButton) {
     elements.modalDownloadRecordingButton.disabled = !hasRecording;
@@ -4491,6 +4626,8 @@ elements.toggleMicButton.addEventListener("click", toggleMicrophone);
 elements.recordLocalButton.addEventListener("click", toggleLocalRecording);
 elements.downloadRecordingButton?.addEventListener("click", handleDownloadRecordingClick);
 elements.forceUploadYoutubeButton?.addEventListener("click", handleForceUploadYoutubeClick);
+elements.uploadFromDeviceButton?.addEventListener("click", handleUploadFromDevice);
+elements.uploadFromDeviceInput?.addEventListener("change", handleDeviceFileSelected);
 elements.modalDownloadRecordingButton?.addEventListener("click", handleDownloadRecordingClick);
 elements.saveDriveButton.addEventListener("click", handleGoogleDriveButton);
 elements.uploadYoutubeAfterEndButton?.addEventListener("click", handleForceUploadYoutubeClick);

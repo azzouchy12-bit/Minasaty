@@ -217,7 +217,8 @@ router.post("/resumable-session", verifyToken, isTeacher, async (req, res) => {
     const mimeType = String(req.body?.mimeType || "video/webm").trim();
     const fileSize = Number(req.body?.fileSize) || 0;
 
-    const session = await createResumableUploadSession({ title, description, mimeType, fileSize });
+    const origin = req.get("origin") || `${req.protocol}://${req.get("host")}`;
+    const session = await createResumableUploadSession({ title, description, mimeType, fileSize, origin });
     return res.status(200).json({ status: "success", uploadUrl: session.uploadUrl });
   } catch (error) {
     console.error("Unable to init resumable YouTube upload:", error);

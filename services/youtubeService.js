@@ -245,7 +245,9 @@ async function createResumableUploadSession({ title, description = "", mimeType 
     },
   };
 
-  const response = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
+  let resumableApiUrl = "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status";
+  if (origin) resumableApiUrl += `&origin=${encodeURIComponent(origin)}`;
+  const response = await fetch(resumableApiUrl, {
     method: "POST",
     headers,
     body: JSON.stringify(requestBody),
