@@ -91,10 +91,24 @@ async function sendPushSubscriptions(subscriptions, payload) {
   let sent = 0;
   for (const subscription of subscriptions) {
     try {
-      await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, JSON.stringify(payload));
+      await webpush.sendNotification(
+        { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
+        JSON.stringify(payload),
+        {
+          TTL: 86400,
+          urgency: "high",
+          headers: {
+            Urgency: "high",
+            TTL: "86400",
+          },
+        }
+      );
       sent += 1;
     } catch (error) {
-      if (error.statusCode === 404 || error.statusCode === 410) await removeSubscription(subscription.endpoint);
+      console.warn("webpush send error for endpoint:", subscription.endpoint?.slice(0, 35), error.statusCode, error.message);
+      if (error.statusCode === 404 || error.statusCode === 410) {
+        await removeSubscription(subscription.endpoint);
+      }
     }
   }
   return { sent, configured: true };
@@ -114,6 +128,12 @@ async function sendPushToMultipleRecipients(recipientRole, recipientIds, payload
   return sendPushSubscriptions(subscriptions, payload);
 }
 
+async function sendPushToAllSubscribers(payload) {
+  if (!configured()) return { sent: 0, configured: false };
+  const subscriptions = await prisma.pushSubscription.findMany();
+  return sendPushSubscriptions(subscriptions, payload);
+}
+
 async function sendPushToSession(sessionId, payload) {
   const safeSessionId = String(sessionId || "").trim();
   if (!safeSessionId) return { sent: 0, configured: configured() };
@@ -121,4 +141,14 @@ async function sendPushToSession(sessionId, payload) {
   return sendPushSubscriptions(subscriptions, payload);
 }
 
-module.exports = { getPublicKey, configured, saveSubscription, removeSubscription, sendPushToRecipient, sendPushToMultipleRecipients, sendPushToSession };
+module.exports = {
+  getPublicKey,
+  configured,
+  saveSubscription,
+  removeSubscription,
+  sendPushToRecipient,
+  sendPushToMultipleRecipients,
+  sendPushToAllSubscribers,
+  sendPushToSession,
+};
+

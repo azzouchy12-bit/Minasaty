@@ -112,29 +112,14 @@
     return data;
   };
 
-  if ("serviceWorker" in navigator && "PushManager" in window) {
-    navigator.serviceWorker.register("/sw.js").then(async (registration) => {
-      const existingSubscription = await registration.pushManager.getSubscription();
-      if (!existingSubscription) return;
-      const token = sessionStorage.getItem("teacherToken") || sessionStorage.getItem("parentToken") || "";
-      const parentPhone = sessionStorage.getItem("parentPhone") || localStorage.getItem("parentPhone") || "";
-      const studentId = sessionStorage.getItem("studentId") || localStorage.getItem("studentId") || "";
-      const level = sessionStorage.getItem("level") || sessionStorage.getItem("studentLevel") || "";
-
-      const headers = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          ...existingSubscription.toJSON(),
-          parentPhone,
-          studentId,
-          level,
-        }),
-      }).catch(() => {});
-    }).catch(() => {});
+  if ("serviceWorker" in navigator && "PushManager" in window && "Notification" in window) {
+    if (Notification.permission === "granted") {
+      window.setTimeout(() => {
+        if (typeof window.enablePushNotifications === "function") {
+          window.enablePushNotifications({ requestPermission: false }).catch(() => {});
+        }
+      }, 400);
+    }
   }
 
   window.revokeServerSession = function revokeServerSession() {

@@ -969,7 +969,7 @@ async function sendTeacherLiveAlert(req, res) {
     return res.status(400).json({ error: "لا يوجد تلاميذ مؤهلون يطابقون هذه المعايير." });
   }
 
-  const { sendPushToMultipleRecipients } = require("../utils/push");
+  const { sendPushToMultipleRecipients, sendPushToAllSubscribers } = require("../utils/push");
 
   // Map distinct parentPhones to students
   const recipients = new Map();
@@ -1041,14 +1041,24 @@ async function sendTeacherLiveAlert(req, res) {
     alertSound: true,
   };
 
+  const isAllLevels = !levels.length || levels.length >= 4 || levels.includes("ALL");
+
   try {
-    const [parentPushRes, studentPushRes] = await Promise.all([
-      parentPhones.length ? sendPushToMultipleRecipients("parent", parentPhones, pushPayload) : Promise.resolve({ sent: 0 }),
-      sendPushToMultipleRecipients("student", targetStudentRecipients, pushPayload),
-    ]);
-    totalPushSent = (parentPushRes?.sent || 0) + (studentPushRes?.sent || 0);
+    if (isAllLevels && targetMode !== "SELECTED") {
+      // Broadcast to ALL subscribers across all roles (parents, students, and teacher devices)
+      const allPushRes = await sendPushToAllSubscribers(pushPayload);
+      totalPushSent = allPushRes?.sent || 0;
+    } else {
+      // Send to matching parents, students, teacher devices, and general subscribers
+      const [parentPushRes, studentPushRes, teacherPushRes] = await Promise.all([
+        parentPhones.length ? sendPushToMultipleRecipients("parent", parentPhones, pushPayload) : Promise.resolve({ sent: 0 }),
+        sendPushToMultipleRecipients("student", targetStudentRecipients, pushPayload),
+        sendPushToMultipleRecipients("teacher", ["teacher"], pushPayload),
+      ]);
+      totalPushSent = (parentPushRes?.sent || 0) + (studentPushRes?.sent || 0) + (teacherPushRes?.sent || 0);
+    }
   } catch (err) {
-    console.warn("sendPushToMultipleRecipients error:", err.message);
+    console.warn("sendPush error:", err.message);
   }
 
   void logAudit(req, {

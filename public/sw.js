@@ -92,7 +92,17 @@ self.addEventListener("push", (event) => {
   };
 
   // 1. Show native OS notification with vibration and sound
-  const showNotificationPromise = self.registration.showNotification(title, options);
+  const showNotificationPromise = self.registration.showNotification(title, options).catch((err) => {
+    console.warn("showNotification error with rich options, falling back:", err);
+    return self.registration.showNotification(title, {
+      body: options.body,
+      icon: "/assets/teacher-azzeddine-charef.jpg",
+      tag: "teacher-live-alert",
+      requireInteraction: true,
+      renotify: true,
+      data: options.data,
+    });
+  });
 
   // 2. Broadcast to all open/background windows so active tabs start continuous alert.mp3 playback immediately
   const broadcastPromise = self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {

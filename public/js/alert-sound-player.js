@@ -341,10 +341,14 @@
     }
 
     if (Notification.permission === "granted") {
-      // Already granted! Sync subscription silently
-      if (typeof window.enablePushNotifications === "function") {
-        window.enablePushNotifications({ requestPermission: false }).catch(() => {});
-      }
+      const syncSub = () => {
+        if (typeof window.enablePushNotifications === "function") {
+          window.enablePushNotifications({ requestPermission: false }).catch(() => {});
+        }
+      };
+      syncSub();
+      window.addEventListener("click", syncSub, { once: true });
+      window.addEventListener("touchend", syncSub, { once: true });
       return;
     }
 
