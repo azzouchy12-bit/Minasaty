@@ -6,6 +6,7 @@ const { getMessengerStatus, getMessengerSettings, sendMessengerToParent } = requ
 const {
   PAYMENT_FILTERS,
   SUBJECT_FILTERS,
+  academicLevelCandidates,
   buildStudentAudienceWhere,
   normalizeFilter,
 } = require("../utils/studentAudienceFilters");
@@ -849,6 +850,221 @@ async function deleteAssignment(req, res) {
   return res.json({ status: "success", message: "تم حذف الواجب بنجاح." });
 }
 
+function buildMultiLevelAudienceWhere({ levels, paymentFilter = "ALL", subjectFilter = "ALL", targetMode = "ALL_LEVEL", targetStudentIds = [] }) {
+  let levelList = [];
+  if (Array.isArray(levels)) {
+    levelList = levels;
+  } else if (typeof levels === "string" && levels.trim()) {
+    levelList = levels.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+
+  const where = { accountActive: true };
+
+  if (levelList.length > 0 && !levelList.includes("ALL")) {
+    const allCandidateLevels = [...new Set(levelList.flatMap((lvl) => academicLevelCandidates(lvl)))];
+    if (allCandidateLevels.length > 0) {
+      where.level = { in: allCandidateLevels };
+    }
+  }
+
+  const normalizedPayment = normalizeFilter(paymentFilter, PAYMENT_FILTERS);
+  const normalizedSubject = normalizeFilter(subjectFilter, SUBJECT_FILTERS);
+
+  if (normalizedPayment === "FREE") {
+    where.paymentStage = "UNPAID";
+    where.mathEnrollment = false;
+    where.physicsEnrollment = false;
+  } else if (normalizedPayment === "UNPAID") {
+    where.paymentStage = "UNPAID";
+    where.OR = [{ mathEnrollment: true }, { physicsEnrollment: true }];
+  } else if (normalizedPayment === "PAID") {
+    where.paymentStage = "PAID";
+  } else if (normalizedPayment === "PROMISED") {
+    where.paymentStage = "PROMISED";
+  }
+
+  if (normalizedSubject === "MATH") where.mathEnrollment = true;
+  if (normalizedSubject === "PHYSICS") where.physicsEnrollment = true;
+  if (normalizedSubject === "BOTH") {
+    where.mathEnrollment = true;
+    where.physicsEnrollment = true;
+  }
+
+  if (String(targetMode).toUpperCase() === "SELECTED") {
+    const ids = Array.isArray(targetStudentIds)
+      ? targetStudentIds.filter((id) => typeof id === "string" && UUID.test(id))
+      : [];
+    if (ids.length > 0) {
+      where.id = { in: ids };
+    }
+  }
+
+  return where;
+}
+
+async function getTeacherLiveAlertAudience(req, res) {
+  if (!requireTeacher(req, res)) return;
+  const levels = req.query?.levels;
+  const paymentFilter = req.query?.paymentFilter || "ALL";
+  const subjectFilter = req.query?.subjectFilter || "ALL";
+
+  const where = buildMultiLevelAudienceWhere({
+    levels,
+    paymentFilter,
+    subjectFilter,
+  });
+
+  const students = await prisma.student.findMany({
+    where,
+    orderBy: [{ level: "asc" }, { studentName: "asc" }],
+    take: 2000,
+    select: {
+      id: true,
+      studentName: true,
+      level: true,
+      paymentStage: true,
+      paymentStatus: true,
+      mathEnrollment: true,
+      physicsEnrollment: true,
+      accountActive: true,
+    },
+  });
+
+  return res.json({
+    status: "success",
+    count: students.length,
+    students,
+  });
+}
+
+async function sendTeacherLiveAlert(req, res) {
+  if (!requireTeacher(req, res)) return;
+  const levels = req.body?.levels || [];
+  const paymentFilter = text(req.body?.paymentFilter, 20).toUpperCase() || "ALL";
+  const subjectFilter = text(req.body?.subjectFilter, 20).toUpperCase() || "ALL";
+  const targetMode = text(req.body?.targetMode, 20).toUpperCase() || "ALL_LEVEL";
+  const targetStudentIds = Array.isArray(req.body?.targetStudentIds) ? req.body.targetStudentIds : [];
+  const title = text(req.body?.title, 160) || "🔔 تنبيه عاجل من الأستاذ";
+  const alertBody = text(req.body?.body, 1000) || "بدأت الحصة المباشرة الآن! اضغط للدخول مباشرة إلى البث.";
+  const link = text(req.body?.link, 500) || "/student-live.html";
+
+  if (targetMode === "SELECTED" && !targetStudentIds.length) {
+    return res.status(400).json({ error: "يرجى اختيار تلميذ واحد على الأقل." });
+  }
+
+  const where = buildMultiLevelAudienceWhere({
+    levels,
+    paymentFilter,
+    subjectFilter,
+    targetMode,
+    targetStudentIds,
+  });
+
+  const students = await prisma.student.findMany({
+    where,
+    select: { id: true, studentName: true, parentPhone: true, level: true },
+  });
+
+  if (!students.length) {
+    return res.status(400).json({ error: "لا يوجد تلاميذ مؤهلون يطابقون هذه المعايير." });
+  }
+
+  const { sendPushToMultipleRecipients } = require("../utils/push");
+
+  // Map distinct parentPhones to students
+  const recipients = new Map();
+  for (const student of students) {
+    if (student.parentPhone && !recipients.has(student.parentPhone)) {
+      recipients.set(student.parentPhone, student);
+    }
+  }
+
+  let notificationsCreated = 0;
+  const parentPhones = Array.from(recipients.keys());
+
+  for (const [parentPhone, student] of recipients) {
+    const dedupeKey = `TEACHER_LIVE_ALERT:${Date.now()}:${parentPhone}:${student.id}`;
+    let notificationId = null;
+    try {
+      const notif = await prisma.notification.create({
+        data: {
+          studentId: student.id,
+          recipientRole: "parent",
+          recipientId: parentPhone,
+          type: "TEACHER_LIVE_ALERT",
+          title,
+          body: alertBody,
+          link,
+          dedupeKey,
+        },
+        select: { id: true },
+      });
+      notificationId = notif.id;
+      notificationsCreated += 1;
+    } catch (_) {}
+
+    // Send real-time socket notification if online
+    try {
+      socketNotificationSender?.({
+        role: "parent",
+        recipientId: parentPhone,
+        title,
+        body: alertBody,
+        link,
+        tag: "teacher-live-alert",
+        data: { type: "TEACHER_LIVE_ALERT", notificationId, alertSound: true },
+        notificationId,
+      });
+    } catch (_) {}
+
+    // Also send telegram if configured
+    try {
+      await sendTelegramToParent(parentPhone, {
+        title,
+        body: alertBody,
+      });
+    } catch (_) {}
+  }
+
+  // Send Web Push notification to all distinct parent subscriptions at once
+  let pushResult = { sent: 0 };
+  try {
+    pushResult = await sendPushToMultipleRecipients("parent", parentPhones, {
+      title,
+      body: alertBody,
+      link,
+      type: "TEACHER_LIVE_ALERT",
+      tag: "teacher-live-alert",
+      requireInteraction: true,
+      alertSound: true,
+    });
+  } catch (err) {
+    console.warn("sendPushToMultipleRecipients error:", err.message);
+  }
+
+  void logAudit(req, {
+    action: "TEACHER_LIVE_ALERT_SENT",
+    entityType: "Notification",
+    metadata: {
+      levels,
+      paymentFilter,
+      subjectFilter,
+      targetMode,
+      studentCount: students.length,
+      recipientCount: recipients.size,
+      pushSent: pushResult.sent,
+    },
+  });
+
+  return res.json({
+    status: "success",
+    studentCount: students.length,
+    recipientCount: recipients.size,
+    pushSent: pushResult.sent,
+    message: `تم إرسال التنبيه بنجاح إلى ${students.length} تلميذ (${recipients.size} ولي أمر).`,
+  });
+}
+
 module.exports = {
   listGrades,
   createGrade,
@@ -883,6 +1099,8 @@ module.exports = {
   getSubmissionFile,
   receiveSubmission,
   deleteAssignment,
+  getTeacherLiveAlertAudience,
+  sendTeacherLiveAlert,
   processScheduledTeacherAnnouncements,
   setSocketNotificationSender,
 };

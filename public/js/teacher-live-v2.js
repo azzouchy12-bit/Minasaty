@@ -202,6 +202,21 @@ const elements = {
   questionImageModalImage: document.getElementById("question-image-modal-img"),
   questionImageZoomLabel: document.getElementById("question-image-zoom-label"),
   closeQuestionImageModalButton: document.getElementById("close-question-image-modal"),
+  sendLiveAlertButton: document.getElementById("send-live-alert-btn"),
+  teacherAlertModal: document.getElementById("teacher-alert-modal"),
+  closeTeacherAlertModalButton: document.getElementById("close-teacher-alert-modal-btn"),
+  cancelAlertModalButton: document.getElementById("cancel-alert-modal-btn"),
+  submitSendAlertButton: document.getElementById("submit-send-alert-btn"),
+  alertSelectAllLevelsButton: document.getElementById("alert-select-all-levels"),
+  alertDeselectAllLevelsButton: document.getElementById("alert-deselect-all-levels"),
+  alertLevelsGrid: document.getElementById("alert-levels-grid"),
+  alertSpecificStudentsWrap: document.getElementById("alert-specific-students-wrap"),
+  alertStudentSearchInput: document.getElementById("alert-student-search-input"),
+  alertStudentsSelectionList: document.getElementById("alert-students-selection-list"),
+  alertSelectedCountBadge: document.getElementById("alert-selected-count-badge"),
+  alertAudienceCount: document.getElementById("alert-audience-count"),
+  alertTitleInput: document.getElementById("alert-title-input"),
+  alertBodyInput: document.getElementById("alert-body-input"),
 };
 
 
@@ -1907,6 +1922,220 @@ function closeRecordingReadyModal() {
   elements.recordingReadyModal.hidden = true;
   elements.recordingReadyModal.classList.remove("is-open");
 }
+
+let teacherAlertAudienceStudents = [];
+let teacherAlertDebounceTimer = null;
+
+function escapeHtml(str) {
+  return String(str || "").replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[m] || m));
+}
+
+function openTeacherAlertModal() {
+  if (!elements.teacherAlertModal) return;
+  elements.teacherAlertModal.hidden = false;
+
+  const currentStudioLevel = elements.levelSelect?.value?.trim();
+  if (currentStudioLevel) {
+    const matchingCheckbox = document.querySelector(`input[name="alert-level"][value="${currentStudioLevel}"]`);
+    if (matchingCheckbox) {
+      matchingCheckbox.checked = true;
+    }
+  }
+
+  void refreshTeacherAlertAudience();
+}
+
+function closeTeacherAlertModal() {
+  if (!elements.teacherAlertModal) return;
+  elements.teacherAlertModal.hidden = true;
+}
+
+function getSelectedAlertLevels() {
+  return Array.from(document.querySelectorAll('input[name="alert-level"]:checked')).map((el) => el.value);
+}
+
+function getSelectedAlertSubject() {
+  return document.querySelector('input[name="alert-subject"]:checked')?.value || "ALL";
+}
+
+function getSelectedAlertPayment() {
+  return document.querySelector('input[name="alert-payment"]:checked')?.value || "ALL";
+}
+
+function getSelectedAlertTargetMode() {
+  return document.querySelector('input[name="alert-target-mode"]:checked')?.value || "ALL_LEVEL";
+}
+
+function refreshTeacherAlertAudience() {
+  clearTimeout(teacherAlertDebounceTimer);
+  teacherAlertDebounceTimer = setTimeout(async () => {
+    const levels = getSelectedAlertLevels();
+    const subjectFilter = getSelectedAlertSubject();
+    const paymentFilter = getSelectedAlertPayment();
+    const targetMode = getSelectedAlertTargetMode();
+
+    if (elements.alertAudienceCount) {
+      elements.alertAudienceCount.textContent = "...";
+    }
+
+    try {
+      const token = sessionStorage.getItem("teacherToken") || "";
+      const queryParams = new URLSearchParams({
+        levels: levels.join(","),
+        subjectFilter,
+        paymentFilter,
+      });
+
+      const response = await fetch(`/api/academic/teacher-live-alert/audience?${queryParams.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        throw new Error("تعذر جلب إحصائيات التلاميذ.");
+      }
+
+      const result = await response.json();
+      teacherAlertAudienceStudents = Array.isArray(result.students) ? result.students : [];
+
+      if (elements.alertAudienceCount) {
+        elements.alertAudienceCount.textContent = String(result.count ?? 0);
+      }
+
+      if (targetMode === "SELECTED") {
+        renderAlertStudentsList();
+      }
+    } catch (err) {
+      console.warn("Failed to refresh alert audience:", err);
+      if (elements.alertAudienceCount) {
+        elements.alertAudienceCount.textContent = "0";
+      }
+    }
+  }, 150);
+}
+
+function renderAlertStudentsList() {
+  if (!elements.alertStudentsSelectionList) return;
+  const searchTerm = (elements.alertStudentSearchInput?.value || "").trim().toLowerCase();
+
+  const filtered = teacherAlertAudienceStudents.filter((s) => {
+    if (!searchTerm) return true;
+    return (s.studentName || "").toLowerCase().includes(searchTerm);
+  });
+
+  if (!filtered.length) {
+    elements.alertStudentsSelectionList.innerHTML = '<div class="alert-loading-msg">لا يوجد تلاميذ مطابقين للبحث.</div>';
+    return;
+  }
+
+  elements.alertStudentsSelectionList.innerHTML = filtered.map((s) => {
+    const isPaid = s.paymentStage === "PAID";
+    const tagClass = isPaid ? "paid" : "unpaid";
+    const tagText = isPaid ? "مدفوع" : (s.paymentStage === "PROMISED" ? "وعد بالدفع" : "غير مدفوع");
+    return `
+      <label class="alert-student-item">
+        <div class="alert-student-item-meta">
+          <input type="checkbox" class="alert-student-checkbox" value="${s.id}" data-name="${escapeHtml(s.studentName)}" />
+          <span class="alert-student-item-name">${escapeHtml(s.studentName)}</span>
+          <span class="alert-student-item-tag">${escapeHtml(s.level)}</span>
+        </div>
+        <span class="alert-student-item-tag ${tagClass}">${tagText}</span>
+      </label>
+    `;
+  }).join("");
+
+  updateSelectedStudentsCount();
+}
+
+function updateSelectedStudentsCount() {
+  const checked = document.querySelectorAll(".alert-student-checkbox:checked").length;
+  if (elements.alertSelectedCountBadge) {
+    elements.alertSelectedCountBadge.textContent = `${checked} محدد`;
+  }
+}
+
+async function handleSubmitTeacherLiveAlert() {
+  const levels = getSelectedAlertLevels();
+  const subjectFilter = getSelectedAlertSubject();
+  const paymentFilter = getSelectedAlertPayment();
+  const targetMode = getSelectedAlertTargetMode();
+  const title = (elements.alertTitleInput?.value || "").trim();
+  const body = (elements.alertBodyInput?.value || "").trim();
+
+  if (!levels.length) {
+    alert("يرجى اختيار مستوى دراسي واحد على الأقل.");
+    return;
+  }
+
+  let targetStudentIds = [];
+  if (targetMode === "SELECTED") {
+    targetStudentIds = Array.from(document.querySelectorAll(".alert-student-checkbox:checked")).map((cb) => cb.value);
+    if (!targetStudentIds.length) {
+      alert("يرجى تحديد تلميذ واحد على الأقل من القائمة.");
+      return;
+    }
+  }
+
+  if (!body) {
+    alert("يرجى كتابة نص التنبيه.");
+    return;
+  }
+
+  const token = sessionStorage.getItem("teacherToken") || "";
+  if (!token) {
+    alert("جلسة تسجيل الدخول منتهية. سجّل الدخول مجدداً.");
+    return;
+  }
+
+  const btn = elements.submitSendAlertButton;
+  if (btn) {
+    btn.disabled = true;
+    const span = btn.querySelector("span");
+    if (span) span.textContent = "⏳ جارٍ إرسال التنبيه...";
+  }
+
+  try {
+    const response = await fetch("/api/academic/teacher-live-alert", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        levels,
+        subjectFilter,
+        paymentFilter,
+        targetMode,
+        targetStudentIds,
+        title,
+        body,
+        link: "/student-live.html",
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "تعذر إرسال التنبيه.");
+    }
+
+    alert(result.message || "تم إرسال التنبيه بنجاح إلى التلاميذ وأولياء الأمور!");
+    closeTeacherAlertModal();
+  } catch (err) {
+    alert(err.message || "حدث خطأ أثناء إرسال التنبيه.");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      const span = btn.querySelector("span");
+      if (span) span.textContent = "🔔 إرسال التنبيه الآن";
+    }
+  }
+}
+
 
 
 function finalizeLocalRecording() {
@@ -4289,6 +4518,60 @@ elements.chatInput.addEventListener("paste", (event) => {
 elements.chatImageRemoveButton?.addEventListener("click", clearTeacherChatImage);
 elements.closeQuestionImageModalButton?.addEventListener("click", closeQuestionImageModal);
 elements.questionImageModalViewport?.addEventListener("wheel", handleQuestionImageWheel, { passive: false });
+
+// ── Teacher Live Alert Listeners ──
+elements.sendLiveAlertButton?.addEventListener("click", openTeacherAlertModal);
+elements.closeTeacherAlertModalButton?.addEventListener("click", closeTeacherAlertModal);
+elements.cancelAlertModalButton?.addEventListener("click", closeTeacherAlertModal);
+elements.teacherAlertModal?.addEventListener("click", (event) => {
+  if (event.target === elements.teacherAlertModal) closeTeacherAlertModal();
+});
+
+elements.alertSelectAllLevelsButton?.addEventListener("click", () => {
+  document.querySelectorAll('input[name="alert-level"]').forEach((cb) => { cb.checked = true; });
+  refreshTeacherAlertAudience();
+});
+
+elements.alertDeselectAllLevelsButton?.addEventListener("click", () => {
+  document.querySelectorAll('input[name="alert-level"]').forEach((cb) => { cb.checked = false; });
+  refreshTeacherAlertAudience();
+});
+
+document.querySelectorAll('input[name="alert-level"]').forEach((el) => {
+  el.addEventListener("change", refreshTeacherAlertAudience);
+});
+
+document.querySelectorAll('input[name="alert-subject"]').forEach((el) => {
+  el.addEventListener("change", refreshTeacherAlertAudience);
+});
+
+document.querySelectorAll('input[name="alert-payment"]').forEach((el) => {
+  el.addEventListener("change", refreshTeacherAlertAudience);
+});
+
+document.querySelectorAll('input[name="alert-target-mode"]').forEach((el) => {
+  el.addEventListener("change", () => {
+    const isSelected = el.value === "SELECTED" && el.checked;
+    if (elements.alertSpecificStudentsWrap) {
+      elements.alertSpecificStudentsWrap.hidden = !isSelected;
+    }
+    if (isSelected) {
+      renderAlertStudentsList();
+    }
+  });
+});
+
+elements.alertStudentSearchInput?.addEventListener("input", renderAlertStudentsList);
+
+elements.alertStudentsSelectionList?.addEventListener("change", (event) => {
+  if (event.target?.classList.contains("alert-student-checkbox")) {
+    updateSelectedStudentsCount();
+  }
+});
+
+elements.submitSendAlertButton?.addEventListener("click", () => {
+  void handleSubmitTeacherLiveAlert();
+});
 elements.questionImageModalViewport?.addEventListener("pointerdown", startQuestionImageDrag);
 elements.questionImageModalViewport?.addEventListener("pointermove", moveQuestionImageDrag);
 elements.questionImageModalViewport?.addEventListener("pointerup", stopQuestionImageDrag);

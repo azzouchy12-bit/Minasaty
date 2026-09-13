@@ -56,3 +56,50 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
+// ── Push Notification handler ──
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  let payload = {};
+  try {
+    payload = event.data.json();
+  } catch (_) {
+    payload = { title: "منصة مِنَسَاتي", body: event.data.text() || "لديك إشعار جديد." };
+  }
+
+  const isLiveAlert = payload.type === "TEACHER_LIVE_ALERT";
+  const title = payload.title || "منصة مِنَسَاتي";
+  const options = {
+    body: payload.body || "",
+    icon: "/assets/icon-192.png",
+    badge: "/assets/icon-192.png",
+    tag: isLiveAlert ? "teacher-live-alert" : (payload.tag || "minasaty-notification"),
+    requireInteraction: isLiveAlert,
+    vibrate: isLiveAlert ? [300, 100, 300, 100, 300, 100, 300] : [200, 100, 200],
+    data: {
+      url: payload.link || "/",
+      type: payload.type || "GENERAL",
+      notificationId: payload.notificationId || null,
+      alertSound: isLiveAlert,
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// ── Notification click handler ──
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const url = event.notification.data?.url || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (new URL(client.url).pathname === new URL(url, self.location.origin).pathname && "focus" in client) {
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    })
+  );
+});
+

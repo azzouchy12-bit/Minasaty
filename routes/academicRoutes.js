@@ -33,6 +33,8 @@ const {
   getSubmissionFile,
   receiveSubmission,
   deleteAssignment,
+  getTeacherLiveAlertAudience,
+  sendTeacherLiveAlert,
 } = require("../controllers/academicController");
 
 const router = express.Router();
@@ -73,7 +75,9 @@ router.get("/teacher-announcements/messenger-status", isTeacher, getTeacherMesse
 router.get("/teacher-announcements/telegram-status", isTeacher, getTeacherTelegramStatus);
 router.post("/teacher-announcements", isTeacher, createTeacherAnnouncement);
 router.post("/teacher-announcements/:id/cancel", isTeacher, cancelTeacherAnnouncement);
-router.get("/analytics", getTeacherAnalytics);
+router.get("/teacher-live-alert/audience", isTeacher, getTeacherLiveAlertAudience);
+router.post("/teacher-live-alert", isTeacher, sendTeacherLiveAlert);
+router.get("/analytics", isTeacher, getTeacherAnalytics);
 router.get("/audit-logs", listAuditLogs);
 router.put("/students/bulk", bulkUpdateStudents);
 

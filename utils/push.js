@@ -45,6 +45,14 @@ async function sendPushToRecipient(recipientRole, recipientId, payload) {
   return sendPushSubscriptions(subscriptions, payload);
 }
 
+async function sendPushToMultipleRecipients(recipientRole, recipientIds, payload) {
+  if (!configured() || !Array.isArray(recipientIds) || recipientIds.length === 0) return { sent: 0, configured: false };
+  const subscriptions = await prisma.pushSubscription.findMany({
+    where: { recipientRole, recipientId: { in: recipientIds } }
+  });
+  return sendPushSubscriptions(subscriptions, payload);
+}
+
 async function sendPushToSession(sessionId, payload) {
   const safeSessionId = String(sessionId || "").trim();
   if (!safeSessionId) return { sent: 0, configured: configured() };
@@ -52,4 +60,4 @@ async function sendPushToSession(sessionId, payload) {
   return sendPushSubscriptions(subscriptions, payload);
 }
 
-module.exports = { configured, saveSubscription, removeSubscription, sendPushToRecipient, sendPushToSession };
+module.exports = { configured, saveSubscription, removeSubscription, sendPushToRecipient, sendPushToMultipleRecipients, sendPushToSession };
