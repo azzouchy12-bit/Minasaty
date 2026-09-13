@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "acadimia-pwa-v4";
+const CACHE_NAME = "acadimia-pwa-v5";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",

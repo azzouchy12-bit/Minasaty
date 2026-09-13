@@ -303,11 +303,12 @@ body.tdm-gmail-body {
 .tdm-section-nav {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  padding: 4px 0 2px;
+  padding: 6px 4px 6px;
+  scroll-padding: 0 8px;
 }
 
 .tdm-section-nav::-webkit-scrollbar {
@@ -839,6 +840,17 @@ body.tdm-gmail-body {
 }
 .tdm-action-wa .action-icon-circle { background: #d1fae5; }
 .tdm-action-wa strong { color: #059669; }
+
+.tdm-sheet-action-item#sheet-receipt-btn {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+.tdm-sheet-action-item#sheet-receipt-btn .action-icon-circle {
+  background: #fef3c7;
+}
+.tdm-sheet-action-item#sheet-receipt-btn strong {
+  color: #b45309;
+}
 
 .tdm-action-delete {
   background: #fff;

@@ -13,7 +13,7 @@
       href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./css/teacher-dashboard-mobile.css?v=tdm-gmail-1" />
+    <link rel="stylesheet" href="./css/teacher-dashboard-mobile.css?v=tdm-gmail-2" />
   </head>
   <body class="tdm-gmail-body">
     <!-- Top Header: Symmetrical Action Button Grid -->
@@ -523,6 +523,16 @@
             <span class="action-arrow">←</span>
           </button>
 
+          <!-- 5.1 Preview & Confirm Payment Receipt -->
+          <button type="button" id="sheet-receipt-btn" class="tdm-sheet-action-item" hidden>
+            <div class="action-icon-circle">📷</div>
+            <div class="action-text-wrap">
+              <strong>معاينة وتأكيد وصل الدفع</strong>
+              <span id="sheet-receipt-label">يوجد وصل مرفوع بانتظار المراجعة</span>
+            </div>
+            <span class="action-arrow">←</span>
+          </button>
+
           <!-- 6. View Attendance History -->
           <button type="button" id="sheet-attendance-btn" class="tdm-sheet-action-item">
             <div class="action-icon-circle">📜</div>
@@ -644,10 +654,32 @@
       </div>
     </div>
 
+    <!-- Modal: Payment Receipt Preview & Review -->
+    <div id="modal-receipt-preview" class="tdm-sheet-overlay" hidden>
+      <div class="tdm-sheet-card" style="max-height:85vh; overflow-y:auto;">
+        <div class="tdm-modal-head">
+          <h3 id="receipt-preview-student-name">📷 وصل الدفع</h3>
+          <button type="button" class="tdm-sheet-close-btn" data-close-modal>✕</button>
+        </div>
+        <div id="receipt-preview-loading" style="text-align:center; padding:24px;">
+          <div class="tdm-spinner"></div>
+          <p style="font-size:0.82rem; color:#64748b; margin-top:8px;">جارٍ تحميل صورة الوصل…</p>
+        </div>
+        <div id="receipt-preview-body" style="text-align:center; margin: 10px 0;" hidden>
+          <img id="receipt-preview-img" alt="وصل الدفع" style="max-width:100%; max-height:50vh; border-radius:8px; border:1px solid #e2e8f0; object-fit:contain;" />
+          <iframe id="receipt-preview-pdf" style="width:100%; height:45vh; border:none; border-radius:8px;" hidden></iframe>
+        </div>
+        <div id="receipt-preview-actions" style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+          <button type="button" id="receipt-modal-confirm-btn" class="tdm-submit-btn">تأكيد الدفع وتفعيل الحساب ✓</button>
+          <button type="button" id="receipt-modal-reject-btn" class="tdm-danger-btn">رفض الوصل ✕</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="tdm-toast" class="tdm-toast" hidden></div>
 
     <!-- Scripts -->
-    <script src="./js/teacher-dashboard-mobile.js?v=tdm-gmail-1"></script>
+    <script src="./js/teacher-dashboard-mobile.js?v=tdm-gmail-2"></script>
   </body>
 </html>
