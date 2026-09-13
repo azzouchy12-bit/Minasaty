@@ -232,6 +232,23 @@ app.use("/uploads", (_req, res) => {
   res.status(410).json({ error: "تم إيقاف ميزة المواد التعليمية." });
 });
 
+// Server-side mobile redirect for teacher studio
+app.get(["/teacher-live.html", "/teacher-live"], (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  const userAgent = req.headers["user-agent"] || "";
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  if (isMobile && req.query.mode !== "desktop") {
+    const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+    return res.redirect(302, `/teacher-live-mobile.html${query}`);
+  }
+  next();
+});
+
+app.get(["/teacher-live-mobile.html", "/teacher-live-mobile"], (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  next();
+});
+
 // Serve index.html, the registration flow, and the portal pages from /public.
 app.use(express.static(path.join(__dirname, "public")));
 // Keep the public invite page available through an explicit route as well.

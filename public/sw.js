@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "acadimia-pwa-v1";
+const CACHE_NAME = "acadimia-pwa-v2";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
@@ -34,11 +34,12 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(event.request.url);
 
-  // Bypass socket.io, api routes, and video streams from service worker cache
+  // Bypass socket.io, api routes, live studio, and video streams from service worker cache
   if (
     url.pathname.startsWith("/socket.io") ||
     url.pathname.startsWith("/api") ||
-    url.pathname.includes("upload")
+    url.pathname.includes("upload") ||
+    url.pathname.includes("teacher-live")
   ) {
     return;
   }
