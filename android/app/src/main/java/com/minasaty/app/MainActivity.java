@@ -163,7 +163,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         if (isLiveSessionActive) {
             Intent serviceIntent = new Intent(this, LiveAudioForegroundService.class);
             serviceIntent.setAction(LiveAudioForegroundService.ACTION_STOP);
