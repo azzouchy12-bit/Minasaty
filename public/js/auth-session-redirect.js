@@ -17,8 +17,13 @@
   const token = role === "teacher" ? read("teacherToken") : role === "parent" ? read("parentToken") : "";
   if (!token) return;
 
-  const target = role === "teacher" ? "./teacher-dashboard.html" : role === "parent" ? "./parent-dashboard.html" : "";
-  if (!target || currentPath.endsWith(target.slice(1))) return;
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                   (window.matchMedia && window.matchMedia("(max-width: 900px)").matches) ||
+                   (window.innerWidth <= 900);
+  const target = role === "teacher"
+    ? (isMobile ? "./teacher-dashboard-mobile.html" : "./teacher-dashboard.html")
+    : role === "parent" ? "./parent-dashboard.html" : "";
+  if (!target || currentPath.endsWith(target.slice(1)) || (role === "teacher" && currentPath.includes("teacher-dashboard"))) return;
 
   if (role === "parent" && read("forceParentPinChange") === "1") {
     window.location.replace("./force-pin.html");

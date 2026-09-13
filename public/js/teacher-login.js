@@ -70,7 +70,10 @@ async function handleTeacherLogin(event) {
     clearTeacherSession();
     sessionStorage.setItem("teacherToken", data.token);
     sessionStorage.setItem("userRole", "teacher");
-    window.location.assign("./teacher-dashboard.html");
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                     (window.matchMedia && window.matchMedia("(max-width: 900px)").matches) ||
+                     (window.innerWidth <= 900);
+    window.location.assign(isMobile ? "./teacher-dashboard-mobile.html" : "./teacher-dashboard.html");
   } catch (error) {
     console.error("Teacher JWT login failed:", error);
     setTeacherLoginError(error.message || "تعذر الاتصال بالخادم. حاول مرة أخرى.");

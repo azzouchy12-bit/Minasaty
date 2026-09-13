@@ -13,53 +13,126 @@
       href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./css/teacher-dashboard-mobile.css?v=tdm-app-1" />
+    <link rel="stylesheet" href="./css/teacher-dashboard-mobile.css?v=tdm-gmail-1" />
   </head>
-  <body class="tdm-body">
-    <!-- Top Mobile Header -->
-    <header class="tdm-header">
-      <div class="tdm-header-top">
-        <div class="tdm-brand">
-          <div class="tdm-brand-avatar" aria-hidden="true">👨‍🏫</div>
-          <div class="tdm-brand-text">
+  <body class="tdm-gmail-body">
+    <!-- Top Header: Symmetrical Action Button Grid -->
+    <header class="tdm-top-header">
+      <!-- App Brand Row -->
+      <div class="tdm-header-brand">
+        <div class="tdm-brand-badge">
+          <span class="tdm-brand-icon">👨‍🏫</span>
+          <div>
             <span class="tdm-brand-sub">أكاديمية التفوق</span>
-            <strong class="tdm-brand-title">لوحة الأستاذ 📱</strong>
+            <strong class="tdm-brand-name">لوحة تحكم الأستاذ</strong>
           </div>
         </div>
+        <div class="tdm-header-quick-meta">
+          <span class="tdm-presence-chip is-present" id="tdm-presence-indicator">
+            <span class="presence-dot"></span>
+            <span id="tdm-presence-text">جاهز للإدارة</span>
+          </span>
+        </div>
+      </div>
 
-        <div class="tdm-header-actions">
+      <!-- Action Buttons Grid: 3 Clean Symmetrical Rows -->
+      <div class="tdm-action-grid" aria-label="أزرار التحكم الأساسية">
+        <!-- Row 1: Primary Live CTA & Online Users -->
+        <div class="tdm-grid-row tdm-row-primary">
           <a
             href="./teacher-live-mobile.html"
-            class="tdm-cta-live-btn"
-            title="بدء حصة مباشرة"
+            class="tdm-grid-btn tdm-btn-live"
+            title="بدء حصة مباشرة الآن"
           >
-            <span class="tdm-live-pulse"></span>
-            <span>بدء حصة</span>
-          </a>
-
-          <a
-            href="./teacher-dashboard.html?mode=desktop"
-            id="tdm-switch-desktop"
-            class="tdm-icon-btn"
-            title="عرض كحاسوب"
-            aria-label="التبديل إلى واجهة الحاسوب"
-          >
-            💻
+            <span class="live-blink"></span>
+            <span class="btn-icon">🎥</span>
+            <span class="btn-text">بدء حصة مباشرة</span>
           </a>
 
           <button
-            id="tdm-logout-btn"
-            class="tdm-icon-btn tdm-logout-btn"
-            title="تسجيل الخروج"
-            aria-label="تسجيل الخروج"
+            type="button"
+            class="tdm-grid-btn tdm-btn-online"
+            id="tdm-btn-online-users"
+            title="المتصلون الآن"
           >
-            🚪
+            <span class="btn-icon">👥</span>
+            <span class="btn-text">المتصلون</span>
+            <b id="tdm-online-count" class="tdm-counter-pill">0</b>
+          </button>
+        </div>
+
+        <!-- Row 2: Absence, Messages & Public Invite -->
+        <div class="tdm-grid-row tdm-row-secondary">
+          <button
+            type="button"
+            class="tdm-grid-btn tdm-btn-absence"
+            id="tdm-btn-absence-toggle"
+            title="الإعلان عن الغياب"
+          >
+            <span class="btn-icon">📢</span>
+            <span id="tdm-absence-btn-label" class="btn-text">حاضر</span>
+          </button>
+
+          <a
+            href="./teacher-chat.html"
+            target="_blank"
+            rel="noopener"
+            class="tdm-grid-btn tdm-btn-messages"
+            title="الرسائل الخاصة"
+          >
+            <span class="btn-icon">✉️</span>
+            <span class="btn-text">الرسائل</span>
+            <b id="tdm-msg-badge" class="tdm-counter-pill tdm-pill-alert" hidden>0</b>
+          </a>
+
+          <button
+            type="button"
+            class="tdm-grid-btn tdm-btn-public"
+            id="tdm-btn-public-invite"
+            title="إنشاء رابط حصة عامة"
+          >
+            <span class="btn-icon">🌐</span>
+            <span class="btn-text">حصة عامة</span>
+          </button>
+        </div>
+
+        <!-- Row 3: Notifications, Desktop Mode & Logout -->
+        <div class="tdm-grid-row tdm-row-tertiary">
+          <button
+            type="button"
+            class="tdm-grid-btn tdm-btn-tab-quick"
+            id="tdm-btn-quick-notif"
+            data-open-view="notifications"
+            title="إرسال تنبيه"
+          >
+            <span class="btn-icon">🔔</span>
+            <span class="btn-text">التنبيهات</span>
+          </button>
+
+          <a
+            href="./teacher-dashboard.html?mode=desktop"
+            id="tdm-btn-desktop-switch"
+            class="tdm-grid-btn tdm-btn-desktop"
+            title="التبديل إلى واجهة الحاسوب"
+          >
+            <span class="btn-icon">💻</span>
+            <span class="btn-text">عرض حاسوب</span>
+          </a>
+
+          <button
+            type="button"
+            class="tdm-grid-btn tdm-btn-logout"
+            id="tdm-btn-logout"
+            title="تسجيل الخروج"
+          >
+            <span class="btn-icon">🚪</span>
+            <span class="btn-text">خروج</span>
           </button>
         </div>
       </div>
 
-      <!-- Level Selector Strip -->
-      <nav class="tdm-level-nav" aria-label="اختيار المستوى الدراسي">
+      <!-- Level Selection Strip: Horizontal Filter Chips (Like Gmail Labels) -->
+      <nav class="tdm-level-strip" aria-label="اختيار السنة الدراسية">
         <button
           type="button"
           class="tdm-level-chip is-active"
@@ -101,608 +174,472 @@
           طالب جامعي
         </button>
       </nav>
+
+      <!-- Section Navigation Pills (Gmail Bottom/Sub Tabs) -->
+      <div class="tdm-section-nav" aria-label="أقسام لوحة التحكم">
+        <button type="button" class="tdm-sec-pill is-active" data-view="students">
+          👥 قائمة التلاميذ (<b id="sec-students-count">0</b>)
+        </button>
+        <button type="button" class="tdm-sec-pill" data-view="notifications">
+          🔔 التنبيهات
+        </button>
+        <button type="button" class="tdm-sec-pill" data-view="schedule">
+          📅 برمجة الحصص
+        </button>
+        <button type="button" class="tdm-sec-pill" data-view="registry">
+          📜 سجل الحصص
+        </button>
+        <button type="button" class="tdm-sec-pill" data-view="payments">
+          💳 الدفعات والوصولات
+        </button>
+        <button type="button" class="tdm-sec-pill" data-view="assignments">
+          📝 الواجبات
+        </button>
+        <button type="button" class="tdm-sec-pill" data-view="lessons">
+          🎥 فيديوهات مكملة
+        </button>
+        <button type="button" class="tdm-sec-pill" data-view="messenger">
+          💬 Messenger
+        </button>
+      </div>
     </header>
 
-    <!-- Main Container Supporting Sub-Views -->
-    <main class="tdm-main">
-      <!-- Error / Alert Banner -->
+    <!-- Fixed Container with Smooth Finger-Scrollable Frame (Gmail Layout) -->
+    <main class="tdm-fixed-scroll-frame" id="tdm-scroll-frame">
+      <!-- Error / Toast Banner -->
       <div id="tdm-alert" class="tdm-alert" hidden></div>
 
       <!-- ===================================================================
-           VIEW 0: LEVEL HUB (الرئيسية للمستوى)
+           VIEW 1: STUDENTS (Gmail Inbox Style List)
            =================================================================== -->
-      <section id="view-hub" class="tdm-view is-active">
-        <!-- Level Welcome & KPI Overview -->
-        <div class="tdm-kpi-banner">
-          <div class="tdm-kpi-banner-header">
-            <div>
-              <span class="tdm-kpi-badge" id="hub-level-badge">السنة الأولى متوسط</span>
-              <h1 class="tdm-kpi-title">مساحة إدارة المستوى</h1>
-            </div>
-            <span class="tdm-absence-indicator" id="tdm-absence-badge">الأستاذ حاضر</span>
-          </div>
-
-          <div class="tdm-kpi-grid">
-            <div class="tdm-kpi-card">
-              <span class="tdm-kpi-label">إجمالي التلاميذ</span>
-              <strong class="tdm-kpi-val" id="kpi-total-students">0</strong>
-            </div>
-            <div class="tdm-kpi-card tdm-kpi-green">
-              <span class="tdm-kpi-label">تسجيلات الشهر</span>
-              <strong class="tdm-kpi-val" id="kpi-monthly-regs">0</strong>
-            </div>
-            <div class="tdm-kpi-card tdm-kpi-blue">
-              <span class="tdm-kpi-label">الدخول المفتوح</span>
-              <strong class="tdm-kpi-val" id="kpi-live-allowed">0</strong>
-            </div>
-            <div class="tdm-kpi-card tdm-kpi-purple">
-              <span class="tdm-kpi-label">المداخيل المؤكدة</span>
-              <strong class="tdm-kpi-val" id="kpi-confirmed-rev">0 دج</strong>
-            </div>
-          </div>
+      <section id="view-students" class="tdm-sub-view is-active">
+        <!-- Gmail Search Bar -->
+        <div class="tdm-gmail-search-bar">
+          <span class="tdm-search-icon">🔍</span>
+          <input
+            type="search"
+            id="tdm-student-search-input"
+            class="tdm-gmail-search-input"
+            placeholder="بحث في التلاميذ بالاسم أو رقم الهاتف..."
+            autocomplete="off"
+          />
+          <button type="button" id="tdm-clear-search-btn" class="tdm-clear-search" hidden>✕</button>
         </div>
 
-        <!-- Management Menu Cards -->
-        <h2 class="tdm-section-title">أقسام إدارة المستوى</h2>
-        <div class="tdm-menu-grid">
-          <!-- 1. Students Roster Card -->
-          <a href="#students" class="tdm-menu-card" id="menu-btn-students">
-            <div class="tdm-menu-icon tdm-icon-students">👥</div>
-            <div class="tdm-menu-info">
-              <div class="tdm-menu-row">
-                <strong>قائمة التلاميذ</strong>
-                <span class="tdm-menu-badge" id="menu-badge-students">0 تلميذ</span>
-              </div>
-              <p>عرض التلاميذ، البحث، تفعيل البث، وتعديل الاشتراكات</p>
-            </div>
-            <span class="tdm-menu-arrow">←</span>
-          </a>
+        <!-- Filter Chips (Gmail Filter Row) -->
+        <div class="tdm-gmail-filter-chips">
+          <button type="button" class="tdm-gmail-filter-chip is-active" data-filter="ALL">الكل</button>
+          <button type="button" class="tdm-gmail-filter-chip" data-filter="PAID">تم الدفع</button>
+          <button type="button" class="tdm-gmail-filter-chip" data-filter="UNPAID">غير مدفوع</button>
+          <button type="button" class="tdm-gmail-filter-chip" data-filter="PROMISED">وعد بالدفع</button>
+          <button type="button" class="tdm-gmail-filter-chip" data-filter="LIVE_ALLOWED">المسموح بالبث</button>
+        </div>
 
-          <!-- 2. Notifications Card -->
-          <a href="#notifications" class="tdm-menu-card" id="menu-btn-notifications">
-            <div class="tdm-menu-icon tdm-icon-notifications">🔔</div>
-            <div class="tdm-menu-info">
-              <div class="tdm-menu-row">
-                <strong>إرسال وبرمجة التنبيهات</strong>
-                <span class="tdm-menu-tag">تنبيهات فورية</span>
-              </div>
-              <p>إرسال رسائل وتنبيهات مباشرة لأولياء تلاميذ المستوى</p>
-            </div>
-            <span class="tdm-menu-arrow">←</span>
-          </a>
+        <!-- Level Quick Stats Bar -->
+        <div class="tdm-gmail-stats-bar">
+          <span id="tdm-stats-level-label">السنة الأولى متوسط</span>
+          <span class="tdm-stats-badge" id="tdm-stats-students-count">0 تلميذ</span>
+        </div>
 
-          <!-- 3. Schedule Card -->
-          <a href="#schedule" class="tdm-menu-card" id="menu-btn-schedule">
-            <div class="tdm-menu-icon tdm-icon-schedule">📅</div>
-            <div class="tdm-menu-info">
-              <div class="tdm-menu-row">
-                <strong>برمجة الحصص</strong>
-                <span class="tdm-menu-badge" id="menu-badge-schedule">0 حصة</span>
-              </div>
-              <p>تحديد مواعيد الحصص المباشرة القادمة وإدارتها</p>
-            </div>
-            <span class="tdm-menu-arrow">←</span>
-          </a>
-
-          <!-- 4. Class Registry Card -->
-          <a href="#registry" class="tdm-menu-card" id="menu-btn-registry">
-            <div class="tdm-menu-icon tdm-icon-registry">📜</div>
-            <div class="tdm-menu-info">
-              <div class="tdm-menu-row">
-                <strong>سجل الحصص المنعقدة</strong>
-                <span class="tdm-menu-tag">الأرشيف</span>
-              </div>
-              <p>مراجعة الحصص السابقة، الحضور، وروابط التسجيل</p>
-            </div>
-            <span class="tdm-menu-arrow">←</span>
-          </a>
-
-          <!-- 5. Payments Card -->
-          <a href="#payments" class="tdm-menu-card" id="menu-btn-payments">
-            <div class="tdm-menu-icon tdm-icon-payments">💳</div>
-            <div class="tdm-menu-info">
-              <div class="tdm-menu-row">
-                <strong>الدفعات والوصولات</strong>
-                <span class="tdm-menu-badge tdm-badge-warning" id="menu-badge-receipts">0 وصل</span>
-              </div>
-              <p>مراجعة وصولات الدفع وتأكيد العمليات الإلكترونية</p>
-            </div>
-            <span class="tdm-menu-arrow">←</span>
-          </a>
-
-          <!-- 6. Assignments Card -->
-          <a href="#assignments" class="tdm-menu-card" id="menu-btn-assignments">
-            <div class="tdm-menu-icon tdm-icon-assignments">📝</div>
-            <div class="tdm-menu-info">
-              <div class="tdm-menu-row">
-                <strong>الواجبات المنزلية</strong>
-                <span class="tdm-menu-badge" id="menu-badge-assignments">0 واجب</span>
-              </div>
-              <p>نشر التمارين والواجبات ومراجعة حلول التلاميذ</p>
-            </div>
-            <span class="tdm-menu-arrow">←</span>
-          </a>
-
-          <!-- 7. Lessons Card -->
-          <a href="#lessons" class="tdm-menu-card" id="menu-btn-lessons">
-            <div class="tdm-menu-icon tdm-icon-lessons">🎥</div>
-            <div class="tdm-menu-info">
-              <div class="tdm-menu-row">
-                <strong>فيديوهات مكملة</strong>
-                <span class="tdm-menu-tag">دروس إضافية</span>
-              </div>
-              <p>إضافة ونشر فيديوهات الدعم والدروس المسجلة</p>
-            </div>
-            <span class="tdm-menu-arrow">←</span>
-          </a>
-
-          <!-- 8. Facebook Messenger Card -->
-          <a href="#messenger" class="tdm-menu-card" id="menu-btn-messenger">
-            <div class="tdm-menu-icon tdm-icon-messenger">💬</div>
-            <div class="tdm-menu-info">
-              <div class="tdm-menu-row">
-                <strong>Facebook Messenger</strong>
-                <span class="tdm-menu-tag">تواصل مباشر</span>
-              </div>
-              <p>إرسال رسائل وتنبيهات عبر صفحة الأكاديمية الرسمية</p>
-            </div>
-            <span class="tdm-menu-arrow">←</span>
-          </a>
+        <!-- Gmail Inbox Student Rows Container -->
+        <div id="tdm-gmail-students-list" class="tdm-gmail-inbox-list">
+          <div class="tdm-loading-state">
+            <div class="tdm-spinner"></div>
+            <p>جارٍ تحميل قائمة التلاميذ…</p>
+          </div>
         </div>
       </section>
 
       <!-- ===================================================================
-           VIEW 1: STUDENTS ROSTER (صفحة قائمة التلاميذ المستقلة)
+           VIEW 2: NOTIFICATIONS
            =================================================================== -->
-      <section id="view-students" class="tdm-view" hidden>
-        <div class="tdm-view-header">
-          <a href="#" class="tdm-back-btn" aria-label="رجوع للرئيسية">
-            <span class="tdm-back-icon">→</span>
-            <span>رجوع للرئيسية</span>
-          </a>
-          <div class="tdm-view-title-wrap">
-            <h2 class="tdm-view-title" id="students-view-title">قائمة التلاميذ</h2>
-            <span class="tdm-view-count" id="students-view-count">0 تلميذ</span>
-          </div>
-        </div>
+      <section id="view-notifications" class="tdm-sub-view" hidden>
+        <div class="tdm-gmail-card">
+          <h2 class="tdm-card-title">🔔 إرسال وبرمجة التنبيهات</h2>
+          <p class="tdm-card-desc">أرسل تنبيهاً فورياً أو مبرمجاً لأولياء تلاميذ المستوى المختار.</p>
 
-        <!-- Search & Filter Controls -->
-        <div class="tdm-filter-bar">
-          <div class="tdm-search-wrap">
-            <input
-              type="search"
-              id="tdm-students-search"
-              class="tdm-search-input"
-              placeholder="🔍 ابحث بالاسم أو رقم الهاتف..."
-              autocomplete="off"
-            />
-            <button type="button" id="tdm-clear-search" class="tdm-clear-search" hidden>✕</button>
-          </div>
+          <form id="tdm-notif-form" class="tdm-form">
+            <div class="tdm-form-field">
+              <label>الجمهور المستهدف</label>
+              <select id="tdm-notif-target" class="tdm-form-input">
+                <option value="ALL">كل أولياء المستوى</option>
+                <option value="PAID">الاشتراكات المدفوعة فقط</option>
+                <option value="FREE">الحسابات المجانية فقط</option>
+              </select>
+            </div>
 
-          <div class="tdm-filter-chips" id="students-filter-chips">
-            <button type="button" class="tdm-filter-chip is-active" data-filter="ALL">الكل</button>
-            <button type="button" class="tdm-filter-chip" data-filter="PAID">تم الدفع</button>
-            <button type="button" class="tdm-filter-chip" data-filter="UNPAID">غير مدفوع</button>
-            <button type="button" class="tdm-filter-chip" data-filter="PROMISED">وعد بالدفع</button>
-            <button type="button" class="tdm-filter-chip" data-filter="LIVE_ALLOWED">المسموح بالبث</button>
-          </div>
-        </div>
+            <div class="tdm-form-field">
+              <label>المادة</label>
+              <select id="tdm-notif-subject" class="tdm-form-input">
+                <option value="ALL">كل المواد</option>
+                <option value="MATH">الرياضيات</option>
+                <option value="PHYSICS">الفيزياء</option>
+                <option value="BOTH">الرياضيات والفيزياء</option>
+              </select>
+            </div>
 
-        <!-- Student Cards List -->
-        <div id="tdm-students-list" class="tdm-students-list">
-          <!-- Dynamically populated student cards -->
+            <div class="tdm-form-field">
+              <label>عنوان التنبيه</label>
+              <input type="text" id="tdm-notif-title" class="tdm-form-input" placeholder="اكتب عنوان التنبيه..." required />
+            </div>
+
+            <div class="tdm-form-field">
+              <label>نص التنبيه</label>
+              <textarea id="tdm-notif-body" class="tdm-form-textarea" rows="3" placeholder="اكتب نص الرسالة..." required></textarea>
+            </div>
+
+            <div class="tdm-form-field">
+              <label>وقت الإرسال</label>
+              <div class="tdm-form-radio-row">
+                <label><input type="radio" name="notif-timing" value="IMMEDIATE" checked /> إرسال فوري الآن</label>
+                <label><input type="radio" name="notif-timing" value="SCHEDULED" /> جدولة لوقت لاحق</label>
+              </div>
+            </div>
+
+            <button type="submit" class="tdm-submit-btn">إرسال التنبيه الآن 🚀</button>
+          </form>
+
+          <h3 class="tdm-card-subtitle">سجل التنبيهات السابقة</h3>
+          <div id="tdm-notif-history" class="tdm-history-list">
+            <p class="tdm-empty-msg">لا توجد تنبيهات مرسلة بعد.</p>
+          </div>
         </div>
       </section>
 
       <!-- ===================================================================
-           VIEW 2: NOTIFICATIONS (صفحة التنبيهات المستقلة)
+           VIEW 3: SCHEDULE
            =================================================================== -->
-      <section id="view-notifications" class="tdm-view" hidden>
-        <div class="tdm-view-header">
-          <a href="#" class="tdm-back-btn">
-            <span class="tdm-back-icon">→</span>
-            <span>رجوع للرئيسية</span>
-          </a>
-          <div class="tdm-view-title-wrap">
-            <h2 class="tdm-view-title">إرسال وبرمجة التنبيهات</h2>
-            <span class="tdm-view-count" id="notif-level-tag">السنة الأولى</span>
-          </div>
-        </div>
+      <section id="view-schedule" class="tdm-sub-view" hidden>
+        <div class="tdm-gmail-card">
+          <h2 class="tdm-card-title">📅 برمجة الحصص</h2>
+          <p class="tdm-card-desc">جدولة حصة جديدة أو مراجعة الحصص القادمة للمستوى.</p>
 
-        <form id="tdm-notification-form" class="tdm-card-form">
-          <div class="tdm-form-group">
-            <label class="tdm-label">الجمهور المستهدف</label>
-            <div class="tdm-radio-group">
-              <label class="tdm-radio-card">
-                <input type="radio" name="notif-payment" value="ALL" checked />
-                <span>كل الحسابات في المستوى</span>
-              </label>
-              <label class="tdm-radio-card">
-                <input type="radio" name="notif-payment" value="PAID" />
-                <span>الاشتراكات المدفوعة فقط</span>
-              </label>
-              <label class="tdm-radio-card">
-                <input type="radio" name="notif-payment" value="FREE" />
-                <span>الحسابات المجانية فقط</span>
-              </label>
+          <form id="tdm-sched-form" class="tdm-form">
+            <div class="tdm-form-field">
+              <label>نوع الحصة / المادة</label>
+              <select id="tdm-sched-subject" class="tdm-form-input">
+                <option value="MATH">الرياضيات</option>
+                <option value="PHYSICS">الفيزياء</option>
+              </select>
             </div>
-          </div>
-
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-notif-subject">المادة</label>
-            <select id="tdm-notif-subject" class="tdm-input">
-              <option value="ALL">كل المواد</option>
-              <option value="MATH">الرياضيات</option>
-              <option value="PHYSICS">الفيزياء</option>
-              <option value="BOTH">الرياضيات والفيزياء</option>
-            </select>
-          </div>
-
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-notif-title">عنوان التنبيه</label>
-            <input
-              type="text"
-              id="tdm-notif-title"
-              class="tdm-input"
-              maxlength="160"
-              placeholder="مثال: موعد حصة المراجعة الشاملة..."
-              required
-            />
-          </div>
-
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-notif-body">نص الرسالة</label>
-            <textarea
-              id="tdm-notif-body"
-              class="tdm-textarea"
-              rows="4"
-              maxlength="2000"
-              placeholder="اكتب التنبيه هنا..."
-              required
-            ></textarea>
-          </div>
-
-          <div class="tdm-form-group">
-            <label class="tdm-label">وقت الإرسال</label>
-            <div class="tdm-radio-group">
-              <label class="tdm-radio-card">
-                <input type="radio" name="notif-delivery" value="IMMEDIATE" checked />
-                <span>إرسال فوري الآن</span>
-              </label>
-              <label class="tdm-radio-card">
-                <input type="radio" name="notif-delivery" value="SCHEDULED" />
-                <span>جدولة لوقت لاحق</span>
-              </label>
+            <div class="tdm-form-field">
+              <label>تاريخ وتوقيت الحصة</label>
+              <input type="datetime-local" id="tdm-sched-datetime" class="tdm-form-input" required />
             </div>
+            <button type="submit" class="tdm-submit-btn">حفظ وبرمجة الحصة 📅</button>
+          </form>
+
+          <h3 class="tdm-card-subtitle">الحصص المبرمجة القادمة</h3>
+          <div id="tdm-sched-list" class="tdm-history-list">
+            <p class="tdm-empty-msg">لا توجد حصص مبرمجة حالياً.</p>
           </div>
-
-          <div id="tdm-notif-schedule-fields" class="tdm-schedule-inputs" hidden>
-            <div class="tdm-form-group">
-              <label class="tdm-label" for="tdm-notif-date">التاريخ</label>
-              <input type="date" id="tdm-notif-date" class="tdm-input" />
-            </div>
-            <div class="tdm-form-group">
-              <label class="tdm-label" for="tdm-notif-time">الوقت</label>
-              <input type="time" id="tdm-notif-time" class="tdm-input" />
-            </div>
-          </div>
-
-          <button type="submit" id="tdm-notif-submit-btn" class="tdm-btn-primary">
-            إرسال التنبيه الآن 🚀
-          </button>
-        </form>
-
-        <h3 class="tdm-section-sub">سجل التنبيهات السابقة</h3>
-        <div id="tdm-notifications-history" class="tdm-items-list">
-          <p class="tdm-empty-text">لا توجد تنبيهات مرسلة بعد.</p>
         </div>
       </section>
 
       <!-- ===================================================================
-           VIEW 3: SCHEDULE (صفحة برمجة الحصص المستقلة)
+           VIEW 4: CLASS REGISTRY
            =================================================================== -->
-      <section id="view-schedule" class="tdm-view" hidden>
-        <div class="tdm-view-header">
-          <a href="#" class="tdm-back-btn">
-            <span class="tdm-back-icon">→</span>
-            <span>رجوع للرئيسية</span>
-          </a>
-          <div class="tdm-view-title-wrap">
-            <h2 class="tdm-view-title">برمجة الحصص</h2>
-            <span class="tdm-view-count" id="schedule-level-tag">السنة الأولى</span>
-          </div>
-        </div>
-
-        <form id="tdm-schedule-form" class="tdm-card-form">
-          <h3 class="tdm-form-title">جدولة حصة مباشرة جديدة</h3>
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-sched-subject">نوع الحصة / المادة</label>
-            <select id="tdm-sched-subject" class="tdm-input">
-              <option value="MATH">الرياضيات</option>
-              <option value="PHYSICS">الفيزياء</option>
-            </select>
-          </div>
-
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-sched-datetime">تاريخ وتوقيت الحصة</label>
-            <input type="datetime-local" id="tdm-sched-datetime" class="tdm-input" required />
-          </div>
-
-          <button type="submit" id="tdm-sched-submit-btn" class="tdm-btn-primary">
-            حفظ وبرمجة الحصة 📅
-          </button>
-        </form>
-
-        <h3 class="tdm-section-sub">الحصص المبرمجة القادمة</h3>
-        <div id="tdm-schedule-list" class="tdm-items-list">
-          <p class="tdm-empty-text">لا توجد حصص مبرمجة حالياً.</p>
-        </div>
-      </section>
-
-      <!-- ===================================================================
-           VIEW 4: CLASS REGISTRY (صفحة سجل الحصص المستقلة)
-           =================================================================== -->
-      <section id="view-registry" class="tdm-view" hidden>
-        <div class="tdm-view-header">
-          <a href="#" class="tdm-back-btn">
-            <span class="tdm-back-icon">→</span>
-            <span>رجوع للرئيسية</span>
-          </a>
-          <div class="tdm-view-title-wrap">
-            <h2 class="tdm-view-title">سجل الحصص المنعقدة</h2>
-            <span class="tdm-view-count">أرشيف الحصص</span>
-          </div>
-        </div>
-
-        <div class="tdm-card-form">
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-reg-term">الفصل الدراسي</label>
-            <select id="tdm-reg-term" class="tdm-input">
+      <section id="view-registry" class="tdm-sub-view" hidden>
+        <div class="tdm-gmail-card">
+          <h2 class="tdm-card-title">📜 سجل الحصص المنعقدة</h2>
+          <p class="tdm-card-desc">أرشيف الحصص السابقة ومراجعة روابط التسجيل والغياب.</p>
+          <div class="tdm-form-field">
+            <label>الفصل الدراسي</label>
+            <select id="tdm-reg-term" class="tdm-form-input">
               <option value="">اختر الفصل الدراسي</option>
               <option value="TERM_1">الفصل الأول</option>
               <option value="TERM_2">الفصل الثاني</option>
               <option value="TERM_3">الفصل الثالث</option>
             </select>
           </div>
-
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-reg-month">الشهر</label>
-            <select id="tdm-reg-month" class="tdm-input" disabled>
-              <option value="">اختر الفصل أولاً</option>
-            </select>
+          <div id="tdm-reg-list" class="tdm-history-list">
+            <p class="tdm-empty-msg">اختر الفصل لعرض سجل الحصص المنعقدة.</p>
           </div>
-
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-reg-subject">المادة</label>
-            <select id="tdm-reg-subject" class="tdm-input" disabled>
-              <option value="">اختر الشهر أولاً</option>
-            </select>
-          </div>
-        </div>
-
-        <div id="tdm-registry-list" class="tdm-items-list">
-          <p class="tdm-empty-text">اختر الفصل والشهر لعرض سجل الحصص.</p>
         </div>
       </section>
 
       <!-- ===================================================================
-           VIEW 5: PAYMENTS (صفحة الدفعات والوصولات المستقلة)
+           VIEW 5: PAYMENTS
            =================================================================== -->
-      <section id="view-payments" class="tdm-view" hidden>
-        <div class="tdm-view-header">
-          <a href="#" class="tdm-back-btn">
-            <span class="tdm-back-icon">→</span>
-            <span>رجوع للرئيسية</span>
-          </a>
-          <div class="tdm-view-title-wrap">
-            <h2 class="tdm-view-title">الدفعات والوصولات</h2>
-            <span class="tdm-view-count" id="payments-level-tag">السنة الأولى</span>
+      <section id="view-payments" class="tdm-sub-view" hidden>
+        <div class="tdm-gmail-card">
+          <h2 class="tdm-card-title">💳 الدفعات والوصولات المالية</h2>
+          <div class="tdm-gmail-filter-chips" style="margin-bottom: 12px;">
+            <button type="button" class="tdm-gmail-filter-chip is-active" data-paytab="manual">وصولات الدفع اليدوية (<b id="pay-manual-count">0</b>)</button>
+            <button type="button" class="tdm-gmail-filter-chip" data-paytab="electronic">الدفعات الإلكترونية (<b id="pay-elec-count">0</b>)</button>
           </div>
-        </div>
-
-        <div class="tdm-segmented-tabs">
-          <button type="button" class="tdm-seg-tab is-active" data-tab="manual">
-            وصولات الدفع اليدوية (<span id="manual-receipts-count">0</span>)
-          </button>
-          <button type="button" class="tdm-seg-tab" data-tab="electronic">
-            الدفعات الإلكترونية (<span id="electronic-receipts-count">0</span>)
-          </button>
-        </div>
-
-        <!-- Manual Receipts Panel -->
-        <div id="tdm-manual-payments-panel" class="tdm-items-list">
-          <!-- Populated with receipt cards -->
-        </div>
-
-        <!-- Electronic Payments Panel -->
-        <div id="tdm-electronic-payments-panel" class="tdm-items-list" hidden>
-          <!-- Populated with electronic transaction cards -->
+          <div id="tdm-payments-content" class="tdm-history-list">
+            <p class="tdm-empty-msg">لا توجد وصولات بانتظار التأكيد.</p>
+          </div>
         </div>
       </section>
 
       <!-- ===================================================================
-           VIEW 6: ASSIGNMENTS (صفحة الواجبات المستقلة)
+           VIEW 6: ASSIGNMENTS
            =================================================================== -->
-      <section id="view-assignments" class="tdm-view" hidden>
-        <div class="tdm-view-header">
-          <a href="#" class="tdm-back-btn">
-            <span class="tdm-back-icon">→</span>
-            <span>رجوع للرئيسية</span>
-          </a>
-          <div class="tdm-view-title-wrap">
-            <h2 class="tdm-view-title">الواجبات المنزلية</h2>
-            <span class="tdm-view-count" id="assignments-level-tag">السنة الأولى</span>
+      <section id="view-assignments" class="tdm-sub-view" hidden>
+        <div class="tdm-gmail-card">
+          <h2 class="tdm-card-title">📝 الواجبات المنزلية</h2>
+          <form id="tdm-assign-form" class="tdm-form">
+            <div class="tdm-form-field">
+              <label>المادة</label>
+              <select id="tdm-assign-subject" class="tdm-form-input">
+                <option value="MATH">الرياضيات</option>
+                <option value="PHYSICS">الفيزياء</option>
+              </select>
+            </div>
+            <div class="tdm-form-field">
+              <label>عنوان الواجب</label>
+              <input type="text" id="tdm-assign-title" class="tdm-form-input" placeholder="عنوان الواجب..." required />
+            </div>
+            <div class="tdm-form-field">
+              <label>آخر أجل للتسليم</label>
+              <input type="date" id="tdm-assign-due" class="tdm-form-input" required />
+            </div>
+            <div class="tdm-form-field">
+              <label>تفاصيل الواجب</label>
+              <textarea id="tdm-assign-desc" class="tdm-form-textarea" rows="2" placeholder="اكتب نص أو رابط الواجب..."></textarea>
+            </div>
+            <button type="submit" class="tdm-submit-btn">نشر الواجب 📝</button>
+          </form>
+          <div id="tdm-assign-list" class="tdm-history-list" style="margin-top: 12px;">
+            <p class="tdm-empty-msg">لا توجد واجبات مضافة بعد.</p>
           </div>
-        </div>
-
-        <form id="tdm-assignment-form" class="tdm-card-form">
-          <h3 class="tdm-form-title">إضافة واجب منزلي جديد</h3>
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-assign-subject">المادة</label>
-            <select id="tdm-assign-subject" class="tdm-input">
-              <option value="MATH">الرياضيات</option>
-              <option value="PHYSICS">الفيزياء</option>
-            </select>
-          </div>
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-assign-title">عنوان الواجب</label>
-            <input type="text" id="tdm-assign-title" class="tdm-input" placeholder="مثال: تمرين حول الميكانيك..." required />
-          </div>
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-assign-due">آخر موعد للتسليم</label>
-            <input type="date" id="tdm-assign-due" class="tdm-input" required />
-          </div>
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-assign-desc">نص أو رابط الواجب</label>
-            <textarea id="tdm-assign-desc" class="tdm-textarea" rows="3" placeholder="اكتب تفاصيل الواجب أو الصق رابط الملف..."></textarea>
-          </div>
-          <button type="submit" class="tdm-btn-primary">نشر الواجب 📝</button>
-        </form>
-
-        <h3 class="tdm-section-sub">الواجبات المنشورة</h3>
-        <div id="tdm-assignments-list" class="tdm-items-list">
-          <p class="tdm-empty-text">لا توجد واجبات منشورة بعد.</p>
         </div>
       </section>
 
       <!-- ===================================================================
-           VIEW 7: LESSONS (صفحة الفيديوهات المكملة المستقلة)
+           VIEW 7: LESSONS
            =================================================================== -->
-      <section id="view-lessons" class="tdm-view" hidden>
-        <div class="tdm-view-header">
-          <a href="#" class="tdm-back-btn">
-            <span class="tdm-back-icon">→</span>
-            <span>رجوع للرئيسية</span>
-          </a>
-          <div class="tdm-view-title-wrap">
-            <h2 class="tdm-view-title">فيديوهات مكملة</h2>
-            <span class="tdm-view-count" id="lessons-level-tag">السنة الأولى</span>
+      <section id="view-lessons" class="tdm-sub-view" hidden>
+        <div class="tdm-gmail-card">
+          <h2 class="tdm-card-title">🎥 فيديوهات مكملة</h2>
+          <form id="tdm-lesson-form" class="tdm-form">
+            <div class="tdm-form-field">
+              <label>التصنيف</label>
+              <select id="tdm-lesson-type" class="tdm-form-input">
+                <option value="MATH">دروس الرياضيات</option>
+                <option value="PHYSICS">دروس الفيزياء</option>
+              </select>
+            </div>
+            <div class="tdm-form-field">
+              <label>عنوان الدرس</label>
+              <input type="text" id="tdm-lesson-title" class="tdm-form-input" placeholder="عنوان الفيديو..." required />
+            </div>
+            <div class="tdm-form-field">
+              <label>رابط YouTube</label>
+              <input type="url" id="tdm-lesson-url" class="tdm-form-input" placeholder="https://www.youtube.com/watch?v=..." required />
+            </div>
+            <button type="submit" class="tdm-submit-btn">نشر الفيديو 🎥</button>
+          </form>
+          <div id="tdm-lessons-list" class="tdm-history-list" style="margin-top: 12px;">
+            <p class="tdm-empty-msg">لا توجد فيديوهات مكملة بعد.</p>
           </div>
-        </div>
-
-        <form id="tdm-lesson-form" class="tdm-card-form">
-          <h3 class="tdm-form-title">إضافة فيديو مكمل</h3>
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-lesson-type">التصنيف</label>
-            <select id="tdm-lesson-type" class="tdm-input">
-              <option value="MATH">دروس الرياضيات</option>
-              <option value="PHYSICS">دروس الفيزياء</option>
-            </select>
-          </div>
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-lesson-title">عنوان الفيديو</label>
-            <input type="text" id="tdm-lesson-title" class="tdm-input" placeholder="مثال: شرح درس الحركة المنتظمة" required />
-          </div>
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-lesson-url">رابط فيديو YouTube</label>
-            <input type="url" id="tdm-lesson-url" class="tdm-input" placeholder="https://www.youtube.com/watch?v=..." required />
-          </div>
-          <button type="submit" class="tdm-btn-primary">نشر الفيديو 🎥</button>
-        </form>
-
-        <h3 class="tdm-section-sub">الفيديوهات المتاحة</h3>
-        <div id="tdm-lessons-list" class="tdm-items-list">
-          <p class="tdm-empty-text">لا توجد فيديوهات مكملة بعد.</p>
         </div>
       </section>
 
       <!-- ===================================================================
-           VIEW 8: MESSENGER (صفحة Facebook Messenger المستقلة)
+           VIEW 8: MESSENGER
            =================================================================== -->
-      <section id="view-messenger" class="tdm-view" hidden>
-        <div class="tdm-view-header">
-          <a href="#" class="tdm-back-btn">
-            <span class="tdm-back-icon">→</span>
-            <span>رجوع للرئيسية</span>
-          </a>
-          <div class="tdm-view-title-wrap">
-            <h2 class="tdm-view-title">Facebook Messenger</h2>
-            <span class="tdm-view-count">تواصل مباشر</span>
-          </div>
-        </div>
-
-        <div class="tdm-card-form">
-          <p class="tdm-form-hint">
-            إرسال إشعارات وتنبيهات مباشرة إلى أولياء الأمور المشتركين في صفحة الأكاديمية على Facebook.
-          </p>
-          <a href="./teacher-dashboard.html?mode=desktop#facebook-messenger-panel" class="tdm-btn-secondary">
-            فتح إعدادات Meta Messenger المتقدمة ⚙️
+      <section id="view-messenger" class="tdm-sub-view" hidden>
+        <div class="tdm-gmail-card">
+          <h2 class="tdm-card-title">💬 Facebook Messenger</h2>
+          <p class="tdm-card-desc">إرسال تنبيهات مباشرة عبر صفحة Facebook لأولياء الأمور المشتركين.</p>
+          <a href="./teacher-dashboard.html?mode=desktop#facebook-messenger-panel" class="tdm-submit-btn" style="text-decoration:none; display:flex; align-items:center; justify-content:center;">
+            فتح إعدادات Messenger المتقدمة ⚙️
           </a>
         </div>
       </section>
     </main>
 
     <!-- ===================================================================
-         MODALS & SHEETS
+         GMAIL-STYLE ACTION BOTTOM SHEET (تنبثق عند الضغط على أي تلميذ)
          =================================================================== -->
-
-    <!-- Edit Student Subscription Modal -->
-    <div id="tdm-sub-modal" class="tdm-modal" hidden>
-      <div class="tdm-modal-card">
-        <div class="tdm-modal-header">
-          <h3 class="tdm-modal-title">تعديل اشتراك التلميذ</h3>
-          <button type="button" class="tdm-modal-close" data-close-modal>✕</button>
-        </div>
-        <p class="tdm-modal-sub" id="tdm-sub-student-name">اسم التلميذ</p>
-
-        <form id="tdm-sub-form" class="tdm-modal-form">
-          <input type="hidden" id="tdm-sub-student-id" />
-
-          <div class="tdm-form-group">
-            <label class="tdm-label" for="tdm-sub-payment-stage">حالة الاشتراك والدفع</label>
-            <select id="tdm-sub-payment-stage" class="tdm-input">
-              <option value="PAID">تم تأكيد الدفع (مدفوع)</option>
-              <option value="PROMISED">الوعد بالدفع</option>
-              <option value="UNPAID">غير مدفوع (مجاني)</option>
-            </select>
-          </div>
-
-          <div class="tdm-form-group" id="tdm-sub-amount-wrap">
-            <label class="tdm-label" for="tdm-sub-amount">المبلغ بالدينار (دج)</label>
-            <input type="number" id="tdm-sub-amount" class="tdm-input" min="0" step="100" placeholder="مثال: 2000" />
-          </div>
-
-          <div class="tdm-form-group">
-            <label class="tdm-label">المواد المسجلة</label>
-            <div class="tdm-checkbox-group">
-              <label class="tdm-checkbox-label">
-                <input type="checkbox" id="tdm-sub-enroll-math" checked />
-                <span>الرياضيات</span>
-              </label>
-              <label class="tdm-checkbox-label">
-                <input type="checkbox" id="tdm-sub-enroll-physics" checked />
-                <span>الفيزياء</span>
-              </label>
+    <div id="tdm-action-sheet" class="tdm-sheet-overlay" hidden>
+      <div class="tdm-sheet-card" role="dialog" aria-modal="true">
+        <!-- Sheet Header -->
+        <div class="tdm-sheet-header">
+          <div class="tdm-sheet-avatar" id="sheet-avatar">A</div>
+          <div class="tdm-sheet-title-wrap">
+            <h3 class="tdm-sheet-name" id="sheet-student-name">اسم التلميذ</h3>
+            <div class="tdm-sheet-meta">
+              <span class="tdm-pin-chip" id="sheet-student-pin">PIN: 0000</span>
+              <span class="tdm-pay-chip" id="sheet-student-pay">تم الدفع</span>
+              <span class="tdm-sub-chip" id="sheet-student-sub">رياضيات وفيزياء</span>
             </div>
           </div>
+          <button type="button" class="tdm-sheet-close-btn" id="sheet-close-btn" aria-label="إغلاق">✕</button>
+        </div>
 
-          <div class="tdm-form-group">
-            <label class="tdm-switch-label">
-              <input type="checkbox" id="tdm-sub-live-toggle" />
-              <span class="tdm-switch-track"></span>
-              <span class="tdm-switch-text">السماح بدخول الحصة المباشرة</span>
-            </label>
+        <!-- Sheet Direct Action Buttons -->
+        <div class="tdm-sheet-actions-list">
+          <!-- 1. Direct Phone Call -->
+          <a href="#" id="sheet-call-btn" class="tdm-sheet-action-item tdm-action-call">
+            <div class="action-icon-circle">📞</div>
+            <div class="action-text-wrap">
+              <strong>الاتصال بهاتف الولي مباشرة</strong>
+              <span id="sheet-phone-label">05xxxxxxxx</span>
+            </div>
+            <span class="action-arrow">←</span>
+          </a>
+
+          <!-- 2. WhatsApp Direct Message -->
+          <a href="#" id="sheet-wa-btn" target="_blank" rel="noopener" class="tdm-sheet-action-item tdm-action-wa">
+            <div class="action-icon-circle">💬</div>
+            <div class="action-text-wrap">
+              <strong>مراسلة الولي عبر WhatsApp</strong>
+              <span>فتح المحادثة الفورية مع ولي التلميذ</span>
+            </div>
+            <span class="action-arrow">←</span>
+          </a>
+
+          <!-- 3. Toggle Live Access Switch -->
+          <button type="button" id="sheet-live-toggle-btn" class="tdm-sheet-action-item tdm-action-live">
+            <div class="action-icon-circle">🎥</div>
+            <div class="action-text-wrap">
+              <strong>إذن دخول الحصة المباشرة</strong>
+              <span id="sheet-live-label">الحالة: مسموح بالدخول ✓</span>
+            </div>
+            <span id="sheet-live-badge" class="action-status-pill is-allowed">مسموح</span>
+          </button>
+
+          <!-- 4. Edit Student Info (Name & Phone) -->
+          <button type="button" id="sheet-edit-contact-btn" class="tdm-sheet-action-item">
+            <div class="action-icon-circle">✏️</div>
+            <div class="action-text-wrap">
+              <strong>تعديل بيانات التلميذ</strong>
+              <span>تغيير الاسم أو رقم هاتف الولي</span>
+            </div>
+            <span class="action-arrow">←</span>
+          </button>
+
+          <!-- 5. Edit Subscription & Payment -->
+          <button type="button" id="sheet-edit-sub-btn" class="tdm-sheet-action-item">
+            <div class="action-icon-circle">💳</div>
+            <div class="action-text-wrap">
+              <strong>تعديل حالة الدفع والاشتراك</strong>
+              <span>مدفوع / وعد بالدفع / غير مدفوع والمبلغ</span>
+            </div>
+            <span class="action-arrow">←</span>
+          </button>
+
+          <!-- 6. View Attendance History -->
+          <button type="button" id="sheet-attendance-btn" class="tdm-sheet-action-item">
+            <div class="action-icon-circle">📜</div>
+            <div class="action-text-wrap">
+              <strong>سجل حضور التلميذ</strong>
+              <span>مراجعة تواريخ حضور الحصص المباشرة</span>
+            </div>
+            <span class="action-arrow">←</span>
+          </button>
+
+          <!-- 7. Delete Student -->
+          <button type="button" id="sheet-delete-btn" class="tdm-sheet-action-item tdm-action-delete">
+            <div class="action-icon-circle">🗑️</div>
+            <div class="action-text-wrap">
+              <strong>حذف حساب التلميذ نهائياً</strong>
+              <span>حذف البيانات وسجل الحضور بشكل كامل</span>
+            </div>
+            <span class="action-arrow">←</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================================================================
+         MODALS (Edit Contact, Edit Subscription, Delete Confirm, Attendance)
+         =================================================================== -->
+
+    <!-- Modal: Edit Student Contact (Name & Phone) -->
+    <div id="modal-edit-contact" class="tdm-sheet-overlay" hidden>
+      <div class="tdm-sheet-card">
+        <div class="tdm-modal-head">
+          <h3>✏️ تعديل بيانات التلميذ</h3>
+          <button type="button" class="tdm-sheet-close-btn" data-close-modal>✕</button>
+        </div>
+        <form id="form-edit-contact" class="tdm-form">
+          <input type="hidden" id="edit-contact-student-id" />
+          <div class="tdm-form-field">
+            <label>اسم التلميذ الكامل</label>
+            <input type="text" id="edit-contact-name" class="tdm-form-input" required maxlength="120" />
           </div>
-
-          <button type="submit" class="tdm-btn-primary">حفظ تعديلات الاشتراك ✓</button>
+          <div class="tdm-form-field">
+            <label>رقم هاتف الولي</label>
+            <input type="tel" id="edit-contact-phone" class="tdm-form-input" required placeholder="05/06/07xxxxxxxx" maxlength="20" />
+          </div>
+          <button type="submit" class="tdm-submit-btn">حفظ التعديلات ✓</button>
         </form>
       </div>
     </div>
 
-    <!-- Confirm Delete Modal -->
-    <div id="tdm-delete-modal" class="tdm-modal" hidden>
-      <div class="tdm-modal-card tdm-modal-danger">
-        <div class="tdm-modal-header">
-          <h3 class="tdm-modal-title">تأكيد حذف التلميذ</h3>
-          <button type="button" class="tdm-modal-close" data-close-modal>✕</button>
+    <!-- Modal: Edit Subscription & Payment -->
+    <div id="modal-edit-sub" class="tdm-sheet-overlay" hidden>
+      <div class="tdm-sheet-card">
+        <div class="tdm-modal-head">
+          <h3>💳 تعديل حالة الدفع والاشتراك</h3>
+          <button type="button" class="tdm-sheet-close-btn" data-close-modal>✕</button>
         </div>
-        <p class="tdm-danger-msg">
-          هل أنت متأكد من رغبتك في حذف هذا الحساب نهائياً؟ سيتم حذف جميع بيانات التلميذ وسجل الحضور ولا يمكن التراجع عن هذا الإجراء.
+        <form id="form-edit-sub" class="tdm-form">
+          <input type="hidden" id="edit-sub-student-id" />
+          <div class="tdm-form-field">
+            <label>حالة الدفع</label>
+            <select id="edit-sub-stage" class="tdm-form-input">
+              <option value="PAID">تم تأكيد الدفع (مدفوع)</option>
+              <option value="PROMISED">الوعد بالدفع</option>
+              <option value="UNPAID">لم يتم الدفع (مجاني)</option>
+            </select>
+          </div>
+          <div class="tdm-form-field" id="edit-sub-amount-wrap">
+            <label>المبلغ بالدينار (دج)</label>
+            <input type="number" id="edit-sub-amount" class="tdm-form-input" min="0" step="100" placeholder="2000" />
+          </div>
+          <div class="tdm-form-field">
+            <label>المواد المسجلة</label>
+            <div class="tdm-checkbox-row">
+              <label><input type="checkbox" id="edit-sub-math" checked /> الرياضيات</label>
+              <label><input type="checkbox" id="edit-sub-physics" checked /> الفيزياء</label>
+            </div>
+          </div>
+          <div class="tdm-form-field">
+            <label class="tdm-switch-wrap">
+              <input type="checkbox" id="edit-sub-live-access" />
+              <span class="tdm-switch-bar"></span>
+              <span>السماح بدخول الحصة المباشرة</span>
+            </label>
+          </div>
+          <button type="submit" class="tdm-submit-btn">حفظ حالة الاشتراك ✓</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Attendance History -->
+    <div id="modal-attendance" class="tdm-sheet-overlay" hidden>
+      <div class="tdm-sheet-card">
+        <div class="tdm-modal-head">
+          <h3>📜 سجل حضور التلميذ</h3>
+          <button type="button" class="tdm-sheet-close-btn" data-close-modal>✕</button>
+        </div>
+        <p class="tdm-modal-student-tag" id="attendance-student-name">اسم التلميذ</p>
+        <div id="attendance-records-list" class="tdm-history-list" style="max-height: 50vh; overflow-y: auto;">
+          <p class="tdm-empty-msg">لا توجد سجلات حضور بعد.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Confirm Delete -->
+    <div id="modal-delete-confirm" class="tdm-sheet-overlay" hidden>
+      <div class="tdm-sheet-card tdm-danger-card">
+        <div class="tdm-modal-head">
+          <h3 style="color:#dc2626;">⚠️ تأكيد حذف التلميذ</h3>
+          <button type="button" class="tdm-sheet-close-btn" data-close-modal>✕</button>
+        </div>
+        <p style="font-size:0.85rem; color:#475569; margin: 10px 0;">
+          هل أنت متأكد من حذف حساب التلميذ <strong id="delete-student-name-label"></strong> نهائياً؟
+          سيتم مسح بيانات الحساب وسجل الحضور تماماً ولا يمكن التراجع.
         </p>
-        <p class="tdm-modal-sub" id="tdm-delete-student-name">اسم التلميذ</p>
-        <div class="tdm-modal-actions">
-          <button type="button" class="tdm-btn-secondary" data-close-modal>إلغاء</button>
-          <button type="button" id="tdm-confirm-delete-btn" class="tdm-btn-danger">نعم، حذف نهائي 🗑️</button>
+        <div style="display:flex; gap:8px; margin-top:14px;">
+          <button type="button" class="tdm-cancel-btn" data-close-modal>إلغاء</button>
+          <button type="button" id="tdm-btn-confirm-delete" class="tdm-danger-btn">نعم، حذف نهائي 🗑️</button>
         </div>
       </div>
     </div>
@@ -711,6 +648,6 @@
     <div id="tdm-toast" class="tdm-toast" hidden></div>
 
     <!-- Scripts -->
-    <script src="./js/teacher-dashboard-mobile.js?v=tdm-app-1"></script>
+    <script src="./js/teacher-dashboard-mobile.js?v=tdm-gmail-1"></script>
   </body>
 </html>

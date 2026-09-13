@@ -14,7 +14,7 @@
 
   async function teacherFetch(url, options = {}) {
     const token = getTeacherToken();
-    if (!token) return Promise.reject(new Error("انتهت جلسة الأستاذ."));
+    if (!token) return Promise.reject(new Error("انتهت الجلسة."));
 
     const headers = new Headers(options.headers || {});
     headers.set("Authorization", `Bearer ${token}`);
@@ -32,11 +32,13 @@
   // Application State
   // --------------------------------------------------------------------------
   let currentLevel = "السنة الأولى";
+  let activeView = "students";
   let studentsData = [];
   let scheduledClasses = [];
   let activeFilter = "ALL";
   let activeSearchQuery = "";
-  let pendingDeleteStudentId = null;
+  let selectedStudent = null;
+  let isAbsent = false;
 
   const LEVEL_LABELS = {
     "السنة الأولى": "السنة الأولى متوسط",
@@ -46,12 +48,41 @@
     "طالب جامعي": "طالب جامعي",
   };
 
-  function displayLevel(level) {
-    return LEVEL_LABELS[level] || level;
+  const AVATAR_COLORS = [
+    "avatar-purple",
+    "avatar-blue",
+    "avatar-green",
+    "avatar-amber",
+    "avatar-rose",
+    "avatar-cyan",
+  ];
+
+  function getAvatarColor(name = "") {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = (hash + name.charCodeAt(i)) % AVATAR_COLORS.length;
+    }
+    return AVATAR_COLORS[hash] || "avatar-blue";
+  }
+
+  function getInitial(name = "") {
+    const trimmed = String(name).trim();
+    return trimmed ? trimmed.charAt(0).toUpperCase() : "ت";
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str).replace(/[&<>'"]/g, (c) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "'": "&#39;",
+      '"': "&quot;",
+    }[c]));
   }
 
   // --------------------------------------------------------------------------
-  // UI Helpers: Toast & Alert
+  // Toast & Alert Helpers
   // --------------------------------------------------------------------------
   let toastTimer = null;
   function showToast(message) {
@@ -62,7 +93,7 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
       toast.hidden = true;
-    }, 3200);
+    }, 3000);
   }
 
   function showAlert(message) {
@@ -78,101 +109,76 @@
   }
 
   // --------------------------------------------------------------------------
-  // Router: Dedicated Views Architecture
-  // --------------------------------------------------------------------------
-  const VIEWS = {
-    "": "view-hub",
-    hub: "view-hub",
-    students: "view-students",
-    notifications: "view-notifications",
-    schedule: "view-schedule",
-    registry: "view-registry",
-    payments: "view-payments",
-    assignments: "view-assignments",
-    lessons: "view-lessons",
-    messenger: "view-messenger",
-  };
-
-  function handleRoute() {
-    const hash = window.location.hash.replace(/^#/, "").trim();
-    const targetViewId = VIEWS[hash] || "view-hub";
-
-    document.querySelectorAll(".tdm-view").forEach((view) => {
-      const isTarget = view.id === targetViewId;
-      view.classList.toggle("is-active", isTarget);
-      view.hidden = !isTarget;
-    });
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
-
-    // Refresh view data when entered
-    if (targetViewId === "view-students") {
-      renderStudentsList();
-    } else if (targetViewId === "view-schedule") {
-      loadSchedule();
-    } else if (targetViewId === "view-notifications") {
-      loadNotifications();
-    } else if (targetViewId === "view-payments") {
-      loadPayments();
-    }
-  }
-
-  window.addEventListener("hashchange", handleRoute);
-
-  // --------------------------------------------------------------------------
   // Level Switching
   // --------------------------------------------------------------------------
   function setLevel(level) {
     if (!level) return;
     currentLevel = level;
 
-    // Update level chips in header
+    // Update level chips
     document.querySelectorAll(".tdm-level-chip").forEach((chip) => {
       const isCurrent = chip.dataset.level === level;
       chip.classList.toggle("is-active", isCurrent);
       chip.setAttribute("aria-current", String(isCurrent));
     });
 
-    // Update level titles across sub-views
-    const label = displayLevel(level);
-    const hubBadge = document.getElementById("hub-level-badge");
-    if (hubBadge) hubBadge.textContent = label;
+    const label = LEVEL_LABELS[level] || level;
+    const statsLevel = document.getElementById("tdm-stats-level-label");
+    if (statsLevel) statsLevel.textContent = label;
 
-    const studentsTitle = document.getElementById("students-view-title");
-    if (studentsTitle) studentsTitle.textContent = `تلاميذ ${label}`;
-
-    const notifTag = document.getElementById("notif-level-tag");
-    if (notifTag) notifTag.textContent = label;
-
-    const schedTag = document.getElementById("schedule-level-tag");
-    if (schedTag) schedTag.textContent = label;
-
-    const payTag = document.getElementById("payments-level-tag");
-    if (payTag) payTag.textContent = label;
-
-    const assignTag = document.getElementById("assignments-level-tag");
-    if (assignTag) assignTag.textContent = label;
-
-    const lessonTag = document.getElementById("lessons-level-tag");
-    if (lessonTag) lessonTag.textContent = label;
-
-    // Fetch new level data
-    fetchLevelData(level);
+    fetchLevelStudents(level);
+    loadSchedule();
   }
 
   // --------------------------------------------------------------------------
-  // Data Fetching: Level Data, Students, KPIs
+  // Section Navigation (Gmail Sub-Tabs)
   // --------------------------------------------------------------------------
-  async function fetchLevelData(level = currentLevel) {
+  function setView(viewName) {
+    activeView = viewName || "students";
+
+    document.querySelectorAll(".tdm-sec-pill").forEach((pill) => {
+      pill.classList.toggle("is-active", pill.dataset.view === activeView);
+    });
+
+    document.querySelectorAll(".tdm-sub-view").forEach((view) => {
+      const isTarget = view.id === `view-${activeView}`;
+      view.classList.toggle("is-active", isTarget);
+      view.hidden = !isTarget;
+    });
+
+    // Reset scroll frame to top
+    const frame = document.getElementById("tdm-scroll-frame");
+    if (frame) frame.scrollTop = 0;
+
+    if (activeView === "notifications") loadNotifications();
+    else if (activeView === "schedule") loadSchedule();
+    else if (activeView === "payments") loadPayments();
+    else if (activeView === "assignments") loadAssignments();
+    else if (activeView === "lessons") loadLessons();
+  }
+
+  // --------------------------------------------------------------------------
+  // Fetch Students & Stats
+  // --------------------------------------------------------------------------
+  async function fetchLevelStudents(level = currentLevel) {
     showAlert("");
+    const container = document.getElementById("tdm-gmail-students-list");
+    if (container) {
+      container.innerHTML = `
+        <div class="tdm-loading-state">
+          <div class="tdm-spinner"></div>
+          <p>جارٍ تحميل قائمة التلاميذ…</p>
+        </div>`;
+    }
+
     try {
       const response = await teacherFetch(
-        `/api/students/level/${encodeURIComponent(level)}?page=1&limit=150`,
+        `/api/students/level/${encodeURIComponent(level)}?page=1&limit=200`,
         { headers: { Accept: "application/json" } }
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error || "تعذر تحميل بيانات المستوى.");
+        throw new Error(payload.error || "تعذر تحميل قائمة التلاميذ.");
       }
 
       studentsData = Array.isArray(payload.data)
@@ -181,68 +187,33 @@
         ? payload
         : [];
 
-      updateKPIs(studentsData);
-      renderStudentsList();
-      loadSchedule();
+      // Update counters
+      const countEl = document.getElementById("sec-students-count");
+      if (countEl) countEl.textContent = studentsData.length;
+
+      const statsCount = document.getElementById("tdm-stats-students-count");
+      if (statsCount) statsCount.textContent = `${studentsData.length} تلميذ`;
+
+      renderGmailStudentsList();
     } catch (err) {
-      console.error("Error loading level data:", err);
-      showAlert(err.message || "تعذر الاتصال بالخادم.");
-    }
-  }
-
-  function updateKPIs(students) {
-    const total = students.length;
-    const paidCount = students.filter(
-      (s) => s.paymentStage === "PAID" || s.paymentStatus === true
-    ).length;
-    const liveAllowed = students.filter((s) => s.liveAccessEnabled).length;
-
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    const monthlyRegs = students.filter((s) => {
-      const date = new Date(s.createdAt);
-      return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-    }).length;
-
-    const totalRevenue = students
-      .filter((s) => s.paymentStage === "PAID")
-      .reduce((sum, s) => sum + (Number(s.amountDue) || 2000), 0);
-
-    const elTotal = document.getElementById("kpi-total-students");
-    if (elTotal) elTotal.textContent = total;
-
-    const elRegs = document.getElementById("kpi-monthly-regs");
-    if (elRegs) elRegs.textContent = monthlyRegs;
-
-    const elLive = document.getElementById("kpi-live-allowed");
-    if (elLive) elLive.textContent = liveAllowed;
-
-    const elRev = document.getElementById("kpi-confirmed-rev");
-    if (elRev) elRev.textContent = `${totalRevenue.toLocaleString("ar-DZ")} دج`;
-
-    // Badges in menu cards
-    const badgeStudents = document.getElementById("menu-badge-students");
-    if (badgeStudents) badgeStudents.textContent = `${total} تلميذ`;
-
-    const pendingReceipts = students.filter((s) => s.paymentReceiptPending).length;
-    const badgeReceipts = document.getElementById("menu-badge-receipts");
-    if (badgeReceipts) {
-      badgeReceipts.textContent = `${pendingReceipts} وصل`;
-      badgeReceipts.classList.toggle("tdm-badge-warning", pendingReceipts > 0);
+      console.error("Fetch students error:", err);
+      showAlert(err.message || "تعذر تحميل بيانات المستوى.");
+      if (container) {
+        container.innerHTML = `<p class="tdm-empty-msg">${escapeHtml(err.message || "تعذر تحميل التلاميذ.")}</p>`;
+      }
     }
   }
 
   // --------------------------------------------------------------------------
-  // View 1: Students Roster Rendering & Actions
+  // Render Students List: Gmail Inbox Style
   // --------------------------------------------------------------------------
-  function renderStudentsList() {
-    const container = document.getElementById("tdm-students-list");
+  function renderGmailStudentsList() {
+    const container = document.getElementById("tdm-gmail-students-list");
     if (!container) return;
 
     let filtered = studentsData.slice();
 
-    // Apply filter chip
+    // 1. Filter Chips
     if (activeFilter === "PAID") {
       filtered = filtered.filter((s) => s.paymentStage === "PAID" || s.paymentStatus === true);
     } else if (activeFilter === "UNPAID") {
@@ -250,10 +221,10 @@
     } else if (activeFilter === "PROMISED") {
       filtered = filtered.filter((s) => s.paymentStage === "PROMISED");
     } else if (activeFilter === "LIVE_ALLOWED") {
-      filtered = filtered.filter((s) => s.liveAccessEnabled);
+      filtered = filtered.filter((s) => Boolean(s.liveAccessEnabled));
     }
 
-    // Apply search query
+    // 2. Search Query
     if (activeSearchQuery) {
       const q = activeSearchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -264,181 +235,273 @@
       );
     }
 
-    // Update count in header
-    const viewCount = document.getElementById("students-view-count");
-    if (viewCount) viewCount.textContent = `${filtered.length} تلميذ`;
+    // Update count
+    const statsCount = document.getElementById("tdm-stats-students-count");
+    if (statsCount) statsCount.textContent = `${filtered.length} تلميذ`;
 
     if (!filtered.length) {
-      container.innerHTML = `<p class="tdm-empty-text">لا توجد نتائج مطابقة للتصفية أو البحث.</p>`;
+      container.innerHTML = `<p class="tdm-empty-msg">لا توجد نتائج مطابقة للبحث أو التصفية.</p>`;
       return;
     }
 
     container.innerHTML = "";
 
     filtered.forEach((student) => {
-      const card = document.createElement("article");
-      card.className = "tdm-student-card";
-      card.dataset.id = student.id;
+      const row = document.createElement("div");
+      row.className = "tdm-gmail-row";
+      row.dataset.id = student.id;
 
-      // Payment meta badge
-      let payPill = `<span class="tdm-meta-pill tdm-pill-unpaid">غير مدفوع</span>`;
+      // Color & Initial
+      const avatarColor = getAvatarColor(student.studentName);
+      const initial = getInitial(student.studentName);
+
+      // Payment Pill
+      let payPill = `<span class="tdm-gmail-pill pill-unpaid">غير مدفوع</span>`;
       if (student.paymentStage === "PAID" || student.paymentStatus === true) {
-        payPill = `<span class="tdm-meta-pill tdm-pill-paid">تم الدفع ${student.amountDue ? `(${student.amountDue} دج)` : ""}</span>`;
+        payPill = `<span class="tdm-gmail-pill pill-paid">تم الدفع ${student.amountDue ? `(${student.amountDue} دج)` : ""}</span>`;
       } else if (student.paymentStage === "PROMISED") {
-        payPill = `<span class="tdm-meta-pill tdm-pill-promised">وعد بالدفع</span>`;
+        payPill = `<span class="tdm-gmail-pill pill-promised">وعد بالدفع</span>`;
       }
 
       // Subject tags
-      let subTags = "";
+      let subPill = "";
       if (student.mathEnrollment && student.physicsEnrollment) {
-        subTags = `<span class="tdm-meta-pill tdm-pill-sub">رياضيات وفيزياء</span>`;
+        subPill = `<span class="tdm-gmail-pill pill-subject">رياضيات وفيزياء</span>`;
       } else if (student.mathEnrollment) {
-        subTags = `<span class="tdm-meta-pill tdm-pill-sub">رياضيات</span>`;
+        subPill = `<span class="tdm-gmail-pill pill-subject">رياضيات</span>`;
       } else if (student.physicsEnrollment) {
-        subTags = `<span class="tdm-meta-pill tdm-pill-sub">فيزياء</span>`;
+        subPill = `<span class="tdm-gmail-pill pill-subject">فيزياء</span>`;
       }
 
-      const isLiveAllowed = Boolean(student.liveAccessEnabled);
+      // Live Access Pill
+      const livePill = student.liveAccessEnabled
+        ? `<span class="tdm-gmail-pill pill-live-ok">مسموح بالبث 🟢</span>`
+        : `<span class="tdm-gmail-pill pill-live-no">محظور 🔒</span>`;
 
-      // Clean phone number for links
-      const phoneDigits = String(student.parentPhone || "").replace(/\D/g, "");
-      const waNumber = phoneDigits.startsWith("0") ? "213" + phoneDigits.slice(1) : phoneDigits;
+      // Formatted Date (Gmail format e.g. "12 سبتمبر")
+      let dateText = "—";
+      if (student.createdAt) {
+        try {
+          const d = new Date(student.createdAt);
+          dateText = d.toLocaleDateString("ar-DZ", { day: "numeric", month: "short" });
+        } catch (_) {}
+      }
 
-      card.innerHTML = `
-        <div class="tdm-card-top">
-          <div>
-            <h3 class="tdm-student-name">${escapeHtml(student.studentName)}</h3>
-            <div class="tdm-card-meta">
-              ${payPill}
-              ${subTags}
-            </div>
+      row.innerHTML = `
+        <div class="tdm-gmail-avatar ${avatarColor}">${initial}</div>
+        <div class="tdm-gmail-body-wrap">
+          <div class="tdm-row-top">
+            <strong class="tdm-student-sender">${escapeHtml(student.studentName)}</strong>
+            <span class="tdm-row-date">${dateText}</span>
           </div>
-          <span class="tdm-pin-badge" title="رمز PIN">${escapeHtml(student.studentPin || "—")}</span>
-        </div>
-
-        <div class="tdm-contact-row">
-          <span class="tdm-phone-number">📞 ${escapeHtml(student.parentPhone || "لا يوجد هاتف")}</span>
-          <div class="tdm-contact-actions">
-            ${phoneDigits ? `<a href="tel:${phoneDigits}" class="tdm-call-btn">اتصال</a>` : ""}
-            ${phoneDigits ? `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener" class="tdm-whatsapp-btn">WhatsApp</a>` : ""}
+          <div class="tdm-row-phone">📞 ${escapeHtml(student.parentPhone || "لا يوجد رقم")} · PIN: ${escapeHtml(student.studentPin || "—")}</div>
+          <div class="tdm-row-pills">
+            ${payPill}
+            ${subPill}
+            ${livePill}
           </div>
         </div>
-
-        <div class="tdm-live-control">
-          <span class="tdm-live-status-label">حالة البث المباشر:</span>
-          <button type="button" class="tdm-toggle-btn ${isLiveAllowed ? "is-allowed" : "is-blocked"}" data-toggle-live="${student.id}">
-            ${isLiveAllowed ? "مسموح بالدخول ✓" : "دخول محظور 🔒"}
-          </button>
-        </div>
-
-        <div class="tdm-card-footer">
-          <button type="button" class="tdm-btn-edit-sub" data-edit-sub="${student.id}">
-            تعديل الاشتراك والدفع ⚙️
-          </button>
-          <button type="button" class="tdm-btn-del-student" data-delete-student="${student.id}">
-            حذف 🗑️
-          </button>
-        </div>
+        <span class="tdm-row-arrow">‹</span>
       `;
 
-      container.appendChild(card);
+      row.addEventListener("click", () => openStudentActionSheet(student));
+      container.appendChild(row);
     });
   }
 
-  function escapeHtml(str) {
-    if (!str) return "";
-    return String(str).replace(/[&<>'"]/g, (c) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      "'": "&#39;",
-      '"': "&quot;",
-    }[c]));
+  // --------------------------------------------------------------------------
+  // Gmail Action Bottom Sheet: Tapping on any Student
+  // --------------------------------------------------------------------------
+  function openStudentActionSheet(student) {
+    if (!student) return;
+    selectedStudent = student;
+
+    const sheet = document.getElementById("tdm-action-sheet");
+    if (!sheet) return;
+
+    // Header info
+    const avatar = document.getElementById("sheet-avatar");
+    if (avatar) {
+      avatar.textContent = getInitial(student.studentName);
+      avatar.className = `tdm-sheet-avatar ${getAvatarColor(student.studentName)}`;
+    }
+
+    const nameEl = document.getElementById("sheet-student-name");
+    if (nameEl) nameEl.textContent = student.studentName;
+
+    const pinEl = document.getElementById("sheet-student-pin");
+    if (pinEl) pinEl.textContent = `PIN: ${student.studentPin || "—"}`;
+
+    const payEl = document.getElementById("sheet-student-pay");
+    if (payEl) {
+      payEl.textContent = student.paymentStage === "PAID" ? "تم الدفع" : student.paymentStage === "PROMISED" ? "وعد بالدفع" : "غير مدفوع";
+      payEl.className = `tdm-pay-chip ${student.paymentStage === "PAID" ? "pill-paid" : student.paymentStage === "PROMISED" ? "pill-promised" : "pill-unpaid"}`;
+    }
+
+    const subEl = document.getElementById("sheet-student-sub");
+    if (subEl) {
+      subEl.textContent = student.mathEnrollment && student.physicsEnrollment ? "رياضيات وفيزياء" : student.mathEnrollment ? "رياضيات فقط" : student.physicsEnrollment ? "فيزياء فقط" : "عام";
+    }
+
+    // Phone & Call Link
+    const rawPhone = String(student.parentPhone || "").replace(/\D/g, "");
+    const callBtn = document.getElementById("sheet-call-btn");
+    const phoneLabel = document.getElementById("sheet-phone-label");
+    if (callBtn && phoneLabel) {
+      phoneLabel.textContent = student.parentPhone || "لا يوجد رقم مسجل";
+      callBtn.href = rawPhone ? `tel:${rawPhone}` : "#";
+      callBtn.style.opacity = rawPhone ? "1" : "0.5";
+    }
+
+    // WhatsApp Link
+    const waBtn = document.getElementById("sheet-wa-btn");
+    if (waBtn) {
+      const waNumber = rawPhone.startsWith("0") ? "213" + rawPhone.slice(1) : rawPhone;
+      waBtn.href = rawPhone ? `https://wa.me/${waNumber}` : "#";
+      waBtn.style.opacity = rawPhone ? "1" : "0.5";
+    }
+
+    // Live Access Toggle
+    updateSheetLiveState(student.liveAccessEnabled);
+
+    sheet.hidden = false;
+  }
+
+  function updateSheetLiveState(isAllowed) {
+    const liveLabel = document.getElementById("sheet-live-label");
+    const liveBadge = document.getElementById("sheet-live-badge");
+    if (liveLabel) {
+      liveLabel.textContent = isAllowed ? "الحالة: مسموح بالدخول ✓" : "الحالة: محظور من الدخول 🔒";
+    }
+    if (liveBadge) {
+      liveBadge.textContent = isAllowed ? "مسموح ✓" : "محظور 🔒";
+      liveBadge.className = `action-status-pill ${isAllowed ? "is-allowed" : "is-blocked"}`;
+    }
+  }
+
+  function closeAllSheets() {
+    document.querySelectorAll(".tdm-sheet-overlay").forEach((s) => (s.hidden = true));
   }
 
   // --------------------------------------------------------------------------
-  // Live Access Fast Toggle
+  // Live Access Fast Toggle in Action Sheet
   // --------------------------------------------------------------------------
-  async function toggleLiveAccess(studentId) {
-    const student = studentsData.find((s) => s.id === studentId);
-    if (!student) return;
+  async function toggleStudentLiveAccess() {
+    if (!selectedStudent) return;
+    const nextVal = !Boolean(selectedStudent.liveAccessEnabled);
 
-    const nextValue = !Boolean(student.liveAccessEnabled);
     try {
-      const response = await teacherFetch(`/api/students/${encodeURIComponent(studentId)}`, {
+      const response = await teacherFetch(`/api/students/${encodeURIComponent(selectedStudent.id)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
-          paymentStage: student.paymentStage || "UNPAID",
-          amountDue: student.amountDue === null ? null : Number(student.amountDue),
-          mathEnrollment: Boolean(student.mathEnrollment),
-          physicsEnrollment: Boolean(student.physicsEnrollment),
-          liveAccessEnabled: nextValue,
-          mathNote: student.mathNote || "",
-          physicsNote: student.physicsNote || "",
+          paymentStage: selectedStudent.paymentStage || "UNPAID",
+          amountDue: selectedStudent.amountDue === null ? null : Number(selectedStudent.amountDue),
+          mathEnrollment: Boolean(selectedStudent.mathEnrollment),
+          physicsEnrollment: Boolean(selectedStudent.physicsEnrollment),
+          liveAccessEnabled: nextVal,
+          mathNote: selectedStudent.mathNote || "",
+          physicsNote: selectedStudent.physicsNote || "",
         }),
       });
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "تعذر تحديث إذن البث.");
-      }
+      if (!response.ok) throw new Error("تعذر تعديل صلاحية الحصة المباشرة.");
 
-      student.liveAccessEnabled = nextValue;
-      updateKPIs(studentsData);
-      renderStudentsList();
-      showToast(nextValue ? "تم السماح للتلميذ بدخول الحصة المباشرة ✓" : "تم حظر التلميذ من دخول الحصة 🔒");
+      selectedStudent.liveAccessEnabled = nextVal;
+      updateSheetLiveState(nextVal);
+      renderGmailStudentsList();
+      showToast(nextVal ? "تم السماح للتلميذ بدخول الحصة المباشرة ✓" : "تم حظر التلميذ من دخول الحصة 🔒");
     } catch (err) {
-      console.error("Live toggle error:", err);
       showToast(err.message || "حدث خطأ أثناء تعديل صلاحية الحصة.");
     }
   }
 
   // --------------------------------------------------------------------------
-  // Edit Subscription Modal
+  // Modal: Edit Student Contact (Name & Parent Phone)
   // --------------------------------------------------------------------------
-  function openSubModal(studentId) {
-    const student = studentsData.find((s) => s.id === studentId);
-    if (!student) return;
+  function openEditContactModal() {
+    if (!selectedStudent) return;
+    closeAllSheets();
 
-    const modal = document.getElementById("tdm-sub-modal");
+    const modal = document.getElementById("modal-edit-contact");
     if (!modal) return;
 
-    document.getElementById("tdm-sub-student-id").value = student.id;
-    document.getElementById("tdm-sub-student-name").textContent = student.studentName;
-    document.getElementById("tdm-sub-payment-stage").value = student.paymentStage || "UNPAID";
-    document.getElementById("tdm-sub-amount").value = student.amountDue || "";
-    document.getElementById("tdm-sub-enroll-math").checked = Boolean(student.mathEnrollment);
-    document.getElementById("tdm-sub-enroll-physics").checked = Boolean(student.physicsEnrollment);
-    document.getElementById("tdm-sub-live-toggle").checked = Boolean(student.liveAccessEnabled);
+    document.getElementById("edit-contact-student-id").value = selectedStudent.id;
+    document.getElementById("edit-contact-name").value = selectedStudent.studentName || "";
+    document.getElementById("edit-contact-phone").value = selectedStudent.parentPhone || "";
 
     modal.hidden = false;
   }
 
-  function closeModals() {
-    document.querySelectorAll(".tdm-modal").forEach((m) => (m.hidden = true));
-  }
-
-  async function handleSubFormSubmit(e) {
+  async function handleEditContactSubmit(e) {
     e.preventDefault();
-    const studentId = document.getElementById("tdm-sub-student-id").value;
-    const student = studentsData.find((s) => s.id === studentId);
-    if (!student) return;
+    if (!selectedStudent) return;
 
-    const paymentStage = document.getElementById("tdm-sub-payment-stage").value;
-    const amountVal = document.getElementById("tdm-sub-amount").value.trim();
-    const amountDue = paymentStage === "UNPAID" ? null : amountVal ? Number(amountVal) : 2000;
-    const mathEnrollment = document.getElementById("tdm-sub-enroll-math").checked;
-    const physicsEnrollment = document.getElementById("tdm-sub-enroll-physics").checked;
-    const liveAccessEnabled = document.getElementById("tdm-sub-live-toggle").checked;
-
-    if (!mathEnrollment && !physicsEnrollment) {
-      alert("يجب اختيار مادة واحدة على الأقل (الرياضيات أو الفيزياء).");
+    const newName = document.getElementById("edit-contact-name").value.trim();
+    const newPhone = document.getElementById("edit-contact-phone").value.trim();
+    if (!newName || !newPhone) {
+      showToast("يرجى إدخال الاسم ورقم الهاتف.");
       return;
     }
 
     try {
-      const response = await teacherFetch(`/api/students/${encodeURIComponent(studentId)}`, {
+      const response = await teacherFetch(`/api/students/${encodeURIComponent(selectedStudent.id)}/contact`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ studentName: newName, parentPhone: newPhone }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "تعذر حفظ تعديل البيانات.");
+
+      selectedStudent.studentName = newName;
+      selectedStudent.parentPhone = newPhone;
+
+      closeAllSheets();
+      renderGmailStudentsList();
+      showToast("تم تحديث اسم ورقم التلميذ بنجاح ✓");
+    } catch (err) {
+      showToast(err.message || "حدث خطأ أثناء حفظ التعديل.");
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Modal: Edit Subscription & Payment
+  // --------------------------------------------------------------------------
+  function openEditSubModal() {
+    if (!selectedStudent) return;
+    closeAllSheets();
+
+    const modal = document.getElementById("modal-edit-sub");
+    if (!modal) return;
+
+    document.getElementById("edit-sub-student-id").value = selectedStudent.id;
+    document.getElementById("edit-sub-stage").value = selectedStudent.paymentStage || "UNPAID";
+    document.getElementById("edit-sub-amount").value = selectedStudent.amountDue || "";
+    document.getElementById("edit-sub-math").checked = Boolean(selectedStudent.mathEnrollment);
+    document.getElementById("edit-sub-physics").checked = Boolean(selectedStudent.physicsEnrollment);
+    document.getElementById("edit-sub-live-access").checked = Boolean(selectedStudent.liveAccessEnabled);
+
+    modal.hidden = false;
+  }
+
+  async function handleEditSubSubmit(e) {
+    e.preventDefault();
+    if (!selectedStudent) return;
+
+    const paymentStage = document.getElementById("edit-sub-stage").value;
+    const amountVal = document.getElementById("edit-sub-amount").value.trim();
+    const amountDue = paymentStage === "UNPAID" ? null : amountVal ? Number(amountVal) : 2000;
+    const mathEnrollment = document.getElementById("edit-sub-math").checked;
+    const physicsEnrollment = document.getElementById("edit-sub-physics").checked;
+    const liveAccessEnabled = document.getElementById("edit-sub-live-access").checked;
+
+    if (!mathEnrollment && !physicsEnrollment) {
+      showToast("يجب اختيار مادة واحدة على الأقل (الرياضيات أو الفيزياء).");
+      return;
+    }
+
+    try {
+      const response = await teacherFetch(`/api/students/${encodeURIComponent(selectedStudent.id)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
@@ -447,47 +510,95 @@
           mathEnrollment,
           physicsEnrollment,
           liveAccessEnabled,
-          mathNote: student.mathNote || "",
-          physicsNote: student.physicsNote || "",
+          mathNote: selectedStudent.mathNote || "",
+          physicsNote: selectedStudent.physicsNote || "",
         }),
       });
 
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "تعذر حفظ تعديلات الاشتراك.");
+      if (!response.ok) throw new Error(data.error || "تعذر حفظ حالة الاشتراك.");
 
-      // Update local state
-      student.paymentStage = paymentStage;
-      student.amountDue = amountDue;
-      student.mathEnrollment = mathEnrollment;
-      student.physicsEnrollment = physicsEnrollment;
-      student.liveAccessEnabled = liveAccessEnabled;
+      selectedStudent.paymentStage = paymentStage;
+      selectedStudent.amountDue = amountDue;
+      selectedStudent.mathEnrollment = mathEnrollment;
+      selectedStudent.physicsEnrollment = physicsEnrollment;
+      selectedStudent.liveAccessEnabled = liveAccessEnabled;
 
-      closeModals();
-      updateKPIs(studentsData);
-      renderStudentsList();
-      showToast("تم تحديث بيانات الاشتراك بنجاح ✓");
+      closeAllSheets();
+      renderGmailStudentsList();
+      showToast("تم تحديث حالة الاشتراك والدفع بنجاح ✓");
     } catch (err) {
-      console.error("Save subscription error:", err);
-      showToast(err.message || "تعذر حفظ التعديلات.");
+      showToast(err.message || "حدث خطأ أثناء حفظ الاشتراك.");
     }
   }
 
   // --------------------------------------------------------------------------
-  // Delete Student
+  // Modal: View Attendance Records
   // --------------------------------------------------------------------------
-  function openDeleteModal(studentId) {
-    const student = studentsData.find((s) => s.id === studentId);
-    if (!student) return;
+  async function openAttendanceModal() {
+    if (!selectedStudent) return;
+    closeAllSheets();
 
-    pendingDeleteStudentId = studentId;
-    document.getElementById("tdm-delete-student-name").textContent = student.studentName;
-    document.getElementById("tdm-delete-modal").hidden = false;
+    const modal = document.getElementById("modal-attendance");
+    const nameEl = document.getElementById("attendance-student-name");
+    const listEl = document.getElementById("attendance-records-list");
+    if (!modal) return;
+
+    if (nameEl) nameEl.textContent = selectedStudent.studentName;
+    if (listEl) listEl.innerHTML = `<p class="tdm-empty-msg">جارٍ تحميل سجل الحضور…</p>`;
+    modal.hidden = false;
+
+    try {
+      const response = await teacherFetch(`/api/attendance/student/${encodeURIComponent(selectedStudent.id)}`);
+      if (!response.ok) throw new Error();
+      const data = await response.json().catch(() => ({}));
+      const records = Array.isArray(data.attendance) ? data.attendance : [];
+
+      if (!records.length) {
+        listEl.innerHTML = `<p class="tdm-empty-msg">لا توجد سجلات حضور مسجلة لهذا التلميذ بعد.</p>`;
+        return;
+      }
+
+      listEl.innerHTML = records
+        .map((rec) => {
+          const dt = new Date(rec.joinedAt || rec.createdAt);
+          const dateStr = dt.toLocaleDateString("ar-DZ", { weekday: "short", day: "numeric", month: "long" });
+          const timeStr = dt.toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" });
+          return `
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <strong style="font-size:0.85rem;">حضر الحصة المباشرة</strong>
+                <p style="font-size:0.75rem; color:#64748b;">${dateStr} - ${timeStr}</p>
+              </div>
+              <span style="color:#059669; font-weight:800; font-size:0.8rem;">حاضر ✓</span>
+            </div>
+          `;
+        })
+        .join("");
+    } catch (_) {
+      listEl.innerHTML = `<p class="tdm-empty-msg">تعذر تحميل سجل الحضور.</p>`;
+    }
   }
 
-  async function confirmDeleteStudent() {
-    if (!pendingDeleteStudentId) return;
-    const studentId = pendingDeleteStudentId;
-    closeModals();
+  // --------------------------------------------------------------------------
+  // Modal: Confirm Delete
+  // --------------------------------------------------------------------------
+  function openDeleteModal() {
+    if (!selectedStudent) return;
+    closeAllSheets();
+
+    const modal = document.getElementById("modal-delete-confirm");
+    const nameLabel = document.getElementById("delete-student-name-label");
+    if (!modal) return;
+
+    if (nameLabel) nameLabel.textContent = `«${selectedStudent.studentName}»`;
+    modal.hidden = false;
+  }
+
+  async function handleConfirmDelete() {
+    if (!selectedStudent) return;
+    const studentId = selectedStudent.id;
+    closeAllSheets();
 
     try {
       const response = await teacherFetch(`/api/students/${encodeURIComponent(studentId)}`, {
@@ -498,12 +609,78 @@
       if (!response.ok) throw new Error(data.error || "تعذر حذف التلميذ.");
 
       studentsData = studentsData.filter((s) => s.id !== studentId);
-      updateKPIs(studentsData);
-      renderStudentsList();
+      selectedStudent = null;
+      renderGmailStudentsList();
       showToast("تم حذف حساب التلميذ نهائياً.");
     } catch (err) {
-      console.error("Delete student error:", err);
       showToast(err.message || "حدث خطأ أثناء الحذف.");
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Top Grid Actions (Online Users, Absence, Public Invite)
+  // --------------------------------------------------------------------------
+  async function fetchOnlineUsersCount() {
+    try {
+      const response = await teacherFetch("/api/teacher/online-users");
+      if (!response.ok) return;
+      const data = await response.json().catch(() => ({}));
+      const count = Number(data.count ?? data.total ?? (Array.isArray(data.users) ? data.users.length : 0));
+      const countEl = document.getElementById("tdm-online-count");
+      if (countEl) countEl.textContent = count;
+    } catch (_) {}
+  }
+
+  async function toggleAbsence() {
+    isAbsent = !isAbsent;
+    try {
+      const response = await teacherFetch("/api/teacher/absence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ isAbsent }),
+      });
+      if (!response.ok) throw new Error();
+
+      updateAbsenceUI(isAbsent);
+      showToast(isAbsent ? "تم الإعلان عن غياب الأستاذ." : "تم إلغاء الغياب: الأستاذ حاضر.");
+    } catch (_) {
+      // Revert on failure
+      isAbsent = !isAbsent;
+      showToast("تعذر تغيير حالة الحضور.");
+    }
+  }
+
+  function updateAbsenceUI(absent) {
+    const btnLabel = document.getElementById("tdm-absence-btn-label");
+    const presenceChip = document.getElementById("tdm-presence-indicator");
+    const presenceText = document.getElementById("tdm-presence-text");
+    const absenceBtn = document.getElementById("tdm-btn-absence-toggle");
+
+    if (btnLabel) btnLabel.textContent = absent ? "معلن غائب" : "حاضر";
+    if (absenceBtn) absenceBtn.classList.toggle("is-absent", absent);
+    if (presenceChip) presenceChip.classList.toggle("is-absent", absent);
+    if (presenceText) presenceText.textContent = absent ? "الأستاذ غائب" : "جاهز للإدارة";
+  }
+
+  async function handlePublicInvite() {
+    try {
+      const response = await teacherFetch("/api/classes/public-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (data.inviteUrl) {
+        if (navigator.clipboard) {
+          await navigator.clipboard.writeText(data.inviteUrl);
+          showToast("تم نسخ رابط الحصة العامة للحافظة 📋");
+        } else {
+          alert(`رابط الحصة العامة:\n${data.inviteUrl}`);
+        }
+      } else {
+        showToast("تم إنشاء الحصة العامة بنجاح.");
+      }
+    } catch (_) {
+      showToast("تعذر إنشاء رابط الحصة العامة.");
     }
   }
 
@@ -511,8 +688,8 @@
   // View 2: Notifications
   // --------------------------------------------------------------------------
   async function loadNotifications() {
-    const historyContainer = document.getElementById("tdm-notifications-history");
-    if (!historyContainer) return;
+    const historyList = document.getElementById("tdm-notif-history");
+    if (!historyList) return;
 
     try {
       const response = await teacherFetch(`/api/teacher/notifications?level=${encodeURIComponent(currentLevel)}`);
@@ -521,20 +698,20 @@
       const list = Array.isArray(data.notifications) ? data.notifications : [];
 
       if (!list.length) {
-        historyContainer.innerHTML = `<p class="tdm-empty-text">لا توجد تنبيهات مرسلة لهذا المستوى بعد.</p>`;
+        historyList.innerHTML = `<p class="tdm-empty-msg">لا توجد تنبيهات سابقة لهذا المستوى.</p>`;
         return;
       }
 
-      historyContainer.innerHTML = list
+      historyList.innerHTML = list
         .map(
           (n) => `
-        <article class="tdm-student-card">
-          <div class="tdm-card-top">
-            <strong>${escapeHtml(n.title)}</strong>
-            <span class="tdm-pin-badge">${new Date(n.createdAt).toLocaleDateString("ar-DZ")}</span>
-          </div>
-          <p style="font-size:0.8rem; color:#475569;">${escapeHtml(n.body)}</p>
-        </article>`
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <strong style="font-size:0.9rem;">${escapeHtml(n.title)}</strong>
+              <span style="font-size:0.7rem; color:#64748b;">${new Date(n.createdAt).toLocaleDateString("ar-DZ")}</span>
+            </div>
+            <p style="font-size:0.8rem; color:#475569;">${escapeHtml(n.body)}</p>
+          </div>`
         )
         .join("");
     } catch (_) {}
@@ -542,16 +719,11 @@
 
   async function handleNotificationSubmit(e) {
     e.preventDefault();
-    const payment = document.querySelector('input[name="notif-payment"]:checked')?.value || "ALL";
+    const target = document.getElementById("tdm-notif-target").value;
     const subject = document.getElementById("tdm-notif-subject").value;
     const title = document.getElementById("tdm-notif-title").value.trim();
     const body = document.getElementById("tdm-notif-body").value.trim();
-    const delivery = document.querySelector('input[name="notif-delivery"]:checked')?.value || "IMMEDIATE";
-
-    if (!title || !body) {
-      showToast("يرجى ملء عنوان ونص التنبيه.");
-      return;
-    }
+    const timing = document.querySelector('input[name="notif-timing"]:checked')?.value || "IMMEDIATE";
 
     try {
       const response = await teacherFetch("/api/teacher/notifications", {
@@ -559,23 +731,20 @@
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
           level: currentLevel,
-          paymentStage: payment,
+          paymentStage: target,
           subject,
           title,
           body,
-          delivery,
+          delivery: timing,
         }),
       });
 
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "تعذر إرسال التنبيه.");
-
+      if (!response.ok) throw new Error("تعذر إرسال التنبيه.");
       showToast("تم إرسال التنبيه بنجاح 🚀");
       e.target.reset();
       loadNotifications();
     } catch (err) {
-      console.error("Notif send error:", err);
-      showToast(err.message || "تعذر إرسال التنبيه.");
+      showToast(err.message || "حدث خطأ أثناء الإرسال.");
     }
   }
 
@@ -583,9 +752,8 @@
   // View 3: Schedule
   // --------------------------------------------------------------------------
   async function loadSchedule() {
-    const listContainer = document.getElementById("tdm-schedule-list");
-    const badge = document.getElementById("menu-badge-schedule");
-    if (!listContainer) return;
+    const list = document.getElementById("tdm-sched-list");
+    if (!list) return;
 
     try {
       const response = await teacherFetch(`/api/schedules/${encodeURIComponent(currentLevel)}`);
@@ -593,32 +761,28 @@
       const data = await response.json().catch(() => ({}));
       scheduledClasses = Array.isArray(data.scheduledClasses) ? data.scheduledClasses : [];
 
-      if (badge) badge.textContent = `${scheduledClasses.length} حصة`;
-
       if (!scheduledClasses.length) {
-        listContainer.innerHTML = `<p class="tdm-empty-text">لا توجد حصص مبرمجة حالياً لهذا المستوى.</p>`;
+        list.innerHTML = `<p class="tdm-empty-msg">لا توجد حصص مبرمجة حالياً لهذا المستوى.</p>`;
         return;
       }
 
-      listContainer.innerHTML = scheduledClasses
+      list.innerHTML = scheduledClasses
         .map((sc) => {
           const dt = new Date(sc.scheduledAt);
           const dateStr = dt.toLocaleDateString("ar-DZ", { weekday: "long", month: "long", day: "numeric" });
           const timeStr = dt.toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" });
           return `
-          <article class="tdm-student-card">
-            <div class="tdm-card-top">
-              <div>
-                <strong>${sc.subject === "MATH" ? "حصة الرياضيات" : "حصة الفيزياء"}</strong>
-                <p style="font-size:0.78rem; color:#64748b;">📅 ${dateStr} - الساعة ${timeStr}</p>
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong>${sc.subject === "MATH" ? "📐 حصة الرياضيات" : "⚡ حصة الفيزياء"}</strong>
+                <button type="button" class="tdm-btn-del-student" style="height:30px; font-size:0.75rem;" data-del-sched="${sc.id}">إلغاء</button>
               </div>
-              <button type="button" class="tdm-btn-del-student" data-del-schedule="${sc.id}">إلغاء</button>
+              <p style="font-size:0.78rem; color:#64748b; margin:4px 0 8px;">📅 ${dateStr} الساعة ${timeStr}</p>
+              <a href="./teacher-live-mobile.html" class="tdm-submit-btn" style="height:36px; font-size:0.78rem; text-decoration:none; display:flex; align-items:center; justify-content:center;">
+                بدء الحصة المباشرة 🎥
+              </a>
             </div>
-            <a href="./teacher-live-mobile.html" class="tdm-btn-primary" style="text-align:center; text-decoration:none; display:flex; align-items:center; justify-content:center; height:38px; font-size:0.8rem;">
-              بدء الحصة الآن 🎥
-            </a>
-          </article>
-        `;
+          `;
         })
         .join("");
     } catch (_) {}
@@ -629,7 +793,7 @@
     const subject = document.getElementById("tdm-sched-subject").value;
     const dtVal = document.getElementById("tdm-sched-datetime").value;
     if (!dtVal) {
-      showToast("يرجى اختيار تاريخ وتوقيت الحصة.");
+      showToast("يرجى تحديد التاريخ والوقت.");
       return;
     }
 
@@ -640,7 +804,7 @@
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ level: currentLevel, subject, scheduledAt }),
       });
-      if (!response.ok) throw new Error("تعذر برمجة الحصة.");
+      if (!response.ok) throw new Error("تعذر حفظ الحصة المبرمجة.");
 
       showToast("تمت برمجة الحصة بنجاح 📅");
       e.target.reset();
@@ -651,58 +815,56 @@
   }
 
   // --------------------------------------------------------------------------
-  // View 5: Payments (Manual Receipts & Electronic)
+  // View 5: Payments
   // --------------------------------------------------------------------------
-  async function loadPayments() {
-    const manualPanel = document.getElementById("tdm-manual-payments-panel");
-    const manualCount = document.getElementById("manual-receipts-count");
-    if (!manualPanel) return;
+  async function loadPayments(kind = "manual") {
+    const panel = document.getElementById("tdm-payments-content");
+    const manualBadge = document.getElementById("pay-manual-count");
+    if (!panel) return;
 
     const receipts = studentsData.filter((s) => s.paymentReceiptPending || s.paymentReceiptUrl);
-    if (manualCount) manualCount.textContent = receipts.length;
+    if (manualBadge) manualBadge.textContent = receipts.length;
 
-    if (!receipts.length) {
-      manualPanel.innerHTML = `<p class="tdm-empty-text">لا توجد وصولات دفع مرفوعة حالياً.</p>`;
-      return;
-    }
+    if (kind === "manual") {
+      if (!receipts.length) {
+        panel.innerHTML = `<p class="tdm-empty-msg">لا توجد وصولات دفع مرفوعة حالياً.</p>`;
+        return;
+      }
 
-    manualPanel.innerHTML = receipts
-      .map(
-        (s) => `
-      <article class="tdm-student-card">
-        <div class="tdm-card-top">
-          <div>
-            <strong>${escapeHtml(s.studentName)}</strong>
-            <p style="font-size:0.75rem; color:#64748b;">هاتف الولي: ${escapeHtml(s.parentPhone || "—")}</p>
+      panel.innerHTML = receipts
+        .map(
+          (s) => `
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <strong>${escapeHtml(s.studentName)}</strong>
+              <span class="tdm-gmail-pill pill-promised">وصل مرفوع</span>
+            </div>
+            <p style="font-size:0.78rem; color:#64748b;">هاتف الولي: ${escapeHtml(s.parentPhone || "—")}</p>
+            ${
+              s.paymentReceiptUrl
+                ? `<div style="text-align:center; padding:6px; background:#fff; border-radius:8px; margin:6px 0;">
+                    <img src="${s.paymentReceiptUrl}" alt="وصل الدفع" style="max-height:160px; max-width:100%; border-radius:6px;" />
+                   </div>`
+                : ""
+            }
+            <button type="button" class="tdm-submit-btn" style="height:36px; font-size:0.78rem;" data-confirm-pay="${s.id}">
+              تأكيد الدفع وتفعيل الحساب ✓
+            </button>
           </div>
-          <span class="tdm-meta-pill ${s.paymentStage === "PAID" ? "tdm-pill-paid" : "tdm-pill-promised"}">
-            ${s.paymentStage === "PAID" ? "تم التأكيد" : "وصل قيد المراجعة"}
-          </span>
-        </div>
-        ${
-          s.paymentReceiptUrl
-            ? `<div style="text-align:center; padding:6px; background:#f1f5f9; border-radius:10px;">
-                <img src="${s.paymentReceiptUrl}" alt="وصل الدفع" style="max-height:180px; max-width:100%; border-radius:6px;" />
-               </div>`
-            : ""
-        }
-        <div class="tdm-card-footer">
-          <button type="button" class="tdm-btn-primary" style="height:36px; font-size:0.78rem;" data-confirm-receipt="${s.id}">
-            تأكيد الدفع وتفعيل الحساب ✓
-          </button>
-        </div>
-      </article>
-    `
-      )
-      .join("");
+        `
+        )
+        .join("");
+    } else {
+      panel.innerHTML = `<p class="tdm-empty-msg">جارٍ فحص عمليات الدفع الإلكتروني عبر البطاقة…</p>`;
+    }
   }
 
-  async function confirmReceipt(studentId) {
+  async function confirmStudentPayment(studentId) {
     try {
       const response = await teacherFetch(`/api/students/${encodeURIComponent(studentId)}/confirm-payment-receipt`, {
         method: "POST",
       });
-      if (!response.ok) throw new Error("تعذر تأكيد الوصل.");
+      if (!response.ok) throw new Error();
 
       const student = studentsData.find((s) => s.id === studentId);
       if (student) {
@@ -710,36 +872,41 @@
         student.paymentReceiptPending = false;
         student.liveAccessEnabled = true;
       }
-      updateKPIs(studentsData);
-      loadPayments();
-      showToast("تم تأكيد وصل الدفع وتفعيل حساب التلميذ بنجاح ✓");
-    } catch (err) {
-      showToast(err.message || "حدث خطأ أثناء التأكيد.");
+      loadPayments("manual");
+      renderGmailStudentsList();
+      showToast("تم تأكيد وصل الدفع وتفعيل الحساب بنجاح ✓");
+    } catch (_) {
+      showToast("تعذر تأكيد وصل الدفع.");
     }
   }
 
   // --------------------------------------------------------------------------
-  // Event Delegations & Initialization
+  // Initialization & Event Binding
   // --------------------------------------------------------------------------
   document.addEventListener("DOMContentLoaded", () => {
-    // 1. Check Auth
     if (!getTeacherToken()) return;
 
-    // 2. Level Chips Clicking
+    // 1. Level Chips
     document.querySelectorAll(".tdm-level-chip").forEach((chip) => {
-      chip.addEventListener("click", () => {
-        setLevel(chip.dataset.level);
-      });
+      chip.addEventListener("click", () => setLevel(chip.dataset.level));
     });
 
-    // 3. Search & Clear Search
-    const searchInput = document.getElementById("tdm-students-search");
-    const clearBtn = document.getElementById("tdm-clear-search");
+    // 2. Section Navigation Pills
+    document.querySelectorAll(".tdm-sec-pill").forEach((pill) => {
+      pill.addEventListener("click", () => setView(pill.dataset.view));
+    });
+
+    // 3. Quick Action Button for Notifications
+    document.getElementById("tdm-btn-quick-notif")?.addEventListener("click", () => setView("notifications"));
+
+    // 4. Search Bar
+    const searchInput = document.getElementById("tdm-student-search-input");
+    const clearBtn = document.getElementById("tdm-clear-search-btn");
     if (searchInput) {
       searchInput.addEventListener("input", () => {
         activeSearchQuery = searchInput.value.trim();
         if (clearBtn) clearBtn.hidden = !activeSearchQuery;
-        renderStudentsList();
+        renderGmailStudentsList();
       });
     }
     if (clearBtn) {
@@ -747,87 +914,83 @@
         searchInput.value = "";
         activeSearchQuery = "";
         clearBtn.hidden = true;
-        renderStudentsList();
+        renderGmailStudentsList();
       });
     }
 
-    // 4. Filter Chips
-    document.querySelectorAll("#students-filter-chips .tdm-filter-chip").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll("#students-filter-chips .tdm-filter-chip").forEach((b) => b.classList.remove("is-active"));
-        btn.classList.add("is-active");
-        activeFilter = btn.dataset.filter || "ALL";
-        renderStudentsList();
+    // 5. Filter Chips
+    document.querySelectorAll(".tdm-gmail-filter-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        document.querySelectorAll(".tdm-gmail-filter-chip").forEach((c) => c.classList.remove("is-active"));
+        chip.classList.add("is-active");
+        activeFilter = chip.dataset.filter || "ALL";
+        renderGmailStudentsList();
       });
     });
 
-    // 5. Dynamic Student Card Actions (Live toggle, Edit, Delete)
-    const studentsContainer = document.getElementById("tdm-students-list");
-    if (studentsContainer) {
-      studentsContainer.addEventListener("click", (e) => {
-        const toggleBtn = e.target.closest("[data-toggle-live]");
-        if (toggleBtn) {
-          toggleLiveAccess(toggleBtn.dataset.toggleLive);
-          return;
-        }
+    // 6. Action Sheet Event Handlers
+    document.getElementById("sheet-close-btn")?.addEventListener("click", closeAllSheets);
+    document.getElementById("sheet-live-toggle-btn")?.addEventListener("click", toggleStudentLiveAccess);
+    document.getElementById("sheet-edit-contact-btn")?.addEventListener("click", openEditContactModal);
+    document.getElementById("sheet-edit-sub-btn")?.addEventListener("click", openEditSubModal);
+    document.getElementById("sheet-attendance-btn")?.addEventListener("click", openAttendanceModal);
+    document.getElementById("sheet-delete-btn")?.addEventListener("click", openDeleteModal);
 
-        const editBtn = e.target.closest("[data-edit-sub]");
-        if (editBtn) {
-          openSubModal(editBtn.dataset.editSub);
-          return;
-        }
-
-        const delBtn = e.target.closest("[data-delete-student]");
-        if (delBtn) {
-          openDeleteModal(delBtn.dataset.deleteStudent);
-          return;
-        }
-      });
-    }
-
-    // 6. Modal Close Buttons
+    // 7. Modals Close Buttons
     document.querySelectorAll("[data-close-modal]").forEach((btn) => {
-      btn.addEventListener("click", closeModals);
+      btn.addEventListener("click", closeAllSheets);
     });
 
-    // 7. Forms Submit
-    document.getElementById("tdm-sub-form")?.addEventListener("submit", handleSubFormSubmit);
-    document.getElementById("tdm-notification-form")?.addEventListener("submit", handleNotificationSubmit);
-    document.getElementById("tdm-schedule-form")?.addEventListener("submit", handleScheduleSubmit);
-    document.getElementById("tdm-confirm-delete-btn")?.addEventListener("click", confirmDeleteStudent);
+    // 8. Form Submissions
+    document.getElementById("form-edit-contact")?.addEventListener("submit", handleEditContactSubmit);
+    document.getElementById("form-edit-sub")?.addEventListener("submit", handleEditSubSubmit);
+    document.getElementById("tdm-btn-confirm-delete")?.addEventListener("click", handleConfirmDelete);
+    document.getElementById("tdm-notif-form")?.addEventListener("submit", handleNotificationSubmit);
+    document.getElementById("tdm-sched-form")?.addEventListener("submit", handleScheduleSubmit);
 
-    // 8. Payments Actions
-    document.getElementById("tdm-manual-payments-panel")?.addEventListener("click", (e) => {
-      const confirmBtn = e.target.closest("[data-confirm-receipt]");
-      if (confirmBtn) {
-        confirmReceipt(confirmBtn.dataset.confirmReceipt);
-      }
-    });
+    // 9. Top Grid Buttons
+    document.getElementById("tdm-btn-absence-toggle")?.addEventListener("click", toggleAbsence);
+    document.getElementById("tdm-btn-public-invite")?.addEventListener("click", handlePublicInvite);
 
-    // 9. Payment Tabs
-    document.querySelectorAll(".tdm-seg-tab").forEach((tab) => {
-      tab.addEventListener("click", () => {
-        document.querySelectorAll(".tdm-seg-tab").forEach((t) => t.classList.remove("is-active"));
-        tab.classList.add("is-active");
-        const isManual = tab.dataset.tab === "manual";
-        document.getElementById("tdm-manual-payments-panel").hidden = !isManual;
-        document.getElementById("tdm-electronic-payments-panel").hidden = isManual;
-      });
-    });
-
-    // 10. Desktop Switcher & Logout
-    document.getElementById("tdm-switch-desktop")?.addEventListener("click", () => {
+    document.getElementById("tdm-btn-desktop-switch")?.addEventListener("click", () => {
       sessionStorage.setItem("teacherDashboardDesktopMode", "1");
     });
 
-    document.getElementById("tdm-logout-btn")?.addEventListener("click", () => {
+    document.getElementById("tdm-btn-logout")?.addEventListener("click", () => {
       sessionStorage.removeItem(TEACHER_TOKEN_KEY);
       sessionStorage.removeItem("teacherDashboardDesktopMode");
       window.location.replace("./teacher-login.html");
     });
 
-    // 11. Initial Route & Data Load
-    handleRoute();
+    // 10. Payments delegation
+    document.getElementById("tdm-payments-content")?.addEventListener("click", (e) => {
+      const payBtn = e.target.closest("[data-confirm-pay]");
+      if (payBtn) confirmStudentPayment(payBtn.dataset.confirmPay);
+    });
+
+    document.querySelectorAll("[data-paytab]").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll("[data-paytab]").forEach((t) => t.classList.remove("is-active"));
+        tab.classList.add("is-active");
+        loadPayments(tab.dataset.paytab);
+      });
+    });
+
+    // 11. Schedule delegation (Cancel class)
+    document.getElementById("tdm-sched-list")?.addEventListener("click", async (e) => {
+      const delBtn = e.target.closest("[data-del-sched]");
+      if (delBtn && confirm("هل تريد إلغاء هذه الحصة؟")) {
+        try {
+          await teacherFetch(`/api/schedules/${encodeURIComponent(delBtn.dataset.delSched)}`, { method: "DELETE" });
+          showToast("تم إلغاء الحصة المبرمجة.");
+          loadSchedule();
+        } catch (_) {}
+      }
+    });
+
+    // Initial Load
     setLevel(currentLevel);
+    fetchOnlineUsersCount();
+    window.setInterval(fetchOnlineUsersCount, 25000);
   });
 })();
