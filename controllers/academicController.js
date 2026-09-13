@@ -1085,41 +1085,7 @@ async function sendTeacherLiveAlert(req, res) {
 }
 
 async function getActiveTeacherLiveAlert(_req, res) {
-  try {
-    const fortyFiveMinutesAgo = new Date(Date.now() - 45 * 60 * 1000);
-    const latestAlert = await prisma.notification.findFirst({
-      where: {
-        type: "TEACHER_LIVE_ALERT",
-        createdAt: { gte: fortyFiveMinutesAgo },
-      },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        body: true,
-        link: true,
-        createdAt: true,
-      },
-    });
-
-    if (!latestAlert) {
-      return res.json({ status: "success", active: false });
-    }
-
-    return res.json({
-      status: "success",
-      active: true,
-      alert: {
-        id: latestAlert.id,
-        title: latestAlert.title,
-        body: latestAlert.body,
-        link: latestAlert.link || "/student-live.html",
-        createdAt: latestAlert.createdAt,
-      },
-    });
-  } catch (err) {
-    return res.json({ status: "success", active: false });
-  }
+  return res.json({ status: "success", active: false });
 }
 
 module.exports = {
