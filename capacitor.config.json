@@ -4,9 +4,15 @@
   "webDir": "public",
   "bundledWebRuntime": false,
   "server": {
-    "androidScheme": "https",
-    "allowNavigation": ["*"],
-    "cleartext": true
+    "url": "https://acadimia.africacold.fr?app=true",
+    "cleartext": true,
+    "allowNavigation": [
+      "acadimia.africacold.fr",
+      "*.africacold.fr",
+      "*.youtube.com",
+      "*.googlevideo.com",
+      "*.google.com"
+    ]
   },
   "android": {
     "allowMixedContent": true,

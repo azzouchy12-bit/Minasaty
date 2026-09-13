@@ -40,18 +40,11 @@ public class MainActivity extends BridgeActivity {
             settings.setDomStorageEnabled(true);
             settings.setDatabaseEnabled(true);
 
-            // Add JavaScript interface for web-to-native communication
-            webView.addJavascriptInterface(new MinasatyNativeBridge(), "MinasatyNative");
-
-            // WebRTC permission granter for Android WebView
-            webView.setWebChromeClient(new WebChromeClient() {
-                @Override
-                public void onPermissionRequest(final PermissionRequest request) {
-                    runOnUiThread(() -> {
-                        request.grant(request.getResources());
-                    });
-                }
-            });
+            // Add JavaScript interfaces for web-to-native communication
+            MinasatyNativeBridge nativeBridge = new MinasatyNativeBridge();
+            webView.addJavascriptInterface(nativeBridge, "MinasatyNative");
+            webView.addJavascriptInterface(nativeBridge, "MinasatyApp");
+            webView.addJavascriptInterface(nativeBridge, "Android");
         }
     }
 
