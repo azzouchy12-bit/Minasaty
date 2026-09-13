@@ -4,6 +4,21 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script>
+  (function() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      if (params.get("mode") === "desktop") return;
+      if (sessionStorage.getItem("teacherDashboardDesktopMode") === "1") return;
+      var isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                     (window.screen && window.screen.width <= 900) ||
+                     (window.innerWidth <= 900);
+      if (isMobile) {
+        window.location.replace("./teacher-dashboard-mobile.html" + window.location.search);
+      }
+    } catch (_) {}
+  })();
+</script>
 <title>لوحة الأستاذ | أكاديمية التفوق</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -13,7 +28,6 @@
 <link rel="stylesheet" href="./css/browser-notifications.css?v=browser-notifications-1" />
 <link href="./css/private-messages.css" rel="stylesheet"/>
 <link href="./css/payment-feedback.css" rel="stylesheet"/>
-<link href="./css/teacher-dashboard-mobile.css?v=tdm-2" rel="stylesheet"/>
 </head>
 <body class="dashboard-page teacher-dashboard-page">
 <div class="teacher-dashboard-shell">
