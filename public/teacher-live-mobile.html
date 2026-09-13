@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="استوديو الأستاذ للهاتف - أكاديمية التفوق للفيزياء والرياضيات"
+    />
+    <title>استوديو الأستاذ (موبايل) | أكاديمية التفوق</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./css/teacher-mobile.css?v=tm-1" />
+  </head>
+  <body>
+    <div class="tm-app">
+      <!-- Top App Header -->
+      <header class="tm-header">
+        <div class="tm-brand">
+          <div class="tm-brand-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+          </div>
+          <div class="tm-brand-info">
+            <span class="tm-brand-title">أكاديمية التفوق</span>
+            <span class="tm-brand-subtitle">استوديو الأستاذ 📱</span>
+          </div>
+        </div>
+
+        <div class="tm-header-actions">
+          <div id="tm-live-badge" class="tm-status-badge">
+            <span class="dot" aria-hidden="true"></span>
+            <span id="tm-live-text">غير مباشر</span>
+          </div>
+          <a
+            href="./teacher-live.html?mode=desktop"
+            onclick="sessionStorage.setItem('teacherDesktopMode', '1')"
+            class="tm-desktop-switch-btn"
+            title="التبديل إلى واجهة الحاسوب"
+            aria-label="التبديل إلى واجهة الحاسوب"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect width="18" height="12" x="3" y="4" rx="2" />
+              <line x1="8" x2="16" y1="20" y2="20" />
+              <line x1="12" x2="12" y1="16" y2="20" />
+            </svg>
+          </a>
+        </div>
+      </header>
+
+      <!-- Main Tab Content Area -->
+      <main class="tm-main">
+        <!-- TAB 1: STUDIO (الحصة) -->
+        <section id="tab-pane-studio" class="tm-tab-pane is-active tm-studio-pane" data-pane="studio">
+          <!-- Class Configuration Selectors -->
+          <div class="tm-class-config-card">
+            <div class="tm-field-group">
+              <label for="tm-level-select" class="tm-field-label">المستوى الدراسي</label>
+              <div class="tm-select-wrapper">
+                <select id="tm-level-select" class="tm-select" aria-label="المستوى الدراسي للحصة">
+                  <option value="السنة الأولى">السنة الأولى متوسط</option>
+                  <option value="السنة الثانية">السنة الثانية متوسط</option>
+                  <option value="السنة الثالثة">السنة الثالثة متوسط</option>
+                  <option value="السنة الرابعة">السنة الرابعة متوسط</option>
+                  <option value="طالب جامعي">طالب جامعي</option>
+                  <option value="FREE">حصة مجانية عامة</option>
+                </select>
+                <span class="tm-select-icon" aria-hidden="true">▼</span>
+              </div>
+            </div>
+
+            <div id="tm-subject-group" class="tm-field-group">
+              <label id="tm-subject-label" for="tm-subject-select" class="tm-field-label">المادة</label>
+              <div class="tm-select-wrapper">
+                <select id="tm-subject-select" class="tm-select" aria-label="مادة الحصة">
+                  <option value="MATH">الرياضيات</option>
+                  <option value="PHYSICS">الفيزياء</option>
+                </select>
+                <span class="tm-select-icon" aria-hidden="true">▼</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stage Preview Card -->
+          <div class="tm-stage-card">
+            <img
+              id="tm-stage-image"
+              class="tm-stage-image"
+              src="/assets/level-welcome/year-1.webp"
+              alt="صورة انتظار المستوى"
+            />
+            <video
+              id="tm-camera-video"
+              class="tm-camera-video"
+              autoplay
+              playsinline
+              muted
+            ></video>
+
+            <!-- Camera flip button (Front / Back) -->
+            <button
+              id="tm-camera-flip-btn"
+              class="tm-stage-camera-flip-btn"
+              type="button"
+              title="قلب الكاميرا"
+              aria-label="قلب الكاميرا"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 11.5V13H9v2.5L5.5 12 9 8.5V11h6V8.5l3.5 3.5-3.5 3.5z"/>
+              </svg>
+            </button>
+
+            <!-- Overlay Indicators -->
+            <div id="tm-stage-mode-tag" class="tm-stage-overlay-status">
+              <span>🎙️ صوت وصورة المستوى</span>
+            </div>
+            <div id="tm-stage-timer" class="tm-stage-timer">00:00:00</div>
+          </div>
+
+          <!-- Status Banner -->
+          <div id="tm-status-banner" class="tm-status-banner">
+            <span>اختر المستوى واضغط على "بدء الحصة المباشرة".</span>
+          </div>
+
+          <!-- Primary Actions -->
+          <div class="tm-actions-grid">
+            <button id="tm-start-btn" class="tm-btn-primary-start" type="button">
+              <span id="tm-start-btn-icon" aria-hidden="true">▶</span>
+              <span id="tm-start-btn-text">بدء الحصة المباشرة</span>
+            </button>
+
+            <div class="tm-controls-row">
+              <button id="tm-mic-btn" class="tm-control-btn" type="button" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" x2="12" y1="19" y2="22" />
+                </svg>
+                <span id="tm-mic-label">المايك</span>
+              </button>
+
+              <button id="tm-camera-btn" class="tm-control-btn" type="button" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m22 8-6 4 6 4V8Z" />
+                  <rect width="14" height="12" x="2" y="6" rx="2" />
+                </svg>
+                <span id="tm-camera-label">الكاميرا</span>
+              </button>
+
+              <button id="tm-end-btn" class="tm-control-btn is-danger" type="button" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="15" x2="9" y1="9" y2="15" />
+                  <line x1="9" x2="15" y1="9" y2="15" />
+                </svg>
+                <span>إنهاء</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Stats Overview Cards -->
+          <div class="tm-stats-row">
+            <div class="tm-stat-card">
+              <div class="tm-stat-icon students">👥</div>
+              <div class="tm-stat-info">
+                <span id="tm-student-count-stat" class="tm-stat-value">0</span>
+                <span class="tm-stat-label">تلميذ متصل</span>
+              </div>
+            </div>
+
+            <div class="tm-stat-card">
+              <div class="tm-stat-icon hands">✋</div>
+              <div class="tm-stat-info">
+                <span id="tm-hands-count-stat" class="tm-stat-value">0</span>
+                <span class="tm-stat-label">طلب تحدث</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 2: CHAT (الدردشة) -->
+        <section id="tab-pane-chat" class="tm-tab-pane tm-chat-pane" data-pane="chat">
+          <header class="tm-chat-header">
+            <span class="tm-chat-title">💬 أسئلة وتفاعل التلاميذ</span>
+            <span class="tm-chat-hint">الأسئلة تصل إليك فقط</span>
+          </header>
+
+          <div id="tm-chat-box" class="tm-chat-messages-scroll" aria-live="polite">
+            <div id="tm-chat-empty" class="tm-chat-empty-state">
+              لا توجد رسائل بعد. ستظهر أسئلة التلاميذ وصورهم هنا أثناء الحصة.
+            </div>
+          </div>
+
+          <!-- Chat Form -->
+          <form id="tm-chat-form" class="tm-chat-bar" novalidate>
+            <textarea
+              id="tm-chat-input"
+              class="tm-chat-input"
+              rows="1"
+              maxlength="800"
+              placeholder="اكتب ردًا لجميع التلاميذ..."
+              aria-label="رسالة الأستاذ"
+            ></textarea>
+            <button
+              id="tm-chat-send-btn"
+              class="tm-chat-send-btn"
+              type="submit"
+              disabled
+              aria-label="إرسال الرسالة"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+              </svg>
+            </button>
+          </form>
+        </section>
+
+        <!-- TAB 3: ATTENDEES (الحضور وطلبات التحدث) -->
+        <section id="tab-pane-attendees" class="tm-tab-pane tm-attendees-pane" data-pane="attendees">
+          <!-- Search box -->
+          <div class="tm-attendees-search-wrap">
+            <span class="tm-attendees-search-icon" aria-hidden="true">🔍</span>
+            <input
+              id="tm-attendee-search"
+              type="search"
+              class="tm-attendees-search-input"
+              placeholder="البحث عن تلميذ..."
+              autocomplete="off"
+            />
+          </div>
+
+          <!-- Highlighted Raised Hands Section -->
+          <div id="tm-hands-section" class="tm-hands-section" hidden>
+            <span class="tm-hands-section-title">
+              ✋ طلبات التحدث المرفوعة (<span id="tm-hands-badge-num">0</span>)
+            </span>
+            <div id="tm-hands-list" class="tm-hands-list"></div>
+          </div>
+
+          <!-- All Students List -->
+          <div id="tm-attendees-container" class="tm-hands-list">
+            <div id="tm-attendees-empty" class="tm-attendees-empty">
+              ستظهر أسماء التلاميذ المنضمين هنا فور دخولهم الحصة.
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Bottom Navigation Bar -->
+      <nav class="tm-bottom-nav" aria-label="التنقل الرئيسي">
+        <button class="tm-nav-item is-active" data-tab="studio" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect width="20" height="15" x="2" y="3" rx="2" />
+            <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
+          </svg>
+          <span>الحصة</span>
+        </button>
+
+        <button class="tm-nav-item" data-tab="chat" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          <span>الدردشة</span>
+          <span id="tm-chat-nav-badge" class="tm-nav-badge" hidden>0</span>
+        </button>
+
+        <button class="tm-nav-item" data-tab="attendees" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          <span>الحضور</span>
+          <span id="tm-hands-nav-badge" class="tm-nav-badge" hidden>0</span>
+        </button>
+      </nav>
+
+      <!-- Modal: Confirm End Class -->
+      <div id="tm-end-modal" class="tm-modal-backdrop" hidden>
+        <div class="tm-modal-card" role="dialog" aria-modal="true" aria-labelledby="tm-modal-title">
+          <h3 id="tm-modal-title" class="tm-modal-title">إنهاء الحصة المباشرة</h3>
+          <p class="tm-modal-text">
+            هل أنت متأكد من إنهاء الحصة لجميع التلاميذ الآن؟ سيتم إغلاق البث وفصل اتصالات التلاميذ.
+          </p>
+          <div class="tm-modal-actions">
+            <button id="tm-confirm-end-btn" class="tm-modal-btn danger" type="button">
+              نعم، إنهاء الحصة الآن
+            </button>
+            <button id="tm-cancel-end-btn" class="tm-modal-btn secondary" type="button">
+              إلغاء
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal: Fullscreen Question Image Zoom Viewer -->
+      <div id="tm-image-modal" class="tm-image-viewer-modal" hidden>
+        <div class="tm-image-viewer-top">
+          <span id="tm-image-viewer-title" class="tm-image-viewer-title">صورة سؤال التلميذ</span>
+          <button id="tm-image-viewer-close" class="tm-image-viewer-close" type="button" aria-label="إغلاق الصورة">
+            ✕
+          </button>
+        </div>
+        <div id="tm-image-viewer-content" class="tm-image-viewer-content">
+          <img id="tm-image-viewer-img" src="" alt="صورة سؤال التلميذ مكبرة" />
+        </div>
+      </div>
+
+      <!-- Toast Notification Alert -->
+      <div id="tm-toast" class="tm-toast" role="alert" aria-live="polite"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="./js/session-storage.js?v=single-session-1"></script>
+    <script src="./js/webrtc-ice.js?v=coturn-1"></script>
+    <script src="./js/teacher-live-mobile.js?v=tm-1" defer></script>
+  </body>
+</html>
