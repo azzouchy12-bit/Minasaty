@@ -60,18 +60,20 @@
   window.enablePushNotifications = async function enablePushNotifications({ requestPermission = true } = {}) {
     if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) throw new Error("هذا المتصفح لا يدعم إشعارات الهاتف.");
     if (!window.isSecureContext) throw new Error("تفعيل التنبيهات يحتاج إلى اتصال HTTPS.");
-    const token = sessionStorage.getItem("teacherToken") || sessionStorage.getItem("parentToken");
-    if (!token) throw new Error("سجّل الدخول أولاً.");
+    const token = sessionStorage.getItem("teacherToken") || sessionStorage.getItem("parentToken") || "";
+    const parentPhone = sessionStorage.getItem("parentPhone") || localStorage.getItem("parentPhone") || "";
+    const studentId = sessionStorage.getItem("studentId") || localStorage.getItem("studentId") || "";
+    const level = sessionStorage.getItem("level") || sessionStorage.getItem("studentLevel") || "";
 
     const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
     await navigator.serviceWorker.ready;
     let subscription = await registration.pushManager.getSubscription();
     let publicKey = "";
 
-    // Validate the server configuration before opening the native browser prompt.
-    // This prevents asking the parent for permission when the platform cannot yet save a subscription.
+    // Fetch public key
     if (!subscription) {
-      const keyResponse = await fetch("/api/push/public-key", { headers: { Authorization: `Bearer ${token}` } });
+      const fetchHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+      const keyResponse = await fetch("/api/push/public-key", { headers: fetchHeaders });
       const keyData = await keyResponse.json().catch(() => ({}));
       if (!keyResponse.ok || !keyData.publicKey) throw new Error(keyData.error || "إشعارات الهاتف غير مفعلة بعد.");
       publicKey = keyData.publicKey;
@@ -92,26 +94,45 @@
       subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
     }
 
+    const postHeaders = { "Content-Type": "application/json" };
+    if (token) postHeaders["Authorization"] = `Bearer ${token}`;
+
     const response = await fetch("/api/push/subscribe", {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(subscription.toJSON()),
+      headers: postHeaders,
+      body: JSON.stringify({
+        ...subscription.toJSON(),
+        parentPhone,
+        studentId,
+        level,
+      }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "تعذر تفعيل الإشعارات.");
     return data;
   };
 
-  if ("serviceWorker" in navigator) {
+  if ("serviceWorker" in navigator && "PushManager" in window) {
     navigator.serviceWorker.register("/sw.js").then(async (registration) => {
-      const currentToken = sessionStorage.getItem("teacherToken") || sessionStorage.getItem("parentToken");
-      if (!currentToken) return;
       const existingSubscription = await registration.pushManager.getSubscription();
       if (!existingSubscription) return;
+      const token = sessionStorage.getItem("teacherToken") || sessionStorage.getItem("parentToken") || "";
+      const parentPhone = sessionStorage.getItem("parentPhone") || localStorage.getItem("parentPhone") || "";
+      const studentId = sessionStorage.getItem("studentId") || localStorage.getItem("studentId") || "";
+      const level = sessionStorage.getItem("level") || sessionStorage.getItem("studentLevel") || "";
+
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
       await fetch("/api/push/subscribe", {
         method: "POST",
-        headers: { Authorization: `Bearer ${currentToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify(existingSubscription.toJSON()),
+        headers,
+        body: JSON.stringify({
+          ...existingSubscription.toJSON(),
+          parentPhone,
+          studentId,
+          level,
+        }),
       }).catch(() => {});
     }).catch(() => {});
   }

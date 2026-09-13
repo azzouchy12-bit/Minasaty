@@ -58,48 +58,83 @@ self.addEventListener("fetch", (event) => {
 
 // ── Push Notification handler ──
 self.addEventListener("push", (event) => {
-  if (!event.data) return;
   let payload = {};
-  try {
-    payload = event.data.json();
-  } catch (_) {
-    payload = { title: "منصة مِنَسَاتي", body: event.data.text() || "لديك إشعار جديد." };
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch (_) {
+      payload = { title: "منصة مِنَسَاتي", body: event.data.text() || "لديك إشعار جديد." };
+    }
   }
 
-  const isLiveAlert = payload.type === "TEACHER_LIVE_ALERT";
-  const title = payload.title || "منصة مِنَسَاتي";
+  const isLiveAlert = payload.type === "TEACHER_LIVE_ALERT" || payload.tag === "teacher-live-alert" || Boolean(payload.alertSound);
+  const title = payload.title || (isLiveAlert ? "🔴 تنبيه عاجل: بدأت الحصة المباشرة!" : "منصة مِنَسَاتي");
   const options = {
-    body: payload.body || "",
+    body: payload.body || "بدأت الحصة المباشرة الآن! اضغط للدخول مباشرة إلى البث.",
     icon: "/assets/icon-192.png",
     badge: "/assets/icon-192.png",
     tag: isLiveAlert ? "teacher-live-alert" : (payload.tag || "minasaty-notification"),
+    renotify: true,
     requireInteraction: isLiveAlert,
-    vibrate: isLiveAlert ? [300, 100, 300, 100, 300, 100, 300] : [200, 100, 200],
+    silent: false,
+    sound: "/sounds/alert.mp3",
+    vibrate: isLiveAlert ? [500, 250, 500, 250, 500, 250, 500] : [200, 100, 200],
+    actions: isLiveAlert ? [
+      { action: "enter_live", title: "🚀 دخول البث المباشر" },
+      { action: "dismiss", title: "إغلاق" },
+    ] : [],
     data: {
-      url: payload.link || "/",
-      type: payload.type || "GENERAL",
+      url: payload.link || payload.url || "/student-live.html?alert=1",
+      type: payload.type || (isLiveAlert ? "TEACHER_LIVE_ALERT" : "GENERAL"),
       notificationId: payload.notificationId || null,
       alertSound: isLiveAlert,
     },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  // 1. Show native OS notification with vibration and sound
+  const showNotificationPromise = self.registration.showNotification(title, options);
+
+  // 2. Broadcast to all open/background windows so active tabs start continuous alert.mp3 playback immediately
+  const broadcastPromise = self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+    for (const client of clients) {
+      client.postMessage({
+        type: "TEACHER_LIVE_ALERT",
+        payload: {
+          ...payload,
+          notificationId: payload.notificationId,
+          sound: "/sounds/alert.mp3",
+        },
+      });
+    }
+  }).catch(() => {});
+
+  event.waitUntil(Promise.all([showNotificationPromise, broadcastPromise]));
 });
 
 // ── Notification click handler ──
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  if (event.action === "dismiss") return;
 
-  const url = event.notification.data?.url || "/";
+  const targetUrl = event.notification.data?.url || "/student-live.html?alert=1";
+  const fullTargetUrl = new URL(targetUrl, self.location.origin).href;
+
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if (new URL(client.url).pathname === new URL(url, self.location.origin).pathname && "focus" in client) {
+        if ("focus" in client) {
+          try {
+            client.postMessage({ type: "STOP_ALERT_SOUND" });
+            if ("navigate" in client && !client.url.includes("student-live.html")) {
+              client.navigate(fullTargetUrl);
+            }
+          } catch (_) {}
           return client.focus();
         }
       }
-      return self.clients.openWindow(url);
+      return self.clients.openWindow(fullTargetUrl);
     })
   );
 });
+
 

@@ -35,9 +35,14 @@ const {
   deleteAssignment,
   getTeacherLiveAlertAudience,
   sendTeacherLiveAlert,
+  getActiveTeacherLiveAlert,
 } = require("../controllers/academicController");
 
 const router = express.Router();
+
+// Public route to check if an active teacher live alert is ringing
+router.get("/teacher-live-alert/active", getActiveTeacherLiveAlert);
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB limit

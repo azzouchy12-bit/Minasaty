@@ -1026,18 +1026,27 @@ async function sendTeacherLiveAlert(req, res) {
     } catch (_) {}
   }
 
-  // Send Web Push notification to all distinct parent subscriptions at once
-  let pushResult = { sent: 0 };
+  // Send Web Push notification to all distinct parent and student subscriptions at once
+  let totalPushSent = 0;
+  const studentIds = students.map((s) => s.id).filter(Boolean);
+  const targetStudentRecipients = Array.from(new Set([...studentIds, "all_students"]));
+  const pushPayload = {
+    title,
+    body: alertBody,
+    link,
+    url: link,
+    type: "TEACHER_LIVE_ALERT",
+    tag: "teacher-live-alert",
+    requireInteraction: true,
+    alertSound: true,
+  };
+
   try {
-    pushResult = await sendPushToMultipleRecipients("parent", parentPhones, {
-      title,
-      body: alertBody,
-      link,
-      type: "TEACHER_LIVE_ALERT",
-      tag: "teacher-live-alert",
-      requireInteraction: true,
-      alertSound: true,
-    });
+    const [parentPushRes, studentPushRes] = await Promise.all([
+      parentPhones.length ? sendPushToMultipleRecipients("parent", parentPhones, pushPayload) : Promise.resolve({ sent: 0 }),
+      sendPushToMultipleRecipients("student", targetStudentRecipients, pushPayload),
+    ]);
+    totalPushSent = (parentPushRes?.sent || 0) + (studentPushRes?.sent || 0);
   } catch (err) {
     console.warn("sendPushToMultipleRecipients error:", err.message);
   }
@@ -1052,7 +1061,7 @@ async function sendTeacherLiveAlert(req, res) {
       targetMode,
       studentCount: students.length,
       recipientCount: recipients.size,
-      pushSent: pushResult.sent,
+      pushSent: totalPushSent,
     },
   });
 
@@ -1060,9 +1069,47 @@ async function sendTeacherLiveAlert(req, res) {
     status: "success",
     studentCount: students.length,
     recipientCount: recipients.size,
-    pushSent: pushResult.sent,
-    message: `تم إرسال التنبيه بنجاح إلى ${students.length} تلميذ (${recipients.size} ولي أمر).`,
+    pushSent: totalPushSent,
+    message: `تم إرسال التنبيه بنجاح إلى ${students.length} تلميذ (${recipients.size} ولي أمر). وصل ${totalPushSent} إشعار فوري.`,
   });
+}
+
+async function getActiveTeacherLiveAlert(_req, res) {
+  try {
+    const fortyFiveMinutesAgo = new Date(Date.now() - 45 * 60 * 1000);
+    const latestAlert = await prisma.notification.findFirst({
+      where: {
+        type: "TEACHER_LIVE_ALERT",
+        createdAt: { gte: fortyFiveMinutesAgo },
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        link: true,
+        createdAt: true,
+      },
+    });
+
+    if (!latestAlert) {
+      return res.json({ status: "success", active: false });
+    }
+
+    return res.json({
+      status: "success",
+      active: true,
+      alert: {
+        id: latestAlert.id,
+        title: latestAlert.title,
+        body: latestAlert.body,
+        link: latestAlert.link || "/student-live.html",
+        createdAt: latestAlert.createdAt,
+      },
+    });
+  } catch (err) {
+    return res.json({ status: "success", active: false });
+  }
 }
 
 module.exports = {
@@ -1101,6 +1148,7 @@ module.exports = {
   deleteAssignment,
   getTeacherLiveAlertAudience,
   sendTeacherLiveAlert,
+  getActiveTeacherLiveAlert,
   processScheduledTeacherAnnouncements,
   setSocketNotificationSender,
 };

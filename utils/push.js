@@ -1,12 +1,73 @@
+const fs = require("fs");
+const path = require("path");
 const webpush = require("web-push");
 const prisma = require("../lib/prisma");
 
+let cachedVapid = null;
+
+function getVapidDetails() {
+  if (cachedVapid) return cachedVapid;
+
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    cachedVapid = {
+      publicKey: process.env.VAPID_PUBLIC_KEY,
+      privateKey: process.env.VAPID_PRIVATE_KEY,
+      subject: process.env.VAPID_SUBJECT || "mailto:admin@minasaty.dz",
+    };
+    return cachedVapid;
+  }
+
+  const vapidFilePath = path.join(__dirname, "../data/vapid.json");
+  try {
+    if (fs.existsSync(vapidFilePath)) {
+      const data = JSON.parse(fs.readFileSync(vapidFilePath, "utf8"));
+      if (data.publicKey && data.privateKey) {
+        cachedVapid = {
+          publicKey: data.publicKey,
+          privateKey: data.privateKey,
+          subject: data.subject || process.env.VAPID_SUBJECT || "mailto:admin@minasaty.dz",
+        };
+        return cachedVapid;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not read vapid.json:", err.message);
+  }
+
+  // Generate and persist new keys if none exist
+  try {
+    const keys = webpush.generateVAPIDKeys();
+    const generated = {
+      publicKey: keys.publicKey,
+      privateKey: keys.privateKey,
+      subject: process.env.VAPID_SUBJECT || "mailto:admin@minasaty.dz",
+    };
+    fs.mkdirSync(path.dirname(vapidFilePath), { recursive: true });
+    fs.writeFileSync(vapidFilePath, JSON.stringify(generated, null, 2), "utf8");
+    cachedVapid = generated;
+    return cachedVapid;
+  } catch (err) {
+    console.warn("Could not generate VAPID keys:", err.message);
+  }
+
+  return null;
+}
+
 function configured() {
-  return Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT);
+  const details = getVapidDetails();
+  return Boolean(details?.publicKey && details?.privateKey);
 }
 
 function configure() {
-  if (configured()) webpush.setVapidDetails(process.env.VAPID_SUBJECT, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
+  const details = getVapidDetails();
+  if (details?.publicKey && details?.privateKey) {
+    webpush.setVapidDetails(details.subject, details.publicKey, details.privateKey);
+  }
+}
+
+function getPublicKey() {
+  const details = getVapidDetails();
+  return details?.publicKey || "";
 }
 
 async function saveSubscription(recipientRole, recipientId, subscription, sessionId = null) {
@@ -60,4 +121,4 @@ async function sendPushToSession(sessionId, payload) {
   return sendPushSubscriptions(subscriptions, payload);
 }
 
-module.exports = { configured, saveSubscription, removeSubscription, sendPushToRecipient, sendPushToMultipleRecipients, sendPushToSession };
+module.exports = { getPublicKey, configured, saveSubscription, removeSubscription, sendPushToRecipient, sendPushToMultipleRecipients, sendPushToSession };
