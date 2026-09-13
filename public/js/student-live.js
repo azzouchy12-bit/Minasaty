@@ -122,6 +122,11 @@ const elements = {
   closeQualityModalBtn: document.getElementById("close-quality-modal-btn"),
   dismissQualityModalBtn: document.getElementById("dismiss-quality-modal-btn"),
   qualityBackdrop: document.getElementById("student-quality-backdrop"),
+  signalFinderButton: document.getElementById("student-signal-finder-btn"),
+  signalFinderModal: document.getElementById("student-signal-finder-modal"),
+  closeSignalModalBtn: document.getElementById("close-signal-modal-btn"),
+  dismissSignalModalBtn: document.getElementById("dismiss-signal-modal-btn"),
+  signalBackdrop: document.getElementById("student-signal-backdrop"),
   joinButton: document.getElementById("join-class-btn"),
   raiseHandButton: document.getElementById("raise-hand-btn"),
   handWaitingActions: document.getElementById("hand-waiting-actions"),
@@ -1437,6 +1442,233 @@ function initializeQualitySelector() {
     }
   });
 }
+
+/* ===== Home Signal Finder (Real-time Speedometer & Radar) ===== */
+let signalSamplingTimer = null;
+let lastPacketsLost = 0;
+let lastPacketsReceived = 0;
+let lastSignalScore = 0;
+
+function openSignalFinderModal() {
+  const modal = elements.signalFinderModal || document.getElementById("student-signal-finder-modal");
+  if (!modal) return;
+  modal.hidden = false;
+  document.body.classList.add("signal-modal-open");
+  const btn = elements.signalFinderButton || document.getElementById("student-signal-finder-btn");
+  if (btn) btn.setAttribute("aria-expanded", "true");
+
+  // Run immediate sample then repeat every 600ms
+  void sampleConnectionHealth();
+  if (signalSamplingTimer) clearInterval(signalSamplingTimer);
+  signalSamplingTimer = setInterval(() => {
+    void sampleConnectionHealth();
+  }, 600);
+}
+
+function closeSignalFinderModal() {
+  const modal = elements.signalFinderModal || document.getElementById("student-signal-finder-modal");
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.classList.remove("signal-modal-open");
+  const btn = elements.signalFinderButton || document.getElementById("student-signal-finder-btn");
+  if (btn) btn.setAttribute("aria-expanded", "false");
+
+  if (signalSamplingTimer) {
+    clearInterval(signalSamplingTimer);
+    signalSamplingTimer = null;
+  }
+}
+
+function toggleSignalFinderModal(event) {
+  event?.stopPropagation?.();
+  const modal = elements.signalFinderModal || document.getElementById("student-signal-finder-modal");
+  if (!modal) return;
+  if (modal.hidden) {
+    openSignalFinderModal();
+  } else {
+    closeSignalFinderModal();
+  }
+}
+
+async function sampleConnectionHealth() {
+  let rttMs = 28;
+  let lossRate = 0;
+  let jitterMs = 3;
+  let connName = "Wi-Fi";
+  let isWifi = true;
+  let isSim1 = false;
+  let isSim2 = false;
+
+  // 1. Check NetworkInformation API
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (conn) {
+    const type = String(conn.type || "").toLowerCase();
+    const eff = String(conn.effectiveType || "").toLowerCase();
+    if (type.includes("wifi") || (!type && eff === "4g")) {
+      connName = "Wi-Fi (5GHz)";
+      isWifi = true;
+      isSim1 = false;
+    } else if (type.includes("cellular") || eff === "3g" || eff === "2g") {
+      connName = "بيانات الهاتف (4G)";
+      isWifi = false;
+      isSim1 = true;
+    } else {
+      connName = "Wi-Fi";
+      isWifi = true;
+    }
+    if (typeof conn.rtt === "number" && conn.rtt > 0) {
+      rttMs = conn.rtt;
+    }
+  }
+
+  // 2. Query WebRTC Stats via pc.getStats()
+  if (pc && (pc.connectionState === "connected" || pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed")) {
+    try {
+      const stats = await pc.getStats();
+      stats.forEach((report) => {
+        if (report.type === "candidate-pair" && (report.state === "succeeded" || report.nominated || report.selected)) {
+          if (typeof report.currentRoundTripTime === "number") {
+            rttMs = Math.round(report.currentRoundTripTime * 1000);
+          }
+        } else if (report.type === "inbound-rtp" && (report.kind === "video" || report.mediaType === "video")) {
+          if (typeof report.jitter === "number") {
+            jitterMs = Math.round(report.jitter * 1000);
+          }
+          if (typeof report.packetsLost === "number" && typeof report.packetsReceived === "number") {
+            if (lastPacketsReceived > 0) {
+              const dLost = Math.max(0, report.packetsLost - lastPacketsLost);
+              const dRecv = Math.max(0, report.packetsReceived - lastPacketsReceived);
+              if (dRecv + dLost > 0) {
+                lossRate = dLost / (dRecv + dLost);
+              }
+            }
+            lastPacketsLost = report.packetsLost;
+            lastPacketsReceived = report.packetsReceived;
+          }
+        }
+      });
+    } catch (_) {}
+  } else {
+    // Lightweight latency check fallback
+    const t0 = performance.now();
+    try {
+      await fetch("/manifest.json?t=" + Date.now(), { method: "HEAD", cache: "no-store" });
+      const diff = Math.round(performance.now() - t0);
+      if (diff > 0 && diff < 1500) {
+        rttMs = diff;
+      }
+    } catch (_) {}
+  }
+
+  // 3. Map Health to 0-100 Score
+  let latencyScore = Math.max(0, 50 - (rttMs / 8));
+  let lossScore = Math.max(0, 35 * (1 - lossRate * 10));
+  let jitterScore = Math.max(0, 15 - (jitterMs / 3));
+
+  let score = Math.round(Math.min(100, Math.max(5, latencyScore + lossScore + jitterScore)));
+
+  // Smooth smoothing
+  if (lastSignalScore > 0) {
+    score = Math.round(lastSignalScore * 0.25 + score * 0.75);
+  }
+  lastSignalScore = score;
+
+  // 4. Update SVG Needle rotation (-130deg for 0% to +130deg for 100%)
+  const angle = -130 + (score / 100) * 260;
+  const needle = document.getElementById("signal-gauge-needle");
+  if (needle) {
+    needle.style.transform = `rotate(${angle.toFixed(1)}deg)`;
+  }
+
+  // Readouts
+  const scoreNumEl = document.getElementById("signal-score-num");
+  if (scoreNumEl) scoreNumEl.textContent = score;
+
+  const rttEl = document.getElementById("signal-rtt-display");
+  if (rttEl) rttEl.textContent = `${rttMs} ms`;
+
+  const lossEl = document.getElementById("signal-loss-display");
+  if (lossEl) lossEl.textContent = `${(lossRate * 100).toFixed(1)}%`;
+
+  const jitterEl = document.getElementById("signal-jitter-display");
+  if (jitterEl) jitterEl.textContent = `${jitterMs} ms`;
+
+  const connTextEl = document.getElementById("signal-conn-text");
+  if (connTextEl) connTextEl.textContent = connName;
+
+  const statusBadge = document.getElementById("signal-status-badge");
+  if (statusBadge) {
+    statusBadge.className = "signal-status-pill";
+    if (score >= 80) {
+      statusBadge.classList.add("is-high");
+      statusBadge.textContent = "ممتازة جداً (High)";
+    } else if (score >= 60) {
+      statusBadge.classList.add("is-good");
+      statusBadge.textContent = "جيدة ومستقرة (Good)";
+    } else if (score >= 40) {
+      statusBadge.classList.add("is-ok");
+      statusBadge.textContent = "مقبولة (OK)";
+    } else {
+      statusBadge.classList.add("is-low");
+      statusBadge.textContent = "ضعيفة (Low)";
+    }
+  }
+
+  // Connection indicator pills
+  const wifiPill = document.getElementById("indicator-wifi");
+  const sim1Pill = document.getElementById("indicator-sim1");
+  const sim2Pill = document.getElementById("indicator-sim2");
+  if (wifiPill) wifiPill.classList.toggle("is-active", isWifi);
+  if (sim1Pill) sim1Pill.classList.toggle("is-active", isSim1);
+  if (sim2Pill) sim2Pill.classList.toggle("is-active", isSim2);
+
+  // 5. "Stop Here!" Smart Banner (Score >= 80% with low latency & 0 packet loss)
+  const stopBanner = document.getElementById("signal-stop-banner");
+  const guideHint = document.getElementById("signal-guide-hint");
+  if (stopBanner) {
+    if (score >= 80 && rttMs < 100 && lossRate === 0) {
+      stopBanner.hidden = false;
+      if (guideHint) guideHint.hidden = true;
+    } else {
+      stopBanner.hidden = true;
+      if (guideHint) guideHint.hidden = false;
+    }
+  }
+}
+
+function initializeSignalFinder() {
+  elements.signalFinderButton = document.getElementById("student-signal-finder-btn");
+  elements.signalFinderModal = document.getElementById("student-signal-finder-modal");
+  elements.closeSignalModalBtn = document.getElementById("close-signal-modal-btn");
+  elements.dismissSignalModalBtn = document.getElementById("dismiss-signal-modal-btn");
+  elements.signalBackdrop = document.getElementById("student-signal-backdrop");
+
+  if (!elements.signalFinderButton) return;
+
+  elements.signalFinderButton.addEventListener("click", toggleSignalFinderModal);
+
+  elements.closeSignalModalBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeSignalFinderModal();
+  });
+
+  elements.dismissSignalModalBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeSignalFinderModal();
+  });
+
+  elements.signalBackdrop?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeSignalFinderModal();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && elements.signalFinderModal && !elements.signalFinderModal.hidden) {
+      closeSignalFinderModal();
+    }
+  });
+}
+
 
 const LEVEL_WELCOME_IMAGES = {
   "السنة الأولى": "/assets/level-welcome/year-1.webp",
@@ -3363,6 +3595,7 @@ elements.subscriptionDeclineButton?.addEventListener("click", () => {
   initializeDesktopFullscreen();
   initializeStudentKeyboardLayout();
   initializeQualitySelector();
+  initializeSignalFinder();
 
 window.addEventListener("pagehide", () => {
   enableNativeSwipeRefresh();
@@ -3370,6 +3603,7 @@ window.addEventListener("pagehide", () => {
   clearRecoveryTimer();
   clearSelectedQuestionImage();
   closeSubscriptionUpgradeModal();
+  closeSignalFinderModal();
   closePeerConnection();
   stopLocalAudio();
 });

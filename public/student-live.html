@@ -4917,6 +4917,335 @@
             white-space: nowrap !important;
           }
         }
+
+        /* ===== Home Signal Finder (Speedometer) Styles ===== */
+        .student-signal-finder-btn {
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          flex: 0 0 34px !important;
+          width: 34px !important;
+          height: 34px !important;
+          min-width: 34px !important;
+          min-height: 34px !important;
+          padding: 0 !important;
+          color: #38bdf8 !important;
+          background: rgba(15, 23, 42, 0.88) !important;
+          border: 1.5px solid rgba(56, 189, 248, 0.45) !important;
+          border-radius: 0.65rem !important;
+          cursor: pointer !important;
+          transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease !important;
+          box-shadow: 0 4px 12px rgba(14, 165, 233, 0.18) !important;
+        }
+        .student-signal-finder-btn:hover {
+          background: rgba(56, 189, 248, 0.22) !important;
+          border-color: #38bdf8 !important;
+          transform: scale(1.05);
+        }
+        .student-signal-finder-btn:active {
+          transform: scale(0.93);
+        }
+        @media screen and (max-width: 900px) and (orientation: portrait) {
+          body.student-live-page .student-signal-finder-btn {
+            width: 2.25rem !important;
+            height: 2.25rem !important;
+            min-width: 2.25rem !important;
+            min-height: 2.25rem !important;
+          }
+        }
+
+        .student-signal-modal {
+          position: fixed;
+          z-index: 2500;
+          inset: 0;
+          display: grid;
+          place-items: center;
+          padding: 1rem;
+          box-sizing: border-box;
+        }
+        .student-signal-modal[hidden] {
+          display: none !important;
+        }
+        .student-signal-backdrop {
+          position: absolute;
+          inset: 0;
+          background: rgba(2, 6, 23, 0.78);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        }
+        .student-signal-dialog {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          max-width: 26rem;
+          max-height: calc(100dvh - 2rem);
+          overflow-y: auto;
+          padding: 1.25rem;
+          color: #f8fafc;
+          background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
+          border: 1px solid rgba(56, 189, 248, 0.35);
+          border-radius: 1.25rem;
+          box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 35px rgba(56, 189, 248, 0.15);
+          text-align: center;
+          animation: modalScaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes modalScaleIn {
+          from { opacity: 0; transform: scale(0.92) translateY(12px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .student-signal-dialog-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          padding-bottom: 0.75rem;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+        }
+        .student-signal-title-wrap {
+          display: flex;
+          align-items: center;
+          gap: 0.65rem;
+          text-align: right;
+        }
+        .student-signal-head-icon {
+          display: grid;
+          place-items: center;
+          width: 2.2rem;
+          height: 2.2rem;
+          color: #38bdf8;
+          background: rgba(56, 189, 248, 0.14);
+          border: 1px solid rgba(56, 189, 248, 0.3);
+          border-radius: 0.7rem;
+        }
+        .student-signal-title-wrap h2 {
+          margin: 0;
+          font-size: 1rem;
+          font-weight: 800;
+          color: #f8fafc;
+        }
+        .student-signal-title-wrap p {
+          margin: 0.15rem 0 0;
+          font-size: 0.72rem;
+          color: #94a3b8;
+        }
+        .close-signal-modal-btn {
+          display: grid;
+          place-items: center;
+          width: 1.85rem;
+          height: 1.85rem;
+          border: none;
+          border-radius: 0.55rem;
+          background: rgba(148, 163, 184, 0.12);
+          color: #cbd5e1;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: background 0.15s ease;
+        }
+        .close-signal-modal-btn:hover {
+          background: rgba(239, 68, 68, 0.25);
+          color: #fca5a5;
+        }
+
+        /* Gauge Container */
+        .signal-gauge-wrap {
+          position: relative;
+          width: 100%;
+          max-width: 270px;
+          margin: 0.6rem auto 0;
+        }
+        .signal-gauge-svg {
+          display: block;
+          width: 100%;
+          height: auto;
+          overflow: visible;
+        }
+
+        /* Readout */
+        .signal-center-readout {
+          margin-top: -0.25rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.25rem;
+        }
+        .signal-score-row {
+          display: flex;
+          align-items: baseline;
+          justify-content: center;
+          gap: 0.15rem;
+          line-height: 1;
+        }
+        .signal-score-num {
+          font-size: 2.5rem;
+          font-weight: 900;
+          letter-spacing: -0.04em;
+          color: #f8fafc;
+          font-variant-numeric: tabular-nums;
+          text-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+        }
+        .signal-score-pct {
+          font-size: 1.1rem;
+          font-weight: 700;
+          color: #94a3b8;
+        }
+        .signal-conn-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          padding: 0.2rem 0.65rem;
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: #38bdf8;
+          background: rgba(56, 189, 248, 0.12);
+          border: 1px solid rgba(56, 189, 248, 0.25);
+          border-radius: 9999px;
+        }
+        .signal-status-pill {
+          display: inline-block;
+          font-size: 0.78rem;
+          font-weight: 800;
+          padding: 0.2rem 0.75rem;
+          border-radius: 0.5rem;
+          transition: all 0.2s ease;
+        }
+        .signal-status-pill.is-high {
+          color: #34d399;
+          background: rgba(16, 185, 129, 0.15);
+          border: 1px solid rgba(52, 211, 153, 0.3);
+        }
+        .signal-status-pill.is-good {
+          color: #facc15;
+          background: rgba(234, 179, 8, 0.15);
+          border: 1px solid rgba(250, 204, 21, 0.3);
+        }
+        .signal-status-pill.is-ok {
+          color: #fb923c;
+          background: rgba(249, 115, 22, 0.15);
+          border: 1px solid rgba(251, 146, 60, 0.3);
+        }
+        .signal-status-pill.is-low {
+          color: #f87171;
+          background: rgba(239, 68, 68, 0.15);
+          border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        /* Metrics Bar */
+        .signal-metrics-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 0.4rem;
+          margin: 0.75rem 0 0.6rem;
+          padding: 0.55rem;
+          background: rgba(15, 23, 42, 0.6);
+          border: 1px solid rgba(148, 163, 184, 0.12);
+          border-radius: 0.8rem;
+        }
+        .signal-metric-item {
+          display: flex;
+          flex-direction: column;
+          gap: 0.15rem;
+        }
+        .signal-metric-item .metric-label {
+          font-size: 0.64rem;
+          color: #94a3b8;
+        }
+        .signal-metric-item .metric-val {
+          font-size: 0.82rem;
+          font-weight: 800;
+          color: #f1f5f9;
+          font-variant-numeric: tabular-nums;
+        }
+
+        /* Indicators Bar (Wi-Fi, SIM1, SIM2) */
+        .signal-indicator-pills {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          margin: 0.5rem 0 0.8rem;
+        }
+        .signal-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          padding: 0.35rem 0.65rem;
+          font-size: 0.72rem;
+          font-weight: 700;
+          color: #64748b;
+          background: rgba(15, 23, 42, 0.45);
+          border: 1px solid rgba(148, 163, 184, 0.14);
+          border-radius: 0.6rem;
+          transition: all 0.25s ease;
+        }
+        .signal-pill.is-active {
+          color: #38bdf8;
+          background: rgba(56, 189, 248, 0.12);
+          border-color: rgba(56, 189, 248, 0.45);
+          box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+        }
+        .signal-pill-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #475569;
+        }
+        .signal-pill.is-active .signal-pill-dot {
+          background: #22c55e;
+          box-shadow: 0 0 6px #22c55e;
+        }
+
+        /* "Stop Here!" Smart Banner */
+        .signal-stop-banner {
+          position: relative;
+          overflow: hidden;
+          margin-top: 0.5rem;
+          padding: 0.85rem 1rem;
+          color: #052e16;
+          background: linear-gradient(135deg, #22c55e, #16a34a);
+          border: 1.5px solid #86efac;
+          border-radius: 0.9rem;
+          box-shadow: 0 8px 25px rgba(34, 197, 94, 0.45);
+          animation: stopBannerBounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+          text-align: center;
+        }
+        .signal-stop-banner[hidden] {
+          display: none !important;
+        }
+        @keyframes stopBannerBounce {
+          from { transform: scale(0.9); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        .signal-stop-banner-pulse {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(circle, rgba(255,255,255,0.4), transparent 70%);
+          pointer-events: none;
+          animation: bannerPulse 1.8s ease-in-out infinite;
+        }
+        @keyframes bannerPulse {
+          0%, 100% { opacity: 0.3; transform: scale(0.98); }
+          50% { opacity: 0.8; transform: scale(1.02); }
+        }
+        .signal-stop-banner-content {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          font-size: 0.85rem;
+          font-weight: 800;
+          color: #ffffff;
+          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .signal-guide-hint {
+          margin-top: 0.45rem;
+          padding: 0.5rem;
+          font-size: 0.72rem;
+          color: #94a3b8;
+          line-height: 1.4;
+        }
       </style>
   </head>
   <body class="student-live-page">
@@ -4992,6 +5321,13 @@
           </button>
         </div>
         <span id="class-subject-label" class="viewer-subject" dir="rtl" lang="ar">المادة</span>
+        <button id="student-signal-finder-btn" class="student-signal-finder-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="رادار فحص وتقوية الإشارة المنزلية" aria-label="رادار الإشارة">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 14v-4"/>
+            <path d="M3.34 17a10 10 0 1 1 17.32 0"/>
+            <circle cx="12" cy="14" r="2.5" fill="currentColor"/>
+          </svg>
+        </button>
         <button id="student-exit-class-btn" class="student-exit-class-button" type="button" aria-label="الخروج من الحصة" title="الخروج من الحصة">X</button>
         <a class="message-bell" data-message-bell href="./student-chat.html" target="_blank" rel="noopener" aria-label="مراسلتي مع الأستاذ"><span aria-hidden="true">✉</span><b data-message-badge hidden>0</b></a>
       </header>
@@ -5163,6 +5499,134 @@
 
           <footer class="student-quality-dialog-footer">
             <button id="dismiss-quality-modal-btn" class="dismiss-quality-modal-btn" type="button">إغلاق</button>
+          </footer>
+        </div>
+      </div>
+
+      <!-- نافذة رادار فحص وتقوية الإشارة المنزلية (Home Signal Finder) -->
+      <div id="student-signal-finder-modal" class="student-signal-modal" role="dialog" aria-modal="true" aria-labelledby="student-signal-modal-title" hidden>
+        <div class="student-signal-backdrop" id="student-signal-backdrop"></div>
+        <div class="student-signal-dialog" dir="rtl" lang="ar">
+          <header class="student-signal-dialog-head">
+            <div class="student-signal-title-wrap">
+              <div class="student-signal-head-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14v-4"/><path d="M3.34 17a10 10 0 1 1 17.32 0"/><circle cx="12" cy="14" r="2.5" fill="currentColor"/></svg>
+              </div>
+              <div>
+                <h2 id="student-signal-modal-title">رادار الإشارة المنزلية</h2>
+                <p>تجوّل في البيت للوصول لأفضل نقطة بث ثابتة</p>
+              </div>
+            </div>
+            <button id="close-signal-modal-btn" class="close-signal-modal-btn" type="button" aria-label="إغلاق النافذة">✕</button>
+          </header>
+
+          <!-- عداد السرعة الدائري بتقنية Pure Inline SVG & CSS -->
+          <div class="signal-gauge-wrap">
+            <svg class="signal-gauge-svg" viewBox="0 0 320 250" aria-hidden="true">
+              <!-- أجزاء القوس الخارجي الملونة (Outer segmented arc) -->
+              <!-- نطاق الضعيف Low (أحمر داكن وأحمر) -->
+              <path d="M 77.5 209.9 A 105 105 0 0 1 65.3 190.3" stroke="#7f1d1d" stroke-width="12" stroke-linecap="round" fill="none" />
+              <path d="M 62.6 184.2 A 105 105 0 0 1 56.4 162.0" stroke="#991b1b" stroke-width="12" stroke-linecap="round" fill="none" />
+              <path d="M 55.5 155.4 A 105 105 0 0 1 55.8 132.3" stroke="#dc2626" stroke-width="12" stroke-linecap="round" fill="none" />
+              <path d="M 56.8 125.8 A 105 105 0 0 1 63.5 103.6" stroke="#ef4444" stroke-width="12" stroke-linecap="round" fill="none" />
+
+              <!-- نطاق المقبول OK (برتقالي) -->
+              <path d="M 66.3 97.7 A 105 105 0 0 1 78.9 78.3" stroke="#ea580c" stroke-width="12" stroke-linecap="round" fill="none" />
+              <path d="M 83.3 73.3 A 105 105 0 0 1 100.8 58.3" stroke="#f97316" stroke-width="12" stroke-linecap="round" fill="none" />
+              <path d="M 106.4 54.7 A 105 105 0 0 1 127.5 45.2" stroke="#fb923c" stroke-width="12" stroke-linecap="round" fill="none" />
+              <path d="M 133.8 43.3 A 105 105 0 0 1 156.7 40.1" stroke="#f59e0b" stroke-width="12" stroke-linecap="round" fill="none" />
+
+              <!-- نطاق الجيد Good (أصفر وليموني) -->
+              <path d="M 163.3 40.1 A 105 105 0 0 1 186.2 43.3" stroke="#eab308" stroke-width="12" stroke-linecap="round" fill="none" />
+              <path d="M 192.5 45.2 A 105 105 0 0 1 213.6 54.7" stroke="#facc15" stroke-width="12" stroke-linecap="round" fill="none" />
+              <path d="M 219.2 58.3 A 105 105 0 0 1 236.7 73.3" stroke="#a3e635" stroke-width="12" stroke-linecap="round" fill="none" />
+              <path d="M 241.1 78.3 A 105 105 0 0 1 253.7 97.7" stroke="#84cc16" stroke-width="12" stroke-linecap="round" fill="none" />
+
+              <!-- نطاق الممتاز High (أزرق سماوي وفيروزي) -->
+              <path d="M 256.5 103.6 A 105 105 0 0 1 263.2 125.8" stroke="#10b981" stroke-width="12" stroke-linecap="round" fill="none" />
+              <path d="M 264.2 132.3 A 105 105 0 0 1 264.5 155.4" stroke="#06b6d4" stroke-width="12" stroke-linecap="round" fill="none" />
+              <path d="M 263.6 162.0 A 105 105 0 0 1 257.4 184.2" stroke="#0ea5e9" stroke-width="12" stroke-linecap="round" fill="none" />
+              <path d="M 254.7 190.3 A 105 105 0 0 1 242.5 209.9" stroke="#38bdf8" stroke-width="12" stroke-linecap="round" fill="none" />
+
+              <!-- قوس رمادي خفيف أسفل القرص لإتمام الشكل الدائري (Clean light gray arc) -->
+              <path d="M 238 215.3 A 105 105 0 0 1 82 215.3" stroke="#334155" stroke-width="5" stroke-linecap="round" stroke-dasharray="3 3" fill="none" opacity="0.8" />
+
+              <!-- نصوص تسميات النطاقات -->
+              <text x="36" y="212" fill="#f87171" font-size="11" font-weight="700" text-anchor="middle" font-family="Cairo, sans-serif">Low</text>
+              <text x="80" y="62" fill="#fb923c" font-size="11" font-weight="700" text-anchor="middle" font-family="Cairo, sans-serif">OK</text>
+              <text x="240" y="62" fill="#facc15" font-size="11" font-weight="700" text-anchor="middle" font-family="Cairo, sans-serif">Good</text>
+              <text x="284" y="212" fill="#38bdf8" font-size="11" font-weight="700" text-anchor="middle" font-family="Cairo, sans-serif">High</text>
+
+              <!-- مؤشر إبرة أحمر ناعم يدور بحرية وسلاسة CSS -->
+              <g id="signal-gauge-needle" style="transform-origin: 160px 145px; transform: rotate(-130deg); transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2);">
+                <polygon points="157.5,145 159.2,52 160,42 160.8,52 162.5,145" fill="#ef4444" filter="drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))" />
+                <circle cx="160" cy="145" r="14" fill="#0f172a" stroke="#ef4444" stroke-width="2.5" />
+                <circle cx="160" cy="145" r="5" fill="#f87171" />
+                <circle cx="160" cy="145" r="2" fill="#ffffff" opacity="0.9" />
+              </g>
+            </svg>
+          </div>
+
+          <!-- قراءة المركز: النسبة ونوع الاتصال والحالة -->
+          <div class="signal-center-readout">
+            <div class="signal-score-row">
+              <span id="signal-score-num" class="signal-score-num">--</span>
+              <span class="signal-score-pct">/100</span>
+            </div>
+            <div class="signal-conn-badge">
+              <span id="signal-conn-icon">📶</span>
+              <span id="signal-conn-text">Wi-Fi (5GHz)</span>
+            </div>
+            <div id="signal-status-badge" class="signal-status-pill is-good">جارٍ قياس الإشارة...</div>
+          </div>
+
+          <!-- تفاصيل الشبكة اللحظية (WebRTC stats) -->
+          <div class="signal-metrics-grid">
+            <div class="signal-metric-item">
+              <span class="metric-label">زمن الاستجابة</span>
+              <strong id="signal-rtt-display" class="metric-val">-- ms</strong>
+            </div>
+            <div class="signal-metric-item">
+              <span class="metric-label">فقدان الحزم</span>
+              <strong id="signal-loss-display" class="metric-val">0%</strong>
+            </div>
+            <div class="signal-metric-item">
+              <span class="metric-label">تذبذب الإشارة</span>
+              <strong id="signal-jitter-display" class="metric-val">-- ms</strong>
+            </div>
+          </div>
+
+          <!-- مؤشرات الاتصال السفلية (Wi-Fi, SIM1, SIM2) -->
+          <div class="signal-indicator-pills">
+            <div id="indicator-wifi" class="signal-pill is-active">
+              <span class="signal-pill-dot"></span>
+              <span>📶 Wi-Fi</span>
+            </div>
+            <div id="indicator-sim1" class="signal-pill">
+              <span class="signal-pill-dot"></span>
+              <span>📡 SIM 1 (4G)</span>
+            </div>
+            <div id="indicator-sim2" class="signal-pill">
+              <span class="signal-pill-dot"></span>
+              <span>📡 SIM 2</span>
+            </div>
+          </div>
+
+          <!-- لافتة التوقف الذكية "قف هنا!" -->
+          <div id="signal-stop-banner" class="signal-stop-banner" hidden>
+            <div class="signal-stop-banner-pulse"></div>
+            <div class="signal-stop-banner-content">
+              <span>🎯</span>
+              <span>قف هنا! 🎯 الإشارة ممتازة وثابتة لمتابعة الحصة بدون تقطيع</span>
+            </div>
+          </div>
+
+          <div id="signal-guide-hint" class="signal-guide-hint">
+            <span>💡 تجوّل في منزلك مع الهاتف وابحث عن الزاوية الأعلى إشارة لتثبيت مكانك.</span>
+          </div>
+
+          <footer style="margin-top: 0.8rem;">
+            <button id="dismiss-signal-modal-btn" class="dismiss-quality-modal-btn" type="button" style="width: 100%;">إغلاق الرادار</button>
           </footer>
         </div>
       </div>
