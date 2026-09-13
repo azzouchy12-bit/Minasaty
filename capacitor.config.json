@@ -1,0 +1,16 @@
+{
+  "appId": "com.minasaty.app",
+  "appName": "منصتي | أكاديمية التفوق",
+  "webDir": "public",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": ["*"],
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "webContentsDebuggingEnabled": true,
+    "backgroundColor": "#070b14"
+  }
+}

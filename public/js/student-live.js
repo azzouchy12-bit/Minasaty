@@ -458,7 +458,26 @@ function hideLiveStartNotice() {
   elements.liveStartNotice.hidden = true;
 }
 
+function notifyNativeLiveService(action, details = {}) {
+  try {
+    if (window.MinasatyNative) {
+      if (action === "start") {
+        const title = details.title || (elements.classLevelLabel?.textContent || "الحصة المباشرة");
+        const teacher = details.teacher || "أكاديمية التفوق";
+        window.MinasatyNative.startLiveService(title, teacher);
+      } else if (action === "stop") {
+        window.MinasatyNative.stopLiveService();
+      } else if (action === "pip") {
+        window.MinasatyNative.enterPip();
+      }
+    }
+  } catch (err) {
+    console.warn("Native bridge notification failed:", err);
+  }
+}
+
 function exitLiveClass() {
+  notifyNativeLiveService("stop");
   initialAutoJoinPending = false;
   clearScreenShareRefreshGuard();
   waitingForNextClass = true;
@@ -3217,6 +3236,10 @@ socket.on("room_joined", (data = {}) => {
     setParticipationCount(data.participationCount);
     updateRemoteVideoPresentation();
     setStudentVideoQuality(currentVideoQuality, { notifyServer: true, showToast: false });
+    notifyNativeLiveService("start", {
+      title: elements.classLevelLabel?.textContent || "الحصة المباشرة",
+      teacher: "أكاديمية التفوق"
+    });
   }
 });
 
@@ -3508,6 +3531,7 @@ socket.on("teacher_disconnected", () => {
 });
 
 socket.on("class_ended", (data = {}) => {
+  notifyNativeLiveService("stop");
   hideLiveStartNotice();
   const teacherDisconnected = data.reason === "teacher_disconnected";
 
@@ -3529,6 +3553,7 @@ socket.on("class_ended", (data = {}) => {
 });
 
 socket.on("class_ended_by_teacher", () => {
+  notifyNativeLiveService("stop");
   hideLiveStartNotice();
   resetViewerState({
     message: "انتهت الحصة المباشرة.. شكراً لحضوركم وتفاعلكم!",
@@ -3678,4 +3703,14 @@ if (!studentId || !studentName || !level) {
   updateMicControl();
   updateChatControls();
   void initializeStudentPrejoin();
+
+  window.addEventListener("beforeunload", () => {
+    notifyNativeLiveService("stop");
+  });
+  window.addEventListener("pagehide", () => {
+    if (!joinedClass) {
+      notifyNativeLiveService("stop");
+    }
+  });
 }
+
