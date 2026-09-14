@@ -4,6 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
     <meta name="theme-color" content="#0b1220" />
+    <script>
+      (function () {
+        try {
+          var isApp = Boolean(
+            window.MinasatyNative ||
+            window.MinasatyApp ||
+            window.Android ||
+            window.Capacitor?.isNativePlatform?.() ||
+            /[?&]app=true/i.test(location.search) ||
+            (window.localStorage && localStorage.getItem("minasaty_in_app") === "true") ||
+            (navigator.userAgent && /MinasatyApp|com\.minasaty\.app/i.test(navigator.userAgent))
+          );
+          if (isApp) {
+            document.documentElement.classList.add("inside-native-app");
+            try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

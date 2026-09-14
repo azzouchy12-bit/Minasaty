@@ -4,6 +4,25 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>تحميل تطبيق أكاديمية التفوق | الفيزياء والرياضيات</title>
+  <script>
+    (function () {
+      try {
+        var isApp = Boolean(
+          window.MinasatyNative ||
+          window.MinasatyApp ||
+          window.Android ||
+          window.Capacitor?.isNativePlatform?.() ||
+          /[?&]app=true/i.test(location.search) ||
+          (window.localStorage && localStorage.getItem("minasaty_in_app") === "true") ||
+          (navigator.userAgent && /MinasatyApp|com\.minasaty\.app/i.test(navigator.userAgent))
+        );
+        if (isApp) {
+          document.documentElement.classList.add("inside-native-app");
+          try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
+        }
+      } catch (e) {}
+    })();
+  </script>
   
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#0d6efd" />
@@ -16,6 +35,7 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
     body { background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+    body.inside-native-app, html.inside-native-app body { padding-top: max(env(safe-area-inset-top, 0px), 36px) !important; }
     
     .app-card {
       background: #1e293b;

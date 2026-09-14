@@ -39,7 +39,7 @@ body.student-live-page {
     position: fixed !important;
     inset: 0 !important;
     display: grid !important;
-    grid-template-rows: 3.8rem minmax(0, 1fr) !important;
+    grid-template-rows: auto minmax(0, 1fr) !important;
     width: 100vw !important;
     height: 100svh !important;
     min-height: 0 !important;
@@ -49,7 +49,7 @@ body.student-live-page {
     background: #070b14 !important;
   }
 
-  /* Compact app bar: level, subject, participation and exit only. */
+  /* Compact app bar: level, subject, participation, quality, signal radar, and exit. */
   body.student-live-page .viewer-header {
     position: relative !important;
     z-index: 20 !important;
@@ -58,16 +58,25 @@ body.student-live-page {
     align-items: center !important;
     justify-content: space-between !important;
     width: 100% !important;
-    height: 3.8rem !important;
+    height: auto !important;
     min-height: 3.8rem !important;
     margin: 0 !important;
-    padding: .5rem .6rem !important;
+    padding: max(env(safe-area-inset-top, 0px), 0.5rem) .6rem .5rem .6rem !important;
     gap: .38rem !important;
     overflow: hidden !important;
     background: #0d1424 !important;
     border: 0 !important;
     border-bottom: 1px solid rgba(148, 163, 184, .18) !important;
     box-shadow: 0 5px 18px rgba(0, 0, 0, .2) !important;
+  }
+
+  /* Safe area for native Android app status bar and camera punch-hole */
+  html.inside-native-app body.student-live-page .viewer-header,
+  body.inside-native-app.student-live-page .viewer-header,
+  body.student-live-page.inside-native-app .viewer-header,
+  .inside-native-app .viewer-header {
+    padding-top: max(env(safe-area-inset-top, 0px), 36px) !important;
+    min-height: calc(3.8rem + 34px) !important;
   }
 
   body.student-live-page .viewer-brand,
@@ -80,6 +89,7 @@ body.student-live-page {
   body.student-live-page .viewer-subject,
   body.student-live-page .student-participation-count,
   body.student-live-page .student-quality-wrapper,
+  body.student-live-page .student-signal-finder-btn,
   body.student-live-page .student-exit-class-button {
     flex: 0 1 auto !important;
     min-width: 0 !important;
@@ -175,7 +185,7 @@ body.student-live-page {
     grid-template-rows: minmax(0, 1fr) minmax(11rem, 44dvh) !important;
     grid-template-areas: "video" "chat" !important;
     width: 100% !important;
-    height: calc(100svh - 3.8rem) !important;
+    height: 100% !important;
     min-height: 0 !important;
     margin: 0 !important;
     gap: 0 !important;

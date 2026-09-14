@@ -226,6 +226,21 @@ app.use("/api/push", pushRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/webrtc", webrtcRoutes);
 
+// Platform Version Endpoint for instant in-app web updates without APK re-download
+const PLATFORM_VERSION = process.env.PLATFORM_VERSION || "2026.09.14-v1";
+app.get("/api/platform-version", (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.json({
+    version: PLATFORM_VERSION,
+    updatedAt: 1789344000000,
+    title: "المنصة تحتاج إلى تحديث",
+    message: "تتوفر الآن تحسينات وميزات جديدة للمنصة جاهزة للاستخدام الفوري.",
+    actionText: "حدّثها الآن"
+  });
+});
+
 // Course-material uploads are intentionally disabled. Block the legacy public
 // path before the general static middleware so old files cannot be downloaded.
 app.use("/uploads", (_req, res) => {

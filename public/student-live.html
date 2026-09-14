@@ -7,6 +7,19 @@
     <script>
       (function () {
         try {
+          var isApp = Boolean(
+            window.MinasatyNative ||
+            window.MinasatyApp ||
+            window.Android ||
+            window.Capacitor?.isNativePlatform?.() ||
+            /[?&]app=true/i.test(location.search) ||
+            (window.localStorage && localStorage.getItem("minasaty_in_app") === "true") ||
+            (navigator.userAgent && /MinasatyApp|com\.minasaty\.app/i.test(navigator.userAgent))
+          );
+          if (isApp) {
+            document.documentElement.classList.add("inside-native-app");
+            try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
+          }
           var completed = false;
           if (window.localStorage) {
             if (
