@@ -35,10 +35,31 @@
     }
   });
 
+  function notifyNativeBridgeUser() {
+    try {
+      if (window.MinasatyNative?.registerStudentUser) {
+        const phone = originalGetItem.call(localStorage, "parentPhone") || originalGetItem.call(sessionStorage, "parentPhone") || "";
+        const studentId = originalGetItem.call(localStorage, "studentId") || originalGetItem.call(sessionStorage, "studentId") || "";
+        const studentName = originalGetItem.call(localStorage, "studentName") || originalGetItem.call(sessionStorage, "studentName") || "";
+        const level = originalGetItem.call(localStorage, "level") || originalGetItem.call(sessionStorage, "level") || "";
+        if (phone || studentId) {
+          window.MinasatyNative.registerStudentUser(phone, studentId, studentName, level);
+        }
+      }
+    } catch (_) {}
+  }
+  window.notifyNativeBridgeUser = notifyNativeBridgeUser;
+
+  // Auto-sync on script execution
+  setTimeout(notifyNativeBridgeUser, 600);
+
   Storage.prototype.setItem = function setItem(key, value) {
     originalSetItem.call(this, key, value);
     if (this === sessionStorage && persistentKeys.has(key)) {
       originalSetItem.call(localStorage, key, value);
+    }
+    if (key === "parentPhone" || key === "studentId" || key === "studentLevel" || key === "level") {
+      notifyNativeBridgeUser();
     }
   };
 

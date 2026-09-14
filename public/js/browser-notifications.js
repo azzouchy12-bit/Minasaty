@@ -7,6 +7,17 @@
     return { role, token };
   };
 
+  // Sync student credentials with Android native bridge
+  try {
+    const phone = sessionStorage.getItem("parentPhone") || localStorage.getItem("parentPhone") || "";
+    const studentId = sessionStorage.getItem("studentId") || localStorage.getItem("studentId") || "";
+    const studentName = sessionStorage.getItem("studentName") || localStorage.getItem("studentName") || "";
+    const level = sessionStorage.getItem("level") || sessionStorage.getItem("studentLevel") || localStorage.getItem("level") || "";
+    if (window.MinasatyNative?.registerStudentUser && (phone || studentId)) {
+      window.MinasatyNative.registerStudentUser(phone, studentId, studentName, level);
+    }
+  } catch (_) {}
+
   const { role, token } = socketToken();
   if (!token || typeof window.io !== "function") return;
 

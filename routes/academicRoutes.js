@@ -38,12 +38,18 @@ const {
   getActiveTeacherLiveAlert,
   getLiveClassAbsentees,
   sendLiveClassAbsenteeAlert,
+  streamNativeAlerts,
+  checkNativeAlert,
+  dismissNativeAlert,
 } = require("../controllers/academicController");
 
 const router = express.Router();
 
-// Public route to check if an active teacher live alert is ringing
+// Public routes for native Android background keep-alive alert service
 router.get("/teacher-live-alert/active", getActiveTeacherLiveAlert);
+router.get("/native-alerts/stream", streamNativeAlerts);
+router.get("/native-alerts/check", checkNativeAlert);
+router.post("/native-alerts/dismiss", dismissNativeAlert);
 
 const upload = multer({
   storage: multer.memoryStorage(),

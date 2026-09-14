@@ -13,6 +13,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.PowerManager;
 import android.util.Rational;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
@@ -52,6 +53,23 @@ public class MainActivity extends BridgeActivity {
         configureWebView();
         fetchFcmToken();
         handleIncomingAlertIntent(getIntent());
+
+        // Start persistent background alert service
+        MinasatyNativeAlertService.startService(this);
+        requestBatteryOptimizationExemption();
+    }
+
+    private void requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                    Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                }
+            } catch (Exception ignored) {}
+        }
     }
 
     @Override
@@ -183,6 +201,11 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isNativeApp() {
             return true;
+        }
+
+        @JavascriptInterface
+        public void registerStudentUser(String phone, String studentId, String studentName, String level) {
+            MinasatyNativeAlertService.updateCredentials(MainActivity.this, phone, studentId, level);
         }
 
         @JavascriptInterface
