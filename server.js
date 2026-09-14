@@ -227,7 +227,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/webrtc", webrtcRoutes);
 
 // Platform Version Endpoint for instant in-app web updates without APK re-download
-const PLATFORM_VERSION = process.env.PLATFORM_VERSION || "2026.09.14-v1";
+const PLATFORM_VERSION = process.env.PLATFORM_VERSION || "2026.09.14-v2";
 app.get("/api/platform-version", (_req, res) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.setHeader("Pragma", "no-cache");

@@ -177,35 +177,34 @@ body.student-live-page {
     line-height: 1 !important;
   }
 
-  /* Main content: broadcast card above communication card. */
+  /* Main content: broadcast card above action strip and chat. */
   body.student-live-page .viewer-stage {
     position: relative !important;
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    grid-template-rows: minmax(0, 1fr) minmax(11rem, 44dvh) !important;
-    grid-template-areas: "video" "chat" !important;
+    display: flex !important;
+    flex-direction: column !important;
     width: 100% !important;
     height: 100% !important;
     min-height: 0 !important;
     margin: 0 !important;
     gap: 0 !important;
-    padding: 0 0 3.85rem !important;
+    padding: 0 !important;
     overflow: hidden !important;
     background: #070b14 !important;
   }
 
   body.student-live-page .video-frame {
     position: relative !important;
-    grid-area: video !important;
+    flex: 0 0 auto !important;
     display: grid !important;
     width: 100% !important;
-    height: 100% !important;
-    min-height: 0 !important;
-    max-height: none !important;
+    height: 38dvh !important;
+    min-height: 180px !important;
+    max-height: 42dvh !important;
     overflow: hidden !important;
     place-items: center !important;
     background: #000 !important;
-    border: 1px solid rgba(96, 165, 250, .23) !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(96, 165, 250, .15) !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     contain: layout paint !important;
@@ -286,44 +285,47 @@ body.student-live-page {
   body.student-live-page .student-chat-panel {
     position: relative !important;
     z-index: 5 !important;
-    grid-area: chat !important;
-    display: grid !important;
-    grid-template-rows: 2.25rem minmax(0, 1fr) auto auto !important;
+    flex: 1 1 0% !important;
+    display: flex !important;
+    flex-direction: column !important;
     width: 100% !important;
     height: 100% !important;
     min-height: 0 !important;
     max-height: none !important;
     overflow: hidden !important;
     color: #f8fafc !important;
-    background: #121a2a !important;
-    border: 1px solid rgba(96, 165, 250, .22) !important;
-    border-radius: .9rem !important;
-    box-shadow: 0 10px 24px rgba(0, 0, 0, .24) !important;
+    background: #0c121e !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
     backdrop-filter: none !important;
   }
 
   body.student-live-page .student-chat-head {
+    flex: 0 0 auto !important;
     display: flex !important;
     align-items: center !important;
-    min-height: 2.25rem !important;
-    padding: .36rem .65rem !important;
-    background: #18243a !important;
+    min-height: 2rem !important;
+    height: 2rem !important;
+    padding: 0 .65rem !important;
+    background: #111a2c !important;
     border: 0 !important;
-    border-bottom: 1px solid rgba(148, 163, 184, .16) !important;
+    border-bottom: 1px solid rgba(148, 163, 184, .12) !important;
   }
 
   body.student-live-page .student-chat-head h2 {
     margin: 0 !important;
-    color: #dbeafe !important;
-    font-size: .68rem !important;
-    font-weight: 800 !important;
+    color: #94a3b8 !important;
+    font-size: .65rem !important;
+    font-weight: 700 !important;
   }
 
   body.student-live-page .student-chat-box {
+    flex: 1 1 0% !important;
     display: flex !important;
     flex-direction: column !important;
     min-height: 0 !important;
-    padding: .4rem .5rem 3.35rem !important;
+    padding: .4rem .5rem calc(4rem + env(safe-area-inset-bottom, 0px)) !important;
     overflow-x: hidden !important;
     overflow-y: auto !important;
     overscroll-behavior: contain !important;
@@ -451,37 +453,42 @@ body.student-live-page {
     display: none !important;
   }
 
-  /* Fixed bottom action strip: raise hand, rotate and refresh only. */
+  /* Clean action strip directly below video: raise hand, rotate and refresh only. */
   body.student-live-page .viewer-actions-divider {
-    position: fixed !important;
+    position: relative !important;
+    top: auto !important;
+    bottom: auto !important;
+    left: auto !important;
     right: auto !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    z-index: 120 !important;
+    flex: 0 0 auto !important;
+    z-index: 15 !important;
     display: flex !important;
     align-items: center !important;
-    width: 60vw !important;
-    height: 3.85rem !important;
-    min-height: 3.85rem !important;
-    max-height: 3.85rem !important;
-    padding: .42rem .5rem calc(.42rem + env(safe-area-inset-bottom)) !important;
+    width: 100% !important;
+    height: 2.85rem !important;
+    min-height: 2.85rem !important;
+    max-height: 2.85rem !important;
+    padding: .25rem .55rem !important;
     overflow: hidden !important;
     background: #0d1424 !important;
+    background: linear-gradient(180deg, #111a2e 0%, #0a0f1d 100%) !important;
     border: 0 !important;
-    border-top: 1px solid rgba(96, 165, 250, .26) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, .08) !important;
     border-radius: 0 !important;
-    box-shadow: 0 -8px 22px rgba(0, 0, 0, .24) !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .28) !important;
+    box-sizing: border-box !important;
   }
 
   body.student-live-page .viewer-actions-control-row {
     display: grid !important;
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    align-items: stretch !important;
+    align-items: center !important;
     width: 100% !important;
     height: 100% !important;
     min-height: 0 !important;
-    gap: .32rem !important;
+    gap: .35rem !important;
     direction: rtl !important;
+    margin: 0 !important;
   }
 
   body.student-live-page .viewer-actions-control-row .hand-request-controls,
@@ -502,54 +509,85 @@ body.student-live-page {
     justify-content: center !important;
     width: 100% !important;
     min-width: 0 !important;
-    min-height: 2.6rem !important;
-    height: 2.6rem !important;
-    padding: .28rem .18rem !important;
-    border-radius: .58rem !important;
-    font-size: clamp(.54rem, 2.25vw, .66rem) !important;
-    font-weight: 800 !important;
+    min-height: 2.25rem !important;
+    height: 2.25rem !important;
+    padding: .2rem .35rem !important;
+    border-radius: .55rem !important;
+    font-size: clamp(.58rem, 2.3vw, .7rem) !important;
+    font-weight: 700 !important;
     line-height: 1.1 !important;
     white-space: nowrap !important;
     touch-action: manipulation !important;
+    box-sizing: border-box !important;
+    transition: all .18s ease !important;
+  }
+
+  body.student-live-page .hand-request-button {
+    color: #fef08a !important;
+    background: rgba(245, 158, 11, .14) !important;
+    border: 1px solid rgba(245, 158, 11, .38) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+  }
+
+  body.student-live-page .hand-request-button:active {
+    background: rgba(245, 158, 11, .28) !important;
+    transform: scale(.97) !important;
   }
 
   body.student-live-page .student-inline-rotate-button {
     min-width: 0 !important;
-    padding-inline: .18rem !important;
-    background: #1d4ed8 !important;
-    border: 1px solid rgba(147, 197, 253, .58) !important;
-    box-shadow: none !important;
+    padding-inline: .25rem !important;
+    color: #e0f2fe !important;
+    background: rgba(14, 165, 233, .14) !important;
+    border: 1px solid rgba(56, 189, 248, .38) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+  }
+
+  body.student-live-page .student-inline-rotate-button:active {
+    background: rgba(14, 165, 233, .28) !important;
+    transform: scale(.97) !important;
   }
 
   body.student-live-page .student-inline-rotate-button span {
-    margin-inline-end: .15rem !important;
-    font-size: 1rem !important;
+    margin-inline-end: .2rem !important;
+    font-size: .88rem !important;
   }
 
   body.student-live-page .student-inline-rotate-button strong {
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
+    font-weight: 700 !important;
   }
 
   body.student-live-page .viewer-actions-control-row .refresh-media-button {
     min-width: 0 !important;
     max-width: none !important;
-    min-height: 2.6rem !important;
-    height: 2.6rem !important;
+    min-height: 2.25rem !important;
+    height: 2.25rem !important;
     flex: 1 1 auto !important;
-    gap: .12rem !important;
-    padding: .28rem .18rem !important;
-    background: #4338ca !important;
-    border: 1px solid rgba(165, 180, 252, .58) !important;
-    border-radius: .58rem !important;
-    box-shadow: none !important;
-    font-size: clamp(.52rem, 2.15vw, .64rem) !important;
+    gap: .2rem !important;
+    padding: .2rem .35rem !important;
+    color: #e0e7ff !important;
+    background: rgba(99, 102, 241, .14) !important;
+    border: 1px solid rgba(129, 140, 248, .38) !important;
+    border-radius: .55rem !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+    font-size: clamp(.56rem, 2.2vw, .68rem) !important;
+    font-weight: 700 !important;
+  }
+
+  body.student-live-page .viewer-actions-control-row .refresh-media-button:active {
+    background: rgba(99, 102, 241, .28) !important;
+    transform: scale(.97) !important;
   }
 
   body.student-live-page .viewer-actions-control-row .refresh-media-button svg {
-    width: .92rem !important;
-    height: .92rem !important;
+    width: .85rem !important;
+    height: .85rem !important;
+    stroke: currentColor !important;
+    stroke-width: 2 !important;
+    fill: none !important;
   }
 
   body.student-live-page .viewer-actions-control-row .desktop-stage-button,
@@ -678,13 +716,14 @@ body.student-live-page {
     }
 
     body.student-live-page .viewer-actions-divider {
-      height: 3.7rem !important;
-      min-height: 3.7rem !important;
-      max-height: 3.7rem !important;
+      height: 2.85rem !important;
+      min-height: 2.85rem !important;
+      max-height: 2.85rem !important;
     }
 
     body.student-live-page .viewer-stage {
-      padding-bottom: 3.7rem !important;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
     }
 
     body.student-live-page .viewer-actions-control-row {
@@ -804,15 +843,16 @@ body.student-live-page {
     -webkit-text-size-adjust: 100% !important;
   }
 
-  /* Portrait stack from bottom to top: class tools, capture/message, composer, sent messages. */
+  /* Portrait stack: header -> video -> action strip -> chat -> bottom actions */
   body.student-live-page:not(.student-times-level-page) .viewer-stage {
-    padding-bottom: calc(7.7rem + env(safe-area-inset-bottom)) !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
   }
 
   body.student-live-page:not(.student-times-level-page) .student-chat-box {
     min-height: 0 !important;
     justify-content: flex-start !important;
-    padding-bottom: calc(7.7rem + env(safe-area-inset-bottom)) !important;
+    padding-bottom: calc(4.2rem + env(safe-area-inset-bottom)) !important;
     font-size: 16px !important;
   }
 
@@ -829,11 +869,6 @@ body.student-live-page {
     line-height: 1.55 !important;
   }
 
-  body.student-live-page:not(.student-times-level-page) .student-chat-actions {
-    bottom: 3.85rem !important;
-    margin: 0 !important;
-  }
-
   /* Keep the compact class header visible while composing. */
   body.student-live-page:not(.student-times-level-page).student-chat-compose-open .viewer-header {
     display: flex !important;
@@ -842,25 +877,58 @@ body.student-live-page {
     pointer-events: auto !important;
   }
 
-  /* Keep both bottom toolbars visible while the composer is open. */
-  body.student-live-page:not(.student-times-level-page).student-chat-compose-open .student-chat-actions {
+  /* Fixed bottom actions toolbar: capture photo & send message */
+  body.student-live-page:not(.student-times-level-page) .student-chat-actions {
+    position: fixed !important;
     top: auto !important;
     right: 0 !important;
     left: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 3.6rem !important;
+    min-height: 3.6rem !important;
+    max-height: 3.6rem !important;
+    margin: 0 !important;
+    padding: .3rem .5rem calc(.3rem + env(safe-area-inset-bottom)) !important;
+    gap: .35rem !important;
+    border-radius: 0 !important;
+    background: #0d1424 !important;
+    border-top: 1px solid rgba(148, 163, 184, .16) !important;
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, .28) !important;
+    z-index: 121 !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    align-items: stretch !important;
+  }
+
+  body.student-live-page:not(.student-times-level-page).student-chat-compose-open .student-chat-actions {
     bottom: calc(var(--student-keyboard-offset, 0px) + env(safe-area-inset-bottom)) !important;
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
   }
 
+  /* Actions divider sits right below the video, never overlapping header */
+  body.student-live-page:not(.student-times-level-page) .viewer-actions-divider,
   body.student-live-page:not(.student-times-level-page).student-chat-compose-open .viewer-actions-divider {
-    top: 3.8rem !important;
-    right: 0 !important;
-    left: 0 !important;
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
     bottom: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    height: 2.85rem !important;
+    min-height: 2.85rem !important;
+    max-height: 2.85rem !important;
+    margin: 0 !important;
+    padding: .25rem .55rem !important;
+    overflow: hidden !important;
+    border-radius: 0 !important;
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
+    box-sizing: border-box !important;
+    z-index: 15 !important;
   }
 
   body.student-live-page:not(.student-times-level-page).student-chat-compose-open .viewer-actions-divider * {
@@ -868,47 +936,10 @@ body.student-live-page {
     opacity: 1 !important;
   }
 
-  /* Match the approved waiting-page mobile dimensions exactly. */
-  body.student-live-page:not(.student-times-level-page) .viewer-stage {
-    padding-top: 3.7rem !important;
-    padding-bottom: 3.7rem !important;
-  }
-
-  body.student-live-page:not(.student-times-level-page) .student-chat-actions {
-    top: auto !important;
-    right: 0 !important;
-    left: 0 !important;
-    bottom: env(safe-area-inset-bottom) !important;
-    width: 100% !important;
-    height: 3.7rem !important;
-    min-height: 3.7rem !important;
-    max-height: 3.7rem !important;
-    margin: 0 !important;
-    padding: .25rem !important;
-    gap: .2rem !important;
-    border-radius: 0 !important;
-  }
-
-  body.student-live-page:not(.student-times-level-page) .viewer-actions-divider {
-    box-sizing: border-box !important;
-    top: 3.8rem !important;
-    right: 0 !important;
-    bottom: auto !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 3.7rem !important;
-    min-height: 3.7rem !important;
-    max-height: 3.7rem !important;
-    margin: 0 !important;
-    padding: .25rem !important;
-    overflow: hidden !important;
-    border-radius: 0 !important;
-  }
-
   body.student-live-page:not(.student-times-level-page) .viewer-actions-control-row {
     transform: none !important;
     margin: 0 !important;
-    gap: .2rem !important;
+    gap: .35rem !important;
   }
 
   body.student-live-page:not(.student-times-level-page) .viewer-actions-control-row > * {
@@ -919,16 +950,16 @@ body.student-live-page {
 
   body.student-live-page:not(.student-times-level-page) .viewer-actions-control-row button,
   body.student-live-page:not(.student-times-level-page) .viewer-actions-control-row .hand-waiting-label {
-    min-height: 0 !important;
-    height: 100% !important;
-    padding: .15rem .06rem !important;
-    font-size: .5rem !important;
+    min-height: 2.25rem !important;
+    height: 2.25rem !important;
+    padding: .2rem .35rem !important;
+    font-size: clamp(.58rem, 2.3vw, .7rem) !important;
   }
 
   /* Keep the text rectangle separate from the capture/send row. */
   body.student-live-page:not(.student-times-level-page) .chat-compose-modal,
   body.student-live-page:not(.student-times-level-page) #chat-compose-modal {
-    inset: auto 0 calc(3.7rem + var(--student-keyboard-offset, 0px) + env(safe-area-inset-bottom)) 0 !important;
+    inset: auto 0 calc(3.6rem + var(--student-keyboard-offset, 0px) + env(safe-area-inset-bottom)) 0 !important;
     padding: 0 .45rem .25rem !important;
   }
 
