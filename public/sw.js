@@ -149,4 +149,17 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
+// ── Broadcast message receiver from client tabs ──
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "STOP_ALERT_SOUND") {
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client !== event.source) {
+          try { client.postMessage({ type: "STOP_ALERT_SOUND" }); } catch (_) {}
+        }
+      }
+    });
+  }
+});
+
 

@@ -229,6 +229,7 @@ const elements = {
   absenteesStatPresent: document.getElementById("absentees-stat-present"),
   absenteesStatAbsent: document.getElementById("absentees-stat-absent"),
   absenteesRefreshBtn: document.getElementById("absentees-refresh-btn"),
+  absenteesAlertAllBtn: document.getElementById("absentees-alert-all-btn"),
   absenteesSearchInput: document.getElementById("absentees-search-input"),
   absenteesLoading: document.getElementById("absentees-loading"),
   absenteesEmpty: document.getElementById("absentees-empty"),
@@ -2451,6 +2452,22 @@ function renderAbsenteesList(absentees, query = "") {
     const actions = document.createElement("div");
     actions.className = "absentee-card-actions";
 
+    const alertBtn = document.createElement("button");
+    alertBtn.type = "button";
+    alertBtn.className = "absentee-alert-btn";
+    alertBtn.title = "إرسال تنبيه رنان لتطبيق التلميذ";
+    alertBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+      </svg>
+      <span>تنبيه</span>
+    `;
+    alertBtn.addEventListener("click", () => {
+      void sendAbsenteeAlert(student.id, alertBtn);
+    });
+    actions.append(alertBtn);
+
     if (student.parentPhone) {
       const waUrl = buildWhatsAppUrl(student.parentPhone, student.studentName, currentLvl, currentSub);
       const waBtn = document.createElement("a");
@@ -2482,6 +2499,145 @@ function renderAbsenteesList(absentees, query = "") {
     li.append(info, actions);
     elements.absenteesList.append(li);
   });
+}
+
+async function sendAbsenteeAlert(studentIds, button = null) {
+  const ids = Array.isArray(studentIds) ? studentIds : [studentIds];
+  if (!ids.length) return;
+
+  const currentLvl = activeLevel || elements.levelSelect?.value || "";
+  const currentSub = activeSubject || elements.subjectSelect?.value || "";
+
+  if (button) {
+    button.disabled = true;
+    button.classList.add("is-loading");
+    button.innerHTML = `
+      <span class="absentees-btn-spinner" aria-hidden="true"></span>
+      <span>جارٍ التنبيه...</span>
+    `;
+  }
+
+  try {
+    const res = await fetch("/api/academic/live-absentees/alert", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${teacherSocketToken}`,
+      },
+      body: JSON.stringify({
+        studentIds: ids,
+        level: currentLvl,
+        subject: currentSub,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || "تعذر إرسال التنبيه.");
+
+    if (button) {
+      button.classList.remove("is-loading");
+      button.classList.add("is-sent");
+      button.innerHTML = `
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>تم التنبيه</span>
+      `;
+      window.setTimeout(() => {
+        if (button && button.classList.contains("is-sent")) {
+          button.disabled = false;
+        }
+      }, 5000);
+    }
+
+    setStudioStatus(data.message || `تم إرسال التنبيه والرنين إلى ${ids.length} تلميذ.`, "live");
+  } catch (err) {
+    console.error("Failed to send absentee alert:", err);
+    if (button) {
+      button.disabled = false;
+      button.classList.remove("is-loading");
+      button.innerHTML = `
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        <span>إعادة المحاولة</span>
+      `;
+    }
+    alert(err.message || "تعذر إرسال التنبيه للتلميذ.");
+  }
+}
+
+async function handleAlertAllAbsentees() {
+  if (!currentAbsenteesData?.absentees?.length) {
+    alert("لا يوجد تلاميذ غائبون حالياً لتنبيههم.");
+    return;
+  }
+
+  const count = currentAbsenteesData.absentees.length;
+  const confirmed = window.confirm(`هل أنت متأكد من رغبتك في إرسال تنبيه رنان إلى جميع التلاميذ الغائبين (${count} تلميذ) عبر التطبيق؟`);
+  if (!confirmed) return;
+
+  const allIds = currentAbsenteesData.absentees.map((s) => s.id).filter(Boolean);
+  const btn = elements.absenteesAlertAllBtn;
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add("is-loading");
+    btn.innerHTML = `
+      <span class="absentees-btn-spinner" aria-hidden="true"></span>
+      <span>جارٍ تنبيه الجميع...</span>
+    `;
+  }
+
+  try {
+    await sendAbsenteeAlert(allIds);
+
+    document.querySelectorAll(".absentee-alert-btn").forEach((b) => {
+      b.classList.add("is-sent");
+      b.innerHTML = `
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>تم التنبيه</span>
+      `;
+    });
+
+    if (btn) {
+      btn.classList.remove("is-loading");
+      btn.classList.add("is-sent");
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>تم تنبيه الجميع</span>
+      `;
+      window.setTimeout(() => {
+        if (btn) {
+          btn.disabled = false;
+          btn.classList.remove("is-sent");
+          btn.innerHTML = `
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            <span>تنبيه كل الغائبين</span>
+          `;
+        }
+      }, 5000);
+    }
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove("is-loading");
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        <span>تنبيه كل الغائبين</span>
+      `;
+    }
+  }
 }
 
 function updateAbsenteesModalView(data) {
@@ -5004,6 +5160,7 @@ elements.absenteesRefreshBtn?.addEventListener("click", async () => {
     if (elements.absenteesErrorText) elements.absenteesErrorText.textContent = err.message || "تعذر تحديث قائمة الغائبين.";
   }
 });
+elements.absenteesAlertAllBtn?.addEventListener("click", handleAlertAllAbsentees);
 elements.absenteesSearchInput?.addEventListener("input", (e) => {
   renderAbsenteesList(e.target.value);
 });

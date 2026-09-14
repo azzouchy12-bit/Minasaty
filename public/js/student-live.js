@@ -7,6 +7,16 @@
  * never receives, renders, or requests a list of any other students.
  */
 
+// Immediately stop any active ringing live alert upon entering the live room
+try {
+  if (typeof window.stopContinuousLiveAlert === "function") {
+    window.stopContinuousLiveAlert();
+  }
+  if (navigator.serviceWorker?.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: "STOP_ALERT_SOUND" });
+  }
+} catch (_) {}
+
 function createUnavailableStudentSocket() {
   return {
     connected: false,

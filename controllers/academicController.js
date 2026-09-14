@@ -1029,6 +1029,151 @@ async function getLiveClassAbsentees(req, res) {
   });
 }
 
+async function sendLiveClassAbsenteeAlert(req, res) {
+  if (!requireTeacher(req, res)) return;
+  const studentIdsRaw = req.body?.studentIds || (req.body?.studentId ? [req.body.studentId] : []);
+  const studentIds = (Array.isArray(studentIdsRaw) ? studentIdsRaw : [studentIdsRaw])
+    .map((id) => String(id || "").trim())
+    .filter((id) => UUID.test(id));
+
+  if (!studentIds.length) {
+    return res.status(400).json({ error: "يرجى تحديد تلميذ غائب واحد على الأقل لإرسال التنبيه." });
+  }
+
+  const level = text(req.body?.level, 100);
+  const subject = text(req.body?.subject, 40).toUpperCase();
+  const subjectLabel = subject === "MATH" ? "الرياضيات" : (subject === "PHYSICS" ? "الفيزياء" : (subject === "FREE" ? "الحصة المجانية" : "الحصة المباشرة"));
+
+  const students = await prisma.student.findMany({
+    where: {
+      id: { in: studentIds },
+      accountActive: true,
+    },
+    select: {
+      id: true,
+      studentName: true,
+      parentPhone: true,
+      level: true,
+    },
+  });
+
+  if (!students.length) {
+    return res.status(404).json({ error: "لم يتم العثور على التلاميذ المحددين." });
+  }
+
+  const title = "🔴 تنبيه عاجل: بدأت الحصة المباشرة!";
+  const alertBody = level
+    ? `بدأت الآن حصة ${subjectLabel} (${level}). الأستاذ بانتظارك، اضغط للدخول فوراً!`
+    : `بدأت الحصة المباشرة الآن! الأستاذ بانتظارك، اضغط للدخول فوراً!`;
+  const link = "/student-live.html?alert=1";
+
+  const { sendPushToMultipleRecipients } = require("../utils/push");
+
+  const parentPhones = [];
+  const targetStudentIds = [];
+
+  for (const student of students) {
+    targetStudentIds.push(student.id);
+    if (student.parentPhone && !parentPhones.includes(student.parentPhone)) {
+      parentPhones.push(student.parentPhone);
+    }
+
+    const dedupeKey = `ABSENTEE_ALERT:${Date.now()}:${student.id}`;
+    let notificationId = null;
+
+    try {
+      const notif = await prisma.notification.create({
+        data: {
+          studentId: student.id,
+          recipientRole: "student",
+          recipientId: student.id,
+          type: "TEACHER_LIVE_ALERT",
+          title,
+          body: alertBody,
+          link,
+          dedupeKey,
+        },
+        select: { id: true },
+      });
+      notificationId = notif.id;
+    } catch (_) {}
+
+    // Send real-time socket notification to both student and parent channels
+    try {
+      socketNotificationSender?.({
+        role: "student",
+        recipientId: student.id,
+        title,
+        body: alertBody,
+        link,
+        tag: "teacher-live-alert",
+        data: {
+          type: "TEACHER_LIVE_ALERT",
+          notificationId,
+          alertSound: true,
+          ringLoop: true,
+          level,
+          subject,
+          link,
+        },
+        notificationId,
+      });
+
+      if (student.parentPhone) {
+        socketNotificationSender?.({
+          role: "parent",
+          recipientId: student.parentPhone,
+          title,
+          body: alertBody,
+          link,
+          tag: "teacher-live-alert",
+          data: {
+            type: "TEACHER_LIVE_ALERT",
+            notificationId,
+            alertSound: true,
+            ringLoop: true,
+            level,
+            subject,
+            link,
+          },
+          notificationId,
+        });
+      }
+    } catch (_) {}
+  }
+
+  // Send Web Push / Native Push notification
+  const pushPayload = {
+    title,
+    body: alertBody,
+    link,
+    url: link,
+    type: "TEACHER_LIVE_ALERT",
+    tag: "teacher-live-alert",
+    requireInteraction: true,
+    alertSound: true,
+    ringLoop: true,
+  };
+
+  let totalPushSent = 0;
+  try {
+    const [parentPushRes, studentPushRes] = await Promise.all([
+      parentPhones.length ? sendPushToMultipleRecipients("parent", parentPhones, pushPayload) : Promise.resolve({ sent: 0 }),
+      targetStudentIds.length ? sendPushToMultipleRecipients("student", targetStudentIds, pushPayload) : Promise.resolve({ sent: 0 }),
+    ]);
+    totalPushSent = (parentPushRes?.sent || 0) + (studentPushRes?.sent || 0);
+  } catch (err) {
+    console.warn("sendLiveClassAbsenteeAlert push error:", err.message);
+  }
+
+  return res.json({
+    status: "success",
+    alertedCount: students.length,
+    pushSent: totalPushSent,
+    message: `تم إرسال التنبيه والرنين بنجاح إلى ${students.length} تلميذ.`,
+  });
+}
+
 async function sendTeacherLiveAlert(req, res) {
   if (!requireTeacher(req, res)) return;
   const levels = req.body?.levels || [];
@@ -1218,6 +1363,7 @@ module.exports = {
   sendTeacherLiveAlert,
   getActiveTeacherLiveAlert,
   getLiveClassAbsentees,
+  sendLiveClassAbsenteeAlert,
   processScheduledTeacherAnnouncements,
   setSocketNotificationSender,
 };

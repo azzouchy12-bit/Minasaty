@@ -37,6 +37,7 @@ const {
   sendTeacherLiveAlert,
   getActiveTeacherLiveAlert,
   getLiveClassAbsentees,
+  sendLiveClassAbsenteeAlert,
 } = require("../controllers/academicController");
 
 const router = express.Router();
@@ -84,6 +85,7 @@ router.post("/teacher-announcements/:id/cancel", isTeacher, cancelTeacherAnnounc
 router.get("/teacher-live-alert/audience", isTeacher, getTeacherLiveAlertAudience);
 router.post("/teacher-live-alert", isTeacher, sendTeacherLiveAlert);
 router.get("/live-absentees", isTeacher, getLiveClassAbsentees);
+router.post("/live-absentees/alert", isTeacher, sendLiveClassAbsenteeAlert);
 router.get("/analytics", isTeacher, getTeacherAnalytics);
 router.get("/audit-logs", listAuditLogs);
 router.put("/students/bulk", bulkUpdateStudents);
