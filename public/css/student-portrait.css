@@ -96,10 +96,18 @@ body.student-live-page {
   body.inside-native-app.student-live-page .student-chat-actions,
   body.student-live-page.inside-native-app .student-chat-actions,
   .inside-native-app .student-chat-actions {
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), 52px) !important;
-    min-height: calc(3.6rem + 52px) !important;
-    max-height: none !important;
+    bottom: calc(2.85rem + max(env(safe-area-inset-bottom, 0px), 52px)) !important;
+    height: 3.2rem !important;
+    min-height: 3.2rem !important;
+    max-height: 3.2rem !important;
+    padding: .25rem .5rem !important;
     box-sizing: border-box !important;
+  }
+
+  html.inside-native-app body.student-live-page .chat-compose-modal,
+  html.inside-native-app body.student-live-page #chat-compose-modal,
+  .inside-native-app #chat-compose-modal {
+    inset: auto 0 calc(6.15rem + max(env(safe-area-inset-bottom, 0px), 52px) + var(--student-keyboard-offset, 0px)) 0 !important;
   }
 
   body.student-live-page .viewer-brand,
@@ -766,8 +774,8 @@ body.student-live-page {
   body.student-live-page:not(.student-times-level-page) .chat-compose-modal,
   body.student-live-page:not(.student-times-level-page) #chat-compose-modal {
     position: fixed !important;
-    inset: auto 0 calc(3.85rem + var(--student-keyboard-offset, 0px)) 0 !important;
-    z-index: 2147483647 !important;
+    inset: auto 0 calc(6.15rem + max(env(safe-area-inset-bottom, 0px), 52px) + var(--student-keyboard-offset, 0px)) 0 !important;
+    z-index: 122 !important;
     display: flex !important;
     align-items: stretch !important;
     justify-content: flex-end !important;
@@ -790,7 +798,7 @@ body.student-live-page {
   body.student-live-page:not(.student-times-level-page) .chat-compose-dialog {
     width: 100% !important;
     max-width: none !important;
-    max-height: min(9rem, 30dvh) !important;
+    max-height: min(7.5rem, 24dvh) !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
@@ -831,16 +839,16 @@ body.student-live-page {
     flex: 1 1 auto !important;
     width: auto !important;
     min-width: 0 !important;
-    min-height: 3.25rem !important;
-    height: 3.25rem !important;
-    max-height: 5.5rem !important;
+    min-height: 2.85rem !important;
+    height: 2.85rem !important;
+    max-height: 5rem !important;
     resize: none !important;
     overflow-y: auto !important;
-    font-size: 16px !important;
-    line-height: 1.4 !important;
+    font-size: 15px !important;
+    line-height: 1.35 !important;
     -webkit-text-size-adjust: 100% !important;
     touch-action: manipulation !important;
-    padding: .55rem .65rem !important;
+    padding: .45rem .65rem !important;
   }
 
   /* The actual send action remains in the capture/message toolbar; hide only the duplicate inside the composer. */
@@ -875,8 +883,8 @@ body.student-live-page {
   body.student-live-page:not(.student-times-level-page) .student-chat-box {
     min-height: 0 !important;
     justify-content: flex-start !important;
-    padding-bottom: calc(4.2rem + env(safe-area-inset-bottom)) !important;
-    font-size: 16px !important;
+    padding-bottom: calc(9.8rem + max(env(safe-area-inset-bottom, 0px), 52px)) !important;
+    font-size: 15px !important;
   }
 
   /* Do not push sent messages underneath the fixed composer and toolbars. */
@@ -888,8 +896,8 @@ body.student-live-page {
   body.student-live-page:not(.student-times-level-page) .student-chat-empty,
   body.student-live-page:not(.student-times-level-page) .student-chat-message,
   body.student-live-page:not(.student-times-level-page) .student-chat-body {
-    font-size: 16px !important;
-    line-height: 1.55 !important;
+    font-size: 15px !important;
+    line-height: 1.45 !important;
   }
 
   /* Keep the compact class header visible while composing. */
@@ -906,12 +914,13 @@ body.student-live-page {
     top: auto !important;
     right: 0 !important;
     left: 0 !important;
-    bottom: 0 !important;
+    bottom: calc(2.85rem + max(env(safe-area-inset-bottom, 0px), 52px)) !important;
     width: 100% !important;
-    height: auto !important;
-    min-height: calc(3.6rem + max(env(safe-area-inset-bottom, 0px), 52px)) !important;
+    height: 3.2rem !important;
+    min-height: 3.2rem !important;
+    max-height: 3.2rem !important;
     margin: 0 !important;
-    padding: .3rem .5rem max(env(safe-area-inset-bottom, 0px), 52px) !important;
+    padding: .25rem .5rem !important;
     gap: .35rem !important;
     border-radius: 0 !important;
     background: #0d1424 !important;
@@ -925,7 +934,7 @@ body.student-live-page {
   }
 
   body.student-live-page:not(.student-times-level-page).student-chat-compose-open .student-chat-actions {
-    bottom: calc(var(--student-keyboard-offset, 0px) + max(env(safe-area-inset-bottom, 0px), 52px)) !important;
+    bottom: calc(2.85rem + max(env(safe-area-inset-bottom, 0px), 52px) + var(--student-keyboard-offset, 0px)) !important;
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
@@ -983,14 +992,14 @@ body.student-live-page {
   /* Keep the text rectangle separate from the capture/send row. */
   body.student-live-page:not(.student-times-level-page) .chat-compose-modal,
   body.student-live-page:not(.student-times-level-page) #chat-compose-modal {
-    inset: auto 0 calc(3.6rem + var(--student-keyboard-offset, 0px) + env(safe-area-inset-bottom)) 0 !important;
+    inset: auto 0 calc(6.15rem + max(env(safe-area-inset-bottom, 0px), 52px) + var(--student-keyboard-offset, 0px)) 0 !important;
     padding: 0 .45rem .25rem !important;
   }
 
   /* The mobile composer is always available; [hidden] must not remove it. */
   body.student-live-page:not(.student-times-level-page) .chat-compose-modal[hidden],
   body.student-live-page:not(.student-times-level-page) #chat-compose-modal[hidden] {
-    display: grid !important;
+    display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
   }
