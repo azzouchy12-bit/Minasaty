@@ -4,6 +4,7 @@
     <!-- Permissions for WebRTC, Background Audio, WakeLock & Live Notifications -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -12,12 +13,17 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
@@ -69,6 +75,26 @@
             android:exported="false"
             android:foregroundServiceType="remoteMessaging" />
 
+        <!-- Exact Alarm Clock Receiver for Deep Doze Wakeups -->
+        <receiver
+            android:name=".MinasatyAlarmReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.minasaty.app.ACTION_HEARTBEAT_ALARM" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Network Connectivity Restoration Receiver -->
+        <receiver
+            android:name=".MinasatyNetworkReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+            </intent-filter>
+        </receiver>
+
         <!-- Boot & App Update Receiver to keep alert service active even after phone restart -->
         <receiver
             android:name=".BootReceiver"
@@ -77,6 +103,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.USER_PRESENT" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>

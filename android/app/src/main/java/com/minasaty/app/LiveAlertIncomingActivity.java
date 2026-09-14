@@ -6,11 +6,20 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
+/**
+ * LiveAlertIncomingActivity:
+ * Full-screen incoming call activity displayed on top of the lock screen.
+ * Features:
+ *  - Displays over lock screen with wake-screen flags.
+ *  - Intercepts hardware Volume keys to silence ringtone immediately.
+ *  - One-tap instant entry into the live classroom.
+ */
 public class LiveAlertIncomingActivity extends AppCompatActivity {
     private String targetUrl = "/student-live.html?alert=1";
 
@@ -96,8 +105,17 @@ public class LiveAlertIncomingActivity extends AppCompatActivity {
     }
 
     @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // Pressing Volume Up or Volume Down silences the ringtone without closing the screen
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            LiveAlertRingingService.stopAlert(this);
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
     public void onBackPressed() {
-        // Dismiss alert on back press
         dismissAlert();
         super.onBackPressed();
     }

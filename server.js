@@ -206,6 +206,7 @@ const materialRoutes = require("./routes/materialRoutes");
 const certificateRoutes = require("./routes/certificateRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const webrtcRoutes = require("./routes/webrtcRoutes");
+const nativeAlertRoutes = require("./routes/nativeAlertRoutes");
 
 app.use("/api/site-analytics", siteAnalyticsRoutes);
 app.use("/api/referrals", referralRoutes);
@@ -225,6 +226,8 @@ app.use("/api/certificates", certificateRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/webrtc", webrtcRoutes);
+app.use("/api/native-alerts", nativeAlertRoutes);
+
 
 // Platform Version Endpoint for instant in-app web updates without APK re-download
 const PLATFORM_VERSION = process.env.PLATFORM_VERSION || "2026.09.14-v8";
@@ -395,6 +398,9 @@ privateMessagesNamespace.on("connection", (socket) => {
 const sendSocketNotification = createSocketNotificationSender(io);
 const { setSocketNotificationSender } = require("./controllers/academicController");
 setSocketNotificationSender(sendSocketNotification);
+const liveAlertHub = require("./utils/liveAlertHub");
+liveAlertHub.setSocketInstances(io, sendSocketNotification);
+
 setSessionTakeoverNotifier(async ({ previousSession, role }) => {
   const payload = {
     title: "تنبيه أمني للحساب",

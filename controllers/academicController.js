@@ -1368,112 +1368,30 @@ async function sendTeacherLiveAlert(req, res) {
   });
 }
 
-// ── Native Android Background Alert Manager ──
-const nativeAlertClients = new Set();
-let latestActiveAlert = null;
+// ── Native Android Background Alert Hub Delegation ──
+const liveAlertHub = require("../utils/liveAlertHub");
 
 function broadcastNativeLiveAlert(payload) {
-  latestActiveAlert = {
-    ...payload,
-    timestamp: Date.now(),
-    expiresAt: Date.now() + 15 * 60 * 1000,
-  };
-
-  const sseData = `data: ${JSON.stringify(payload)}\n\n`;
-  for (const client of nativeAlertClients) {
-    try {
-      const matchesLevel = !client.level || !payload.level || payload.level === "ALL" || client.level === payload.level;
-      const matchesStudent = !payload.targetStudentIds || !payload.targetStudentIds.length || (client.studentId && payload.targetStudentIds.includes(client.studentId));
-      const matchesPhone = !payload.parentPhones || !payload.parentPhones.length || (client.phone && payload.parentPhones.includes(client.phone));
-
-      if (matchesLevel || matchesStudent || matchesPhone) {
-        client.res.write(sseData);
-      }
-    } catch (_) {
-      nativeAlertClients.delete(client);
-    }
-  }
+  return liveAlertHub.publishLiveAlert(payload);
 }
 
 function streamNativeAlerts(req, res) {
-  const phone = String(req.query.phone || "").trim();
-  const studentId = String(req.query.studentId || "").trim();
-  const level = String(req.query.level || "").trim().toUpperCase();
-
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache, no-transform");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.flushHeaders?.();
-
-  res.write(`:connected\n\n`);
-
-  if (latestActiveAlert && Date.now() < latestActiveAlert.expiresAt && Date.now() - latestActiveAlert.timestamp < 180000) {
-    res.write(`data: ${JSON.stringify(latestActiveAlert)}\n\n`);
-  }
-
-  const client = { res, phone, studentId, level };
-  nativeAlertClients.add(client);
-
-  const heartbeat = setInterval(() => {
-    try {
-      res.write(`:keep-alive\n\n`);
-    } catch (_) {
-      clearInterval(heartbeat);
-      nativeAlertClients.delete(client);
-    }
-  }, 20000);
-
-  req.on("close", () => {
-    clearInterval(heartbeat);
-    nativeAlertClients.delete(client);
-  });
+  return liveAlertHub.registerSseClient(req, res);
 }
 
 function checkNativeAlert(req, res) {
-  const phone = String(req.query.phone || "").trim();
-  const studentId = String(req.query.studentId || "").trim();
-  const level = String(req.query.level || "").trim().toUpperCase();
-  const since = Number(req.query.since || 0);
-
-  if (!latestActiveAlert || Date.now() >= latestActiveAlert.expiresAt) {
-    return res.json({ active: false });
-  }
-
-  if (since && latestActiveAlert.timestamp <= since) {
-    return res.json({ active: false });
-  }
-
-  const payload = latestActiveAlert;
-  const matchesLevel = !level || !payload.level || payload.level === "ALL" || level === payload.level;
-  const matchesStudent = !payload.targetStudentIds?.length || (studentId && payload.targetStudentIds.includes(studentId));
-  const matchesPhone = !payload.parentPhones?.length || (phone && payload.parentPhones.includes(phone));
-
-  if (matchesLevel || matchesStudent || matchesPhone) {
-    return res.json({
-      active: true,
-      alert: {
-        title: payload.title,
-        body: payload.body,
-        targetUrl: payload.link || payload.url || "/student-live.html?alert=1",
-        timestamp: payload.timestamp,
-      },
-    });
-  }
-
-  return res.json({ active: false });
+  return liveAlertHub.checkActiveAlert(req, res);
 }
 
 function dismissNativeAlert(_req, res) {
-  if (latestActiveAlert) {
-    latestActiveAlert.expiresAt = 0;
-  }
+  liveAlertHub.dismissAlert();
   return res.json({ success: true });
 }
 
 async function getActiveTeacherLiveAlert(_req, res) {
-  if (latestActiveAlert && Date.now() < latestActiveAlert.expiresAt) {
-    return res.json({ status: "success", active: true, alert: latestActiveAlert });
+  const activeAlerts = liveAlertHub.getActiveAlerts();
+  if (activeAlerts && activeAlerts.length > 0) {
+    return res.json({ status: "success", active: true, alert: activeAlerts[0] });
   }
   return res.json({ status: "success", active: false });
 }

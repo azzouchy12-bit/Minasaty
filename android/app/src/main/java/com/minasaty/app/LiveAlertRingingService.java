@@ -8,18 +8,20 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
-import android.media.AudioAttributes;
-import android.media.AudioManager;
-import android.media.MediaPlayer;
-import android.net.Uri;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
-import android.os.VibrationEffect;
-import android.os.Vibrator;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
+/**
+ * LiveAlertRingingService:
+ * Foreground service that plays the continuous alarm sound, vibrates the device,
+ * and maintains the high-priority lock screen notification until the student joins
+ * or dismisses the call.
+ */
 public class LiveAlertRingingService extends Service {
     public static final String ACTION_START_ALERT = "com.minasaty.app.ACTION_START_ALERT";
     public static final String ACTION_STOP_ALERT = "com.minasaty.app.ACTION_STOP_ALERT";
@@ -31,40 +33,51 @@ public class LiveAlertRingingService extends Service {
 
     private static final String CHANNEL_ID = "minasaty_live_call_alert_channel";
     private static final int NOTIFICATION_ID = 9110;
+    private static final long MAX_RINGING_DURATION_MS = 60000; // Auto-stop after 60 seconds
 
-    private static boolean isRinging = false;
+    private static volatile boolean isRinging = false;
 
-    private MediaPlayer mediaPlayer;
-    private Vibrator vibrator;
+    private MinasatyAlarmManager alarmManager;
     private PowerManager.WakeLock wakeLock;
+    private Handler timeoutHandler;
+    private Runnable autoStopRunnable;
 
     public static boolean isAlertRinging() {
         return isRinging;
     }
 
     public static void startAlert(Context context, String title, String body, String targetUrl) {
-        Intent intent = new Intent(context, LiveAlertRingingService.class);
-        intent.setAction(ACTION_START_ALERT);
-        intent.putExtra(EXTRA_ALERT_TITLE, title);
-        intent.putExtra(EXTRA_ALERT_BODY, body);
-        intent.putExtra(EXTRA_TARGET_URL, targetUrl);
+        if (context == null) return;
+        try {
+            Intent intent = new Intent(context, LiveAlertRingingService.class);
+            intent.setAction(ACTION_START_ALERT);
+            intent.putExtra(EXTRA_ALERT_TITLE, title != null ? title : "🔴 تنبيه عاجل: بدأت الحصة المباشرة!");
+            intent.putExtra(EXTRA_ALERT_BODY, body != null ? body : "بدأت الحصة المباشرة الآن! الأستاذ بانتظارك، اضغط للدخول فوراً.");
+            intent.putExtra(EXTRA_TARGET_URL, targetUrl != null ? targetUrl : "/student-live.html?alert=1");
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(intent);
-        } else {
-            context.startService(intent);
-        }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent);
+            } else {
+                context.startService(intent);
+            }
+        } catch (Exception ignored) {}
     }
 
     public static void stopAlert(Context context) {
-        Intent intent = new Intent(context, LiveAlertRingingService.class);
-        intent.setAction(ACTION_STOP_ALERT);
-        context.startService(intent);
+        if (context == null) return;
+        try {
+            Intent intent = new Intent(context, LiveAlertRingingService.class);
+            intent.setAction(ACTION_STOP_ALERT);
+            context.startService(intent);
+        } catch (Exception ignored) {}
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
+        alarmManager = new MinasatyAlarmManager(this);
+        timeoutHandler = new Handler(Looper.getMainLooper());
+        autoStopRunnable = this::stopRingingAndSelf;
         createNotificationChannel();
     }
 
@@ -112,43 +125,42 @@ public class LiveAlertRingingService extends Service {
     private void beginContinuousRinging(String title, String body, String targetUrl) {
         isRinging = true;
         acquireWakeLock();
-        startSound();
-        startVibration();
 
-        // 1. Full-Screen Intent to wake up and display LiveAlertIncomingActivity over lock screen
+        if (alarmManager != null) {
+            alarmManager.startRingingAndVibration();
+        }
+
+        // Schedule auto-stop timeout after 60 seconds
+        timeoutHandler.removeCallbacks(autoStopRunnable);
+        timeoutHandler.postDelayed(autoStopRunnable, MAX_RINGING_DURATION_MS);
+
+        // Build high-priority full-screen call notification
         Intent fullScreenIntent = new Intent(this, LiveAlertIncomingActivity.class);
         fullScreenIntent.putExtra(EXTRA_ALERT_TITLE, title);
         fullScreenIntent.putExtra(EXTRA_ALERT_BODY, body);
         fullScreenIntent.putExtra(EXTRA_TARGET_URL, targetUrl);
         fullScreenIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
+        int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            pendingFlags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(
             this,
             101,
             fullScreenIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
+            pendingFlags
         );
 
-        // 2. Action: Enter Live Session
         Intent enterIntent = new Intent(this, LiveAlertRingingService.class);
         enterIntent.setAction(ACTION_ENTER_LIVE);
         enterIntent.putExtra(EXTRA_TARGET_URL, targetUrl);
-        PendingIntent enterPendingIntent = PendingIntent.getService(
-            this,
-            102,
-            enterIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
-        );
+        PendingIntent enterPendingIntent = PendingIntent.getService(this, 102, enterIntent, pendingFlags);
 
-        // 3. Action: Dismiss / Stop Ringing
         Intent dismissIntent = new Intent(this, LiveAlertRingingService.class);
         dismissIntent.setAction(ACTION_STOP_ALERT);
-        PendingIntent dismissPendingIntent = PendingIntent.getService(
-            this,
-            103,
-            dismissIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
-        );
+        PendingIntent dismissPendingIntent = PendingIntent.getService(this, 103, dismissIntent, pendingFlags);
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
@@ -171,70 +183,40 @@ public class LiveAlertRingingService extends Service {
             startForeground(NOTIFICATION_ID, notification);
         }
 
-        // Also proactively launch the Full-Screen Activity if screen is on or waking
+        // Also launch activity directly if allowed
         try {
             startActivity(fullScreenIntent);
-        } catch (Exception e) {
-            // Background start activity restrictions handled by fullScreenIntent
-        }
-    }
-
-    private void startSound() {
-        if (mediaPlayer != null) {
-            try { mediaPlayer.stop(); mediaPlayer.release(); } catch (Exception ignored) {}
-            mediaPlayer = null;
-        }
-
-        try {
-            mediaPlayer = MediaPlayer.create(this, R.raw.alert);
-            if (mediaPlayer != null) {
-                mediaPlayer.setAudioAttributes(
-                    new AudioAttributes.Builder()
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .build()
-                );
-                mediaPlayer.setLooping(true);
-                mediaPlayer.start();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void startVibration() {
-        try {
-            vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-            if (vibrator != null && vibrator.hasVibrator()) {
-                long[] pattern = { 0, 600, 300, 600, 300, 800, 500 };
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0)); // 0 = repeat from index 0
-                } else {
-                    vibrator.vibrate(pattern, 0);
-                }
-            }
         } catch (Exception ignored) {}
     }
 
     private void acquireWakeLock() {
-        try {
-            if (wakeLock == null) {
-                PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-                if (powerManager != null) {
-                    int flags = PowerManager.PARTIAL_WAKE_LOCK
-                              | PowerManager.ACQUIRE_CAUSES_WAKEUP
-                              | PowerManager.ON_AFTER_RELEASE;
-                    wakeLock = powerManager.newWakeLock(flags, "Minasaty::LiveAlertWakeLock");
-                    wakeLock.acquire(10 * 60 * 1000L); // Max 10 minutes timeout
-                }
+        if (wakeLock == null) {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                wakeLock = pm.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "Minasaty:LiveAlertRingingWakeLock"
+                );
             }
-        } catch (Exception ignored) {}
+        }
+        if (wakeLock != null && !wakeLock.isHeld()) {
+            try {
+                wakeLock.acquire(MAX_RINGING_DURATION_MS + 5000);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void releaseWakeLock() {
+        if (wakeLock != null && wakeLock.isHeld()) {
+            try {
+                wakeLock.release();
+            } catch (Exception ignored) {}
+        }
     }
 
     private void openMainActivityWithUrl(String targetUrl) {
         Intent mainIntent = new Intent(this, MainActivity.class);
         mainIntent.setAction(Intent.ACTION_VIEW);
-        mainIntent.setData(Uri.parse(targetUrl));
         mainIntent.putExtra("targetUrl", targetUrl);
         mainIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         startActivity(mainIntent);
@@ -242,43 +224,33 @@ public class LiveAlertRingingService extends Service {
 
     private void stopRingingAndSelf() {
         isRinging = false;
-
-        if (mediaPlayer != null) {
-            try {
-                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
-                mediaPlayer.release();
-            } catch (Exception ignored) {}
-            mediaPlayer = null;
+        if (timeoutHandler != null) {
+            timeoutHandler.removeCallbacks(autoStopRunnable);
         }
-
-        if (vibrator != null) {
-            try { vibrator.cancel(); } catch (Exception ignored) {}
-            vibrator = null;
+        if (alarmManager != null) {
+            alarmManager.stopRingingAndVibration();
         }
-
-        if (wakeLock != null && wakeLock.isHeld()) {
-            try { wakeLock.release(); } catch (Exception ignored) {}
-            wakeLock = null;
-        }
-
+        releaseWakeLock();
         stopForeground(true);
         stopSelf();
     }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) {
-                NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "تنبيهات الحصص المباشرة",
-                    NotificationManager.IMPORTANCE_HIGH
-                );
-                channel.setDescription("رنين وتنبيه فوري عند بدء الحصص المباشرة");
-                channel.enableVibration(true);
-                channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-                channel.setBypassDnd(true);
-                manager.createNotificationChannel(channel);
+            NotificationChannel channel = new NotificationChannel(
+                CHANNEL_ID,
+                "تنبيهات الحصص المباشرة العاجلة",
+                NotificationManager.IMPORTANCE_HIGH
+            );
+            channel.setDescription("تشغيل الرنين وشاشة المكالمة عند انطلاق الحصة");
+            channel.enableVibration(true);
+            channel.setVibrationPattern(new long[]{0, 900, 400, 900, 400, 1200});
+            channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            channel.setBypassDnd(true);
+
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                nm.createNotificationChannel(channel);
             }
         }
     }

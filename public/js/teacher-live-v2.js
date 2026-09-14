@@ -2455,6 +2455,8 @@ function renderAbsenteesList(absentees, query = "") {
     const alertBtn = document.createElement("button");
     alertBtn.type = "button";
     alertBtn.className = "absentee-alert-btn";
+    alertBtn.dataset.studentId = student.id;
+    alertBtn.dataset.phone = student.parentPhone || "";
     alertBtn.title = "إرسال تنبيه رنان لتطبيق التلميذ";
     alertBtn.innerHTML = `
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -2467,6 +2469,7 @@ function renderAbsenteesList(absentees, query = "") {
       void sendAbsenteeAlert(student.id, alertBtn);
     });
     actions.append(alertBtn);
+
 
     if (student.parentPhone) {
       const waUrl = buildWhatsAppUrl(student.parentPhone, student.studentName, currentLvl, currentSub);
@@ -2650,7 +2653,33 @@ function updateAbsenteesModalView(data) {
   renderAbsenteesList(data.absentees || [], query);
 }
 
+// Real-time device ringing feedback from native Android devices
+socket.on("live_alert_acked", (data) => {
+  try {
+    const studentId = String(data?.studentId || "").trim();
+    const phone = String(data?.phone || "").replace(/\D/g, "");
+    document.querySelectorAll(".absentee-alert-btn").forEach((btn) => {
+      const btnStudentId = btn.dataset.studentId;
+      const btnPhone = (btn.dataset.phone || "").replace(/\D/g, "");
+      if ((studentId && btnStudentId === studentId) || (phone && btnPhone && (btnPhone.includes(phone) || phone.includes(btnPhone)))) {
+        btn.classList.remove("is-loading");
+        btn.classList.remove("is-sent");
+        btn.classList.add("is-ringing");
+        btn.style.background = "linear-gradient(135deg, #059669, #10b981)";
+        btn.style.borderColor = "#34d399";
+        btn.style.color = "#ffffff";
+        btn.style.boxShadow = "0 0 15px rgba(16, 185, 129, 0.6)";
+        btn.innerHTML = `
+          <span style="display:inline-block;animation:pulse 0.8s infinite;">📞</span>
+          <span>الهاتف يرن الآن!</span>
+        `;
+      }
+    });
+  } catch (_) {}
+});
+
 async function openAbsenteesModal() {
+
   if (!elements.absenteesModal) return;
   isAbsenteesModalOpen = true;
 

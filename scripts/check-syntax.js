@@ -12,12 +12,16 @@ const files = [
   "middleware/rateLimit.js",
   "routes/authRoutes.js",
   "routes/academicRoutes.js",
+  "routes/nativeAlertRoutes.js",
+  "controllers/nativeAlertController.js",
+  "utils/liveAlertHub.js",
   "utils/sessionAuth.js",
   "utils/audit.js",
   "utils/metrics.js",
   "public/js/session-storage.js",
   "public/js/academic-center.js",
 ];
+
 
 for (const relative of files) {
   const result = spawnSync(process.execPath, ["--check", path.join(root, relative)], { stdio: "inherit" });

@@ -37,21 +37,56 @@
 
   function notifyNativeBridgeUser() {
     try {
-      if (window.MinasatyNative?.registerStudentUser) {
-        const phone = originalGetItem.call(localStorage, "parentPhone") || originalGetItem.call(sessionStorage, "parentPhone") || "";
-        const studentId = originalGetItem.call(localStorage, "studentId") || originalGetItem.call(sessionStorage, "studentId") || "";
-        const studentName = originalGetItem.call(localStorage, "studentName") || originalGetItem.call(sessionStorage, "studentName") || "";
-        const level = originalGetItem.call(localStorage, "level") || originalGetItem.call(sessionStorage, "level") || "";
-        if (phone || studentId) {
-          window.MinasatyNative.registerStudentUser(phone, studentId, studentName, level);
+      let phone = originalGetItem.call(localStorage, "parentPhone") || originalGetItem.call(sessionStorage, "parentPhone") || "";
+      let studentId = originalGetItem.call(localStorage, "studentId") || originalGetItem.call(sessionStorage, "studentId") || "";
+      let studentName = originalGetItem.call(localStorage, "studentName") || originalGetItem.call(sessionStorage, "studentName") || "";
+      let level = originalGetItem.call(localStorage, "level") || originalGetItem.call(localStorage, "studentLevel") || originalGetItem.call(sessionStorage, "level") || originalGetItem.call(sessionStorage, "studentLevel") || "";
+
+      // Also inspect JSON objects
+      if (!phone || !studentId) {
+        const candidateKeys = ["student", "loggedInStudent", "currentStudent", "parentUser"];
+        for (const ck of candidateKeys) {
+          try {
+            const raw = originalGetItem.call(localStorage, ck) || originalGetItem.call(sessionStorage, ck);
+            if (raw) {
+              const obj = JSON.parse(raw);
+              if (obj && typeof obj === "object") {
+                if (!phone && (obj.parentPhone || obj.phone)) phone = obj.parentPhone || obj.phone;
+                if (!studentId && (obj.id || obj.studentId)) studentId = obj.id || obj.studentId;
+                if (!studentName && (obj.studentName || obj.name)) studentName = obj.studentName || obj.name;
+                if (!level && (obj.level || obj.studentLevel)) level = obj.level || obj.studentLevel;
+              }
+            }
+          } catch (_) {}
         }
+      }
+
+      if (window.MinasatyNative?.registerStudentUser && (phone || studentId)) {
+        window.MinasatyNative.registerStudentUser(phone, studentId, studentName, level);
+      }
+
+      // Also register on backend /api/native-alerts/register
+      if (phone || studentId) {
+        fetch("/api/native-alerts/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone,
+            studentId,
+            studentName,
+            level,
+            fcmToken: window.MinasatyNative?.getFcmToken ? window.MinasatyNative.getFcmToken() : "",
+          }),
+        }).catch(() => {});
       }
     } catch (_) {}
   }
   window.notifyNativeBridgeUser = notifyNativeBridgeUser;
 
-  // Auto-sync on script execution
+  // Auto-sync on script execution and after load
   setTimeout(notifyNativeBridgeUser, 600);
+  setTimeout(notifyNativeBridgeUser, 2500);
+
 
   Storage.prototype.setItem = function setItem(key, value) {
     originalSetItem.call(this, key, value);

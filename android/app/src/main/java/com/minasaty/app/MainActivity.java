@@ -54,9 +54,11 @@ public class MainActivity extends BridgeActivity {
         fetchFcmToken();
         handleIncomingAlertIntent(getIntent());
 
-        // Start persistent background alert service
+        // Start persistent background alert service and exact alarm clock loop
         MinasatyNativeAlertService.startService(this);
-        requestBatteryOptimizationExemption();
+        MinasatyHeartbeatScheduler.scheduleImmediateHeartbeat(this);
+        MinasatyHeartbeatScheduler.scheduleNextHeartbeat(this);
+        MinasatyAutostartManager.requestIgnoreBatteryOptimization(this);
     }
 
     private void requestBatteryOptimizationExemption() {
@@ -221,6 +223,28 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isAlertRinging() {
             return LiveAlertRingingService.isAlertRinging();
+        }
+
+        @JavascriptInterface
+        public void testNativeAlertRinging() {
+            runOnUiThread(() -> {
+                LiveAlertRingingService.startAlert(
+                    MainActivity.this,
+                    "🔔 اختبار رنين تنبيه المنصة",
+                    "هذا اختبار مباشر للتأكد من وصول التنبيه بصوت قوي واهتزاز الهاتف بنجاح.",
+                    "/student-live.html?test=1"
+                );
+            });
+        }
+
+        @JavascriptInterface
+        public void openAutostartSettings() {
+            runOnUiThread(() -> MinasatyAutostartManager.openOemAutostartSettings(MainActivity.this));
+        }
+
+        @JavascriptInterface
+        public boolean isBatteryOptimizationIgnored() {
+            return MinasatyAutostartManager.isBatteryOptimizationIgnored(MainActivity.this);
         }
 
         @JavascriptInterface
