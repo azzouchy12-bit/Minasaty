@@ -79,6 +79,29 @@ body.student-live-page {
     min-height: calc(3.8rem + 34px) !important;
   }
 
+  /* Safe area for native Android app bottom navigation bar (Back triangle, Home, Recents) */
+  html.inside-native-app body.student-live-page .viewer-actions-divider,
+  body.inside-native-app.student-live-page .viewer-actions-divider,
+  body.student-live-page.inside-native-app .viewer-actions-divider,
+  .inside-native-app .viewer-actions-divider {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 52px) !important;
+    min-height: calc(2.85rem + 52px) !important;
+    max-height: none !important;
+    height: auto !important;
+    align-items: flex-start !important;
+    box-sizing: border-box !important;
+  }
+
+  html.inside-native-app body.student-live-page .student-chat-actions,
+  body.inside-native-app.student-live-page .student-chat-actions,
+  body.student-live-page.inside-native-app .student-chat-actions,
+  .inside-native-app .student-chat-actions {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 52px) !important;
+    min-height: calc(3.6rem + 52px) !important;
+    max-height: none !important;
+    box-sizing: border-box !important;
+  }
+
   body.student-live-page .viewer-brand,
   body.student-live-page .viewer-header .live-start-notice,
   body.student-live-page .viewer-header .message-bell {
@@ -885,11 +908,10 @@ body.student-live-page {
     left: 0 !important;
     bottom: 0 !important;
     width: 100% !important;
-    height: 3.6rem !important;
-    min-height: 3.6rem !important;
-    max-height: 3.6rem !important;
+    height: auto !important;
+    min-height: calc(3.6rem + max(env(safe-area-inset-bottom, 0px), 52px)) !important;
     margin: 0 !important;
-    padding: .3rem .5rem calc(.3rem + env(safe-area-inset-bottom)) !important;
+    padding: .3rem .5rem max(env(safe-area-inset-bottom, 0px), 52px) !important;
     gap: .35rem !important;
     border-radius: 0 !important;
     background: #0d1424 !important;
@@ -899,16 +921,17 @@ body.student-live-page {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     align-items: stretch !important;
+    box-sizing: border-box !important;
   }
 
   body.student-live-page:not(.student-times-level-page).student-chat-compose-open .student-chat-actions {
-    bottom: calc(var(--student-keyboard-offset, 0px) + env(safe-area-inset-bottom)) !important;
+    bottom: calc(var(--student-keyboard-offset, 0px) + max(env(safe-area-inset-bottom, 0px), 52px)) !important;
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
   }
 
-  /* Actions divider sits right below the video, never overlapping header */
+  /* Actions divider sits at bottom or under video, with safe clearance above Android system keys */
   body.student-live-page:not(.student-times-level-page) .viewer-actions-divider,
   body.student-live-page:not(.student-times-level-page).student-chat-compose-open .viewer-actions-divider {
     position: relative !important;
@@ -917,14 +940,15 @@ body.student-live-page {
     bottom: auto !important;
     left: auto !important;
     width: 100% !important;
-    height: 2.85rem !important;
-    min-height: 2.85rem !important;
-    max-height: 2.85rem !important;
+    height: auto !important;
+    min-height: calc(2.85rem + max(env(safe-area-inset-bottom, 0px), 52px)) !important;
+    max-height: none !important;
     margin: 0 !important;
-    padding: .25rem .55rem !important;
+    padding: .25rem .55rem max(env(safe-area-inset-bottom, 0px), 52px) !important;
     overflow: hidden !important;
     border-radius: 0 !important;
     display: flex !important;
+    align-items: flex-start !important;
     visibility: visible !important;
     opacity: 1 !important;
     box-sizing: border-box !important;
