@@ -808,6 +808,14 @@ function clampStudentZoomTranslation(value, scale, axisSize) {
   return Math.min(maxOffset, Math.max(-maxOffset, value));
 }
 
+function isStudentVirtualRotated() {
+  const rotationState = typeof getStudentRotationState === "function" ? getStudentRotationState() : null;
+  return Boolean(
+    (rotationState?.requested && rotationState?.virtual) ||
+    document.documentElement.classList.contains("student-virtual-landscape-mode")
+  );
+}
+
 function getStudentPointerCenter() {
   const points = [...studentZoomState.pointers.values()];
   return {
@@ -850,13 +858,23 @@ function handleStudentZoomPointerMove(event) {
   if (studentZoomState.pointers.size === 1 && studentZoomState.panPointerId === event.pointerId && studentZoomState.scale > 1.01) {
     const width = elements.videoFrame?.clientWidth || window.innerWidth;
     const height = elements.videoFrame?.clientHeight || window.innerHeight;
+    const rawDeltaX = event.clientX - studentZoomState.panStartX;
+    const rawDeltaY = event.clientY - studentZoomState.panStartY;
+
+    let effDeltaX = rawDeltaX;
+    let effDeltaY = rawDeltaY;
+    if (isStudentVirtualRotated()) {
+      effDeltaX = rawDeltaY;
+      effDeltaY = -rawDeltaX;
+    }
+
     studentZoomState.translateX = clampStudentZoomTranslation(
-      studentZoomState.panStartTranslateX + event.clientX - studentZoomState.panStartX,
+      studentZoomState.panStartTranslateX + effDeltaX,
       studentZoomState.scale,
       width
     );
     studentZoomState.translateY = clampStudentZoomTranslation(
-      studentZoomState.panStartTranslateY + event.clientY - studentZoomState.panStartY,
+      studentZoomState.panStartTranslateY + effDeltaY,
       studentZoomState.scale,
       height
     );
@@ -877,8 +895,13 @@ function handleStudentZoomPointerMove(event) {
     Math.max(STUDENT_MIN_ZOOM, studentZoomState.startScale * (distance / studentZoomState.startDistance))
   );
   const center = getStudentPointerCenter();
-  const deltaX = center.x - studentZoomState.startCenter.x;
-  const deltaY = center.y - studentZoomState.startCenter.y;
+  let deltaX = center.x - studentZoomState.startCenter.x;
+  let deltaY = center.y - studentZoomState.startCenter.y;
+  if (isStudentVirtualRotated()) {
+    const origDeltaX = deltaX;
+    deltaX = deltaY;
+    deltaY = -origDeltaX;
+  }
   const width = elements.videoFrame?.clientWidth || window.innerWidth;
   const height = elements.videoFrame?.clientHeight || window.innerHeight;
   studentZoomState.scale = nextScale;

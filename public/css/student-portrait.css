@@ -92,10 +92,10 @@ body.student-live-page {
     box-sizing: border-box !important;
   }
 
-  html.inside-native-app body.student-live-page .student-chat-actions,
-  body.inside-native-app.student-live-page .student-chat-actions,
-  body.student-live-page.inside-native-app .student-chat-actions,
-  .inside-native-app .student-chat-actions {
+  html.inside-native-app:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page .student-chat-actions,
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.inside-native-app.student-live-page .student-chat-actions,
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page.inside-native-app .student-chat-actions,
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) .inside-native-app .student-chat-actions {
     bottom: calc(2.85rem + max(env(safe-area-inset-bottom, 0px), 52px)) !important;
     height: 3.2rem !important;
     min-height: 3.2rem !important;
@@ -909,7 +909,7 @@ body.student-live-page {
   }
 
   /* Fixed bottom actions toolbar: capture photo & send message */
-  body.student-live-page:not(.student-times-level-page) .student-chat-actions {
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page:not(.student-times-level-page) .student-chat-actions {
     position: fixed !important;
     top: auto !important;
     right: 0 !important;
@@ -933,7 +933,7 @@ body.student-live-page {
     box-sizing: border-box !important;
   }
 
-  body.student-live-page:not(.student-times-level-page).student-chat-compose-open .student-chat-actions {
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page:not(.student-times-level-page).student-chat-compose-open .student-chat-actions {
     bottom: calc(2.85rem + max(env(safe-area-inset-bottom, 0px), 52px) + var(--student-keyboard-offset, 0px)) !important;
     display: flex !important;
     visibility: visible !important;
@@ -941,8 +941,8 @@ body.student-live-page {
   }
 
   /* Actions divider sits at bottom or under video, with safe clearance above Android system keys */
-  body.student-live-page:not(.student-times-level-page) .viewer-actions-divider,
-  body.student-live-page:not(.student-times-level-page).student-chat-compose-open .viewer-actions-divider {
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page:not(.student-times-level-page) .viewer-actions-divider,
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page:not(.student-times-level-page).student-chat-compose-open .viewer-actions-divider {
     position: relative !important;
     top: auto !important;
     right: auto !important;

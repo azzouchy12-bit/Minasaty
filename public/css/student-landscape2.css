@@ -38,11 +38,11 @@ html.student-virtual-landscape-mode body.student-live-page {
     overscroll-behavior-y: none !important;
     overscroll-behavior-x: none !important;
     display: grid !important;
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-    grid-template-rows: minmax(0, 7fr) minmax(0, 1fr) !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-template-rows: minmax(0, 1fr) 2.65rem !important;
     grid-template-areas:
-      "broadcast broadcast broadcast broadcast broadcast"
-      "cancel hand capture refresh message" !important;
+      "broadcast broadcast broadcast broadcast"
+      "cancel hand refresh capture" !important;
     width: 100vw !important;
     height: 100dvh !important;
     min-width: 0 !important;
@@ -181,12 +181,17 @@ html.student-virtual-landscape-mode body.student-live-page {
     display: contents !important;
   }
 
-  /* Five compact controls occupy the bottom eighth, including the hand toggle. */
+  /* Four compact controls occupy the bottom toolbar: cancel unrotate, hand toggle, refresh media, and capture photo. */
   html.student-landscape-mode body.student-live-page #student-center-unrotate-btn,
-  html.student-virtual-landscape-mode body.student-live-page #student-center-unrotate-btn {
+  html.student-virtual-landscape-mode body.student-live-page #student-center-unrotate-btn,
+  html.student-landscape-mode body.student-live-page #student-unrotate-btn,
+  html.student-virtual-landscape-mode body.student-live-page #student-unrotate-btn {
     display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
     grid-column: 1 !important;
     grid-row: 2 !important;
+    grid-area: cancel !important;
   }
 
   html.student-landscape-mode body.student-live-page #raise-hand-btn,
@@ -196,11 +201,17 @@ html.student-virtual-landscape-mode body.student-live-page {
     opacity: 1 !important;
     grid-column: 2 !important;
     grid-row: 2 !important;
+    grid-area: hand !important;
   }
 
-  html.student-landscape-mode body.student-live-page #hand-waiting-actions,
-  html.student-virtual-landscape-mode body.student-live-page #hand-waiting-actions {
-    display: none !important;
+  html.student-landscape-mode body.student-live-page #refresh-media-btn,
+  html.student-virtual-landscape-mode body.student-live-page #refresh-media-btn {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    grid-column: 3 !important;
+    grid-row: 2 !important;
+    grid-area: refresh !important;
   }
 
   html.student-landscape-mode body.student-live-page #capture-question-btn,
@@ -208,30 +219,24 @@ html.student-virtual-landscape-mode body.student-live-page {
     display: inline-flex !important;
     visibility: visible !important;
     opacity: 1 !important;
-    grid-column: 3 !important;
-    grid-row: 2 !important;
-  }
-
-  html.student-landscape-mode body.student-live-page #refresh-media-btn,
-  html.student-virtual-landscape-mode body.student-live-page #refresh-media-btn {
-    display: inline-flex !important;
     grid-column: 4 !important;
     grid-row: 2 !important;
+    grid-area: capture !important;
   }
 
+  /* Completely hide chat message compose button in landscape mode */
   html.student-landscape-mode body.student-live-page #open-chat-compose-btn,
   html.student-virtual-landscape-mode body.student-live-page #open-chat-compose-btn {
-    display: inline-flex !important;
-    grid-column: 5 !important;
-    grid-row: 2 !important;
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
   }
 
   html.student-landscape-mode body.student-live-page #student-center-rotate-btn,
   html.student-virtual-landscape-mode body.student-live-page #student-center-rotate-btn,
   html.student-landscape-mode body.student-live-page #student-rotate-btn,
   html.student-virtual-landscape-mode body.student-live-page #student-rotate-btn,
-  html.student-landscape-mode body.student-live-page #student-unrotate-btn,
-  html.student-virtual-landscape-mode body.student-live-page #student-unrotate-btn,
   html.student-landscape-mode body.student-live-page #student-refresh-fab,
   html.student-virtual-landscape-mode body.student-live-page #student-refresh-fab,
   html.student-landscape-mode body.student-live-page #hand-waiting-actions,
@@ -241,52 +246,80 @@ html.student-virtual-landscape-mode body.student-live-page {
   html.student-landscape-mode body.student-live-page #question-image-input,
   html.student-virtual-landscape-mode body.student-live-page #question-image-input {
     display: none !important;
+    visibility: hidden !important;
   }
 
+  /* Compact, unified style for the 4 landscape toolbar buttons */
   html.student-landscape-mode body.student-live-page #student-center-unrotate-btn,
   html.student-virtual-landscape-mode body.student-live-page #student-center-unrotate-btn,
+  html.student-landscape-mode body.student-live-page #student-unrotate-btn,
+  html.student-virtual-landscape-mode body.student-live-page #student-unrotate-btn,
   html.student-landscape-mode body.student-live-page #raise-hand-btn,
   html.student-virtual-landscape-mode body.student-live-page #raise-hand-btn,
   html.student-landscape-mode body.student-live-page #capture-question-btn,
   html.student-virtual-landscape-mode body.student-live-page #capture-question-btn,
   html.student-landscape-mode body.student-live-page #refresh-media-btn,
-  html.student-virtual-landscape-mode body.student-live-page #refresh-media-btn,
-  html.student-landscape-mode body.student-live-page #open-chat-compose-btn,
-  html.student-virtual-landscape-mode body.student-live-page #open-chat-compose-btn {
+  html.student-virtual-landscape-mode body.student-live-page #refresh-media-btn {
     align-items: center !important;
     justify-content: center !important;
     align-self: stretch !important;
     justify-self: stretch !important;
     width: 100% !important;
     min-width: 0 !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
+    height: 100% !important;
+    min-height: 2.25rem !important;
+    max-height: 2.65rem !important;
     margin: 0 !important;
-    padding: 0 0.25rem !important;
+    padding: 0 0.35rem !important;
     border: 1px solid rgba(148, 163, 184, 0.28) !important;
     border-radius: 0.45rem !important;
     box-shadow: none !important;
-    font-size: clamp(0.58rem, 1.65vw, 0.82rem) !important;
-    line-height: 1.05 !important;
+    font-size: clamp(0.74rem, 2.2vw, 0.90rem) !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     position: relative !important;
     z-index: 5 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Specific typography and styling for capture photo button */
+  html.student-landscape-mode body.student-live-page #capture-question-btn,
+  html.student-virtual-landscape-mode body.student-live-page #capture-question-btn {
+    font-size: clamp(0.80rem, 2.4vw, 0.96rem) !important;
+    font-weight: 800 !important;
+    background: rgba(37, 99, 235, 0.25) !important;
+    border-color: rgba(96, 165, 250, 0.5) !important;
+    color: #93c5fd !important;
+    gap: 0.35rem !important;
+  }
+
+  /* Specific typography and styling for refresh media button */
+  html.student-landscape-mode body.student-live-page #refresh-media-btn,
+  html.student-virtual-landscape-mode body.student-live-page #refresh-media-btn {
+    background: rgba(99, 102, 241, 0.2) !important;
+    border-color: rgba(129, 140, 248, 0.4) !important;
+    color: #c7d2fe !important;
+    gap: 0.25rem !important;
   }
 
   html.student-landscape-mode body.student-live-page .refresh-media-button svg,
   html.student-virtual-landscape-mode body.student-live-page .refresh-media-button svg {
-    width: 1rem !important;
-    height: 1rem !important;
+    width: 1.1rem !important;
+    height: 1.1rem !important;
     flex: 0 0 auto !important;
+    margin-inline-end: 0.2rem !important;
   }
 
   html.student-landscape-mode body.student-live-page .refresh-media-label,
   html.student-virtual-landscape-mode body.student-live-page .refresh-media-label {
+    font-size: clamp(0.72rem, 2.1vw, 0.88rem) !important;
+    font-weight: 700 !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+    white-space: nowrap !important;
   }
 
   /* Cancel, hand toggle, capture, refresh, and message are the visible bottom items. */
