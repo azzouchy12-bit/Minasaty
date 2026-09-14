@@ -27,294 +27,114 @@
     const isAndroid = /Android/i.test(ua);
 
     // أ) التحقق مما إذا كان الزائر يستخدم التطبيق الأصلي الحديث (النسخة الجديدة المحدثة)
+    // أ) التحقق مما إذا كان الزائر يستخدم التطبيق الأصلي الحديث (تحديث تلقائي فوري OTA & APK)
     function initInAppInstantPlatformUpdate() {
       const CURRENT_VER_KEY = "minasaty_installed_web_version";
-      const DISMISS_VER_KEY = "minasaty_web_update_dismissed_v";
+      let isUpdating = false;
+
+      async function applyInstantUpdate(serverVersion) {
+        if (isUpdating) return;
+        isUpdating = true;
+
+        try {
+          localStorage.setItem(CURRENT_VER_KEY, serverVersion);
+        } catch (_) {}
+
+        // إظهار واجهة التحديث الفوري فورا بدون انتظار
+        if (!document.getElementById("minasaty-auto-update-overlay")) {
+          const overlay = document.createElement("div");
+          overlay.id = "minasaty-auto-update-overlay";
+          overlay.dir = "rtl";
+          overlay.innerHTML = `
+            <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,20,36,0.96);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);z-index:2147483647;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:'Cairo',system-ui,-apple-system,sans-serif;text-align:center;padding:24px;">
+              <div style="width:52px;height:52px;border:4px solid rgba(16,185,129,0.2);border-top-color:#10b981;border-radius:50%;animation:miuFastSpin 0.65s linear infinite;margin-bottom:20px;"></div>
+              <h3 style="margin:0 0 10px;font-size:19px;font-weight:800;color:#f8fafc;letter-spacing:-0.3px;">⚡ جارٍ التحديث التلقائي الفوري للمنصة...</h3>
+              <p style="margin:0;font-size:13px;color:#94a3b8;max-width:320px;line-height:1.6;">يتم تطبيق أحدث التحسينات ومزامنة التنبيهات الآن بشكل فوري.</p>
+            </div>
+            <style>
+              @keyframes miuFastSpin { to { transform: rotate(360deg); } }
+            </style>
+          `;
+          (document.body || document.documentElement).appendChild(overlay);
+        }
+
+        const performReload = () => {
+          const targetUrl = new URL(window.location.href);
+          targetUrl.searchParams.set("app", "true");
+          targetUrl.searchParams.set("ts", Date.now().toString());
+          window.location.replace(targetUrl.toString());
+        };
+
+        // صمام أمان زمني لضمان إعادة التحميل الفوري
+        const fallbackTimer = setTimeout(performReload, 450);
+
+        try {
+          if ("caches" in window) {
+            const cacheNames = await Promise.race([
+              caches.keys(),
+              new Promise((res) => setTimeout(() => res([]), 200))
+            ]);
+            await Promise.all(cacheNames.map((name) => caches.delete(name)));
+          }
+        } catch (_) {}
+
+        try {
+          if (navigator.serviceWorker) {
+            const registrations = await Promise.race([
+              navigator.serviceWorker.getRegistrations(),
+              new Promise((res) => setTimeout(() => res([]), 200))
+            ]);
+            await Promise.all(registrations.map((r) => r.unregister()));
+          }
+        } catch (_) {}
+
+        clearTimeout(fallbackTimer);
+        performReload();
+      }
 
       async function checkUpdate() {
+        if (isUpdating) return;
         try {
+          // 1. فحص تحديث ملفات المنصة السحابية
           const res = await fetch("/api/platform-version?_t=" + Date.now(), {
             cache: "no-store",
             headers: { "Pragma": "no-cache" }
           });
-          if (!res.ok) return;
-          const data = await res.json();
-          if (!data || !data.version) return;
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.version) {
+              const serverVersion = data.version;
+              const installedVersion = localStorage.getItem(CURRENT_VER_KEY);
 
-          const serverVersion = data.version;
-          const installedVersion = localStorage.getItem(CURRENT_VER_KEY);
-
-          // إذا كانت هذه المرة الأولى التي يفتح فيها التطبيق: نخزن الإصدار الحالي ولا نزعج المستخدم
-          if (!installedVersion) {
-            localStorage.setItem(CURRENT_VER_KEY, serverVersion);
-            return;
+              if (!installedVersion) {
+                localStorage.setItem(CURRENT_VER_KEY, serverVersion);
+              } else if (installedVersion !== serverVersion) {
+                const isInsideLiveSession = window.location.pathname.includes("student-live.html") || window.location.pathname.includes("teacher-live");
+                if (!isInsideLiveSession) {
+                  // تحديث تلقائي فوري الآن!
+                  await applyInstantUpdate(serverVersion);
+                  return;
+                }
+              }
+            }
           }
+        } catch (_) {}
 
-          // إذا كان الإصدار الحالي مساوياً لإصدار السيرفر: لا يوجد تحديث جديد
-          if (installedVersion === serverVersion) {
-            return;
+        // 2. فحص تحديث تطبيق أندرويد الأصلي تلقائياً
+        try {
+          if (window.MinasatyNative && typeof window.MinasatyNative.checkAndPerformAutoUpdate === "function") {
+            window.MinasatyNative.checkAndPerformAutoUpdate();
           }
-
-          // إذا تم تأجيل التنبيه لهذا الإصدار خلال الجلسة الحالية
-          const dismissedVer = sessionStorage.getItem(DISMISS_VER_KEY);
-          if (dismissedVer === serverVersion) {
-            return;
-          }
-
-          showInstantUpdateNotification(data);
         } catch (_) {}
       }
 
-      function showInstantUpdateNotification(updateData) {
-        if (document.getElementById("minasaty-instant-web-update-banner")) return;
+      // تشغيل الفحص فوراً عند فتح الصفحة
+      setTimeout(checkUpdate, 350);
 
-        const banner = document.createElement("div");
-        banner.id = "minasaty-instant-web-update-banner";
-        banner.dir = "rtl";
-        banner.setAttribute("role", "alert");
-        banner.innerHTML = `
-          <div class="miu-inner">
-            <div class="miu-header">
-              <div class="miu-badge">
-                <span class="miu-dot"></span>
-                <span>تحديث فوري للمنصة</span>
-              </div>
-              <button id="miu-close-btn" class="miu-close" type="button" aria-label="إغلاق التنبيه">×</button>
-            </div>
-            <div class="miu-content">
-              <h4 class="miu-title">✨ ${updateData.title || "المنصة تحتاج إلى تحديث"}</h4>
-              <p class="miu-desc">${updateData.message || "تتوفر الآن ميزات وتحسينات جديدة جاهزة للتطبيق فوراً وبدون الحاجة لإعادة تنزيل التطبيق."}</p>
-              <div id="miu-countdown-text" style="font-size: 11px; color: #34d399; margin-bottom: 8px; font-weight: 700;">⏳ سيتم التحديث تلقائياً خلال 4 ثوانٍ...</div>
-            </div>
-            <div class="miu-actions">
-              <button id="miu-apply-btn" class="miu-btn-apply" type="button">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2v6h-6M2.5 22v-6h6"/><path d="M20 8a8 8 0 0 0-14.7-2M4 16a8 8 0 0 0 14.7 2"/></svg>
-                <span>${updateData.actionText || "تحديث فوري الآن"}</span>
-              </button>
-              <button id="miu-later-btn" class="miu-btn-later" type="button">لاحقاً</button>
-            </div>
-          </div>
-        `;
+      // فحص دوري مستمر كل 30 ثانية لتطبيق أي تحديث ينشره السيرفر فورا
+      setInterval(checkUpdate, 30000);
 
-        const style = document.createElement("style");
-        style.id = "minasaty-instant-update-styles";
-        style.textContent = `
-          #minasaty-instant-web-update-banner {
-            position: fixed !important;
-            top: max(env(safe-area-inset-top, 0px), 16px) !important;
-            left: 14px !important;
-            right: 14px !important;
-            margin: 0 auto !important;
-            max-width: 440px !important;
-            z-index: 2147483645 !important;
-            pointer-events: auto !important;
-            animation: miuSlideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
-            font-family: 'Cairo', system-ui, -apple-system, sans-serif !important;
-          }
-          @keyframes miuSlideDown {
-            from { transform: translateY(-120%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-          }
-          .miu-inner {
-            background: rgba(10, 20, 36, 0.96) !important;
-            backdrop-filter: blur(16px) !important;
-            -webkit-backdrop-filter: blur(16px) !important;
-            border: 1.8px solid #10b981 !important;
-            box-shadow: 0 12px 36px -4px rgba(16, 185, 129, 0.35), 0 4px 16px rgba(0, 0, 0, 0.6) !important;
-            border-radius: 16px !important;
-            padding: 14px 16px !important;
-            color: #f8fafc !important;
-          }
-          .miu-header {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            margin-bottom: 8px !important;
-          }
-          .miu-badge {
-            display: inline-flex !important;
-            align-items: center !important;
-            gap: 6px !important;
-            padding: 3px 10px !important;
-            background: rgba(16, 185, 129, 0.16) !important;
-            border: 1px solid rgba(16, 185, 129, 0.45) !important;
-            border-radius: 9999px !important;
-            color: #34d399 !important;
-            font-size: 11px !important;
-            font-weight: 700 !important;
-          }
-          .miu-dot {
-            width: 7px !important;
-            height: 7px !important;
-            border-radius: 50% !important;
-            background: #10b981 !important;
-            box-shadow: 0 0 8px #10b981 !important;
-          }
-          .miu-close {
-            background: transparent !important;
-            border: none !important;
-            color: #94a3b8 !important;
-            font-size: 20px !important;
-            line-height: 1 !important;
-            cursor: pointer !important;
-            padding: 2px 6px !important;
-            border-radius: 6px !important;
-          }
-          .miu-close:hover { color: #f8fafc !important; background: rgba(255, 255, 255, 0.08) !important; }
-          .miu-title {
-            margin: 0 0 5px 0 !important;
-            font-size: 15px !important;
-            font-weight: 800 !important;
-            color: #ffffff !important;
-            line-height: 1.3 !important;
-          }
-          .miu-desc {
-            margin: 0 0 12px 0 !important;
-            font-size: 12px !important;
-            color: #cbd5e1 !important;
-            line-height: 1.5 !important;
-          }
-          .miu-actions {
-            display: flex !important;
-            align-items: center !important;
-            gap: 8px !important;
-          }
-          .miu-btn-apply {
-            flex: 1 !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            gap: 7px !important;
-            padding: 9px 16px !important;
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-            color: #ffffff !important;
-            border: none !important;
-            border-radius: 10px !important;
-            font-size: 13px !important;
-            font-weight: 800 !important;
-            cursor: pointer !important;
-            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4) !important;
-            transition: transform 0.15s ease, filter 0.15s ease !important;
-          }
-          .miu-btn-apply:active { transform: scale(0.97) !important; }
-          .miu-btn-later {
-            padding: 9px 14px !important;
-            background: rgba(30, 41, 59, 0.75) !important;
-            color: #94a3b8 !important;
-            border: 1px solid rgba(148, 163, 184, 0.22) !important;
-            border-radius: 10px !important;
-            font-size: 12px !important;
-            font-weight: 700 !important;
-            cursor: pointer !important;
-            transition: color 0.15s ease, background 0.15s ease !important;
-          }
-          .miu-btn-later:hover { color: #f1f5f9 !important; background: rgba(51, 65, 85, 0.8) !important; }
-        `;
-
-        (document.head || document.documentElement).appendChild(style);
-        document.body ? document.body.appendChild(banner) : document.documentElement.appendChild(banner);
-
-        let autoUpdateCountdownTimer = null;
-        let countdownSeconds = 4;
-
-        function dismissBanner() {
-          if (autoUpdateCountdownTimer) {
-            clearInterval(autoUpdateCountdownTimer);
-            autoUpdateCountdownTimer = null;
-          }
-          sessionStorage.setItem(DISMISS_VER_KEY, updateData.version);
-          banner.style.animation = "none";
-          banner.style.transition = "transform 0.25s ease, opacity 0.25s ease";
-          banner.style.transform = "translateY(-120%)";
-          banner.style.opacity = "0";
-          setTimeout(() => {
-            banner.remove();
-            style.remove();
-          }, 260);
-        }
-
-        async function applyInstantUpdate() {
-          if (autoUpdateCountdownTimer) {
-            clearInterval(autoUpdateCountdownTimer);
-            autoUpdateCountdownTimer = null;
-          }
-
-          const btn = document.getElementById("miu-btn-apply");
-          if (btn) {
-            btn.disabled = true;
-            btn.style.opacity = "0.75";
-            btn.innerHTML = `<span>⏳ جارٍ التحديث التلقائي...</span>`;
-          }
-
-          localStorage.setItem(CURRENT_VER_KEY, updateData.version);
-
-          const performReload = () => {
-            const targetUrl = new URL(window.location.href);
-            targetUrl.searchParams.set("app", "true");
-            targetUrl.searchParams.set("ts", Date.now().toString());
-            window.location.replace(targetUrl.toString());
-          };
-
-          // صمام أمان لضمان إعادة التحميل الفوري حتى لو تعطلت دوال حذف الكاش
-          const fallbackTimer = setTimeout(performReload, 600);
-
-          try {
-            if ("caches" in window) {
-              const cacheNames = await Promise.race([
-                caches.keys(),
-                new Promise((res) => setTimeout(() => res([]), 350))
-              ]);
-              await Promise.all(cacheNames.map((name) => caches.delete(name)));
-            }
-          } catch (_) {}
-
-          try {
-            if (navigator.serviceWorker) {
-              const registrations = await Promise.race([
-                navigator.serviceWorker.getRegistrations(),
-                new Promise((res) => setTimeout(() => res([]), 350))
-              ]);
-              await Promise.all(registrations.map((r) => r.unregister()));
-            }
-          } catch (_) {}
-
-          clearTimeout(fallbackTimer);
-          performReload();
-        }
-
-        document.getElementById("miu-close-btn")?.addEventListener("click", dismissBanner);
-        document.getElementById("miu-later-btn")?.addEventListener("click", dismissBanner);
-        document.getElementById("miu-btn-apply")?.addEventListener("click", applyInstantUpdate);
-
-        // التحديث التلقائي التنازلي إذا لم يكن المستخدم داخل بث مباشر
-        const isInsideLiveSession = window.location.pathname.includes("student-live.html") || window.location.pathname.includes("teacher-live");
-        if (!isInsideLiveSession) {
-          autoUpdateCountdownTimer = setInterval(() => {
-            countdownSeconds -= 1;
-            const countdownEl = document.getElementById("miu-countdown-text");
-            if (countdownEl) {
-              if (countdownSeconds > 0) {
-                countdownEl.textContent = `⏳ سيتم التحديث تلقائياً خلال ${countdownSeconds} ثوانٍ...`;
-              } else {
-                countdownEl.textContent = "⏳ جارٍ التحديث التلقائي الآن...";
-              }
-            }
-            if (countdownSeconds <= 0) {
-              clearInterval(autoUpdateCountdownTimer);
-              autoUpdateCountdownTimer = null;
-              void applyInstantUpdate();
-            }
-          }, 1000);
-        } else {
-          const countdownEl = document.getElementById("miu-countdown-text");
-          if (countdownEl) countdownEl.style.display = "none";
-        }
-      }
-
-      // تشغيل الفحص بعد اكتمال جاهزية الصفحة
-      setTimeout(checkUpdate, 1500);
-
-      // وفحص عند العودة إلى واجهة التطبيق
+      // فحص فوري عند عودة المستخدم لواجهة التطبيق
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible") {
           checkUpdate();
@@ -736,8 +556,9 @@
       return; // إنهاء السكربت للمستخدمين داخل التطبيق القديم بعد إظهار التنبيه
     }
 
-    // ج) إذا كان المستخدم يتصفح عبر Google Chrome أو Safari أو غيرهما بشكل طبيعي:
-    // نتركه كما هو تماماً دون أي إزعاج أو نوافذ
+    // ج) إذا كان المستخدم يتصفح عبر Google Chrome أو Safari أو غيرهما:
+    // تفعيل التحديث التلقائي الفوري لملفات المنصة
+    initInAppInstantPlatformUpdate();
     return;
   }
 

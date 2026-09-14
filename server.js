@@ -230,17 +230,34 @@ app.use("/api/native-alerts", nativeAlertRoutes);
 
 
 // Platform Version Endpoint for instant in-app web updates without APK re-download
-const PLATFORM_VERSION = process.env.PLATFORM_VERSION || "2026.09.14-v8";
+const PLATFORM_VERSION = process.env.PLATFORM_VERSION || "2026.09.14-v9-instant";
 app.get("/api/platform-version", (_req, res) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
   res.json({
     version: PLATFORM_VERSION,
-    updatedAt: 1789348900000,
-    title: "المنصة تحتاج إلى تحديث",
-    message: "تتوفر الآن تحسينات وميزات جديدة للمنصة جاهزة للاستخدام الفوري.",
-    actionText: "حدّثها الآن"
+    updatedAt: Date.now(),
+    title: "تحديث فوري للمنصة",
+    message: "تتوفر الآن تحسينات وميزات جديدة للمنصة تم تطبيقها فوراً.",
+    actionText: "تحديث الآن"
+  });
+});
+
+// APK Version Endpoint for automatic native Android app updates
+const APK_VERSION_CODE = parseInt(process.env.APK_VERSION_CODE || "2", 10);
+const APK_VERSION_NAME = process.env.APK_VERSION_NAME || "2.0";
+app.get("/api/apk-version", (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.json({
+    versionCode: APK_VERSION_CODE,
+    versionName: APK_VERSION_NAME,
+    apkUrl: "https://acadimia.africacold.fr/acadimia.apk",
+    forceUpdate: true,
+    minSupportedVersion: 1,
+    releaseNotes: "تحديث تلقائي فوري لتطبيق منصتي، استقرار عالي وتنبيهات فورية"
   });
 });
 
