@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="28dp"
+    android:background="#070b14">
+
+    <!-- Glowing Red Icon Container -->
+    <LinearLayout
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:gravity="center"
+        android:background="@android:drawable/ic_notification_overlay"
+        android:layout_marginBottom="24dp">
+
+        <ImageView
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:src="@android:drawable/ic_lock_idle_alarm"
+            android:contentDescription="Live Alert" />
+    </LinearLayout>
+
+    <!-- Urgent Badge -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🔴 الحصة بدأت الآن • تنبيه فوري"
+        android:textColor="#f87171"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:background="#26ef4444"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Title -->
+    <TextView
+        android:id="@+id/tvAlertTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🔴 تنبيه عاجل: بدأت الحصة المباشرة!"
+        android:textColor="#ffffff"
+        android:textStyle="bold"
+        android:textSize="22sp"
+        android:gravity="center"
+        android:layout_marginBottom="12dp" />
+
+    <!-- Description -->
+    <TextView
+        android:id="@+id/tvAlertBody"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="بدأت الحصة المباشرة الآن! الأستاذ بانتظارك، اضغط للدخول فوراً."
+        android:textColor="#cbd5e1"
+        android:textSize="15sp"
+        android:lineSpacingMultiplier="1.3"
+        android:gravity="center"
+        android:layout_marginBottom="36dp" />
+
+    <!-- Enter Live Classroom Button -->
+    <Button
+        android:id="@+id/btnEnterLive"
+        android:layout_width="match_parent"
+        android:layout_height="58dp"
+        android:text="🚀 دخول الحصة المباشرة الآن"
+        android:textColor="#ffffff"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:background="#10b981"
+        android:layout_marginBottom="14dp" />
+
+    <!-- Dismiss Ringing Button -->
+    <Button
+        android:id="@+id/btnDismissAlert"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:text="إيقاف الرنين والتجاهل"
+        android:textColor="#94a3b8"
+        android:textSize="14sp"
+        android:background="#1e293b" />
+
+</LinearLayout>

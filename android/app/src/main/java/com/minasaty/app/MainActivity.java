@@ -5,12 +5,11 @@ import android.app.PictureInPictureParams;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Rational;
 import android.webkit.JavascriptInterface;
-import android.webkit.PermissionRequest;
-import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import androidx.annotation.NonNull;
@@ -20,15 +19,97 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
     private static final int PERMISSION_REQ_CODE = 1001;
+    private static MainActivity instance = null;
+    private static String cachedFcmToken = "";
+
     private boolean isLiveSessionActive = false;
     private String currentClassTitle = "الحصة المباشرة";
     private String currentTeacherName = "أكاديمية التفوق";
 
+    public static MainActivity getInstance() {
+        return instance;
+    }
+
+    public static void updateCachedFcmToken(String token) {
+        cachedFcmToken = token != null ? token : "";
+        if (instance != null) {
+            instance.notifyWebViewFcmToken(cachedFcmToken);
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        instance = this;
+
         checkAndRequestPermissions();
         configureWebView();
+        fetchFcmToken();
+        handleIncomingAlertIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingAlertIntent(intent);
+    }
+
+    private void handleIncomingAlertIntent(Intent intent) {
+        if (intent == null) return;
+
+        String targetUrl = intent.getStringExtra("targetUrl");
+        if (targetUrl == null && intent.getData() != null) {
+            targetUrl = intent.getData().toString();
+        }
+
+        if (targetUrl != null && !targetUrl.isEmpty()) {
+            final String finalUrl = targetUrl;
+            runOnUiThread(() -> {
+                // Ensure native ringing stops when opening the class
+                LiveAlertRingingService.stopAlert(this);
+
+                if (getBridge() != null && getBridge().getWebView() != null) {
+                    WebView webView = getBridge().getWebView();
+                    String script = "if (window.location.pathname !== '" + finalUrl + "') { window.location.assign('" + finalUrl + "'); }";
+                    webView.evaluateJavascript(script, null);
+                }
+            });
+        }
+    }
+
+    private void fetchFcmToken() {
+        // First check locally saved token
+        String saved = MinasatyFirebaseMessagingService.getSavedToken(this);
+        if (saved != null && !saved.isEmpty()) {
+            cachedFcmToken = saved;
+        }
+
+        // Fetch latest from Firebase Messaging
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult() != null) {
+                        String token = task.getResult();
+                        cachedFcmToken = token;
+                        notifyWebViewFcmToken(token);
+                    }
+                });
+        } catch (Exception ignored) {
+            // Firebase may not be initialized if google-services.json is missing during local dev
+        }
+    }
+
+    private void notifyWebViewFcmToken(String token) {
+        if (token == null || token.isEmpty()) return;
+        runOnUiThread(() -> {
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                WebView webView = getBridge().getWebView();
+                String js = "window.MinasatyNativeFCMToken = '" + token + "';" +
+                            "if (typeof window.onNativeFcmToken === 'function') { window.onNativeFcmToken('" + token + "'); }";
+                webView.evaluateJavascript(js, null);
+            }
+        });
     }
 
     private void configureWebView() {
@@ -87,6 +168,21 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isNativeApp() {
             return true;
+        }
+
+        @JavascriptInterface
+        public String getFcmToken() {
+            return cachedFcmToken != null ? cachedFcmToken : "";
+        }
+
+        @JavascriptInterface
+        public void stopAlertRinging() {
+            runOnUiThread(() -> LiveAlertRingingService.stopAlert(MainActivity.this));
+        }
+
+        @JavascriptInterface
+        public boolean isAlertRinging() {
+            return LiveAlertRingingService.isAlertRinging();
         }
 
         @JavascriptInterface
@@ -157,6 +253,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onDestroy() {
+        if (instance == this) {
+            instance = null;
+        }
         if (isLiveSessionActive) {
             Intent serviceIntent = new Intent(this, LiveAudioForegroundService.class);
             serviceIntent.setAction(LiveAudioForegroundService.ACTION_STOP);

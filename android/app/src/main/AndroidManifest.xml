@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
@@ -48,6 +50,32 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback|microphone" />
+
+        <!-- Foreground Service for incoming call-like continuous live alert -->
+        <service
+            android:name=".LiveAlertRingingService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Firebase Cloud Messaging Receiver Service for background waking -->
+        <service
+            android:name=".MinasatyFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Full-Screen Incoming Alert Activity (Displays on top of lock screen) -->
+        <activity
+            android:name=".LiveAlertIncomingActivity"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

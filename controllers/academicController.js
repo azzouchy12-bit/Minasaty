@@ -1068,6 +1068,7 @@ async function sendLiveClassAbsenteeAlert(req, res) {
   const link = "/student-live.html?alert=1";
 
   const { sendPushToMultipleRecipients } = require("../utils/push");
+  const { sendFcmToMultipleRecipients } = require("../utils/fcm");
 
   const parentPhones = [];
   const targetStudentIds = [];
@@ -1142,7 +1143,7 @@ async function sendLiveClassAbsenteeAlert(req, res) {
     } catch (_) {}
   }
 
-  // Send Web Push / Native Push notification
+  // Send Web Push & Native Android FCM notification (wakes up lock screen like a call)
   const pushPayload = {
     title,
     body: alertBody,
@@ -1153,15 +1154,21 @@ async function sendLiveClassAbsenteeAlert(req, res) {
     requireInteraction: true,
     alertSound: true,
     ringLoop: true,
+    level,
+    subject,
   };
 
   let totalPushSent = 0;
+  let totalFcmSent = 0;
   try {
-    const [parentPushRes, studentPushRes] = await Promise.all([
+    const [parentPushRes, studentPushRes, parentFcmRes, studentFcmRes] = await Promise.all([
       parentPhones.length ? sendPushToMultipleRecipients("parent", parentPhones, pushPayload) : Promise.resolve({ sent: 0 }),
       targetStudentIds.length ? sendPushToMultipleRecipients("student", targetStudentIds, pushPayload) : Promise.resolve({ sent: 0 }),
+      parentPhones.length ? sendFcmToMultipleRecipients("parent", parentPhones, pushPayload) : Promise.resolve({ sent: 0 }),
+      targetStudentIds.length ? sendFcmToMultipleRecipients("student", targetStudentIds, pushPayload) : Promise.resolve({ sent: 0 }),
     ]);
     totalPushSent = (parentPushRes?.sent || 0) + (studentPushRes?.sent || 0);
+    totalFcmSent = (parentFcmRes?.sent || 0) + (studentFcmRes?.sent || 0);
   } catch (err) {
     console.warn("sendLiveClassAbsenteeAlert push error:", err.message);
   }
@@ -1170,6 +1177,7 @@ async function sendLiveClassAbsenteeAlert(req, res) {
     status: "success",
     alertedCount: students.length,
     pushSent: totalPushSent,
+    fcmSent: totalFcmSent,
     message: `تم إرسال التنبيه والرنين بنجاح إلى ${students.length} تلميذ.`,
   });
 }
@@ -1207,6 +1215,7 @@ async function sendTeacherLiveAlert(req, res) {
   }
 
   const { sendPushToMultipleRecipients, sendPushToAllSubscribers } = require("../utils/push");
+  const { sendFcmToMultipleRecipients } = require("../utils/fcm");
 
   // Map distinct parentPhones to students
   const recipients = new Map();
@@ -1285,12 +1294,17 @@ async function sendTeacherLiveAlert(req, res) {
       // Broadcast to ALL subscribers across all roles (parents, students, and teacher devices)
       const allPushRes = await sendPushToAllSubscribers(pushPayload);
       totalPushSent = allPushRes?.sent || 0;
+      // Also send FCM to all students and parents in the audience
+      void sendFcmToMultipleRecipients("student", targetStudentRecipients, pushPayload).catch(() => {});
+      if (parentPhones.length) void sendFcmToMultipleRecipients("parent", parentPhones, pushPayload).catch(() => {});
     } else {
       // Send to matching parents, students, teacher devices, and general subscribers
       const [parentPushRes, studentPushRes, teacherPushRes] = await Promise.all([
         parentPhones.length ? sendPushToMultipleRecipients("parent", parentPhones, pushPayload) : Promise.resolve({ sent: 0 }),
         sendPushToMultipleRecipients("student", targetStudentRecipients, pushPayload),
         sendPushToMultipleRecipients("teacher", ["teacher"], pushPayload),
+        parentPhones.length ? sendFcmToMultipleRecipients("parent", parentPhones, pushPayload) : Promise.resolve({ sent: 0 }),
+        sendFcmToMultipleRecipients("student", targetStudentRecipients, pushPayload),
       ]);
       totalPushSent = (parentPushRes?.sent || 0) + (studentPushRes?.sent || 0) + (teacherPushRes?.sent || 0);
     }

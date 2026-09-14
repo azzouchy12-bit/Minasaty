@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { notifyTelegram } = require("../services/telegramService");
 
 const MESSAGE_UPLOAD_DIR = path.resolve(__dirname, "../uploads/messages");
 const MESSAGES_UPLOAD_DIR = MESSAGE_UPLOAD_DIR;
@@ -342,6 +343,7 @@ async function sendMessage(req, res) {
     });
 
     emitPrivateMessage(req, message, student);
+    void notifyTelegram(req, { title: "رسالة جديدة", body: content });
 
     if (senderRole === "student") {
       const teacherIsConnected = isTeacherOnline(req);

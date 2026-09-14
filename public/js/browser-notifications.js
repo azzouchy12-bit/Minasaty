@@ -89,6 +89,9 @@
         navigator.serviceWorker.controller.postMessage({ type: "STOP_ALERT_SOUND" });
       } catch (_) {}
     }
+    if (window.MinasatyNative?.stopAlertRinging) {
+      try { window.MinasatyNative.stopAlertRinging(); } catch (_) {}
+    }
   }
   window.stopContinuousLiveAlert = stopContinuousLiveAlert;
 
@@ -410,4 +413,48 @@
   } else {
     createTeacherPermissionPrompt();
   }
+
+  // ── Native Android FCM Token Synchronization ──
+  async function syncNativeFcmToken(deviceToken) {
+    const safeToken = String(deviceToken || "").trim();
+    if (!safeToken) return;
+
+    const storedRole = sessionStorage.getItem("userRole") || (sessionStorage.getItem("teacherToken") ? "teacher" : "parent");
+    const parentPhone = sessionStorage.getItem("parentPhone") || localStorage.getItem("parentPhone") || "";
+    const studentId = sessionStorage.getItem("studentId") || localStorage.getItem("studentId") || "";
+    const currentToken = sessionStorage.getItem("teacherToken") || sessionStorage.getItem("parentToken") || "";
+
+    const payload = {
+      token: safeToken,
+      platform: "android",
+      parentPhone,
+      studentId,
+      recipientRole: storedRole,
+    };
+
+    const headers = { "Content-Type": "application/json" };
+    if (currentToken) headers["Authorization"] = `Bearer ${currentToken}`;
+
+    try {
+      await fetch("/api/push/fcm-token", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+    } catch (_) {}
+  }
+
+  window.onNativeFcmToken = (token) => {
+    void syncNativeFcmToken(token);
+  };
+
+  // Check if token is already cached in Android bridge on page load
+  window.setTimeout(() => {
+    try {
+      if (window.MinasatyNative?.getFcmToken) {
+        const initialToken = window.MinasatyNative.getFcmToken();
+        if (initialToken) void syncNativeFcmToken(initialToken);
+      }
+    } catch (_) {}
+  }, 1000);
 })();

@@ -1,4 +1,5 @@
 const { configured, saveSubscription, removeSubscription, getPublicKey: getPublicKeyUtil } = require("../utils/push");
+const { saveFcmDeviceToken, removeFcmDeviceToken } = require("../utils/fcm");
 
 function normalizeDigits(value, maxDigits = 10) {
   return String(value || "")
@@ -48,5 +49,20 @@ async function unsubscribe(req, res) {
   }
 }
 
-module.exports = { getPublicKey, subscribe, unsubscribe };
+async function registerFcmToken(req, res) {
+  try {
+    const token = String(req.body?.token || "").trim();
+    if (!token) {
+      return res.status(400).json({ error: "رمز جهاز الأندرويد مطلوب." });
+    }
+    const recipient = recipientFromUser(req.user, req.body);
+    const platform = String(req.body?.platform || "android");
+    await saveFcmDeviceToken(recipient.role, recipient.id, token, platform);
+    return res.status(201).json({ status: "success", message: "تم تسجيل جهاز الأندرويد للتنبيه الفوري بنجاح." });
+  } catch (error) {
+    return res.status(400).json({ error: error.message || "تعذر تسجيل جهاز الأندرويد." });
+  }
+}
+
+module.exports = { getPublicKey, subscribe, unsubscribe, registerFcmToken };
 

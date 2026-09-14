@@ -1,6 +1,6 @@
 const express = require("express");
 const { verifySessionToken } = require("../utils/sessionAuth");
-const { getPublicKey, subscribe, unsubscribe } = require("../controllers/pushController");
+const { getPublicKey, subscribe, unsubscribe, registerFcmToken } = require("../controllers/pushController");
 
 async function optionalToken(req, _res, next) {
   const authorizationHeader = req.get("authorization") || "";
@@ -19,5 +19,6 @@ const router = express.Router();
 router.get("/public-key", getPublicKey);
 router.post("/subscribe", optionalToken, subscribe);
 router.delete("/subscribe", optionalToken, unsubscribe);
+router.post("/fcm-token", optionalToken, registerFcmToken);
 module.exports = router;
 
