@@ -937,6 +937,98 @@ async function getTeacherLiveAlertAudience(req, res) {
   });
 }
 
+async function getLiveClassAbsentees(req, res) {
+  if (!requireTeacher(req, res)) return;
+  const level = text(req.query?.level, 100);
+  const subject = text(req.query?.subject, 40).toUpperCase();
+  const presentIdsRaw = req.query?.presentIds || "";
+  const presentIds = new Set(
+    (Array.isArray(presentIdsRaw) ? presentIdsRaw : String(presentIdsRaw).split(","))
+      .map((id) => String(id).trim())
+      .filter(Boolean)
+  );
+
+  if (!level) {
+    return res.status(400).json({ error: "المستوى الدراسي مطلوب." });
+  }
+
+  const isUniversityClass = level === "طالب جامعي";
+  const isGlobalFree = level === "FREE" || subject === "FREE";
+
+  const where = { accountActive: true };
+
+  if (level !== "FREE") {
+    const candidates = academicLevelCandidates(level);
+    if (candidates.length > 0) {
+      where.level = { in: candidates };
+    } else {
+      where.level = level;
+    }
+  }
+
+  if (!isGlobalFree) {
+    if (isUniversityClass) {
+      if (subject === "PAID") {
+        where.OR = [
+          { liveAccessEnabled: true },
+          { paymentStage: "PAID" },
+          { paymentStatus: true },
+        ];
+      }
+    } else {
+      // Secondary: must have live access or paid/promised status
+      where.OR = [
+        { liveAccessEnabled: true },
+        { paymentStage: { in: ["PAID", "PROMISED"] } },
+        { paymentStatus: true },
+      ];
+
+      if (subject === "MATH") {
+        where.mathEnrollment = true;
+      } else if (subject === "PHYSICS") {
+        where.physicsEnrollment = true;
+      }
+    }
+  }
+
+  const students = await prisma.student.findMany({
+    where,
+    orderBy: [{ studentName: "asc" }],
+    take: 2000,
+    select: {
+      id: true,
+      studentName: true,
+      parentPhone: true,
+      level: true,
+      paymentStage: true,
+      paymentStatus: true,
+      mathEnrollment: true,
+      physicsEnrollment: true,
+      liveAccessEnabled: true,
+    },
+  });
+
+  const absentees = [];
+  const present = [];
+
+  for (const student of students) {
+    if (presentIds.has(student.id)) {
+      present.push(student);
+    } else {
+      absentees.push(student);
+    }
+  }
+
+  return res.json({
+    status: "success",
+    totalEligible: students.length,
+    absentCount: absentees.length,
+    presentCount: present.length,
+    absentees,
+    present,
+  });
+}
+
 async function sendTeacherLiveAlert(req, res) {
   if (!requireTeacher(req, res)) return;
   const levels = req.body?.levels || [];
@@ -1125,6 +1217,7 @@ module.exports = {
   getTeacherLiveAlertAudience,
   sendTeacherLiveAlert,
   getActiveTeacherLiveAlert,
+  getLiveClassAbsentees,
   processScheduledTeacherAnnouncements,
   setSocketNotificationSender,
 };

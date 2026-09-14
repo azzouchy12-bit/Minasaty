@@ -1015,3 +1015,434 @@
   clip: auto;
   white-space: normal;
 }
+
+/* ========================================================
+   TOPBAR ABSENTEES BUTTON & MODAL
+   ======================================================== */
+.topbar-absentees-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 32px;
+  padding: 0 0.75rem;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  margin-inline-start: 0.5rem;
+}
+
+.topbar-absentees-btn:hover {
+  color: #ffffff;
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.65);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+  transform: translateY(-1px);
+}
+
+.topbar-absentees-btn:active {
+  transform: translateY(0);
+}
+
+.absentees-icon {
+  flex-shrink: 0;
+}
+
+.absentees-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  color: #ffffff;
+  background: #ef4444;
+  border-radius: 9999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* Absentees Modal */
+.absentees-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.absentees-modal[hidden] {
+  display: none !important;
+  opacity: 0;
+}
+
+.absentees-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(9, 9, 11, 0.82);
+  backdrop-filter: blur(8px);
+}
+
+.absentees-modal-card {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 660px;
+  max-height: min(88vh, 760px);
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  direction: rtl;
+  color: #f8fafc;
+}
+
+.absentees-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem 0.85rem;
+  border-bottom: 1px solid #27272a;
+}
+
+.absentees-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.absentees-modal-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.absentees-modal-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.absentees-modal-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.72rem;
+  color: #a1a1aa;
+}
+
+.absentees-modal-close-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #3f3f46;
+  border-radius: 8px;
+  background: #27272a;
+  color: #a1a1aa;
+  font-size: 1.3rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.absentees-modal-close-btn:hover {
+  color: #fff;
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
+/* Stats bar */
+.absentees-stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 1.25rem;
+  background: rgba(24, 24, 27, 0.6);
+  border-bottom: 1px solid #27272a;
+  flex-wrap: wrap;
+}
+
+.absentees-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+}
+
+.absentees-stat-pill.is-total {
+  color: #94a3b8;
+}
+
+.absentees-stat-pill.is-present {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.absentees-stat-pill.is-absent {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.absentees-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-inline-start: auto;
+  padding: 0.25rem 0.65rem;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  color: #a1a1aa;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.absentees-refresh-btn:hover {
+  color: #fff;
+  background: #3f3f46;
+}
+
+/* Filter search */
+.absentees-filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border-bottom: 1px solid #27272a;
+  background: #1e1e24;
+}
+
+.absentees-filter-wrap .search-icon {
+  color: #71717a;
+  flex-shrink: 0;
+}
+
+.absentees-filter-wrap input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  color: #f8fafc;
+  font-size: 0.78rem;
+  outline: none;
+}
+
+.absentees-filter-wrap input::placeholder {
+  color: #71717a;
+}
+
+/* List container */
+.absentees-list-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 220px;
+  max-height: 52vh;
+  padding: 0.75rem 1.25rem;
+}
+
+.absentees-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.absentee-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.95rem;
+  background: #202025;
+  border: 1px solid #2e2e38;
+  border-radius: 12px;
+  transition: all 0.18s ease;
+}
+
+.absentee-card:hover {
+  background: #26262d;
+  border-color: #3f3f4e;
+  transform: translateX(-2px);
+}
+
+.absentee-card-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.absentee-avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  font-size: 0.82rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.absentee-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.absentee-name {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #f8fafc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.absentee-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.68rem;
+  color: #94a3b8;
+  flex-wrap: wrap;
+}
+
+.absentee-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  direction: ltr;
+  color: #cbd5e1;
+  font-family: monospace;
+}
+
+.absentee-subject-badge {
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+}
+
+/* Actions */
+.absentee-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.absentee-wa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff !important;
+  border: 0;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  transition: all 0.2s ease;
+}
+
+.absentee-wa-btn:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.45);
+  transform: translateY(-1px);
+  color: #ffffff !important;
+}
+
+.absentee-call-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 8px;
+  color: #94a3b8;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.absentee-call-btn:hover {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+/* Messages */
+.absentees-state-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: #a1a1aa;
+  gap: 0.5rem;
+}
+
+.absentees-state-message.is-empty strong {
+  color: #34d399;
+  font-size: 1rem;
+}
+
+.absentees-state-message.is-error strong {
+  color: #f87171;
+  font-size: 0.95rem;
+}
+
+.empty-icon, .error-icon {
+  font-size: 2.2rem;
+}
+
+.absentees-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(239, 68, 68, 0.2);
+  border-top-color: #ef4444;
+  border-radius: 50%;
+  animation: absentees-spin 0.8s linear infinite;
+}
+
+@keyframes absentees-spin {
+  to { transform: rotate(360deg); }
+}

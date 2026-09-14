@@ -1389,6 +1389,17 @@
           </span>
         </a>
 
+        <button id="absentees-btn" class="topbar-absentees-btn" type="button" aria-label="عرض قائمة الغائبين" title="قائمة التلاميذ الغائبين عن الحصة">
+          <svg class="absentees-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <line x1="17" y1="8" x2="23" y2="14" />
+            <line x1="23" y1="8" x2="17" y2="14" />
+          </svg>
+          <span class="absentees-btn-label">الغائبون</span>
+          <span id="absentees-badge" class="absentees-badge" hidden>0</span>
+        </button>
+
         <div class="studio-live-cluster">
           <strong id="studio-topbar-title" class="studio-topbar-title">استوديو البث المباشر</strong>
           <div id="live-status" class="live-status" role="status" aria-live="polite">
@@ -1556,6 +1567,75 @@
         </header>
         <div id="question-image-modal-viewport" class="question-image-modal-viewport" aria-label="منطقة تكبير صورة سؤال التلميذ">
           <img id="question-image-modal-img" alt="صورة سؤال التلميذ مكبّرة" />
+        </div>
+      </div>
+    </div>
+
+    <div id="absentees-modal" class="absentees-modal" role="dialog" aria-modal="true" aria-labelledby="absentees-modal-title" hidden>
+      <div class="absentees-modal-backdrop" id="absentees-modal-backdrop"></div>
+      <div class="absentees-modal-card">
+        <header class="absentees-modal-header">
+          <div class="absentees-modal-titles">
+            <div class="absentees-modal-title-row">
+              <span class="absentees-modal-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <line x1="17" y1="8" x2="23" y2="14" />
+                  <line x1="23" y1="8" x2="17" y2="14" />
+                </svg>
+              </span>
+              <h2 id="absentees-modal-title">قائمة التلاميذ الغائبين</h2>
+            </div>
+            <p id="absentees-modal-subtitle" class="absentees-modal-subtitle">جارٍ جلب التلاميذ الغائبين عن الحصة الحالية...</p>
+          </div>
+          <button id="absentees-modal-close" class="absentees-modal-close-btn" type="button" aria-label="إغلاق النافذة">×</button>
+        </header>
+
+        <div class="absentees-stats-bar">
+          <div class="absentees-stat-pill is-total">
+            <span class="stat-label">المسجلون المؤهلون:</span>
+            <strong id="absentees-stat-total">0</strong>
+          </div>
+          <div class="absentees-stat-pill is-present">
+            <span class="stat-label">الحاضرون:</span>
+            <strong id="absentees-stat-present">0</strong>
+          </div>
+          <div class="absentees-stat-pill is-absent">
+            <span class="stat-label">الغائبون:</span>
+            <strong id="absentees-stat-absent">0</strong>
+          </div>
+          <button id="absentees-refresh-btn" class="absentees-refresh-btn" type="button" title="تحديث القائمة اللحظية">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+            <span>تحديث</span>
+          </button>
+        </div>
+
+        <div class="absentees-filter-wrap">
+          <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="search" id="absentees-search-input" placeholder="ابحث باسم التلميذ أو رقم الهاتف..." autocomplete="off" />
+        </div>
+
+        <div id="absentees-list-container" class="absentees-list-container" aria-live="polite">
+          <div id="absentees-loading" class="absentees-state-message">
+            <span class="absentees-spinner"></span>
+            <span>جارٍ فحص واحتساب قائمة الغائبين...</span>
+          </div>
+          <div id="absentees-empty" class="absentees-state-message is-empty" hidden>
+            <span class="empty-icon">🎉</span>
+            <strong>لا يوجد غائبون!</strong>
+            <p>جميع التلاميذ المشتركين والمؤهلين لهذه الحصة حاضرون الآن.</p>
+          </div>
+          <div id="absentees-error" class="absentees-state-message is-error" hidden>
+            <span class="error-icon">⚠️</span>
+            <strong id="absentees-error-text">تعذر جلب بيانات الغائبين.</strong>
+          </div>
+          <ul id="absentees-list" class="absentees-list" hidden></ul>
         </div>
       </div>
     </div>

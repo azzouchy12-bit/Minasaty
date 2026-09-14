@@ -219,6 +219,22 @@ const elements = {
   alertAudienceCount: document.getElementById("alert-audience-count"),
   alertTitleInput: document.getElementById("alert-title-input"),
   alertBodyInput: document.getElementById("alert-body-input"),
+  absenteesBtn: document.getElementById("absentees-btn"),
+  absenteesBadge: document.getElementById("absentees-badge"),
+  absenteesModal: document.getElementById("absentees-modal"),
+  absenteesModalBackdrop: document.getElementById("absentees-modal-backdrop"),
+  absenteesModalClose: document.getElementById("absentees-modal-close"),
+  absenteesModalSubtitle: document.getElementById("absentees-modal-subtitle"),
+  absenteesStatTotal: document.getElementById("absentees-stat-total"),
+  absenteesStatPresent: document.getElementById("absentees-stat-present"),
+  absenteesStatAbsent: document.getElementById("absentees-stat-absent"),
+  absenteesRefreshBtn: document.getElementById("absentees-refresh-btn"),
+  absenteesSearchInput: document.getElementById("absentees-search-input"),
+  absenteesLoading: document.getElementById("absentees-loading"),
+  absenteesEmpty: document.getElementById("absentees-empty"),
+  absenteesError: document.getElementById("absentees-error"),
+  absenteesErrorText: document.getElementById("absentees-error-text"),
+  absenteesList: document.getElementById("absentees-list"),
 };
 
 
@@ -2268,6 +2284,251 @@ async function handleSubmitTeacherLiveAlert() {
   }
 }
 
+// ── Teacher Live Absentees Management ──
+const sessionAttendedStudentIds = new Set();
+let currentAbsenteesData = null;
+let isAbsenteesModalOpen = false;
+let absenteesDebounceTimer = null;
+
+function getActivePresentStudentIds() {
+  const ids = new Set(sessionAttendedStudentIds);
+  attendeeElements.forEach((item) => {
+    const sid = item.dataset.studentId;
+    if (sid) ids.add(String(sid).trim());
+  });
+  attendeeSocketByStudentId.forEach((_sockId, sid) => {
+    if (sid) ids.add(String(sid).trim());
+  });
+  return Array.from(ids);
+}
+
+function updateAbsenteesBadge(count) {
+  if (!elements.absenteesBadge) return;
+  if (typeof count === "number" && count > 0) {
+    elements.absenteesBadge.textContent = String(count);
+    elements.absenteesBadge.hidden = false;
+  } else {
+    elements.absenteesBadge.hidden = true;
+  }
+}
+
+async function fetchLiveAbsentees() {
+  const level = activeLevel || elements.levelSelect?.value || "";
+  const subject = activeSubject || elements.subjectSelect?.value || "";
+  if (!level) return null;
+
+  const presentIds = getActivePresentStudentIds().join(",");
+  const token = sessionStorage.getItem("teacherToken") || teacherSocketToken || "";
+  const params = new URLSearchParams({
+    level,
+    subject,
+    presentIds,
+  });
+
+  const response = await fetch(`/api/academic/live-absentees?${params.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || "تعذر جلب بيانات الغائبين.");
+  }
+
+  const payload = await response.json();
+  currentAbsenteesData = payload;
+  updateAbsenteesBadge(payload.absentCount);
+  return payload;
+}
+
+function refreshAbsenteesBadge() {
+  clearTimeout(absenteesDebounceTimer);
+  absenteesDebounceTimer = setTimeout(async () => {
+    try {
+      await fetchLiveAbsentees();
+      if (isAbsenteesModalOpen && currentAbsenteesData) {
+        updateAbsenteesModalView(currentAbsenteesData);
+      }
+    } catch (_) {}
+  }, 250);
+}
+
+function buildWhatsAppUrl(rawPhone, studentName, level, subject) {
+  if (!rawPhone) return "#";
+  let cleaned = String(rawPhone).replace(/\D/g, "");
+  if (cleaned.startsWith("0")) {
+    cleaned = "213" + cleaned.slice(1);
+  } else if (!cleaned.startsWith("213")) {
+    cleaned = "213" + cleaned;
+  }
+  const subjectName = getClassTypeName(level, subject);
+  const text = encodeURIComponent(
+    `السلام عليكم ولي أمر التلميذ(ة) ${studentName || ""}، نود إعلامكم بأن حصة ${subjectName} (${level}) جارية الآن، والتلميذ مسجل غائب في المنصة. يرجى الالتحاق بالبث المباشر.`
+  );
+  return `https://wa.me/${cleaned}?text=${text}`;
+}
+
+function renderAbsenteesList(absentees, query = "") {
+  if (!elements.absenteesList) return;
+  const q = String(query || "").trim().toLowerCase();
+  const filtered = absentees.filter((s) => {
+    if (!q) return true;
+    const nameMatch = String(s.studentName || "").toLowerCase().includes(q);
+    const phoneMatch = String(s.parentPhone || "").includes(q);
+    return nameMatch || phoneMatch;
+  });
+
+  elements.absenteesList.replaceChildren();
+
+  if (filtered.length === 0) {
+    if (elements.absenteesEmpty) {
+      elements.absenteesEmpty.hidden = false;
+      const strong = elements.absenteesEmpty.querySelector("strong");
+      const p = elements.absenteesEmpty.querySelector("p");
+      if (q) {
+        if (strong) strong.textContent = "لا توجد نتائج مطابقة للبحث";
+        if (p) p.textContent = `لم يتم العثور على أي تلميذ غائب يطابق "${query}".`;
+      } else {
+        if (strong) strong.textContent = "لا يوجد غائبون!";
+        if (p) p.textContent = "جميع التلاميذ المشتركين والمؤهلين لهذه الحصة حاضرون الآن.";
+      }
+    }
+    elements.absenteesList.hidden = true;
+    return;
+  }
+
+  if (elements.absenteesEmpty) elements.absenteesEmpty.hidden = true;
+  elements.absenteesList.hidden = false;
+
+  const currentLvl = activeLevel || elements.levelSelect?.value || "";
+  const currentSub = activeSubject || elements.subjectSelect?.value || "";
+
+  filtered.forEach((student) => {
+    const li = document.createElement("li");
+    li.className = "absentee-card";
+
+    const info = document.createElement("div");
+    info.className = "absentee-card-info";
+
+    const avatar = document.createElement("div");
+    avatar.className = "absentee-avatar";
+    avatar.textContent = displayInitials(student.studentName);
+
+    const details = document.createElement("div");
+    details.className = "absentee-details";
+
+    const name = document.createElement("strong");
+    name.className = "absentee-name";
+    name.textContent = student.studentName || "تلميذ";
+
+    const meta = document.createElement("div");
+    meta.className = "absentee-meta";
+
+    const phoneSpan = document.createElement("span");
+    phoneSpan.className = "absentee-phone";
+    phoneSpan.textContent = `📞 ${student.parentPhone || "—"}`;
+    meta.append(phoneSpan);
+
+    if (student.level !== UNIVERSITY_LEVEL) {
+      const subjectBadge = document.createElement("span");
+      subjectBadge.className = "absentee-subject-badge";
+      subjectBadge.textContent =
+        student.mathEnrollment && student.physicsEnrollment
+          ? "رياضيات وفيزياء"
+          : student.mathEnrollment
+            ? "رياضيات فقط"
+            : student.physicsEnrollment
+              ? "فيزياء فقط"
+              : "مشترك";
+      meta.append(subjectBadge);
+    }
+
+    details.append(name, meta);
+    info.append(avatar, details);
+
+    const actions = document.createElement("div");
+    actions.className = "absentee-card-actions";
+
+    if (student.parentPhone) {
+      const waUrl = buildWhatsAppUrl(student.parentPhone, student.studentName, currentLvl, currentSub);
+      const waBtn = document.createElement("a");
+      waBtn.className = "absentee-wa-btn";
+      waBtn.href = waUrl;
+      waBtn.target = "_blank";
+      waBtn.rel = "noopener noreferrer";
+      waBtn.title = "مراسلة ولي التلميذ عبر واتساب";
+      waBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+          <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.23 8.23 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.19 8.19 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24m4.52 11.66c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.98-.14.17-.29.18-.54.06-.25-.13-1.06-.39-2.01-1.24-.74-.66-1.24-1.48-1.39-1.73-.14-.25-.02-.39.11-.51.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.17.04-.31-.02-.44s-.56-1.36-.77-1.86c-.2-.49-.41-.42-.56-.43h-.48c-.17 0-.44.06-.67.31-.23.25-.87.85-.87 2.08s.89 2.41 1.01 2.58c.13.17 1.75 2.67 4.23 3.74.59.26 1.05.41 1.41.53.59.19 1.13.16 1.56.1.47-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.11-.23-.18-.48-.3"/>
+        </svg>
+        <span>واتساب</span>
+      `;
+      actions.append(waBtn);
+
+      const callBtn = document.createElement("a");
+      callBtn.className = "absentee-call-btn";
+      callBtn.href = `tel:${student.parentPhone}`;
+      callBtn.title = "اتصال هاتفي مباشر";
+      callBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+        </svg>
+      `;
+      actions.append(callBtn);
+    }
+
+    li.append(info, actions);
+    elements.absenteesList.append(li);
+  });
+}
+
+function updateAbsenteesModalView(data) {
+  if (!data) return;
+  if (elements.absenteesStatTotal) elements.absenteesStatTotal.textContent = String(data.totalEligible || 0);
+  if (elements.absenteesStatPresent) elements.absenteesStatPresent.textContent = String(data.presentCount || 0);
+  if (elements.absenteesStatAbsent) elements.absenteesStatAbsent.textContent = String(data.absentCount || 0);
+
+  const query = elements.absenteesSearchInput?.value || "";
+  renderAbsenteesList(data.absentees || [], query);
+}
+
+async function openAbsenteesModal() {
+  if (!elements.absenteesModal) return;
+  isAbsenteesModalOpen = true;
+
+  const currentLvl = activeLevel || elements.levelSelect?.value || "";
+  const currentSub = activeSubject || elements.subjectSelect?.value || "";
+  const subjectName = getClassTypeName(currentLvl, currentSub);
+
+  if (elements.absenteesModalSubtitle) {
+    elements.absenteesModalSubtitle.textContent = `حصة ${subjectName} — ${currentLvl || "المستوى المحدد"}`;
+  }
+
+  elements.absenteesModal.hidden = false;
+  if (elements.absenteesLoading) elements.absenteesLoading.hidden = false;
+  if (elements.absenteesEmpty) elements.absenteesEmpty.hidden = true;
+  if (elements.absenteesError) elements.absenteesError.hidden = true;
+  if (elements.absenteesList) elements.absenteesList.hidden = true;
+  if (elements.absenteesSearchInput) elements.absenteesSearchInput.value = "";
+
+  try {
+    const data = await fetchLiveAbsentees();
+    if (elements.absenteesLoading) elements.absenteesLoading.hidden = true;
+    updateAbsenteesModalView(data);
+  } catch (err) {
+    if (elements.absenteesLoading) elements.absenteesLoading.hidden = true;
+    if (elements.absenteesError) elements.absenteesError.hidden = false;
+    if (elements.absenteesErrorText) elements.absenteesErrorText.textContent = err.message || "تعذر جلب بيانات الغائبين.";
+  }
+}
+
+function closeAbsenteesModal() {
+  isAbsenteesModalOpen = false;
+  if (elements.absenteesModal) elements.absenteesModal.hidden = true;
+}
+
 
 
 function finalizeLocalRecording() {
@@ -3804,6 +4065,9 @@ async function endLiveClass({ notifyServer = true, statusMessage, preserveRecove
     clearTeacherChat();
     clearTeacherChatImage();
     stopLocalStreams();
+    sessionAttendedStudentIds.clear();
+    currentAbsenteesData = null;
+    updateAbsenteesBadge(0);
     activeLevel = null;
     activeSubject = null;
     activeScheduledClassId = null;
@@ -4150,6 +4414,7 @@ async function startLiveClass() {
       "live"
     );
     void publishScreenShareState(false);
+    void refreshAbsenteesBadge();
   } catch (error) {
     console.error("Unable to start live class:", error);
     classActive = false;
@@ -4321,10 +4586,14 @@ socket.on("student_joined", async (data = {}) => {
     return;
   }
 
+  if (studentId) {
+    sessionAttendedStudentIds.add(String(studentId).trim());
+  }
 
   const attendee = upsertAttendee(socketId, studentId, studentName || "تلميذ", participationCount);
   syncStudentMicButton(attendee, socketId, false);
   await createAndSendOffer(socketId);
+  refreshAbsenteesBadge();
 });
 
 
@@ -4535,9 +4804,11 @@ socket.on("student_left", (data = {}) => {
   const socketId = data.socketId || attendeeSocketByStudentId.get(String(data.studentId || "").trim());
   if (socketId) {
     removeStudentConnection(socketId);
+    refreshAbsenteesBadge();
     return;
   }
   if (data.studentId) removeAttendeeByStudentId(data.studentId);
+  refreshAbsenteesBadge();
 });
 
 
@@ -4618,9 +4889,13 @@ elements.levelSelect.addEventListener("change", () => {
   if (!classActive && !isStarting && !isEnding) {
     syncClassTypeSelector();
     void checkForOpenScheduledClass();
+    void refreshAbsenteesBadge();
   }
 });
-elements.subjectSelect?.addEventListener("change", () => void checkForOpenScheduledClass());
+elements.subjectSelect?.addEventListener("change", () => {
+  void checkForOpenScheduledClass();
+  void refreshAbsenteesBadge();
+});
 elements.screenShareButton?.addEventListener("click", () => void toggleScreenShare());
 elements.toggleMicButton.addEventListener("click", toggleMicrophone);
 elements.recordLocalButton.addEventListener("click", toggleLocalRecording);
@@ -4709,6 +4984,30 @@ elements.alertStudentsSelectionList?.addEventListener("change", (event) => {
 elements.submitSendAlertButton?.addEventListener("click", () => {
   void handleSubmitTeacherLiveAlert();
 });
+
+// ── Absentees Modal & Control Listeners ──
+elements.absenteesBtn?.addEventListener("click", openAbsenteesModal);
+elements.absenteesModalClose?.addEventListener("click", closeAbsenteesModal);
+elements.absenteesModalBackdrop?.addEventListener("click", closeAbsenteesModal);
+elements.absenteesRefreshBtn?.addEventListener("click", async () => {
+  if (elements.absenteesLoading) elements.absenteesLoading.hidden = false;
+  if (elements.absenteesList) elements.absenteesList.hidden = true;
+  if (elements.absenteesEmpty) elements.absenteesEmpty.hidden = true;
+  if (elements.absenteesError) elements.absenteesError.hidden = true;
+  try {
+    const data = await fetchLiveAbsentees();
+    if (elements.absenteesLoading) elements.absenteesLoading.hidden = true;
+    updateAbsenteesModalView(data);
+  } catch (err) {
+    if (elements.absenteesLoading) elements.absenteesLoading.hidden = true;
+    if (elements.absenteesError) elements.absenteesError.hidden = false;
+    if (elements.absenteesErrorText) elements.absenteesErrorText.textContent = err.message || "تعذر تحديث قائمة الغائبين.";
+  }
+});
+elements.absenteesSearchInput?.addEventListener("input", (e) => {
+  renderAbsenteesList(e.target.value);
+});
+
 elements.questionImageModalViewport?.addEventListener("pointerdown", startQuestionImageDrag);
 elements.questionImageModalViewport?.addEventListener("pointermove", moveQuestionImageDrag);
 elements.questionImageModalViewport?.addEventListener("pointerup", stopQuestionImageDrag);
@@ -4723,6 +5022,7 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeQuestionImageModal();
     closeRecordingReadyModal();
+    closeAbsenteesModal();
   }
 });
 
@@ -4753,6 +5053,7 @@ if (pendingPageRecovery) {
 
 
 void checkForOpenScheduledClass();
+void refreshAbsenteesBadge();
 updateAttendeeCount();
 try {
   updateControls();
