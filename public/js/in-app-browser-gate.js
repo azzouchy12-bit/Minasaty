@@ -84,11 +84,12 @@
             <div class="miu-content">
               <h4 class="miu-title">✨ ${updateData.title || "المنصة تحتاج إلى تحديث"}</h4>
               <p class="miu-desc">${updateData.message || "تتوفر الآن ميزات وتحسينات جديدة جاهزة للتطبيق فوراً وبدون الحاجة لإعادة تنزيل التطبيق."}</p>
+              <div id="miu-countdown-text" style="font-size: 11px; color: #34d399; margin-bottom: 8px; font-weight: 700;">⏳ سيتم التحديث تلقائياً خلال 4 ثوانٍ...</div>
             </div>
             <div class="miu-actions">
               <button id="miu-apply-btn" class="miu-btn-apply" type="button">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2v6h-6M2.5 22v-6h6"/><path d="M20 8a8 8 0 0 0-14.7-2M4 16a8 8 0 0 0 14.7 2"/></svg>
-                <span>${updateData.actionText || "حدّثها الآن"}</span>
+                <span>${updateData.actionText || "تحديث فوري الآن"}</span>
               </button>
               <button id="miu-later-btn" class="miu-btn-later" type="button">لاحقاً</button>
             </div>
@@ -213,7 +214,14 @@
         (document.head || document.documentElement).appendChild(style);
         document.body ? document.body.appendChild(banner) : document.documentElement.appendChild(banner);
 
+        let autoUpdateCountdownTimer = null;
+        let countdownSeconds = 4;
+
         function dismissBanner() {
+          if (autoUpdateCountdownTimer) {
+            clearInterval(autoUpdateCountdownTimer);
+            autoUpdateCountdownTimer = null;
+          }
           sessionStorage.setItem(DISMISS_VER_KEY, updateData.version);
           banner.style.animation = "none";
           banner.style.transition = "transform 0.25s ease, opacity 0.25s ease";
@@ -225,40 +233,82 @@
           }, 260);
         }
 
-        document.getElementById("miu-close-btn")?.addEventListener("click", dismissBanner);
-        document.getElementById("miu-later-btn")?.addEventListener("click", dismissBanner);
+        async function applyInstantUpdate() {
+          if (autoUpdateCountdownTimer) {
+            clearInterval(autoUpdateCountdownTimer);
+            autoUpdateCountdownTimer = null;
+          }
 
-        document.getElementById("miu-btn-apply")?.addEventListener("click", async () => {
           const btn = document.getElementById("miu-btn-apply");
           if (btn) {
             btn.disabled = true;
             btn.style.opacity = "0.75";
-            btn.innerHTML = `<span>⏳ جارٍ التحديث الفوري...</span>`;
+            btn.innerHTML = `<span>⏳ جارٍ التحديث التلقائي...</span>`;
           }
 
           localStorage.setItem(CURRENT_VER_KEY, updateData.version);
 
-          // تنظيف كاش المتصفح و Service Worker لضمان تحميل أحدث الأكواد
+          const performReload = () => {
+            const targetUrl = new URL(window.location.href);
+            targetUrl.searchParams.set("app", "true");
+            targetUrl.searchParams.set("ts", Date.now().toString());
+            window.location.replace(targetUrl.toString());
+          };
+
+          // صمام أمان لضمان إعادة التحميل الفوري حتى لو تعطلت دوال حذف الكاش
+          const fallbackTimer = setTimeout(performReload, 600);
+
           try {
             if ("caches" in window) {
-              const cacheNames = await caches.keys();
+              const cacheNames = await Promise.race([
+                caches.keys(),
+                new Promise((res) => setTimeout(() => res([]), 350))
+              ]);
               await Promise.all(cacheNames.map((name) => caches.delete(name)));
             }
           } catch (_) {}
 
           try {
             if (navigator.serviceWorker) {
-              const registrations = await navigator.serviceWorker.getRegistrations();
+              const registrations = await Promise.race([
+                navigator.serviceWorker.getRegistrations(),
+                new Promise((res) => setTimeout(() => res([]), 350))
+              ]);
               await Promise.all(registrations.map((r) => r.unregister()));
             }
           } catch (_) {}
 
-          // إعادة التحميل فورا مع كسر الكاش
-          const targetUrl = new URL(window.location.href);
-          targetUrl.searchParams.set("app", "true");
-          targetUrl.searchParams.set("ts", Date.now().toString());
-          window.location.replace(targetUrl.toString());
-        });
+          clearTimeout(fallbackTimer);
+          performReload();
+        }
+
+        document.getElementById("miu-close-btn")?.addEventListener("click", dismissBanner);
+        document.getElementById("miu-later-btn")?.addEventListener("click", dismissBanner);
+        document.getElementById("miu-btn-apply")?.addEventListener("click", applyInstantUpdate);
+
+        // التحديث التلقائي التنازلي إذا لم يكن المستخدم داخل بث مباشر
+        const isInsideLiveSession = window.location.pathname.includes("student-live.html") || window.location.pathname.includes("teacher-live");
+        if (!isInsideLiveSession) {
+          autoUpdateCountdownTimer = setInterval(() => {
+            countdownSeconds -= 1;
+            const countdownEl = document.getElementById("miu-countdown-text");
+            if (countdownEl) {
+              if (countdownSeconds > 0) {
+                countdownEl.textContent = `⏳ سيتم التحديث تلقائياً خلال ${countdownSeconds} ثوانٍ...`;
+              } else {
+                countdownEl.textContent = "⏳ جارٍ التحديث التلقائي الآن...";
+              }
+            }
+            if (countdownSeconds <= 0) {
+              clearInterval(autoUpdateCountdownTimer);
+              autoUpdateCountdownTimer = null;
+              void applyInstantUpdate();
+            }
+          }, 1000);
+        } else {
+          const countdownEl = document.getElementById("miu-countdown-text");
+          if (countdownEl) countdownEl.style.display = "none";
+        }
       }
 
       // تشغيل الفحص بعد اكتمال جاهزية الصفحة
@@ -596,25 +646,51 @@
 
           const updateBtn = document.getElementById("minasaty-old-btn-download");
           if (updateBtn) {
-            updateBtn.innerHTML = "<span>⏳ جاري التحميل... تفقّد شريط الإشعارات</span>";
+            updateBtn.innerHTML = "<span>⏳ بدأ التحميل... تفقّد شريط الإشعارات</span>";
             updateBtn.style.opacity = "0.85";
           }
 
-          const apkUrl = "/acadimia.apk?v=" + Date.now();
+          const fullApkUrl = window.location.origin + "/acadimia.apk";
 
-          // محاولة تحميل عبر رابط مباشر
-          const link = document.createElement("a");
-          link.href = apkUrl;
-          link.setAttribute("download", "acadimia.apk");
-          link.setAttribute("target", "_blank");
-          document.body.appendChild(link);
-          link.click();
-          setTimeout(() => link.remove(), 1000);
+          // 1. إذا كان التطبيق يوفر واجهة تنزيل وتثبيت أصلية (Android Native Bridge)
+          if (window.MinasatyNative?.downloadAndInstallApk) {
+            try {
+              window.MinasatyNative.downloadAndInstallApk("/acadimia.apk");
+              return;
+            } catch (_) {}
+          }
 
-          // محاولة تحميل عبر تغيير رابط النافذة للتأكد من التقاطه
+          // 2. إطلاق مدير التنزيلات عبر Intent أندرويد لفتح متصفح النظام فوراً
+          try {
+            const hostAndPath = (window.location.host + "/acadimia.apk").replace(/^https?:\/\//i, "");
+            const genericIntent = "intent://" + hostAndPath + "#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end;";
+            window.location.href = genericIntent;
+          } catch (_) {}
+
+          // 3. محاولة فتح الرابط عبر المتصفح الخارجي _system أو Chrome
           setTimeout(() => {
-            window.location.href = apkUrl;
-          }, 400);
+            try {
+              window.open(fullApkUrl, "_system");
+            } catch (_) {}
+          }, 300);
+
+          setTimeout(() => {
+            const hostAndPath = (window.location.host + "/acadimia.apk").replace(/^https?:\/\//i, "");
+            const chromeIntent = "intent://" + hostAndPath + "#Intent;scheme=https;package=com.android.chrome;end;";
+            window.location.href = chromeIntent;
+          }, 700);
+
+          // 4. رابط مباشر كخيار احتياطي
+          setTimeout(() => {
+            const link = document.createElement("a");
+            link.href = fullApkUrl + "?t=" + Date.now();
+            link.setAttribute("download", "acadimia.apk");
+            link.setAttribute("target", "_blank");
+            link.rel = "noopener noreferrer";
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => link.remove(), 1000);
+          }, 1200);
         };
 
         // زر التحميل المباشر

@@ -1,17 +1,23 @@
 package com.minasaty.app;
 
 import android.Manifest;
+import android.app.DownloadManager;
 import android.app.PictureInPictureParams;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.Rational;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -126,6 +132,15 @@ public class MainActivity extends BridgeActivity {
             webView.addJavascriptInterface(nativeBridge, "MinasatyNative");
             webView.addJavascriptInterface(nativeBridge, "MinasatyApp");
             webView.addJavascriptInterface(nativeBridge, "Android");
+
+            // Attach native download listener for APK updates and downloads
+            webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+                if (url != null && (url.endsWith(".apk") || url.contains(".apk"))) {
+                    nativeBridge.downloadAndInstallApk(url);
+                } else {
+                    nativeBridge.openExternalUrl(url);
+                }
+            });
         }
     }
 
@@ -214,6 +229,92 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void enterPip() {
             runOnUiThread(() -> enterPictureInPicture());
+        }
+
+        @JavascriptInterface
+        public void downloadAndInstallApk(String url) {
+            runOnUiThread(() -> {
+                try {
+                    String targetUrl = url;
+                    if (targetUrl == null || targetUrl.isEmpty()) {
+                        targetUrl = "/acadimia.apk";
+                    }
+                    Uri downloadUri = Uri.parse(targetUrl);
+                    if (!downloadUri.isAbsolute()) {
+                        downloadUri = Uri.parse("https://acadimia.africacold.fr" + (targetUrl.startsWith("/") ? "" : "/") + targetUrl);
+                    }
+
+                    Toast.makeText(MainActivity.this, "بدأ تنزيل التحديث... تفقّد شريط الإشعارات", Toast.LENGTH_LONG).show();
+
+                    DownloadManager.Request request = new DownloadManager.Request(downloadUri);
+                    request.setTitle("منصتي | تحديث التطبيق");
+                    request.setDescription("جارٍ تنزيل النسخة الجديدة من تطبيق منصتي...");
+                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "acadimia.apk");
+                    request.setMimeType("application/vnd.android.package-archive");
+
+                    DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                    if (manager != null) {
+                        long downloadId = manager.enqueue(request);
+
+                        BroadcastReceiver receiver = new BroadcastReceiver() {
+                            @Override
+                            public void onReceive(Context context, Intent intent) {
+                                long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+                                if (id == downloadId) {
+                                    promptInstallApk(downloadId);
+                                    try { unregisterReceiver(this); } catch (Exception ignored) {}
+                                }
+                            }
+                        };
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            registerReceiver(receiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_EXPORTED);
+                        } else {
+                            registerReceiver(receiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+                        }
+                    }
+                } catch (Exception e) {
+                    // Fallback to opening in external browser (Google Chrome)
+                    openExternalUrl(url);
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void openExternalUrl(String url) {
+            runOnUiThread(() -> {
+                try {
+                    String targetUrl = url;
+                    if (targetUrl == null || targetUrl.isEmpty()) {
+                        targetUrl = "https://acadimia.africacold.fr/acadimia.apk";
+                    }
+                    Uri uri = Uri.parse(targetUrl);
+                    if (!uri.isAbsolute()) {
+                        uri = Uri.parse("https://acadimia.africacold.fr" + (targetUrl.startsWith("/") ? "" : "/") + targetUrl);
+                    }
+                    Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                } catch (Exception ignored) {}
+            });
+        }
+    }
+
+    private void promptInstallApk(long downloadId) {
+        try {
+            DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            if (manager == null) return;
+
+            Uri apkUri = manager.getUriForDownloadedFile(downloadId);
+            if (apkUri != null) {
+                Intent installIntent = new Intent(Intent.ACTION_VIEW);
+                installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(installIntent);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
