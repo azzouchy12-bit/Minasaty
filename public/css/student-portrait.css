@@ -969,20 +969,20 @@ body.student-live-page {
     opacity: 1 !important;
   }
 
-  body.student-live-page:not(.student-times-level-page) .viewer-actions-control-row {
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page:not(.student-times-level-page) .viewer-actions-control-row {
     transform: none !important;
     margin: 0 !important;
     gap: .35rem !important;
   }
 
-  body.student-live-page:not(.student-times-level-page) .viewer-actions-control-row > * {
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page:not(.student-times-level-page) .viewer-actions-control-row > * {
     min-width: 0 !important;
     width: 100% !important;
     margin: 0 !important;
   }
 
-  body.student-live-page:not(.student-times-level-page) .viewer-actions-control-row button,
-  body.student-live-page:not(.student-times-level-page) .viewer-actions-control-row .hand-waiting-label {
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page:not(.student-times-level-page) .viewer-actions-control-row button,
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page:not(.student-times-level-page) .viewer-actions-control-row .hand-waiting-label {
     min-height: 2.25rem !important;
     height: 2.25rem !important;
     padding: .2rem .35rem !important;
@@ -990,15 +990,15 @@ body.student-live-page {
   }
 
   /* Keep the text rectangle separate from the capture/send row. */
-  body.student-live-page:not(.student-times-level-page) .chat-compose-modal,
-  body.student-live-page:not(.student-times-level-page) #chat-compose-modal {
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page:not(.student-times-level-page) .chat-compose-modal,
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page:not(.student-times-level-page) #chat-compose-modal {
     inset: auto 0 calc(6.15rem + max(env(safe-area-inset-bottom, 0px), 52px) + var(--student-keyboard-offset, 0px)) 0 !important;
     padding: 0 .45rem .25rem !important;
   }
 
   /* The mobile composer is always available; [hidden] must not remove it. */
-  body.student-live-page:not(.student-times-level-page) .chat-compose-modal[hidden],
-  body.student-live-page:not(.student-times-level-page) #chat-compose-modal[hidden] {
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page:not(.student-times-level-page) .chat-compose-modal[hidden],
+  html:not(.student-landscape-mode):not(.student-virtual-landscape-mode) body.student-live-page:not(.student-times-level-page) #chat-compose-modal[hidden] {
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;

@@ -227,14 +227,14 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/webrtc", webrtcRoutes);
 
 // Platform Version Endpoint for instant in-app web updates without APK re-download
-const PLATFORM_VERSION = process.env.PLATFORM_VERSION || "2026.09.14-v5";
+const PLATFORM_VERSION = process.env.PLATFORM_VERSION || "2026.09.14-v7";
 app.get("/api/platform-version", (_req, res) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
   res.json({
     version: PLATFORM_VERSION,
-    updatedAt: 1789344000000,
+    updatedAt: 1789348900000,
     title: "المنصة تحتاج إلى تحديث",
     message: "تتوفر الآن تحسينات وميزات جديدة للمنصة جاهزة للاستخدام الفوري.",
     actionText: "حدّثها الآن"
