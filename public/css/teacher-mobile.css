@@ -1146,26 +1146,34 @@ body {
 }
 
 .tm-absentee-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(66px, auto));
+  gap: 5px;
   flex-shrink: 0;
+  align-items: center;
 }
 
-.tm-btn-whatsapp {
+.tm-btn-whatsapp,
+.tm-btn-viber,
+.tm-btn-telegram,
+.tm-btn-phone {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 7px 11px;
+  gap: 4px;
+  padding: 6px 8px;
   border-radius: var(--tm-radius-sm);
+  font-weight: 700;
+  font-size: 0.71rem;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.tm-btn-whatsapp {
   background: #25d366;
   color: #ffffff;
-  font-weight: 700;
-  font-size: 0.74rem;
-  text-decoration: none;
-  box-shadow: 0 3px 10px rgba(37, 211, 102, 0.35);
-  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35);
 }
 
 .tm-btn-whatsapp:active {
@@ -1173,26 +1181,32 @@ body {
   background: #20ba5a;
 }
 
-.tm-btn-whatsapp svg {
-  width: 15px;
-  height: 15px;
-  fill: currentColor;
+.tm-btn-viber {
+  background: #7360f2;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(115, 96, 242, 0.35);
+}
+
+.tm-btn-viber:active {
+  transform: scale(0.93);
+  background: #5e4ae3;
+}
+
+.tm-btn-telegram {
+  background: #229ED9;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(34, 158, 217, 0.35);
+}
+
+.tm-btn-telegram:active {
+  transform: scale(0.93);
+  background: #1b85b8;
 }
 
 .tm-btn-phone {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 7px 11px;
-  border-radius: var(--tm-radius-sm);
   background: var(--tm-surface-elevated);
   border: 1px solid var(--tm-border);
   color: var(--tm-text);
-  font-weight: 700;
-  font-size: 0.74rem;
-  text-decoration: none;
-  transition: all 0.15s ease;
 }
 
 .tm-btn-phone:active {
@@ -1200,10 +1214,14 @@ body {
   background: var(--tm-surface-hover);
 }
 
+.tm-btn-whatsapp svg,
+.tm-btn-viber svg,
+.tm-btn-telegram svg,
 .tm-btn-phone svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   fill: currentColor;
+  flex-shrink: 0;
 }
 
 /* Companion / Monitor Mode Overlays */

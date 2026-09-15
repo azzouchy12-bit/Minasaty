@@ -1388,6 +1388,54 @@
   color: #ffffff !important;
 }
 
+.absentee-viber-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  background: linear-gradient(135deg, #7360f2 0%, #5b46e8 100%);
+  color: #ffffff !important;
+  border: 0;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(115, 96, 242, 0.3);
+  transition: all 0.2s ease;
+}
+
+.absentee-viber-btn:hover {
+  background: linear-gradient(135deg, #5b46e8 0%, #4a33dc 100%);
+  box-shadow: 0 4px 12px rgba(115, 96, 242, 0.45);
+  transform: translateY(-1px);
+  color: #ffffff !important;
+}
+
+.absentee-tg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  background: linear-gradient(135deg, #229ED9 0%, #0088cc 100%);
+  color: #ffffff !important;
+  border: 0;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(34, 158, 217, 0.3);
+  transition: all 0.2s ease;
+}
+
+.absentee-tg-btn:hover {
+  background: linear-gradient(135deg, #0088cc 0%, #0077b5 100%);
+  box-shadow: 0 4px 12px rgba(34, 158, 217, 0.45);
+  transform: translateY(-1px);
+  color: #ffffff !important;
+}
+
 .absentee-call-btn {
   display: grid;
   place-items: center;

@@ -2356,19 +2356,37 @@ function refreshAbsenteesBadge() {
   }, 250);
 }
 
-function buildWhatsAppUrl(rawPhone, studentName, level, subject) {
-  if (!rawPhone) return "#";
+function formatAlgerianPhone(rawPhone) {
+  if (!rawPhone) return "";
   let cleaned = String(rawPhone).replace(/\D/g, "");
   if (cleaned.startsWith("0")) {
     cleaned = "213" + cleaned.slice(1);
   } else if (!cleaned.startsWith("213")) {
     cleaned = "213" + cleaned;
   }
+  return cleaned;
+}
+
+function buildWhatsAppUrl(rawPhone, studentName, level, subject) {
+  const cleaned = formatAlgerianPhone(rawPhone);
+  if (!cleaned) return "#";
   const subjectName = getClassTypeName(level, subject);
   const text = encodeURIComponent(
     `السلام عليكم ولي أمر التلميذ(ة) ${studentName || ""}، نود إعلامكم بأن حصة ${subjectName} (${level}) جارية الآن، والتلميذ مسجل غائب في المنصة. يرجى الالتحاق بالبث المباشر.`
   );
   return `https://wa.me/${cleaned}?text=${text}`;
+}
+
+function buildViberUrl(rawPhone) {
+  const cleaned = formatAlgerianPhone(rawPhone);
+  if (!cleaned) return "#";
+  return `viber://chat?number=%2B${cleaned}`;
+}
+
+function buildTelegramUrl(rawPhone) {
+  const cleaned = formatAlgerianPhone(rawPhone);
+  if (!cleaned) return "#";
+  return `https://t.me/+${cleaned}`;
 }
 
 function renderAbsenteesList(absentees, query = "") {
@@ -2486,6 +2504,36 @@ function renderAbsenteesList(absentees, query = "") {
         <span>واتساب</span>
       `;
       actions.append(waBtn);
+
+      // 2. Viber button
+      const viberUrl = buildViberUrl(student.parentPhone);
+      const viberBtn = document.createElement("a");
+      viberBtn.className = "absentee-viber-btn";
+      viberBtn.href = viberUrl;
+      viberBtn.title = "مراسلة أو الاتصال بولي التلميذ عبر فايبر";
+      viberBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+          <path d="M19.78 14.56c-.57-.45-1.54-.95-2.23-.74-.47.14-.8.53-1.17.84-.36.3-.77.49-1.2.29-.94-.43-1.85-1.04-2.67-1.8-.82-.77-1.46-1.63-1.94-2.53-.22-.41-.05-.82.23-1.18.28-.35.65-.67.77-1.12.18-.68-.28-1.62-.7-2.17-.4-.53-1.05-.72-1.67-.53-.61.19-1.05.74-1.29 1.32-.42 1.02-.45 2.19-.07 3.25.68 1.9 1.83 3.6 3.29 5.02 1.55 1.52 3.4 2.71 5.41 3.39.99.34 2.08.31 3.03-.1.54-.23 1.05-.67 1.23-1.26.19-.62-.02-1.24-.52-1.62-.16-.1-.32-.2-.47-.26zM13.6 4.3c.78.11 1.5.38 2.15.78.65.41 1.2.94 1.62 1.58.42.64.71 1.34.84 2.09.07.39.38.67.77.67.44 0 .8-.38.74-.82-.16-.94-.52-1.83-1.05-2.63-.53-.8-1.22-1.46-2.03-1.97-.81-.5-1.72-.83-2.69-.97-.44-.06-.83.25-.89.69-.06.44.25.83.69.89zm.41 3.12c.57.19 1.08.53 1.48.97.4.44.68.97.82 1.56.09.41.48.68.89.6.41-.09.68-.48.6-.89-.19-.77-.57-1.47-1.1-2.05-.53-.58-1.2-.99-1.95-1.24-.41-.14-.85.08-.99.49-.14.41.08.85.49.99z"/>
+        </svg>
+        <span>فايبر</span>
+      `;
+      actions.append(viberBtn);
+
+      // 3. Telegram button
+      const tgUrl = buildTelegramUrl(student.parentPhone);
+      const tgBtn = document.createElement("a");
+      tgBtn.className = "absentee-tg-btn";
+      tgBtn.href = tgUrl;
+      tgBtn.target = "_blank";
+      tgBtn.rel = "noopener noreferrer";
+      tgBtn.title = "مراسلة ولي التلميذ عبر تيليجرام";
+      tgBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+        </svg>
+        <span>تيليجرام</span>
+      `;
+      actions.append(tgBtn);
 
       const callBtn = document.createElement("a");
       callBtn.className = "absentee-call-btn";

@@ -1250,21 +1250,39 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 12.5 Absence Register & WhatsApp / Phone Calling
+  // 12.5 Absence Register & Multi-channel Parent Messaging (WhatsApp / Viber / Telegram / Phone)
   // ---------------------------------------------------------------------------
-  function buildWhatsAppUrl(rawPhone, studentName, level, subject) {
-    if (!rawPhone) return "#";
+  function formatAlgerianPhone(rawPhone) {
+    if (!rawPhone) return "";
     let cleaned = String(rawPhone).replace(/\D/g, "");
     if (cleaned.startsWith("0")) {
       cleaned = "213" + cleaned.slice(1);
     } else if (!cleaned.startsWith("213")) {
       cleaned = "213" + cleaned;
     }
+    return cleaned;
+  }
+
+  function buildWhatsAppUrl(rawPhone, studentName, level, subject) {
+    const cleaned = formatAlgerianPhone(rawPhone);
+    if (!cleaned) return "#";
     const subjectName = subject === "MATH" ? "الرياضيات" : subject === "PHYSICS" ? "الفيزياء" : "الحصة المباشرة";
     const text = encodeURIComponent(
       `السلام عليكم ورحمة الله وبركاته،\nولي أمر التلميذ(ة) ${studentName || ""} المحترم، نود إعلامكم بأن الحصة المباشرة لمادة ${subjectName} (${level}) مع الأستاذ د. شارف عز الدين بدأت الآن، والتلميذ مسجل غائب بالمنصة. يرجى دخوله فوراً لمتابعة الحصة.`
     );
     return `https://wa.me/${cleaned}?text=${text}`;
+  }
+
+  function buildViberUrl(rawPhone) {
+    const cleaned = formatAlgerianPhone(rawPhone);
+    if (!cleaned) return "#";
+    return `viber://chat?number=%2B${cleaned}`;
+  }
+
+  function buildTelegramUrl(rawPhone) {
+    const cleaned = formatAlgerianPhone(rawPhone);
+    if (!cleaned) return "#";
+    return `https://t.me/+${cleaned}`;
   }
 
   function createAbsenteeElement(student) {
@@ -1297,12 +1315,14 @@
     actions.className = "tm-absentee-actions";
 
     if (student.parentPhone) {
+      // 1. WhatsApp button
       const waUrl = buildWhatsAppUrl(student.parentPhone, student.studentName, activeLevel, activeSubject);
       const waBtn = document.createElement("a");
       waBtn.className = "tm-btn-whatsapp";
       waBtn.href = waUrl;
       waBtn.target = "_blank";
       waBtn.rel = "noopener noreferrer";
+      waBtn.title = "مراسلة ولي التلميذ عبر واتساب";
       waBtn.innerHTML = `
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path fill="currentColor" d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2m.01 1.67c4.56 0 8.27 3.71 8.27 8.27 0 2.21-.86 4.29-2.42 5.85a8.21 8.21 0 0 1-5.85 2.42c-1.42 0-2.82-.37-4.06-1.07l-.29-.17-3.11.82.83-3.03-.19-.3a8.23 8.23 0 0 1-1.26-4.38c0-4.56 3.71-8.27 8.27-8.27m4.54 11.69c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.02-1.25-.75-.67-1.25-1.5-1.4-1.75-.14-.25-.02-.38.11-.51.11-.11.25-.29.37-.44.13-.14.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.47c-.17 0-.44.06-.67.31-.23.25-.87.85-.87 2.08s.89 2.41 1.01 2.58c.13.17 1.75 2.67 4.24 3.75.59.26 1.05.41 1.41.53.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.68-1.18.2-.59.2-1.09.14-1.19-.05-.1-.22-.16-.47-.28z"/>
@@ -1310,9 +1330,39 @@
         <span>واتساب</span>
       `;
 
+      // 2. Viber button
+      const viberUrl = buildViberUrl(student.parentPhone);
+      const viberBtn = document.createElement("a");
+      viberBtn.className = "tm-btn-viber";
+      viberBtn.href = viberUrl;
+      viberBtn.title = "مراسلة أو الاتصال بولي التلميذ عبر فايبر";
+      viberBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M19.78 14.56c-.57-.45-1.54-.95-2.23-.74-.47.14-.8.53-1.17.84-.36.3-.77.49-1.2.29-.94-.43-1.85-1.04-2.67-1.8-.82-.77-1.46-1.63-1.94-2.53-.22-.41-.05-.82.23-1.18.28-.35.65-.67.77-1.12.18-.68-.28-1.62-.7-2.17-.4-.53-1.05-.72-1.67-.53-.61.19-1.05.74-1.29 1.32-.42 1.02-.45 2.19-.07 3.25.68 1.9 1.83 3.6 3.29 5.02 1.55 1.52 3.4 2.71 5.41 3.39.99.34 2.08.31 3.03-.1.54-.23 1.05-.67 1.23-1.26.19-.62-.02-1.24-.52-1.62-.16-.1-.32-.2-.47-.26zM13.6 4.3c.78.11 1.5.38 2.15.78.65.41 1.2.94 1.62 1.58.42.64.71 1.34.84 2.09.07.39.38.67.77.67.44 0 .8-.38.74-.82-.16-.94-.52-1.83-1.05-2.63-.53-.8-1.22-1.46-2.03-1.97-.81-.5-1.72-.83-2.69-.97-.44-.06-.83.25-.89.69-.06.44.25.83.69.89zm.41 3.12c.57.19 1.08.53 1.48.97.4.44.68.97.82 1.56.09.41.48.68.89.6.41-.09.68-.48.6-.89-.19-.77-.57-1.47-1.1-2.05-.53-.58-1.2-.99-1.95-1.24-.41-.14-.85.08-.99.49-.14.41.08.85.49.99z"/>
+        </svg>
+        <span>فايبر</span>
+      `;
+
+      // 3. Telegram button
+      const tgUrl = buildTelegramUrl(student.parentPhone);
+      const tgBtn = document.createElement("a");
+      tgBtn.className = "tm-btn-telegram";
+      tgBtn.href = tgUrl;
+      tgBtn.target = "_blank";
+      tgBtn.rel = "noopener noreferrer";
+      tgBtn.title = "مراسلة ولي التلميذ عبر تيليجرام";
+      tgBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+        </svg>
+        <span>تيليجرام</span>
+      `;
+
+      // 4. Phone Call button
       const phoneBtn = document.createElement("a");
       phoneBtn.className = "tm-btn-phone";
       phoneBtn.href = `tel:${student.parentPhone}`;
+      phoneBtn.title = "اتصال هاتفي مباشر";
       phoneBtn.innerHTML = `
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path fill="currentColor" d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
@@ -1320,7 +1370,7 @@
         <span>اتصال</span>
       `;
 
-      actions.append(waBtn, phoneBtn);
+      actions.append(waBtn, viberBtn, tgBtn, phoneBtn);
     }
 
     card.append(left, actions);
