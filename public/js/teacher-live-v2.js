@@ -66,6 +66,16 @@ const approvedStudentMicrophones = new Set();
 const classroomAudioSources = new Map();
 const classroomAudioDestinations = new Map();
 let classroomAudioContext;
+let teacherMicGainNode = null;
+let teacherMicRecordingGainNode = null;
+let teacherMicAnalyserNode = null;
+let teacherMicMeterAnimationFrame = null;
+
+const storedTeacherMicGain = parseFloat(localStorage.getItem("minasaty_teacher_mic_gain") || "1.0");
+let teacherMicGainLevel = isNaN(storedTeacherMicGain) ? 1.0 : Math.max(0, Math.min(storedTeacherMicGain, 2.5));
+let teacherAgcEnabled = localStorage.getItem("minasaty_teacher_agc_enabled") === "true"; // False by default!
+let teacherEchoCancellation = localStorage.getItem("minasaty_teacher_echo_cancellation") !== "false"; // True by default
+let teacherNoiseSuppression = localStorage.getItem("minasaty_teacher_noise_suppression") === "true"; // False by default for studio mic
 const iceDisconnectTimers = Object.create(null);
 const ICE_DISCONNECT_GRACE_MS = 8_000;
 let activeLevel = null;
@@ -163,6 +173,20 @@ const elements = {
   freeClassHint: document.getElementById("free-class-hint"),
   startButton: document.getElementById("start-class-btn"),
   toggleMicButton: document.getElementById("toggle-mic-btn"),
+  audioSettingsButton: document.getElementById("audio-settings-btn"),
+  toolbarMicGainBadge: document.getElementById("toolbar-mic-gain-badge"),
+  audioSettingsModal: document.getElementById("audio-settings-modal"),
+  closeAudioSettingsModal: document.getElementById("close-audio-settings-modal"),
+  audioSettingsBackdrop: document.getElementById("audio-settings-modal-backdrop"),
+  micGainSlider: document.getElementById("mic-gain-slider"),
+  micGainDisplay: document.getElementById("mic-gain-display"),
+  vuMeterFill: document.getElementById("vu-meter-fill"),
+  vuMeterLabel: document.getElementById("vu-meter-label"),
+  settingEchoCancellation: document.getElementById("setting-echo-cancellation"),
+  settingNoiseSuppression: document.getElementById("setting-noise-suppression"),
+  settingBrowserAgc: document.getElementById("setting-browser-agc"),
+  applyAudioSettingsButton: document.getElementById("apply-audio-settings-btn"),
+  resetAudioSettingsButton: document.getElementById("reset-audio-settings-btn"),
   muteAllMicsButton: document.getElementById("mute-all-mics-btn"),
   sidebarMuteAllButton: document.getElementById("sidebar-mute-all-btn"),
   recordLocalButton: document.getElementById("record-local-btn"),
@@ -1358,12 +1382,16 @@ function disposeLocalRecordingResources() {
   }
 
 
-  localRecordingSourceNodes.forEach(({ node }) => {
+  localRecordingSourceNodes.forEach(({ node, gainNode }) => {
     try {
       node.disconnect();
     } catch {}
+    try {
+      if (gainNode) gainNode.disconnect();
+    } catch {}
   });
   localRecordingSourceNodes.clear();
+  teacherMicRecordingGainNode = null;
 
 
   if (localRecordingMixedAudioTrack) {
@@ -1411,7 +1439,7 @@ function syncLocalRecordingAudioSources() {
   });
 
 
-  localRecordingSourceNodes.forEach(({ stream, node }, sourceKey) => {
+  localRecordingSourceNodes.forEach(({ stream, node, gainNode }, sourceKey) => {
     const currentStream = activeSources.get(sourceKey);
     if (currentStream === stream) {
       return;
@@ -1421,6 +1449,12 @@ function syncLocalRecordingAudioSources() {
     try {
       node.disconnect();
     } catch {}
+    try {
+      if (gainNode) gainNode.disconnect();
+    } catch {}
+    if (sourceKey === "__teacher_microphone__") {
+      teacherMicRecordingGainNode = null;
+    }
     localRecordingSourceNodes.delete(sourceKey);
   });
 
@@ -1433,8 +1467,16 @@ function syncLocalRecordingAudioSources() {
 
     try {
       const node = localRecordingAudioContext.createMediaStreamSource(stream);
-      node.connect(localRecordingAudioDestination);
-      localRecordingSourceNodes.set(sourceKey, { stream, node });
+      const gainNode = localRecordingAudioContext.createGain();
+      if (sourceKey === "__teacher_microphone__") {
+        gainNode.gain.value = teacherMicGainLevel;
+        teacherMicRecordingGainNode = gainNode;
+      } else {
+        gainNode.gain.value = 1.0;
+      }
+      node.connect(gainNode);
+      gainNode.connect(localRecordingAudioDestination);
+      localRecordingSourceNodes.set(sourceKey, { stream, node, gainNode });
     } catch (error) {
       console.warn("Unable to add an audio source to the local recording:", error);
     }
@@ -3356,9 +3398,10 @@ function getClassroomAudioContextConstructor() {
 
 
 function rebuildClassroomAudioGraph() {
-  classroomAudioSources.forEach(({ node }) => {
+  classroomAudioSources.forEach(({ node, gainNode }) => {
     try {
-      node.disconnect();
+      if (gainNode) gainNode.disconnect();
+      else node.disconnect();
     } catch {}
   });
 
@@ -3370,7 +3413,8 @@ function rebuildClassroomAudioGraph() {
 
     [teacherSource, screenSource].forEach((source) => {
       if (source?.enabled) {
-        source.node.connect(destination);
+        const outNode = source.gainNode || source.node;
+        outNode.connect(destination);
       }
     });
 
@@ -3382,7 +3426,8 @@ function rebuildClassroomAudioGraph() {
         sourceKey !== destinationSocketId &&
         source.enabled
       ) {
-        source.node.connect(destination);
+        const outNode = source.gainNode || source.node;
+        outNode.connect(destination);
       }
     });
   });
@@ -3399,6 +3444,13 @@ function removeClassroomAudioSource(sourceKey) {
   try {
     source.node.disconnect();
   } catch {}
+  try {
+    if (source.gainNode) source.gainNode.disconnect();
+  } catch {}
+  if (sourceKey === "__teacher_microphone__") {
+    teacherMicGainNode = null;
+    stopLiveMicMeter();
+  }
   classroomAudioSources.delete(sourceKey);
   rebuildClassroomAudioGraph();
 }
@@ -3603,7 +3655,16 @@ function addClassroomAudioSource(sourceKey, stream, { enabled = true } = {}) {
 
   try {
     const node = classroomAudioContext.createMediaStreamSource(stream);
-    classroomAudioSources.set(sourceKey, { node, stream, enabled: Boolean(enabled) });
+    const gainNode = classroomAudioContext.createGain();
+    if (sourceKey === "__teacher_microphone__") {
+      gainNode.gain.value = teacherMicGainLevel;
+      teacherMicGainNode = gainNode;
+      setupLiveMicMeter(gainNode);
+    } else {
+      gainNode.gain.value = 1.0;
+    }
+    node.connect(gainNode);
+    classroomAudioSources.set(sourceKey, { node, gainNode, stream, enabled: Boolean(enabled) });
     rebuildClassroomAudioGraph();
     return true;
   } catch (error) {
@@ -3614,12 +3675,17 @@ function addClassroomAudioSource(sourceKey, stream, { enabled = true } = {}) {
 
 
 function clearClassroomAudioGraph() {
-  classroomAudioSources.forEach(({ node }) => {
+  stopLiveMicMeter();
+  classroomAudioSources.forEach(({ node, gainNode }) => {
     try {
       node.disconnect();
     } catch {}
+    try {
+      if (gainNode) gainNode.disconnect();
+    } catch {}
   });
   classroomAudioSources.clear();
+  teacherMicGainNode = null;
 
 
   classroomAudioDestinations.forEach((destination) => {
@@ -3679,19 +3745,205 @@ async function initializeClassroomAudioMix() {
 }
 
 
+function getTeacherMicrophoneConstraints() {
+  return {
+    audio: {
+      echoCancellation: Boolean(teacherEchoCancellation),
+      noiseSuppression: Boolean(teacherNoiseSuppression),
+      autoGainControl: Boolean(teacherAgcEnabled),
+      googAutoGainControl: Boolean(teacherAgcEnabled),
+      googAutoGainControl2: Boolean(teacherAgcEnabled),
+      googEchoCancellation: Boolean(teacherEchoCancellation),
+      googNoiseSuppression: Boolean(teacherNoiseSuppression),
+      googHighpassFilter: false,
+      channelCount: 1,
+    },
+  };
+}
+
+
+function setTeacherMicGainLevel(newLevel) {
+  const parsed = Math.max(0, Math.min(2.5, Number(newLevel) || 1.0));
+  teacherMicGainLevel = parsed;
+  try {
+    localStorage.setItem("minasaty_teacher_mic_gain", String(parsed));
+  } catch (_) {}
+
+  if (teacherMicGainNode && classroomAudioContext && classroomAudioContext.state !== "closed") {
+    try {
+      teacherMicGainNode.gain.setTargetAtTime(parsed, classroomAudioContext.currentTime, 0.01);
+    } catch (_) {
+      teacherMicGainNode.gain.value = parsed;
+    }
+  }
+
+  if (teacherMicRecordingGainNode && localRecordingAudioContext && localRecordingAudioContext.state !== "closed") {
+    try {
+      teacherMicRecordingGainNode.gain.setTargetAtTime(parsed, localRecordingAudioContext.currentTime, 0.01);
+    } catch (_) {
+      teacherMicRecordingGainNode.gain.value = parsed;
+    }
+  }
+
+  updateAudioUi();
+}
+
+
+function updateAudioUi() {
+  const percent = Math.round(teacherMicGainLevel * 100);
+  if (elements.toolbarMicGainBadge) {
+    elements.toolbarMicGainBadge.textContent = `${percent}%`;
+  }
+  if (elements.micGainSlider) {
+    elements.micGainSlider.value = String(percent);
+  }
+  if (elements.micGainDisplay) {
+    let label = `${percent}%`;
+    if (percent === 100) label += " (طبيعي)";
+    else if (percent > 100) label += " (مضخم)";
+    else if (percent < 100) label += " (مخفض)";
+    elements.micGainDisplay.textContent = label;
+  }
+
+  const pills = document.querySelectorAll(".gain-preset-pill");
+  pills.forEach((pill) => {
+    const pillGain = Number(pill.dataset.gain);
+    pill.classList.toggle("is-active", pillGain === percent);
+  });
+}
+
+
+function setupLiveMicMeter(gainNode) {
+  if (!classroomAudioContext) return;
+  stopLiveMicMeter();
+  try {
+    teacherMicAnalyserNode = classroomAudioContext.createAnalyser();
+    teacherMicAnalyserNode.fftSize = 256;
+    teacherMicAnalyserNode.smoothingTimeConstant = 0.5;
+    gainNode.connect(teacherMicAnalyserNode);
+
+    const buffer = new Uint8Array(teacherMicAnalyserNode.frequencyBinCount);
+
+    function tickMeter() {
+      if (!teacherMicAnalyserNode) return;
+      teacherMicAnalyserNode.getByteFrequencyData(buffer);
+      let sum = 0;
+      for (let i = 0; i < buffer.length; i++) {
+        sum += buffer[i];
+      }
+      const avg = sum / buffer.length;
+      const level = Math.min(100, Math.round((avg / 80) * 100));
+
+      if (elements.vuMeterFill) {
+        elements.vuMeterFill.style.width = `${level}%`;
+      }
+      if (elements.vuMeterLabel) {
+        if (level > 85) {
+          elements.vuMeterLabel.textContent = `مرتفع جداً (${level}%)`;
+          elements.vuMeterLabel.style.color = "#ef4444";
+        } else if (level > 20) {
+          elements.vuMeterLabel.textContent = `نشط (${level}%)`;
+          elements.vuMeterLabel.style.color = "#10b981";
+        } else if (level > 3) {
+          elements.vuMeterLabel.textContent = `صوت خافت (${level}%)`;
+          elements.vuMeterLabel.style.color = "#f59e0b";
+        } else {
+          elements.vuMeterLabel.textContent = "جاهز للالتقاط (صامت)";
+          elements.vuMeterLabel.style.color = "#94a3b8";
+        }
+      }
+
+      teacherMicMeterAnimationFrame = window.requestAnimationFrame(tickMeter);
+    }
+    teacherMicMeterAnimationFrame = window.requestAnimationFrame(tickMeter);
+  } catch (err) {
+    console.warn("Unable to setup VU meter:", err);
+  }
+}
+
+
+function stopLiveMicMeter() {
+  if (teacherMicMeterAnimationFrame) {
+    window.cancelAnimationFrame(teacherMicMeterAnimationFrame);
+    teacherMicMeterAnimationFrame = null;
+  }
+  if (teacherMicAnalyserNode) {
+    try { teacherMicAnalyserNode.disconnect(); } catch (_) {}
+    teacherMicAnalyserNode = null;
+  }
+  if (elements.vuMeterFill) {
+    elements.vuMeterFill.style.width = "0%";
+  }
+  if (elements.vuMeterLabel) {
+    elements.vuMeterLabel.textContent = "جاهز للالتقاط";
+    elements.vuMeterLabel.style.color = "#94a3b8";
+  }
+}
+
+
+function openAudioSettingsModal() {
+  if (!elements.audioSettingsModal) return;
+  elements.audioSettingsModal.hidden = false;
+  if (elements.settingEchoCancellation) {
+    elements.settingEchoCancellation.checked = teacherEchoCancellation;
+  }
+  if (elements.settingNoiseSuppression) {
+    elements.settingNoiseSuppression.checked = teacherNoiseSuppression;
+  }
+  if (elements.settingBrowserAgc) {
+    elements.settingBrowserAgc.checked = teacherAgcEnabled;
+  }
+  updateAudioUi();
+}
+
+
+function closeAudioSettingsModal() {
+  if (!elements.audioSettingsModal) return;
+  elements.audioSettingsModal.hidden = true;
+}
+
+
+async function applyAudioAdvancedSettings() {
+  const newEcho = Boolean(elements.settingEchoCancellation?.checked);
+  const newNoise = Boolean(elements.settingNoiseSuppression?.checked);
+  const newAgc = Boolean(elements.settingBrowserAgc?.checked);
+
+  teacherEchoCancellation = newEcho;
+  teacherNoiseSuppression = newNoise;
+  teacherAgcEnabled = newAgc;
+
+  try {
+    localStorage.setItem("minasaty_teacher_echo_cancellation", String(newEcho));
+    localStorage.setItem("minasaty_teacher_noise_suppression", String(newNoise));
+    localStorage.setItem("minasaty_teacher_agc_enabled", String(newAgc));
+  } catch (_) {}
+
+  closeAudioSettingsModal();
+
+  if (classActive) {
+    try {
+      setStudioStatus("جارٍ تطبيق إعدادات المايكروفون الجديدة…", "neutral");
+      if (cameraStream) {
+        cameraStream.getAudioTracks().forEach((t) => t.stop());
+      }
+      cameraStream = await navigator.mediaDevices.getUserMedia(getTeacherMicrophoneConstraints());
+      addClassroomAudioSource("__teacher_microphone__", cameraStream, { enabled: true });
+      syncMixMinusAudioToAllPeers();
+      setStudioStatus("تم تطبيق إعدادات الصوت وتحديث المايكروفون بنجاح.", "live");
+    } catch (err) {
+      console.warn("Unable to refresh microphone with new constraints:", err);
+      setStudioStatus("تعذر تحديث إعدادات المايكروفون: " + (err?.message || err), "error");
+    }
+  }
+}
+
+
 async function ensureTeacherMicrophoneActive() {
   let micTrack = cameraStream?.getAudioTracks?.().find((track) => track.readyState === "live");
 
   if (!micTrack && navigator.mediaDevices?.getUserMedia) {
     try {
-      const freshMicStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1,
-        },
-      });
+      const freshMicStream = await navigator.mediaDevices.getUserMedia(getTeacherMicrophoneConstraints());
       if (freshMicStream?.getAudioTracks?.().length) {
         if (cameraStream) {
           try {
@@ -4718,14 +4970,7 @@ async function startLiveClass() {
 
     if (navigator.mediaDevices?.getUserMedia) {
       try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            channelCount: 1,
-          },
-        });
+        cameraStream = await navigator.mediaDevices.getUserMedia(getTeacherMicrophoneConstraints());
       } catch (error) {
         microphoneUnavailableMessage = getMediaErrorMessage(error, "المايك");
         console.warn("Teacher microphone is unavailable:", error);
@@ -5293,6 +5538,29 @@ elements.subjectSelect?.addEventListener("change", () => {
 });
 elements.screenShareButton?.addEventListener("click", () => void toggleScreenShare());
 elements.toggleMicButton.addEventListener("click", toggleMicrophone);
+elements.audioSettingsButton?.addEventListener("click", openAudioSettingsModal);
+elements.closeAudioSettingsModal?.addEventListener("click", closeAudioSettingsModal);
+elements.audioSettingsBackdrop?.addEventListener("click", closeAudioSettingsModal);
+elements.applyAudioSettingsButton?.addEventListener("click", () => void applyAudioAdvancedSettings());
+elements.resetAudioSettingsButton?.addEventListener("click", () => {
+  setTeacherMicGainLevel(1.0);
+  if (elements.settingEchoCancellation) elements.settingEchoCancellation.checked = true;
+  if (elements.settingNoiseSuppression) elements.settingNoiseSuppression.checked = false;
+  if (elements.settingBrowserAgc) elements.settingBrowserAgc.checked = false;
+  void applyAudioAdvancedSettings();
+});
+
+elements.micGainSlider?.addEventListener("input", (e) => {
+  const val = Number(e.target.value) / 100;
+  setTeacherMicGainLevel(val);
+});
+
+document.querySelectorAll(".gain-preset-pill").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const val = Number(btn.dataset.gain) / 100;
+    setTeacherMicGainLevel(val);
+  });
+});
 elements.muteAllMicsButton?.addEventListener("click", () => void muteAllStudentsMicrophones());
 elements.sidebarMuteAllButton?.addEventListener("click", () => void muteAllStudentsMicrophones());
 elements.recordLocalButton.addEventListener("click", toggleLocalRecording);
@@ -5503,4 +5771,5 @@ function installPullToRefreshBlocker() {
   }, { passive: false });
 }
 installPullToRefreshBlocker();
+updateAudioUi();
 

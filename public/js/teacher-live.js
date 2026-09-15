@@ -1821,8 +1821,10 @@ async function ensureTeacherMicrophoneActive() {
       const freshMicStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
+          noiseSuppression: false,
+          autoGainControl: false,
+          googAutoGainControl: false,
+          googAutoGainControl2: false,
           channelCount: 1,
         },
       });
@@ -2531,8 +2533,10 @@ async function startLiveClass() {
         cameraStream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
+            noiseSuppression: false,
+            autoGainControl: false,
+            googAutoGainControl: false,
+            googAutoGainControl2: false,
             channelCount: 1,
           },
         });

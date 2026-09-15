@@ -1567,3 +1567,370 @@
 @keyframes absentees-spin {
   to { transform: rotate(360deg); }
 }
+
+/* ==========================================================================
+   Teacher Studio: Audio Settings & Focusrite Protection Modal
+   ========================================================================== */
+.studio-button.audio-settings {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+  transition: all 0.2s ease;
+}
+
+.studio-button.audio-settings:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(30, 41, 59, 0.95));
+  border-color: rgba(59, 130, 246, 0.7);
+  color: #bfdbfe;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.2);
+}
+
+.studio-button.audio-settings strong {
+  color: #60a5fa;
+  font-weight: 700;
+}
+
+/* Audio Settings Modal */
+.audio-settings-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.audio-settings-modal[hidden] {
+  display: none !important;
+  opacity: 0;
+}
+
+.audio-settings-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 17, 31, 0.85);
+  backdrop-filter: blur(10px);
+}
+
+.audio-settings-modal-card {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 620px;
+  max-height: min(90vh, 750px);
+  background: #111c2e;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 20px;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 35px rgba(59, 130, 246, 0.15);
+  overflow: hidden;
+  direction: rtl;
+  color: #f1f5f9;
+}
+
+.audio-settings-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(16, 29, 49, 0.8);
+}
+
+.audio-settings-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.audio-settings-modal-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(37, 99, 235, 0.1));
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 12px;
+  color: #60a5fa;
+  flex-shrink: 0;
+}
+
+.audio-settings-modal-titles h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.audio-settings-modal-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.audio-settings-close-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #94a3b8;
+  font-size: 1.5rem;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.audio-settings-close-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.audio-settings-modal-body {
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Protection Card */
+.audio-protection-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.9rem 1.1rem;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 78, 59, 0.2));
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 12px;
+}
+
+.protection-badge-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.protection-badge-text strong {
+  display: block;
+  font-size: 0.88rem;
+  color: #34d399;
+  margin-bottom: 0.25rem;
+}
+
+.protection-badge-text p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+/* Setting Block */
+.audio-setting-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  background: rgba(16, 29, 49, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  padding: 1rem 1.15rem;
+  border-radius: 14px;
+}
+
+.audio-setting-header-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.audio-setting-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.mic-gain-badge {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  padding: 0.2rem 0.65rem;
+  border-radius: 8px;
+}
+
+.gain-slider-container {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.gain-bound-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.mic-gain-range {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  background: #1e293b;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+}
+
+.mic-gain-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.mic-gain-range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.mic-gain-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+  cursor: pointer;
+}
+
+/* Preset Pills */
+.gain-quick-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.25rem;
+}
+
+.gain-preset-pill {
+  flex: 1;
+  min-width: 65px;
+  padding: 0.4rem 0.5rem;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.gain-preset-pill:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #93c5fd;
+}
+
+.gain-preset-pill.is-active {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+/* VU Meter */
+.vu-reading-text {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+.vu-meter-track {
+  width: 100%;
+  height: 12px;
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.vu-meter-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #10b981 0%, #10b981 65%, #f59e0b 85%, #ef4444 100%);
+  border-radius: 6px;
+  transition: width 0.06s ease-out;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.audio-setting-note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+/* Checkboxes */
+.audio-toggles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.2rem;
+}
+
+.audio-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.82rem;
+  color: #cbd5e1;
+  cursor: pointer;
+  user-select: none;
+}
+
+.audio-toggle-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.audio-toggle-item.is-warn {
+  color: #94a3b8;
+}
+
+.danger-warn {
+  color: #f87171;
+  font-weight: 600;
+}
+
+/* Footer */
+.audio-settings-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(16, 29, 49, 0.8);
+}
+
