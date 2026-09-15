@@ -245,8 +245,8 @@ app.get("/api/platform-version", (_req, res) => {
 });
 
 // APK Version Endpoint for automatic native Android app updates
-const APK_VERSION_CODE = parseInt(process.env.APK_VERSION_CODE || "2", 10);
-const APK_VERSION_NAME = process.env.APK_VERSION_NAME || "2.0";
+const APK_VERSION_CODE = parseInt(process.env.APK_VERSION_CODE || "3", 10);
+const APK_VERSION_NAME = process.env.APK_VERSION_NAME || "3.0";
 app.get("/api/apk-version", (_req, res) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.setHeader("Pragma", "no-cache");
@@ -257,7 +257,7 @@ app.get("/api/apk-version", (_req, res) => {
     apkUrl: "https://acadimia.africacold.fr/acadimia.apk",
     forceUpdate: true,
     minSupportedVersion: 1,
-    releaseNotes: "تحديث تلقائي فوري لتطبيق منصتي، استقرار عالي وتنبيهات فورية"
+    releaseNotes: "تحديث رئيسي v3.0: تنبيهات منبثقة عائمة مثل ماسنجر، إيقاظ الشاشة أثناء القفل، ورنين مستمر عالي الدقة"
   });
 });
 

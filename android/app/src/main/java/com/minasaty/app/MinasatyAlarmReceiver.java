@@ -12,6 +12,10 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
 import android.util.Log;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
 import androidx.core.app.NotificationCompat;
 import org.json.JSONObject;
 
@@ -36,7 +40,7 @@ public class MinasatyAlarmReceiver extends BroadcastReceiver {
     private static final String TAG = "MinasatyAlarmReceiver";
     private static final String BASE_SERVER_URL = "https://acadimia.africacold.fr";
     private static final String PREFS_NAME = "minasaty_user_prefs";
-    private static final String CALL_CHANNEL_ID = "minasaty_live_call_alert_channel";
+    private static final String CALL_CHANNEL_ID = LiveAlertRingingService.CHANNEL_ID;
     private static final int CALL_NOTIFICATION_ID = 9110;
 
     private static final ExecutorService backgroundExecutor = Executors.newCachedThreadPool();
@@ -173,10 +177,13 @@ public class MinasatyAlarmReceiver extends BroadcastReceiver {
             // 2. Start high-priority continuous ringing and vibration foreground service
             LiveAlertRingingService.startAlert(context, title, body, targetUrl);
 
-            // 3. Post full-screen intent notification to pop incoming call UI over lock screen
+            // 3. Show Facebook Messenger-style floating overlay bubble
+            LiveAlertFloatingBubbleService.showBubble(context, title, body, targetUrl);
+
+            // 4. Post full-screen intent notification to pop incoming call UI over lock screen
             postFullScreenCallNotification(context, title, body, targetUrl);
 
-            // 4. Also directly start the Full-Screen Incoming Activity
+            // 5. Also directly start the Full-Screen Incoming Activity
             Intent activityIntent = new Intent(context, LiveAlertIncomingActivity.class);
             activityIntent.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK |
@@ -190,7 +197,7 @@ public class MinasatyAlarmReceiver extends BroadcastReceiver {
                 context.startActivity(activityIntent);
             } catch (Exception ignored) {}
 
-            // 5. Send acknowledgment to backend so teacher's studio modal updates to "Ringing!"
+            // 6. Send acknowledgment to backend so teacher's studio modal updates to "Ringing!"
             sendAlertAcknowledgment(alertId, phone, studentId);
 
         } catch (Exception e) {
@@ -202,17 +209,31 @@ public class MinasatyAlarmReceiver extends BroadcastReceiver {
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
 
+        Uri ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+        if (ringtoneUri == null) {
+            ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                 CALL_CHANNEL_ID,
-                "تنبيهات الحصص المباشرة العاجلة",
+                "تنبيهات الحصص المباشرة (مثل ماسنجر)",
                 NotificationManager.IMPORTANCE_HIGH
             );
-            channel.setDescription("إشعار ملء الشاشة ورنين عند بدء الحصة المباشرة");
+            channel.setDescription("تشغيل الرنين وشاشة المكالمة المنبثقة عند بدء الحصة المباشرة");
             channel.enableVibration(true);
             channel.setVibrationPattern(new long[]{0, 900, 400, 900, 400, 1200});
             channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            channel.enableLights(true);
+            channel.setLightColor(Color.RED);
             channel.setBypassDnd(true);
+
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .build();
+            channel.setSound(ringtoneUri, audioAttributes);
+
             nm.createNotificationChannel(channel);
         }
 
@@ -246,14 +267,18 @@ public class MinasatyAlarmReceiver extends BroadcastReceiver {
         PendingIntent dismissPendingIntent = PendingIntent.getService(context, 203, dismissIntent, pendingFlags);
 
         Notification notification = new NotificationCompat.Builder(context, CALL_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setLargeIcon(BitmapFactory.decodeResource(context.getResources(), R.mipmap.ic_launcher))
             .setContentTitle(title)
             .setContentText(body)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setAutoCancel(false)
+            .setSound(ringtoneUri)
+            .setVibrate(new long[]{0, 900, 400, 900, 400, 1200})
             .setFullScreenIntent(fullScreenPendingIntent, true)
             .setContentIntent(fullScreenPendingIntent)
             .addAction(android.R.drawable.ic_media_play, "🚀 دخول الحصة الآن", enterPendingIntent)

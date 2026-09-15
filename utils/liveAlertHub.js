@@ -171,34 +171,56 @@ function normalizeLevel(rawLevel) {
 function matchesAudience(client, alert) {
   if (!alert) return false;
 
-  // Level matching
-  const alertLevelNorm = normalizeLevel(alert.level);
-  const clientLevelNorm = normalizeLevel(client.level);
-  const levelMatches =
-    alertLevelNorm === "ALL" ||
-    clientLevelNorm === "ALL" ||
-    alertLevelNorm === clientLevelNorm ||
-    !alert.level ||
-    !client.level;
+  // 1. Level matching (supports comma-separated levels, e.g. "1AS,2AS" or "ALL")
+  const alertLevels = String(alert.level || "ALL")
+    .split(",")
+    .map(normalizeLevel)
+    .filter(Boolean);
+  const clientLevelNorm = normalizeLevel(client?.level);
 
-  // Student ID matching
+  const levelMatches =
+    alertLevels.length === 0 ||
+    alertLevels.includes("ALL") ||
+    clientLevelNorm === "ALL" ||
+    !client?.level ||
+    alertLevels.includes(clientLevelNorm);
+
+  // 2. Exact Student ID & Phone matching
   const targetStudentIds = (alert.targetStudentIds || []).map(String);
   const studentMatches =
-    Boolean(client.studentId) &&
+    Boolean(client?.studentId) &&
     targetStudentIds.includes(String(client.studentId));
 
-  // Phone matching (normalized)
-  const clientNormPhone = normalizePhone(client.phone);
+  const clientNormPhone = normalizePhone(client?.phone);
   const parentPhonesNorm = (alert.parentPhones || []).map(normalizePhone).filter(Boolean);
   const phoneMatches =
     Boolean(clientNormPhone) &&
     parentPhonesNorm.includes(clientNormPhone);
 
-  // If specific students/phones were targeted, at least one ID/phone must match!
-  if (targetStudentIds.length > 0 || parentPhonesNorm.length > 0) {
-    return studentMatches || phoneMatches;
+  // If student or phone matches explicitly -> ALWAYS DELIVER
+  if (studentMatches || phoneMatches) {
+    return true;
   }
 
+  // 3. If device has no phone and no studentId registered yet (newly installed / unauthenticated app):
+  // Deliver the live class alert if the level matches!
+  if (!client?.phone && !client?.studentId) {
+    return levelMatches;
+  }
+
+  // 4. Targeted check: if specific individual students were exclusively selected
+  const hasSpecificTargets = targetStudentIds.length > 0 || parentPhonesNorm.length > 0;
+  const isExplicitlyTargeted =
+    alert.targetMode === "SELECTED" ||
+    alert.isTargetedExclusive ||
+    (hasSpecificTargets && targetStudentIds.length > 0 && targetStudentIds.length < 5);
+
+  if (isExplicitlyTargeted) {
+    // Exclusively targeted to specific individuals, client did not match
+    return false;
+  }
+
+  // 5. General class or level broadcast: deliver to all matching level devices
   return levelMatches;
 }
 

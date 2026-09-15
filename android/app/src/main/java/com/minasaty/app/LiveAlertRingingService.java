@@ -8,6 +8,11 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -19,8 +24,8 @@ import androidx.core.app.NotificationCompat;
 /**
  * LiveAlertRingingService:
  * Foreground service that plays the continuous alarm sound, vibrates the device,
- * and maintains the high-priority lock screen notification until the student joins
- * or dismisses the call.
+ * displays the Facebook Messenger-style floating bubble and high-priority heads-up call banner,
+ * and maintains the lock screen notification until the student joins or dismisses the call.
  */
 public class LiveAlertRingingService extends Service {
     public static final String ACTION_START_ALERT = "com.minasaty.app.ACTION_START_ALERT";
@@ -31,7 +36,7 @@ public class LiveAlertRingingService extends Service {
     public static final String EXTRA_ALERT_BODY = "extra_alert_body";
     public static final String EXTRA_TARGET_URL = "extra_target_url";
 
-    private static final String CHANNEL_ID = "minasaty_live_call_alert_channel";
+    public static final String CHANNEL_ID = "minasaty_messenger_live_alert_v5";
     private static final int NOTIFICATION_ID = 9110;
     private static final long MAX_RINGING_DURATION_MS = 60000; // Auto-stop after 60 seconds
 
@@ -130,11 +135,14 @@ public class LiveAlertRingingService extends Service {
             alarmManager.startRingingAndVibration();
         }
 
+        // Show Facebook Messenger-style floating overlay bubble
+        LiveAlertFloatingBubbleService.showBubble(this, title, body, targetUrl);
+
         // Schedule auto-stop timeout after 60 seconds
         timeoutHandler.removeCallbacks(autoStopRunnable);
         timeoutHandler.postDelayed(autoStopRunnable, MAX_RINGING_DURATION_MS);
 
-        // Build high-priority full-screen call notification
+        // Build high-priority full-screen incoming call notification
         Intent fullScreenIntent = new Intent(this, LiveAlertIncomingActivity.class);
         fullScreenIntent.putExtra(EXTRA_ALERT_TITLE, title);
         fullScreenIntent.putExtra(EXTRA_ALERT_BODY, body);
@@ -162,15 +170,24 @@ public class LiveAlertRingingService extends Service {
         dismissIntent.setAction(ACTION_STOP_ALERT);
         PendingIntent dismissPendingIntent = PendingIntent.getService(this, 103, dismissIntent, pendingFlags);
 
+        Uri ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+        if (ringtoneUri == null) {
+            ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+        }
+
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setLargeIcon(BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher))
             .setContentTitle(title)
             .setContentText(body)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setAutoCancel(false)
+            .setSound(ringtoneUri)
+            .setVibrate(new long[]{0, 900, 400, 900, 400, 1200})
             .setFullScreenIntent(fullScreenPendingIntent, true)
             .setContentIntent(fullScreenPendingIntent)
             .addAction(android.R.drawable.ic_media_play, "🚀 دخول الحصة الآن", enterPendingIntent)
@@ -230,6 +247,9 @@ public class LiveAlertRingingService extends Service {
         if (alarmManager != null) {
             alarmManager.stopRingingAndVibration();
         }
+        // Remove floating Messenger bubble
+        LiveAlertFloatingBubbleService.removeBubble(this);
+
         releaseWakeLock();
         stopForeground(true);
         stopSelf();
@@ -239,14 +259,26 @@ public class LiveAlertRingingService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "تنبيهات الحصص المباشرة العاجلة",
+                "تنبيهات الحصص المباشرة (مثل ماسنجر)",
                 NotificationManager.IMPORTANCE_HIGH
             );
-            channel.setDescription("تشغيل الرنين وشاشة المكالمة عند انطلاق الحصة");
+            channel.setDescription("تشغيل الرنين ونوافذ المكالمة المنبثقة عند انطلاق الحصة");
             channel.enableVibration(true);
             channel.setVibrationPattern(new long[]{0, 900, 400, 900, 400, 1200});
             channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            channel.enableLights(true);
+            channel.setLightColor(Color.RED);
             channel.setBypassDnd(true);
+
+            Uri ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+            if (ringtoneUri == null) {
+                ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            }
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .build();
+            channel.setSound(ringtoneUri, audioAttributes);
 
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null) {

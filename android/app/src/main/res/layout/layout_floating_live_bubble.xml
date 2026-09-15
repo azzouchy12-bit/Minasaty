@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/floatingBubbleRoot"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="8dp">
+
+    <!-- Floating Chat Head Circle (Draggable handle like Messenger) -->
+    <FrameLayout
+        android:id="@+id/bubbleIconContainer"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:background="@drawable/bg_bubble_circle"
+        android:padding="6dp"
+        android:elevation="12dp">
+
+        <ImageView
+            android:id="@+id/ivBubbleIcon"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:src="@mipmap/ic_launcher"
+            android:scaleType="centerInside"
+            android:contentDescription="Minasaty Alert Bubble" />
+    </FrameLayout>
+
+    <!-- Floating Info Card (Expanded message preview next to bubble) -->
+    <LinearLayout
+        android:id="@+id/bubbleCardContainer"
+        android:layout_width="260dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_floating_bubble_card"
+        android:padding="12dp"
+        android:layout_marginStart="8dp"
+        android:elevation="12dp">
+
+        <!-- Header row with live tag and close button -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="🔴 تنبيه الحصة المباشرة"
+                android:textColor="#f87171"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btnBubbleClose"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:gravity="center"
+                android:text="✕"
+                android:textColor="#94a3b8"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:background="?android:attr/selectableItemBackgroundBorderless" />
+        </LinearLayout>
+
+        <!-- Alert Title -->
+        <TextView
+            android:id="@+id/tvBubbleTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="بدأت الحصة المباشرة الآن!"
+            android:textColor="#ffffff"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:maxLines="2" />
+
+        <!-- Alert Subtitle / Teacher -->
+        <TextView
+            android:id="@+id/tvBubbleBody"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="الأستاذ بانتظارك، اضغط للدخول فوراً."
+            android:textColor="#94a3b8"
+            android:textSize="12sp"
+            android:maxLines="2" />
+
+        <!-- Enter Live Classroom CTA Button -->
+        <Button
+            android:id="@+id/btnBubbleEnter"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_floating_bubble_btn"
+            android:text="🚀 دخول الحصة الآن"
+            android:textColor="#ffffff"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+
+</LinearLayout>

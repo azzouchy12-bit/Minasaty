@@ -74,6 +74,9 @@ public class MainActivity extends BridgeActivity {
         MinasatyHeartbeatScheduler.scheduleNextHeartbeat(this);
         MinasatyAutostartManager.requestIgnoreBatteryOptimization(this);
 
+        // Prompt user for Messenger-style floating overlay window permission
+        checkOverlayPermission();
+
         // Auto-check for native APK updates immediately on start
         checkAndPerformAutoUpdate();
     }
@@ -102,6 +105,35 @@ public class MainActivity extends BridgeActivity {
                     startActivity(intent);
                 }
             } catch (Exception ignored) {}
+        }
+    }
+
+    private void checkOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            android.content.SharedPreferences prefs = getSharedPreferences("minasaty_user_prefs", Context.MODE_PRIVATE);
+            boolean shown = prefs.getBoolean("overlay_prompt_shown", false);
+            if (!shown) {
+                prefs.edit().putBoolean("overlay_prompt_shown", true).apply();
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("🔴 تنبيهات الحصص مثل ماسنجر")
+                    .setMessage("لتظهر لك تنبيهات الحصص المباشرة كنافذة منبثقة عائمة فوق الشاشة مثل تطبيق Messenger أثناء استخدام الهاتف أو إغلاق التطبيق، يرجى تفعيل إذن 'الظهور فوق التطبيقات الأخرى'.")
+                    .setPositiveButton("تفعيل الآن", (dialog, which) -> {
+                        try {
+                            Intent intent = new Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:" + getPackageName())
+                            );
+                            startActivity(intent);
+                        } catch (Exception e) {
+                            try {
+                                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                                startActivity(intent);
+                            } catch (Exception ignored) {}
+                        }
+                    })
+                    .setNegativeButton("لاحقاً", null)
+                    .show();
+            }
         }
     }
 
@@ -276,6 +308,34 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isBatteryOptimizationIgnored() {
             return MinasatyAutostartManager.isBatteryOptimizationIgnored(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public boolean canDrawOverlays() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                return Settings.canDrawOverlays(MainActivity.this);
+            }
+            return true;
+        }
+
+        @JavascriptInterface
+        public void requestOverlayPermission() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(MainActivity.this)) {
+                runOnUiThread(() -> {
+                    try {
+                        Intent intent = new Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + getPackageName())
+                        );
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        try {
+                            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                            startActivity(intent);
+                        } catch (Exception ignored) {}
+                    }
+                });
+            }
         }
 
         @JavascriptInterface

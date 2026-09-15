@@ -64,4 +64,25 @@ test("liveAlertHub: publishes alert and matches audience", async () => {
     { json: (data) => { mockRes4 = data; } }
   );
   assert.strictEqual(mockRes4.active, false);
+
+  // 6. Broadcast class alert: should be received by phone even if credentials are not yet saved (empty phone/studentId)
+  await liveAlertHub.publishLiveAlert({
+    alertId: "BROADCAST_ALERT_1",
+    title: "حصة مباشرة لجميع التلاميذ",
+    body: "انطلقت الحصة الآن",
+    level: "2AS,3AS",
+    targetMode: "ALL",
+    targetStudentIds: ["s1", "s2", "s3", "s4", "s5", "s6"],
+  });
+
+  let mockRes5 = null;
+  liveAlertHub.checkActiveAlert(
+    { query: { phone: "", studentId: "", level: "2AS" } },
+    { json: (data) => { mockRes5 = data; } }
+  );
+  assert.strictEqual(mockRes5.active, true);
+  assert.strictEqual(mockRes5.alert.alertId, "BROADCAST_ALERT_1");
+
+  // Clean up
+  liveAlertHub.dismissAlert("BROADCAST_ALERT_1");
 });

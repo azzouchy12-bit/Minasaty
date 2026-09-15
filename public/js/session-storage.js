@@ -61,12 +61,12 @@
         }
       }
 
-      if (window.MinasatyNative?.registerStudentUser && (phone || studentId)) {
+      if (window.MinasatyNative?.registerStudentUser && (phone || studentId || level)) {
         window.MinasatyNative.registerStudentUser(phone, studentId, studentName, level);
       }
 
       // Also register on backend /api/native-alerts/register
-      if (phone || studentId) {
+      if (phone || studentId || level) {
         fetch("/api/native-alerts/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -82,6 +82,11 @@
     } catch (_) {}
   }
   window.notifyNativeBridgeUser = notifyNativeBridgeUser;
+  window.requestMessengerOverlay = function() {
+    if (window.MinasatyNative?.requestOverlayPermission) {
+      window.MinasatyNative.requestOverlayPermission();
+    }
+  };
 
   // Auto-sync on script execution and after load
   setTimeout(notifyNativeBridgeUser, 600);

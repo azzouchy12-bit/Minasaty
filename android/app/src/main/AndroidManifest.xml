@@ -68,6 +68,12 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
+        <!-- Floating Messenger-style interactive bubble overlay service -->
+        <service
+            android:name=".LiveAlertFloatingBubbleService"
+            android:enabled="true"
+            android:exported="false" />
+
         <!-- Persistent Native Background Keep-Alive Service for real-time live class alerts -->
         <service
             android:name=".MinasatyNativeAlertService"
