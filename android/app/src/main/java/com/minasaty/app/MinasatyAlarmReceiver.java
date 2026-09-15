@@ -8,14 +8,17 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.net.Uri;
-import android.os.Build;
-import android.os.PowerManager;
-import android.util.Log;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.media.AudioAttributes;
+import android.media.MediaPlayer;
 import android.media.RingtoneManager;
+import android.net.Uri;
+import android.os.Build;
+import android.os.PowerManager;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.util.Log;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.Person;
 import androidx.core.graphics.drawable.IconCompat;
@@ -32,50 +35,64 @@ import java.util.concurrent.Executors;
 
 /**
  * MinasatyAlarmReceiver:
- * High-priority BroadcastReceiver triggered by AlarmManager.setAlarmClock().
- * Bypasses Android Doze mode and background execution limits.
- * Performs a fast, non-blocking check against the Minasaty server.
- * When an active live class alert is found, it wakes the device screen,
- * starts the loud continuous ringing service, and displays the incoming call activity.
+ * High-priority BroadcastReceiver triggered by AlarmManager.
+ * Uses goAsync() and WakeLock to guarantee execution even when app is closed and phone is locked.
+ * Directly plays loud incoming call sound, triggers vibration, wakes screen,
+ * and posts WhatsApp-style CallStyle incoming call notification.
  */
 public class MinasatyAlarmReceiver extends BroadcastReceiver {
     private static final String TAG = "MinasatyAlarmReceiver";
+    public static final String ACTION_DISMISS_ALERT = "com.minasaty.app.ACTION_DISMISS_ALERT";
     private static final String BASE_SERVER_URL = "https://acadimia.africacold.fr";
     private static final String PREFS_NAME = "minasaty_user_prefs";
     private static final String CALL_CHANNEL_ID = LiveAlertRingingService.CHANNEL_ID;
-    private static final int CALL_NOTIFICATION_ID = 9110;
+    public static final int CALL_NOTIFICATION_ID = 9110;
 
     private static final ExecutorService backgroundExecutor = Executors.newCachedThreadPool();
     private static long lastTriggeredAlertTimestamp = 0;
+
+    private static MediaPlayer activeMediaPlayer = null;
+    private static Vibrator activeVibrator = null;
 
     @Override
     public void onReceive(Context context, Intent intent) {
         if (context == null) return;
         final Context appContext = context.getApplicationContext();
 
-        // 1. Acquire temporary CPU WakeLock to guarantee code runs even if device was asleep
+        // 1. Handle dismiss action immediately
+        if (intent != null && ACTION_DISMISS_ALERT.equals(intent.getAction())) {
+            stopDirectAlarm(appContext);
+            return;
+        }
+
+        // 2. CRITICAL: goAsync() tells Android to keep this process alive during async network check
+        final PendingResult pendingResult = goAsync();
+
+        // 3. Acquire temporary CPU WakeLock to guarantee CPU stays active
         PowerManager pm = (PowerManager) appContext.getSystemService(Context.POWER_SERVICE);
         PowerManager.WakeLock wakeLock = null;
         if (pm != null) {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Minasaty:HeartbeatWakeLock");
             try {
-                wakeLock.acquire(15000); // 15 seconds max
+                wakeLock.acquire(20000); // 20 seconds max
             } catch (Exception ignored) {}
         }
 
         final PowerManager.WakeLock finalWakeLock = wakeLock;
 
-        // 2. Perform non-blocking server check in background thread pool
+        // 4. Perform non-blocking server check in background thread pool
         backgroundExecutor.execute(() -> {
             try {
                 checkServerForLiveAlert(appContext);
             } catch (Exception e) {
                 Log.w(TAG, "Heartbeat server check error: " + e.getMessage());
             } finally {
-                // 3. Re-arm the next heartbeat alarm (unbreakable alarm chain)
-                MinasatyHeartbeatScheduler.scheduleNextHeartbeat(appContext);
+                // 5. Re-arm the next heartbeat alarm (unbreakable alarm chain)
+                try {
+                    MinasatyHeartbeatScheduler.scheduleNextHeartbeat(appContext);
+                } catch (Exception ignored) {}
 
-                // 4. Ensure persistent alert service is also running
+                // 6. Ensure persistent alert service is also alive
                 try {
                     MinasatyNativeAlertService.startService(appContext);
                 } catch (Exception ignored) {}
@@ -86,6 +103,11 @@ public class MinasatyAlarmReceiver extends BroadcastReceiver {
                         finalWakeLock.release();
                     } catch (Exception ignored) {}
                 }
+
+                // 7. Finish async broadcast execution
+                try {
+                    pendingResult.finish();
+                } catch (Exception ignored) {}
             }
         });
     }
@@ -109,7 +131,7 @@ public class MinasatyAlarmReceiver extends BroadcastReceiver {
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept", "application/json");
-            conn.setRequestProperty("User-Agent", "MinasatyAlarmEngine/2.0");
+            conn.setRequestProperty("User-Agent", "MinasatyAlarmEngine/5.0");
             conn.setConnectTimeout(8000);
             conn.setReadTimeout(8000);
 
@@ -173,37 +195,105 @@ public class MinasatyAlarmReceiver extends BroadcastReceiver {
                     PowerManager.ON_AFTER_RELEASE,
                     "Minasaty:EmergencyLiveScreenWake"
                 );
-                screenWakeLock.acquire(30000); // 30 seconds
+                screenWakeLock.acquire(45000); // 45 seconds
             }
 
-            // 2. Start high-priority continuous ringing and vibration foreground service
-            LiveAlertRingingService.startAlert(context, title, body, targetUrl);
+            // 2. Play continuous loud alarm & vibration directly
+            playDirectAlarm(context);
 
-            // 3. Show Facebook Messenger-style floating overlay bubble
-            LiveAlertFloatingBubbleService.showBubble(context, title, body, targetUrl);
-
-            // 4. Post full-screen intent notification to pop incoming call UI over lock screen
+            // 3. Post WhatsApp-style CallStyle notification with Answer & Decline actions
             postFullScreenCallNotification(context, title, body, targetUrl);
 
-            // 5. Also directly start the Full-Screen Incoming Activity
-            Intent activityIntent = new Intent(context, LiveAlertIncomingActivity.class);
-            activityIntent.addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK |
-                Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                Intent.FLAG_ACTIVITY_SINGLE_TOP
-            );
-            activityIntent.putExtra(LiveAlertRingingService.EXTRA_ALERT_TITLE, title);
-            activityIntent.putExtra(LiveAlertRingingService.EXTRA_ALERT_BODY, body);
-            activityIntent.putExtra(LiveAlertRingingService.EXTRA_TARGET_URL, targetUrl);
+            // 4. Try starting full-screen incoming activity over lock screen
             try {
+                Intent activityIntent = new Intent(context, LiveAlertIncomingActivity.class);
+                activityIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                );
+                activityIntent.putExtra(LiveAlertRingingService.EXTRA_ALERT_TITLE, title);
+                activityIntent.putExtra(LiveAlertRingingService.EXTRA_ALERT_BODY, body);
+                activityIntent.putExtra(LiveAlertRingingService.EXTRA_TARGET_URL, targetUrl);
                 context.startActivity(activityIntent);
             } catch (Exception ignored) {}
 
-            // 6. Send acknowledgment to backend so teacher's studio modal updates to "Ringing!"
+            // 5. Send acknowledgment to backend
             sendAlertAcknowledgment(alertId, phone, studentId);
 
         } catch (Exception e) {
             Log.e(TAG, "triggerEmergencyLiveAlert error: " + e.getMessage());
+        }
+    }
+
+    public static synchronized void playDirectAlarm(Context context) {
+        try {
+            stopDirectAlarm(context);
+
+            Uri soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+            if (soundUri == null) {
+                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            }
+
+            activeMediaPlayer = new MediaPlayer();
+            activeMediaPlayer.setDataSource(context, soundUri);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                activeMediaPlayer.setAudioAttributes(
+                    new AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .build()
+                );
+            } else {
+                activeMediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_ALARM);
+            }
+            activeMediaPlayer.setLooping(true);
+            activeMediaPlayer.prepare();
+            activeMediaPlayer.start();
+        } catch (Exception ignored) {}
+
+        try {
+            activeVibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+            if (activeVibrator != null && activeVibrator.hasVibrator()) {
+                long[] pattern = new long[]{0, 900, 400, 900, 400, 1200};
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    activeVibrator.vibrate(VibrationEffect.createWaveform(pattern, 0));
+                } else {
+                    activeVibrator.vibrate(pattern, 0);
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    public static synchronized void stopDirectAlarm(Context context) {
+        if (activeMediaPlayer != null) {
+            try {
+                if (activeMediaPlayer.isPlaying()) {
+                    activeMediaPlayer.stop();
+                }
+                activeMediaPlayer.release();
+            } catch (Exception ignored) {}
+            activeMediaPlayer = null;
+        }
+
+        if (activeVibrator != null) {
+            try {
+                activeVibrator.cancel();
+            } catch (Exception ignored) {}
+            activeVibrator = null;
+        }
+
+        if (context != null) {
+            try {
+                NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) {
+                    nm.cancel(CALL_NOTIFICATION_ID);
+                }
+            } catch (Exception ignored) {}
+
+            try {
+                LiveAlertRingingService.stopAlert(context);
+            } catch (Exception ignored) {}
         }
     }
 
@@ -219,7 +309,7 @@ public class MinasatyAlarmReceiver extends BroadcastReceiver {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                 CALL_CHANNEL_ID,
-                "تنبيهات الحصص المباشرة (مثل ماسنجر)",
+                "تنبيهات الحصص المباشرة (مثل واتساب)",
                 NotificationManager.IMPORTANCE_HIGH
             );
             channel.setDescription("تشغيل الرنين وشاشة المكالمة المنبثقة عند بدء الحصة المباشرة");
@@ -257,16 +347,17 @@ public class MinasatyAlarmReceiver extends BroadcastReceiver {
             pendingFlags
         );
 
-        // Enter live class action
-        Intent enterIntent = new Intent(context, LiveAlertRingingService.class);
-        enterIntent.setAction(LiveAlertRingingService.ACTION_ENTER_LIVE);
-        enterIntent.putExtra(LiveAlertRingingService.EXTRA_TARGET_URL, targetUrl);
-        PendingIntent enterPendingIntent = PendingIntent.getService(context, 202, enterIntent, pendingFlags);
+        // Enter live class action (Opens MainActivity directly)
+        Intent enterIntent = new Intent(context, MainActivity.class);
+        enterIntent.setAction(Intent.ACTION_VIEW);
+        enterIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        enterIntent.putExtra("targetUrl", targetUrl);
+        PendingIntent enterPendingIntent = PendingIntent.getActivity(context, 202, enterIntent, pendingFlags);
 
-        // Dismiss action
-        Intent dismissIntent = new Intent(context, LiveAlertRingingService.class);
-        dismissIntent.setAction(LiveAlertRingingService.ACTION_STOP_ALERT);
-        PendingIntent dismissPendingIntent = PendingIntent.getService(context, 203, dismissIntent, pendingFlags);
+        // Dismiss action (Sends broadcast to stop ringing)
+        Intent dismissIntent = new Intent(context, MinasatyAlarmReceiver.class);
+        dismissIntent.setAction(ACTION_DISMISS_ALERT);
+        PendingIntent dismissPendingIntent = PendingIntent.getBroadcast(context, 203, dismissIntent, pendingFlags);
 
         // Caller Person representation (WhatsApp Style)
         Person caller = new Person.Builder()

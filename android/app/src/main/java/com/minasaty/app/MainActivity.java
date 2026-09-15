@@ -154,6 +154,7 @@ public class MainActivity extends BridgeActivity {
             runOnUiThread(() -> {
                 // Ensure native ringing stops when opening the class
                 LiveAlertRingingService.stopAlert(this);
+                MinasatyAlarmReceiver.stopDirectAlarm(this);
 
                 if (getBridge() != null && getBridge().getWebView() != null) {
                     WebView webView = getBridge().getWebView();
@@ -277,7 +278,10 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void stopAlertRinging() {
-            runOnUiThread(() -> LiveAlertRingingService.stopAlert(MainActivity.this));
+            runOnUiThread(() -> {
+                LiveAlertRingingService.stopAlert(MainActivity.this);
+                MinasatyAlarmReceiver.stopDirectAlarm(MainActivity.this);
+            });
         }
 
         @JavascriptInterface

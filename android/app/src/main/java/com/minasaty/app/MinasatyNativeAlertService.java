@@ -141,7 +141,7 @@ public class MinasatyNativeAlertService extends Service {
 
         if (Build.VERSION.SDK_INT >= 34) { // Android 14+
             try {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING);
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
             } catch (Exception e) {
                 try {
                     startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);

@@ -202,22 +202,16 @@ function matchesAudience(client, alert) {
     return true;
   }
 
-  // 3. If device has no phone and no studentId registered yet (newly installed / unauthenticated app):
-  // Deliver the live class alert if the level matches!
-  if (!client?.phone && !client?.studentId) {
-    return levelMatches;
+  // 3. Targeted check: if specific students/phones were targeted, and client has registered credentials:
+  const hasSpecificTargets = targetStudentIds.length > 0 || parentPhonesNorm.length > 0;
+  if (hasSpecificTargets && (client?.studentId || clientNormPhone)) {
+    // Client has identity but didn't match the targeted recipients
+    return false;
   }
 
-  // 4. Targeted check: if specific individual students were exclusively selected
-  const hasSpecificTargets = targetStudentIds.length > 0 || parentPhonesNorm.length > 0;
-  const isExplicitlyTargeted =
-    alert.targetMode === "SELECTED" ||
-    alert.isTargetedExclusive ||
-    (hasSpecificTargets && targetStudentIds.length > 0 && targetStudentIds.length < 5);
-
-  if (isExplicitlyTargeted) {
-    // Exclusively targeted to specific individuals, client did not match
-    return false;
+  // 4. If device has no phone and no studentId registered yet (newly installed / unauthenticated app):
+  if (!client?.phone && !client?.studentId) {
+    return levelMatches;
   }
 
   // 5. General class or level broadcast: deliver to all matching level devices

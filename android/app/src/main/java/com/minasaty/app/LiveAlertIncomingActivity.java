@@ -88,6 +88,7 @@ public class LiveAlertIncomingActivity extends AppCompatActivity {
 
     private void enterLiveClass() {
         LiveAlertRingingService.stopAlert(this);
+        MinasatyAlarmReceiver.stopDirectAlarm(this);
 
         Intent mainIntent = new Intent(this, MainActivity.class);
         mainIntent.setAction(Intent.ACTION_VIEW);
@@ -101,6 +102,7 @@ public class LiveAlertIncomingActivity extends AppCompatActivity {
 
     private void dismissAlert() {
         LiveAlertRingingService.stopAlert(this);
+        MinasatyAlarmReceiver.stopDirectAlarm(this);
         finish();
     }
 
@@ -109,6 +111,7 @@ public class LiveAlertIncomingActivity extends AppCompatActivity {
         // Pressing Volume Up or Volume Down silences the ringtone without closing the screen
         if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
             LiveAlertRingingService.stopAlert(this);
+            MinasatyAlarmReceiver.stopDirectAlarm(this);
             return true;
         }
         return super.onKeyDown(keyCode, event);

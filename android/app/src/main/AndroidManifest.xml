@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
@@ -74,12 +75,13 @@
             android:enabled="true"
             android:exported="false" />
 
-        <!-- Persistent Native Background Keep-Alive Service for real-time live class alerts -->
+        <!-- Persistent Native Background Keep-Alive Service for real-time live class alerts (Isolated from Task Clearing) -->
         <service
             android:name=".MinasatyNativeAlertService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="remoteMessaging" />
+            android:process=":alert_engine"
+            android:foregroundServiceType="dataSync" />
 
         <!-- Exact Alarm Clock Receiver for Deep Doze Wakeups -->
         <receiver

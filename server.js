@@ -245,8 +245,8 @@ app.get("/api/platform-version", (_req, res) => {
 });
 
 // APK Version Endpoint for automatic native Android app updates
-const APK_VERSION_CODE = parseInt(process.env.APK_VERSION_CODE || "4", 10);
-const APK_VERSION_NAME = process.env.APK_VERSION_NAME || "4.0";
+const APK_VERSION_CODE = parseInt(process.env.APK_VERSION_CODE || "5", 10);
+const APK_VERSION_NAME = process.env.APK_VERSION_NAME || "5.0";
 app.get("/api/apk-version", (_req, res) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.setHeader("Pragma", "no-cache");
@@ -257,7 +257,7 @@ app.get("/api/apk-version", (_req, res) => {
     apkUrl: "https://acadimia.africacold.fr/acadimia.apk",
     forceUpdate: true,
     minSupportedVersion: 1,
-    releaseNotes: "تحديث رئيسي v4.0: نظام مكالمات البث المباشر على طريقة WhatsApp بدون أي قيود، إيقاظ الشاشة وقفل الهاتف، ورنين مكالمة مستمر"
+    releaseNotes: "تحديث رئيسي v5.0: أيقونة الأستاذ الدكتور شارف عز الدين الرسمية، محرك تنبيهات معزول يعمل والتطبيق مغلق والهاتف مقفل 100% بنظام مكالمات واتساب"
   });
 });
 
