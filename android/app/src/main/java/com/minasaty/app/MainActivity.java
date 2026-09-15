@@ -74,9 +74,6 @@ public class MainActivity extends BridgeActivity {
         MinasatyHeartbeatScheduler.scheduleNextHeartbeat(this);
         MinasatyAutostartManager.requestIgnoreBatteryOptimization(this);
 
-        // Prompt user for Messenger-style floating overlay window permission
-        checkOverlayPermission();
-
         // Auto-check for native APK updates immediately on start
         checkAndPerformAutoUpdate();
     }

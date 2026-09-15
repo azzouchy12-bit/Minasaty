@@ -1,86 +1,160 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="28dp"
-    android:background="#070b14">
+    android:background="#070b14"
+    android:padding="24dp">
 
-    <!-- Glowing Red Icon Container -->
+    <!-- Top Status Header -->
     <LinearLayout
-        android:layout_width="96dp"
-        android:layout_height="96dp"
-        android:gravity="center"
-        android:background="@android:drawable/ic_notification_overlay"
-        android:layout_marginBottom="24dp">
-
-        <ImageView
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:src="@android:drawable/ic_lock_idle_alarm"
-            android:contentDescription="Live Alert" />
-    </LinearLayout>
-
-    <!-- Urgent Badge -->
-    <TextView
+        android:id="@+id/topHeaderLayout"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="🔴 الحصة بدأت الآن • تنبيه فوري"
-        android:textColor="#f87171"
-        android:textStyle="bold"
-        android:textSize="14sp"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="32dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="#2610b981"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp"
-        android:background="#26ef4444"
-        android:layout_marginBottom="16dp" />
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
 
-    <!-- Title -->
-    <TextView
-        android:id="@+id/tvAlertTitle"
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔴 مكالمة بث مباشر واردة • أكاديمية التفوق"
+            android:textColor="#34d399"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Center Caller Information (WhatsApp Call Style) -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="🔴 تنبيه عاجل: بدأت الحصة المباشرة!"
-        android:textColor="#ffffff"
-        android:textStyle="bold"
-        android:textSize="22sp"
+        android:layout_centerInParent="true"
         android:gravity="center"
-        android:layout_marginBottom="12dp" />
+        android:orientation="vertical">
 
-    <!-- Description -->
-    <TextView
-        android:id="@+id/tvAlertBody"
+        <!-- Glowing Avatar Container -->
+        <FrameLayout
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:layout_marginBottom="24dp"
+            android:background="@drawable/bg_bubble_circle"
+            android:padding="8dp">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@mipmap/ic_launcher"
+                android:scaleType="centerInside"
+                android:contentDescription="Teacher Call Avatar" />
+        </FrameLayout>
+
+        <!-- Teacher / Academy Name -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="الدكتور شارف عز الدين"
+            android:textColor="#ffffff"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="6dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="أكاديمية التفوق للفيزياء والرياضيات"
+            android:textColor="#38bdf8"
+            android:textSize="15sp"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Alert Title -->
+        <TextView
+            android:id="@+id/tvAlertTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🔴 بدأت الحصة المباشرة الآن!"
+            android:textColor="#f87171"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+        <!-- Alert Body -->
+        <TextView
+            android:id="@+id/tvAlertBody"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="الأستاذ بانتظارك في قاعة البث، اضغط للدخول فوراً."
+            android:textColor="#94a3b8"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:lineSpacingMultiplier="1.2"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp" />
+
+    </LinearLayout>
+
+    <!-- Bottom Actions Container (WhatsApp Call Action Style) -->
+    <LinearLayout
+        android:id="@+id/bottomActionsLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="بدأت الحصة المباشرة الآن! الأستاذ بانتظارك، اضغط للدخول فوراً."
-        android:textColor="#cbd5e1"
-        android:textSize="15sp"
-        android:lineSpacingMultiplier="1.3"
-        android:gravity="center"
-        android:layout_marginBottom="36dp" />
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="24dp"
+        android:orientation="vertical"
+        android:gravity="center">
 
-    <!-- Enter Live Classroom Button -->
-    <Button
-        android:id="@+id/btnEnterLive"
-        android:layout_width="match_parent"
-        android:layout_height="58dp"
-        android:text="🚀 دخول الحصة المباشرة الآن"
-        android:textColor="#ffffff"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:background="#10b981"
-        android:layout_marginBottom="14dp" />
+        <!-- Action Buttons Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:weightSum="2"
+            android:gravity="center"
+            android:layout_marginBottom="16dp">
 
-    <!-- Dismiss Ringing Button -->
-    <Button
-        android:id="@+id/btnDismissAlert"
-        android:layout_width="match_parent"
-        android:layout_height="50dp"
-        android:text="إيقاف الرنين والتجاهل"
-        android:textColor="#94a3b8"
-        android:textSize="14sp"
-        android:background="#1e293b" />
+            <!-- Accept / Answer Live Call Button (Green) -->
+            <Button
+                android:id="@+id/btnEnterLive"
+                android:layout_width="0dp"
+                android:layout_height="56dp"
+                android:layout_weight="1.2"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_floating_bubble_btn"
+                android:text="📞 الرد ودخول الحصة"
+                android:textColor="#ffffff"
+                android:textSize="15sp"
+                android:textStyle="bold" />
 
-</LinearLayout>
+            <!-- Decline / Hangup Button (Red) -->
+            <Button
+                android:id="@+id/btnDismissAlert"
+                android:layout_width="0dp"
+                android:layout_height="56dp"
+                android:layout_weight="0.8"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_call_decline_btn"
+                android:text="✕ إيقاف الرنين"
+                android:textColor="#ffffff"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="💡 يمكنك الضغط على أزرار الصوت لكتم الرنين"
+            android:textColor="#64748b"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+
+</RelativeLayout>

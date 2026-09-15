@@ -20,6 +20,8 @@ import android.os.Looper;
 import android.os.PowerManager;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.Person;
+import androidx.core.graphics.drawable.IconCompat;
 
 /**
  * LiveAlertRingingService:
@@ -175,12 +177,18 @@ public class LiveAlertRingingService extends Service {
             ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
         }
 
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+        // Caller Person representation (WhatsApp Style)
+        Person caller = new Person.Builder()
+            .setName("🔴 الدكتور شارف عز الدين")
+            .setIcon(IconCompat.createWithResource(this, R.mipmap.ic_launcher))
+            .setImportant(true)
+            .build();
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setLargeIcon(BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher))
-            .setContentTitle(title)
+            .setContentTitle("🔴 مكالمة حصة مباشرة: " + title)
             .setContentText(body)
-            .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -190,9 +198,19 @@ public class LiveAlertRingingService extends Service {
             .setVibrate(new long[]{0, 900, 400, 900, 400, 1200})
             .setFullScreenIntent(fullScreenPendingIntent, true)
             .setContentIntent(fullScreenPendingIntent)
+            .setStyle(
+                NotificationCompat.CallStyle.forIncomingCall(
+                    caller,
+                    dismissPendingIntent,
+                    enterPendingIntent
+                )
+                .setIsVideo(true)
+            )
+            .addPerson(caller)
             .addAction(android.R.drawable.ic_media_play, "🚀 دخول الحصة الآن", enterPendingIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "إيقاف الرنين", dismissPendingIntent)
-            .build();
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "إيقاف الرنين", dismissPendingIntent);
+
+        Notification notification = builder.build();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
