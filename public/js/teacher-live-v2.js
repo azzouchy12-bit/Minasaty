@@ -3669,10 +3669,10 @@ function closeAllPeerConnections() {
 
 const teacherQosLast = new Map();
 const teacherQosAllocations = new Map();
-const AUDIO_BITRATE_FLOOR = 24_000;
-const AUDIO_BITRATE_CEILING = 96_000;
+const AUDIO_BITRATE_FLOOR = 16_000;
+const AUDIO_BITRATE_CEILING = 48_000;
 const VIDEO_BITRATE_FLOOR = 40_000;
-const VIDEO_BITRATE_CEILING = 6_000_000;
+const VIDEO_BITRATE_CEILING = 600_000;
 
 
 function computeContinuousBandwidthAllocation(totalAvailableBitrate) {
@@ -3706,37 +3706,35 @@ function getAdaptiveVideoQualityProfile(quality = "auto", allocation = null) {
   const normalized = String(quality || "auto").trim().toLowerCase();
   if (normalized === "high") {
     return {
-      maxBitrate: 6_000_000,
-      maxFramerate: 60,
+      maxBitrate: 600_000,
+      maxFramerate: 20,
       scaleResolutionDownBy: 1.0,
       degradationPreference: "maintain-resolution",
     };
   }
   if (normalized === "medium") {
     return {
-      maxBitrate: 800_000,
-      maxFramerate: 30,
-      scaleResolutionDownBy: 1.8,
-      degradationPreference: "balanced",
+      maxBitrate: 400_000,
+      maxFramerate: 15,
+      scaleResolutionDownBy: 1.0,
+      degradationPreference: "maintain-resolution",
     };
   }
   if (normalized === "low") {
     return {
       maxBitrate: 220_000,
-      maxFramerate: 15,
-      scaleResolutionDownBy: 2.5,
-      degradationPreference: "maintain-framerate",
+      maxFramerate: 12,
+      scaleResolutionDownBy: 1.5,
+      degradationPreference: "maintain-resolution",
     };
   }
-  // Auto adaptive mode based on network bandwidth allocation
-  const videoBitrate = allocation?.videoBitrate ?? 1_800_000;
+  // Auto adaptive mode optimized for online tutoring slides & blackboard
+  const videoBitrate = Math.min(500_000, Math.max(180_000, allocation?.videoBitrate ?? 380_000));
   return {
-    maxBitrate: Math.min(6_000_000, videoBitrate || 10_000),
-    maxFramerate: videoBitrate >= 4_000_000 ? 60 : videoBitrate >= 1_000_000 ? 30 : 15,
-    scaleResolutionDownBy: videoBitrate
-      ? Math.min(2.5, Math.max(1, Math.sqrt(VIDEO_BITRATE_CEILING / videoBitrate)))
-      : 2.5,
-    degradationPreference: "balanced",
+    maxBitrate: videoBitrate,
+    maxFramerate: 15,
+    scaleResolutionDownBy: 1.0,
+    degradationPreference: "maintain-resolution",
   };
 }
 
@@ -4328,7 +4326,7 @@ async function replaceScreenShareStream() {
       video: {
         width: { ideal: 1920, max: 1920 },
         height: { ideal: 1080, max: 1080 },
-        frameRate: { ideal: 60, max: 60 },
+        frameRate: { ideal: 15, max: 20 },
       },
       audio: true,
     });

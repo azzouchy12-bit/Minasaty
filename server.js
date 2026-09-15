@@ -354,10 +354,11 @@ app.get("/api/health/detailed", verifyToken, isTeacher, async (_req, res) => {
 const io = new Server(httpServer, {
   cors: corsOptions,
   maxHttpBufferSize: 1_500_000,
-  // These values make transient network interruptions less likely to terminate
-  // a classroom socket immediately. They do not affect WebRTC media streams.
-  pingInterval: 25_000,
-  pingTimeout: 60_000,
+  // Optimized ping and timeout settings to tolerate transient network congestion
+  // during live broadcasts and prevent false teacher disconnects.
+  pingInterval: 20_000,
+  pingTimeout: 90_000,
+  connectTimeout: 45_000,
 });
 
 const privateMessagesNamespace = io.of("/private-messages");
@@ -3116,6 +3117,14 @@ if (require.main === module) {
   })().catch((error) => {
     console.error("Unable to start server:", error);
     process.exit(1);
+  });
+
+  process.on("unhandledRejection", (reason, promise) => {
+    console.error("[Process Protection] Unhandled Rejection at:", promise, "reason:", reason);
+  });
+
+  process.on("uncaughtException", (error) => {
+    console.error("[Process Protection] Uncaught Exception thrown:", error);
   });
 
   process.once("SIGTERM", () => void shutdown("SIGTERM"));

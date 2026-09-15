@@ -537,6 +537,18 @@
     try {
       const offer = await pc.createOffer({ iceRestart });
       await pc.setLocalDescription(offer);
+      const videoSender = pc.getSenders().find((s) => s.__classroomVideoTrack);
+      if (videoSender && typeof videoSender.setParameters === "function") {
+        try {
+          const params = videoSender.getParameters();
+          params.encodings = params.encodings?.length ? params.encodings : [{}];
+          params.encodings[0].maxBitrate = 450_000;
+          params.encodings[0].maxFramerate = 15;
+          params.degradationPreference = "maintain-resolution";
+          await videoSender.setParameters(params);
+        } catch (_) {}
+      }
+
       await emitWithAcknowledgement("webrtc_offer", {
         targetSocketId: studentSocketId,
         sdp: pc.localDescription,
@@ -674,6 +686,7 @@
             facingMode: cameraFacingMode,
             width: { ideal: 1280 },
             height: { ideal: 720 },
+            frameRate: { ideal: 15, max: 20 },
           },
         });
 
@@ -739,6 +752,7 @@
           facingMode: cameraFacingMode,
           width: { ideal: 1280 },
           height: { ideal: 720 },
+          frameRate: { ideal: 15, max: 20 },
         },
       });
 
