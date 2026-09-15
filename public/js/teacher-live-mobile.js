@@ -1309,6 +1309,10 @@
     endLiveClass();
   });
 
+  document.getElementById("tm-desktop-switch-btn")?.addEventListener("click", () => {
+    try { sessionStorage.setItem("teacherDesktopMode", "1"); } catch (_) {}
+  });
+
   // ---------------------------------------------------------------------------
   // 16. Initialization on Load
   // ---------------------------------------------------------------------------
