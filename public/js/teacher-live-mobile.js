@@ -1797,6 +1797,16 @@
     }
   });
 
+  socket.on("student_participation_updated", (data = {}) => {
+    const { socketId, count } = data;
+    if (!socketId) return;
+    const student = attendeesMap.get(socketId);
+    if (student) {
+      student.participationCount = Math.max(0, Number(count) || 0);
+      renderAttendees();
+    }
+  });
+
   socket.on("student_message_received", async (data = {}) => {
     if (!classActive) return;
     let imageUrl = null;

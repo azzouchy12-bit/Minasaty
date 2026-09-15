@@ -909,6 +909,27 @@ async function getClassParticipation(studentId, sessionKey) {
   }
 }
 
+async function getStudent24HourParticipation(studentId) {
+  if (!isValidStudentId(studentId)) return 0;
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const records = await prisma.classParticipation.findMany({
+      where: {
+        studentId,
+        OR: [
+          { lastParticipatedAt: { gte: since } },
+          { updatedAt: { gte: since } },
+        ],
+      },
+      select: { count: true },
+    });
+    return records.reduce((sum, r) => sum + (Number(r.count) || 0), 0);
+  } catch (error) {
+    console.error("24h participation lookup failed:", error);
+    return 0;
+  }
+}
+
 async function sendAttendanceEmail({ student, subject, status, when }) {
   const baseUrl = String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "");
   const className = subject || "الحصة المباشرة";
@@ -1633,13 +1654,14 @@ io.on("connection", (socket) => {
         ? await Promise.all((await io.in(level).fetchSockets())
             .filter((participant) => participant.id !== socket.id && participant.data.role === "student")
             .map(async (participant) => {
-              const participation = await getClassParticipation(participant.data.studentId, effectiveResumeToken);
+              const participationCount = await getStudent24HourParticipation(participant.data.studentId);
+              participant.data.participationCount = participationCount;
               return {
                 socketId: participant.id,
                 studentId: participant.data.studentId || null,
                 studentName: participant.data.studentName || "تلميذ",
                 micEnabled: isStudentMicrophoneOpen(level, participant.id),
-                participationCount: participation?.count || 0,
+                participationCount,
               };
             }))
         : [];
@@ -1745,11 +1767,14 @@ io.on("connection", (socket) => {
                 const sId = s.data.studentId || users.get(s.id)?.studentId || sid;
                 if (!seenStudentIds.has(sId)) {
                   seenStudentIds.add(sId);
+                  const pCount = s.data.participationCount !== undefined
+                    ? s.data.participationCount
+                    : (s.data.studentId ? await getStudent24HourParticipation(s.data.studentId) : 0);
                   presentStudents.push({
                     socketId: s.id,
                     studentId: s.data.studentId || users.get(s.id)?.studentId || null,
                     studentName: s.data.studentName || users.get(s.id)?.name || "تلميذ",
-                    participationCount: s.data.participationCount || 0,
+                    participationCount: pCount,
                     handRaised: Boolean(s.data.handRaised),
                     micEnabled: isStudentMicrophoneOpen(foundLevel, s.id),
                   });
@@ -1855,11 +1880,14 @@ io.on("connection", (socket) => {
               const sId = s.data.studentId || users.get(s.id)?.studentId || sid;
               if (!seenStudentIds.has(sId)) {
                 seenStudentIds.add(sId);
+                const pCount = s.data.participationCount !== undefined
+                  ? s.data.participationCount
+                  : (s.data.studentId ? await getStudent24HourParticipation(s.data.studentId) : 0);
                 currentStudents.push({
                   socketId: s.id,
                   studentId: s.data.studentId || users.get(s.id)?.studentId || null,
                   studentName: s.data.studentName || users.get(s.id)?.name || "تلميذ",
-                  participationCount: s.data.participationCount || 0,
+                  participationCount: pCount,
                   handRaised: Boolean(s.data.handRaised),
                   micEnabled: isStudentMicrophoneOpen(level, s.id),
                 });
@@ -2091,8 +2119,8 @@ io.on("connection", (socket) => {
       socket.data.studentId = student.id;
       users.set(socket.id, { role: "student", level: student.level, classroomLevel, name: studentName, studentId: student.id });
 
-      const participation = await getClassParticipation(student.id, sessionKey);
-      const participationCount = participation?.count || 0;
+      const participationCount = await getStudent24HourParticipation(student.id);
+      socket.data.participationCount = participationCount;
 
       socket.emit("room_joined", {
         level: student.level,
@@ -2518,15 +2546,22 @@ io.on("connection", (socket) => {
       const micDurationSeconds = Math.floor((Date.now() - targetSocket.data.micStartedAt) / 1000);
       targetSocket.data.micStartedAt = null;
       if (micDurationSeconds >= 10) {
-        const participation = await recordClassParticipation({
+        await recordClassParticipation({
           studentId: targetSocket.data.studentId,
           level: targetSocket.data.studentAcademicLevel || level,
           subject: activeSubjectByLevel.get(level),
           sessionKey,
         });
-        const participationCount = participation?.count || 0;
+        const participationCount = await getStudent24HourParticipation(targetSocket.data.studentId);
+        targetSocket.data.participationCount = participationCount;
         io.to(targetSocketId).emit("participation_count_updated", { level, count: participationCount });
         io.to(socket.id).emit("student_participation_updated", { socketId: targetSocketId, count: participationCount });
+        const companions = activeCompanionsByLevel.get(level);
+        if (companions) {
+          for (const compId of companions) {
+            io.to(compId).emit("student_participation_updated", { socketId: targetSocketId, count: participationCount });
+          }
+        }
       }
     }
 
@@ -2582,17 +2617,24 @@ io.on("connection", (socket) => {
     const wasOpen = isStudentMicrophoneOpen(level, targetSocketId);
     setStudentMicrophoneOpen(level, targetSocketId, true);
     setStudentWhiteboardAccess(level, targetSocketId, true);
-    const participation = wasOpen
-      ? await getClassParticipation(targetSocket.data.studentId, socket.data.classResumeToken)
-      : await recordClassParticipation({
-          studentId: targetSocket.data.studentId,
-          level: targetSocket.data.studentAcademicLevel || level,
-          subject: activeSubjectByLevel.get(level),
-          sessionKey: socket.data.classResumeToken,
-        });
-    const participationCount = participation?.count || 0;
+    if (!wasOpen) {
+      await recordClassParticipation({
+        studentId: targetSocket.data.studentId,
+        level: targetSocket.data.studentAcademicLevel || level,
+        subject: activeSubjectByLevel.get(level),
+        sessionKey: socket.data.classResumeToken,
+      });
+    }
+    const participationCount = await getStudent24HourParticipation(targetSocket.data.studentId);
+    targetSocket.data.participationCount = participationCount;
     io.to(targetSocketId).emit("participation_count_updated", { level, count: participationCount });
     io.to(socket.id).emit("student_participation_updated", { socketId: targetSocketId, count: participationCount });
+    const companions = activeCompanionsByLevel.get(level);
+    if (companions) {
+      for (const compId of companions) {
+        io.to(compId).emit("student_participation_updated", { socketId: targetSocketId, count: participationCount });
+      }
+    }
     io.to(targetSocketId).emit("permission_granted", { level });
     io.to(targetSocketId).emit("whiteboard_access_granted", { level });
     io.to(level).emit("classroom_track_state", {
