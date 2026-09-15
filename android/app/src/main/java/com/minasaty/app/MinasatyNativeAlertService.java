@@ -320,35 +320,10 @@ public class MinasatyNativeAlertService extends Service {
 
         mainHandler.post(() -> {
             try {
-                // 1. Wake up device CPU and turn screen on
-                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-                if (pm != null) {
-                    @SuppressWarnings("deprecation")
-                    PowerManager.WakeLock wakeLock = pm.newWakeLock(
-                        PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
-                        PowerManager.ACQUIRE_CAUSES_WAKEUP |
-                        PowerManager.ON_AFTER_RELEASE,
-                        "Minasaty:NativeAlertWakeLock"
-                    );
-                    wakeLock.acquire(30000); // 30 seconds max
-                }
+                // Post standard text notification with system notification sound
+                MinasatyNotificationHelper.postStandardLiveNotification(this, title, body, targetUrl);
 
-                // 2. Start continuous alert ringing and vibration
-                LiveAlertRingingService.startAlert(this, title, body, targetUrl);
-
-                // 3. Launch full-screen incoming alert activity on top of lock screen
-                Intent alertIntent = new Intent(this, LiveAlertIncomingActivity.class);
-                alertIntent.addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK |
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
-                );
-                alertIntent.putExtra(LiveAlertRingingService.EXTRA_ALERT_TITLE, title);
-                alertIntent.putExtra(LiveAlertRingingService.EXTRA_ALERT_BODY, body);
-                alertIntent.putExtra(LiveAlertRingingService.EXTRA_TARGET_URL, targetUrl);
-                startActivity(alertIntent);
-
-                // 4. Send acknowledgment to server so teacher sees phone is ringing
+                // Send acknowledgment to server
                 sendAcknowledgmentAsync(alertId, phone, studentId);
 
             } catch (Exception ignored) {}

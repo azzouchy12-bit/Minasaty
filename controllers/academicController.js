@@ -1061,10 +1061,10 @@ async function sendLiveClassAbsenteeAlert(req, res) {
     return res.status(404).json({ error: "لم يتم العثور على التلاميذ المحددين." });
   }
 
-  const title = "🔴 تنبيه عاجل: بدأت الحصة المباشرة!";
+  const title = `🔴 بدأت الآن حصة ${subjectLabel} المباشرة`;
   const alertBody = level
-    ? `بدأت الآن حصة ${subjectLabel} (${level}). الأستاذ بانتظارك، اضغط للدخول فوراً!`
-    : `بدأت الحصة المباشرة الآن! الأستاذ بانتظارك، اضغط للدخول فوراً!`;
+    ? `بدأت الآن حصة ${subjectLabel} (${level}) مع الدكتور شارف عز الدين. اضغط هنا للدخول مباشرة إلى البث.`
+    : `بدأت الآن حصة ${subjectLabel} المباشرة مع الدكتور شارف عز الدين. اضغط هنا للدخول مباشرة إلى البث.`;
   const link = "/student-live.html?alert=1";
 
   const { sendPushToMultipleRecipients } = require("../utils/push");
@@ -1195,7 +1195,7 @@ async function sendLiveClassAbsenteeAlert(req, res) {
     alertedCount: students.length,
     pushSent: totalPushSent,
     fcmSent: totalFcmSent,
-    message: `تم إرسال التنبيه والرنين بنجاح إلى ${students.length} تلميذ.`,
+    message: `تم إرسال إشعار الحصة المباشرة بنجاح إلى ${students.length} تلميذ.`,
   });
 }
 
@@ -1205,9 +1205,26 @@ async function sendTeacherLiveAlert(req, res) {
   const paymentFilter = text(req.body?.paymentFilter, 20).toUpperCase() || "ALL";
   const subjectFilter = text(req.body?.subjectFilter, 20).toUpperCase() || "ALL";
   const targetMode = text(req.body?.targetMode, 20).toUpperCase() || "ALL_LEVEL";
-  const targetStudentIds = Array.isArray(req.body?.targetStudentIds) ? req.body.targetStudentIds : [];
-  const title = text(req.body?.title, 160) || "🔔 تنبيه عاجل من الأستاذ";
-  const alertBody = text(req.body?.body, 1000) || "بدأت الحصة المباشرة الآن! اضغط للدخول مباشرة إلى البث.";
+  const subjectNames = {
+    MATH: "الرياضيات",
+    PHYSICS: "الفيزياء",
+    FREE: "الحصة المجانية",
+    ALL: "الحصة المباشرة"
+  };
+  const subjectLabel = subjectNames[subjectFilter] || "الحصة المباشرة";
+  const levelsLabel = Array.isArray(levels) && levels.length ? levels.join(" • ") : "";
+
+  let title = text(req.body?.title, 160);
+  let alertBody = text(req.body?.body, 1000);
+
+  if (!title || title.includes("تنبيه عاجل") || title === "🔔 تنبيه عاجل من الأستاذ") {
+    title = `🔴 بدأت الآن حصة ${subjectLabel} المباشرة`;
+  }
+  if (!alertBody || alertBody.includes("بدأت الحصة المباشرة الآن! اضغط للدخول مباشرة إلى البث.")) {
+    alertBody = levelsLabel
+      ? `بدأت الآن حصة ${subjectLabel} (${levelsLabel}) مع الدكتور شارف عز الدين. اضغط هنا للدخول مباشرة إلى البث.`
+      : `بدأت الآن حصة ${subjectLabel} المباشرة مع الدكتور شارف عز الدين. اضغط هنا للدخول مباشرة إلى البث.`;
+  }
   const link = text(req.body?.link, 500) || "/student-live.html";
 
   if (targetMode === "SELECTED" && !targetStudentIds.length) {

@@ -70,43 +70,41 @@ self.addEventListener("push", (event) => {
   }
 
   const isLiveAlert = payload.type === "TEACHER_LIVE_ALERT" || payload.tag === "teacher-live-alert" || Boolean(payload.alertSound);
-  const title = payload.title || (isLiveAlert ? "🔴 تنبيه عاجل: بدأت الحصة المباشرة!" : "منصة مِنَسَاتي");
+  const title = payload.title || (isLiveAlert ? "🔴 بدأت الآن الحصة المباشرة" : "منصة مِنَسَاتي");
   const options = {
-    body: payload.body || "بدأت الحصة المباشرة الآن! اضغط للدخول مباشرة إلى البث.",
-    icon: "/assets/icon-192.png",
+    body: payload.body || "بدأت الحصة المباشرة مع الدكتور شارف عز الدين. اضغط هنا للدخول مباشرة إلى البث.",
+    icon: "/assets/teacher-azzeddine-charef.jpg",
     badge: "/assets/icon-192.png",
     tag: isLiveAlert ? "teacher-live-alert" : (payload.tag || "minasaty-notification"),
     renotify: true,
-    requireInteraction: isLiveAlert,
+    requireInteraction: false,
     silent: false,
-    sound: "/sounds/alert.mp3",
-    vibrate: isLiveAlert ? [500, 250, 500, 250, 500, 250, 500] : [200, 100, 200],
+    vibrate: [200, 100, 200],
     actions: isLiveAlert ? [
       { action: "enter_live", title: "🚀 دخول البث المباشر" },
-      { action: "dismiss", title: "إغلاق" },
     ] : [],
     data: {
       url: payload.link || payload.url || "/student-live.html?alert=1",
       type: payload.type || (isLiveAlert ? "TEACHER_LIVE_ALERT" : "GENERAL"),
       notificationId: payload.notificationId || null,
-      alertSound: isLiveAlert,
+      alertSound: false,
     },
   };
 
-  // 1. Show native OS notification with vibration and sound
+  // 1. Show native OS notification with standard vibration and device sound
   const showNotificationPromise = self.registration.showNotification(title, options).catch((err) => {
     console.warn("showNotification error with rich options, falling back:", err);
     return self.registration.showNotification(title, {
       body: options.body,
       icon: "/assets/teacher-azzeddine-charef.jpg",
       tag: "teacher-live-alert",
-      requireInteraction: true,
+      requireInteraction: false,
       renotify: true,
       data: options.data,
     });
   });
 
-  // 2. Broadcast to all open/background windows so active tabs start continuous alert.mp3 playback immediately
+  // 2. Broadcast to open windows/tabs to show clean in-app toast
   const broadcastPromise = self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
     for (const client of clients) {
       client.postMessage({
@@ -114,7 +112,6 @@ self.addEventListener("push", (event) => {
         payload: {
           ...payload,
           notificationId: payload.notificationId,
-          sound: "/sounds/alert.mp3",
         },
       });
     }

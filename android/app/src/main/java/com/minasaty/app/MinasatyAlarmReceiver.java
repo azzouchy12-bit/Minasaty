@@ -185,40 +185,10 @@ public class MinasatyAlarmReceiver extends BroadcastReceiver {
         lastTriggeredAlertTimestamp = timestamp;
 
         try {
-            // 1. Wake device screen and turn screen on over lock screen
-            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-            if (pm != null) {
-                @SuppressWarnings("deprecation")
-                PowerManager.WakeLock screenWakeLock = pm.newWakeLock(
-                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
-                    PowerManager.ACQUIRE_CAUSES_WAKEUP |
-                    PowerManager.ON_AFTER_RELEASE,
-                    "Minasaty:EmergencyLiveScreenWake"
-                );
-                screenWakeLock.acquire(45000); // 45 seconds
-            }
+            // Post standard message notification with phone's default notification sound
+            MinasatyNotificationHelper.postStandardLiveNotification(context, title, body, targetUrl);
 
-            // 2. Play continuous loud alarm & vibration directly
-            playDirectAlarm(context);
-
-            // 3. Post WhatsApp-style CallStyle notification with Answer & Decline actions
-            postFullScreenCallNotification(context, title, body, targetUrl);
-
-            // 4. Try starting full-screen incoming activity over lock screen
-            try {
-                Intent activityIntent = new Intent(context, LiveAlertIncomingActivity.class);
-                activityIntent.addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK |
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
-                );
-                activityIntent.putExtra(LiveAlertRingingService.EXTRA_ALERT_TITLE, title);
-                activityIntent.putExtra(LiveAlertRingingService.EXTRA_ALERT_BODY, body);
-                activityIntent.putExtra(LiveAlertRingingService.EXTRA_TARGET_URL, targetUrl);
-                context.startActivity(activityIntent);
-            } catch (Exception ignored) {}
-
-            // 5. Send acknowledgment to backend
+            // Send acknowledgment to backend
             sendAlertAcknowledgment(alertId, phone, studentId);
 
         } catch (Exception e) {
@@ -227,42 +197,7 @@ public class MinasatyAlarmReceiver extends BroadcastReceiver {
     }
 
     public static synchronized void playDirectAlarm(Context context) {
-        try {
-            stopDirectAlarm(context);
-
-            Uri soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-            if (soundUri == null) {
-                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-            }
-
-            activeMediaPlayer = new MediaPlayer();
-            activeMediaPlayer.setDataSource(context, soundUri);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                activeMediaPlayer.setAudioAttributes(
-                    new AudioAttributes.Builder()
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .build()
-                );
-            } else {
-                activeMediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_ALARM);
-            }
-            activeMediaPlayer.setLooping(true);
-            activeMediaPlayer.prepare();
-            activeMediaPlayer.start();
-        } catch (Exception ignored) {}
-
-        try {
-            activeVibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
-            if (activeVibrator != null && activeVibrator.hasVibrator()) {
-                long[] pattern = new long[]{0, 900, 400, 900, 400, 1200};
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    activeVibrator.vibrate(VibrationEffect.createWaveform(pattern, 0));
-                } else {
-                    activeVibrator.vibrate(pattern, 0);
-                }
-            }
-        } catch (Exception ignored) {}
+        // Disabled by design: notifications are standard text notifications with phone's default notification sound
     }
 
     public static synchronized void stopDirectAlarm(Context context) {

@@ -71,29 +71,21 @@
     });
   }
 
-  // ── Continuous Live Class Alert Player ──
-  let liveAlertAudio = null;
-  let liveAlertVibrateInterval = null;
-  let liveAlertOverlay = null;
+  // ── Clean Live Class In-App Notification (Toast Banner) ──
+  let liveAlertToast = null;
+  let liveAlertToastTimer = null;
 
   function stopContinuousLiveAlert() {
-    if (liveAlertAudio) {
-      try {
-        liveAlertAudio.pause();
-        liveAlertAudio.currentTime = 0;
-      } catch (_) {}
-      liveAlertAudio = null;
+    if (liveAlertToast) {
+      try { liveAlertToast.remove(); } catch (_) {}
+      liveAlertToast = null;
     }
-    if (liveAlertVibrateInterval) {
-      clearInterval(liveAlertVibrateInterval);
-      liveAlertVibrateInterval = null;
+    if (liveAlertToastTimer) {
+      clearTimeout(liveAlertToastTimer);
+      liveAlertToastTimer = null;
     }
     if ("vibrate" in navigator) {
       try { navigator.vibrate(0); } catch (_) {}
-    }
-    if (liveAlertOverlay) {
-      try { liveAlertOverlay.remove(); } catch (_) {}
-      liveAlertOverlay = null;
     }
     if (navigator.serviceWorker?.controller) {
       try {
@@ -106,254 +98,178 @@
   }
   window.stopContinuousLiveAlert = stopContinuousLiveAlert;
 
-  function ensureLiveAlertStyles() {
-    if (document.getElementById("minasaty-live-alert-ringing-styles")) return;
+  function ensureLiveAlertToastStyles() {
+    if (document.getElementById("minasaty-live-toast-styles")) return;
     const style = document.createElement("style");
-    style.id = "minasaty-live-alert-ringing-styles";
+    style.id = "minasaty-live-toast-styles";
     style.textContent = `
-      .minasaty-live-alert-overlay {
+      .minasaty-live-toast-banner {
         position: fixed !important;
-        inset: 0 !important;
+        top: 14px !important;
+        left: 50% !important;
+        transform: translateX(-50%) translateY(-120%) !important;
+        width: calc(100% - 28px) !important;
+        max-width: 480px !important;
         z-index: 2147483647 !important;
-        background: rgba(3, 10, 24, 0.94) !important;
-        backdrop-filter: blur(14px) !important;
-        -webkit-backdrop-filter: blur(14px) !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        padding: 20px !important;
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.97) 0%, rgba(30, 41, 59, 0.98) 100%) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border: 1.5px solid rgba(16, 185, 129, 0.55) !important;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 20px rgba(16, 185, 129, 0.25) !important;
+        border-radius: 18px !important;
+        padding: 12px 14px !important;
         box-sizing: border-box !important;
         direction: rtl !important;
-        text-align: center !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        cursor: pointer !important;
+        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease !important;
+        opacity: 0 !important;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Cairo", Tahoma, sans-serif !important;
-        animation: minasatyFadeIn 0.3s ease forwards !important;
       }
-      .minasaty-live-alert-card {
-        background: linear-gradient(155deg, #111f38 0%, #081124 100%) !important;
-        border: 2px solid rgba(239, 68, 68, 0.75) !important;
-        border-radius: 26px !important;
-        width: 100% !important;
-        max-width: 440px !important;
-        padding: 32px 24px !important;
-        box-shadow: 0 0 60px rgba(239, 68, 68, 0.35), 0 25px 60px rgba(0, 0, 0, 0.85) !important;
-        color: #ffffff !important;
-        box-sizing: border-box !important;
-        position: relative !important;
+      .minasaty-live-toast-banner.is-visible {
+        transform: translateX(-50%) translateY(0) !important;
+        opacity: 1 !important;
       }
-      .minasaty-live-alert-pulse-box {
-        position: relative !important;
-        width: 80px !important;
-        height: 80px !important;
-        margin: 0 auto 18px auto !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-      }
-      .minasaty-live-alert-pulse-circle {
-        position: absolute !important;
-        inset: -10px !important;
+      .minasaty-live-toast-avatar {
+        width: 46px !important;
+        height: 46px !important;
         border-radius: 50% !important;
-        background: rgba(239, 68, 68, 0.25) !important;
-        animation: minasatyRingPulse 1.8s ease-out infinite !important;
+        object-fit: cover !important;
+        border: 2px solid #10b981 !important;
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.4) !important;
+        flex-shrink: 0 !important;
       }
-      .minasaty-live-alert-pulse-circle:nth-child(2) {
-        animation-delay: 0.9s !important;
+      .minasaty-live-toast-content {
+        flex: 1 !important;
+        min-width: 0 !important;
+        text-align: right !important;
       }
-      .minasaty-live-alert-icon-wrap {
-        position: relative !important;
-        width: 80px !important;
-        height: 80px !important;
-        border-radius: 50% !important;
-        background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%) !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        color: #ffffff !important;
-        box-shadow: 0 8px 24px rgba(239, 68, 68, 0.5) !important;
-        animation: minasatyBellShake 1.2s ease-in-out infinite !important;
-      }
-      @keyframes minasatyRingPulse {
-        0% { transform: scale(0.85); opacity: 0.9; }
-        100% { transform: scale(1.6); opacity: 0; }
-      }
-      @keyframes minasatyBellShake {
-        0%, 100% { transform: rotate(0); }
-        15% { transform: rotate(14deg); }
-        30% { transform: rotate(-14deg); }
-        45% { transform: rotate(10deg); }
-        60% { transform: rotate(-8deg); }
-        75% { transform: rotate(4deg); }
-      }
-      .minasaty-live-alert-badge {
-        display: inline-flex !important;
-        align-items: center !important;
-        gap: 8px !important;
-        padding: 5px 14px !important;
-        background: rgba(239, 68, 68, 0.18) !important;
-        border: 1px solid rgba(239, 68, 68, 0.45) !important;
-        border-radius: 20px !important;
-        color: #fca5a5 !important;
-        font-size: 0.85rem !important;
+      .minasaty-live-toast-title {
+        margin: 0 0 3px 0 !important;
+        font-size: 0.96rem !important;
         font-weight: 800 !important;
-        margin-bottom: 12px !important;
+        color: #ffffff !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
       }
-      .minasaty-live-alert-badge .live-dot {
+      .minasaty-live-toast-badge {
+        display: inline-block !important;
         width: 8px !important;
         height: 8px !important;
         border-radius: 50% !important;
         background: #ef4444 !important;
-        box-shadow: 0 0 10px #ef4444 !important;
-        animation: minasatyDotPulse 1.2s ease infinite alternate !important;
+        box-shadow: 0 0 8px #ef4444 !important;
+        flex-shrink: 0 !important;
       }
-      @keyframes minasatyDotPulse {
-        from { opacity: 0.4; } to { opacity: 1; }
-      }
-      .minasaty-live-alert-title {
-        font-size: 1.25rem !important;
-        font-weight: 800 !important;
-        margin: 0 0 10px 0 !important;
-        color: #ffffff !important;
-        line-height: 1.4 !important;
-      }
-      .minasaty-live-alert-desc {
-        font-size: 0.95rem !important;
+      .minasaty-live-toast-desc {
+        margin: 0 !important;
+        font-size: 0.82rem !important;
         color: #cbd5e1 !important;
-        margin: 0 0 24px 0 !important;
-        line-height: 1.5 !important;
+        line-height: 1.35 !important;
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2 !important;
+        -webkit-box-orient: vertical !important;
+        overflow: hidden !important;
       }
-      .minasaty-live-alert-actions {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 10px !important;
-      }
-      .minasaty-live-alert-enter-btn {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: 10px !important;
-        padding: 14px 20px !important;
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-        color: #ffffff !important;
-        border: none !important;
-        border-radius: 14px !important;
-        font-size: 1.05rem !important;
-        font-weight: 800 !important;
-        text-decoration: none !important;
-        cursor: pointer !important;
-        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45) !important;
-        transition: transform 0.15s ease, filter 0.15s ease !important;
-      }
-      .minasaty-live-alert-enter-btn:active {
-        transform: scale(0.98) !important;
-      }
-      .minasaty-live-alert-dismiss-btn {
-        padding: 10px 16px !important;
+      .minasaty-live-toast-close {
         background: transparent !important;
+        border: none !important;
         color: #94a3b8 !important;
-        border: 1px solid rgba(148, 163, 184, 0.25) !important;
-        border-radius: 12px !important;
-        font-size: 0.88rem !important;
-        font-weight: 600 !important;
+        font-size: 1.2rem !important;
+        line-height: 1 !important;
+        padding: 6px 8px !important;
         cursor: pointer !important;
-        transition: color 0.15s ease, border-color 0.15s ease !important;
+        flex-shrink: 0 !important;
+        border-radius: 8px !important;
+        transition: color 0.15s ease !important;
       }
-      .minasaty-live-alert-dismiss-btn:hover {
-        color: #f1f5f9 !important;
-        border-color: rgba(148, 163, 184, 0.45) !important;
+      .minasaty-live-toast-close:hover {
+        color: #ffffff !important;
       }
     `;
     (document.head || document.documentElement).appendChild(style);
   }
 
   function startContinuousLiveAlert(payload = {}) {
-    // If the student is already inside the live classroom, do not ring or show modal
+    // If the student is already inside the live classroom, do nothing
     if (window.location.pathname.includes("student-live.html")) {
       return;
     }
-    if (liveAlertOverlay) return; // already ringing
 
-    ensureLiveAlertStyles();
+    ensureLiveAlertToastStyles();
 
-    const title = payload.title || "🔴 تنبيه عاجل: بدأت الحصة المباشرة!";
-    const body = payload.body || "بدأت الحصة المباشرة الآن! الأستاذ بانتظارك، اضغط للدخول فوراً!";
+    const title = payload.title || "🔴 بدأت الآن الحصة المباشرة";
+    const body = payload.body || "بدأت الحصة المباشرة مع الدكتور شارف عز الدين. اضغط هنا للدخول مباشرة.";
     const targetLink = payload.link || payload.url || "/student-live.html?alert=1";
 
-    // 1. Play alert sound in loop
-    try {
-      liveAlertAudio = new Audio("/sounds/alert.mp3");
-      liveAlertAudio.loop = true;
-      const playPromise = liveAlertAudio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          const unlock = () => {
-            if (liveAlertAudio) {
-              liveAlertAudio.play().catch(() => {});
-            }
-            window.removeEventListener("click", unlock);
-            window.removeEventListener("touchstart", unlock);
-          };
-          window.addEventListener("click", unlock, { once: true });
-          window.addEventListener("touchstart", unlock, { once: true });
-        });
-      }
-    } catch (_) {}
-
-    // 2. Vibrate phone continuously in repeating bursts
-    if ("vibrate" in navigator) {
-      try {
-        navigator.vibrate([600, 300, 600, 300, 600, 300, 600]);
-        liveAlertVibrateInterval = setInterval(() => {
-          try { navigator.vibrate([600, 300, 600, 300, 600, 300, 600]); } catch (_) {}
-        }, 3200);
-      } catch (_) {}
+    // Clean up any existing toast
+    if (liveAlertToast) {
+      try { liveAlertToast.remove(); } catch (_) {}
+      liveAlertToast = null;
+    }
+    if (liveAlertToastTimer) {
+      clearTimeout(liveAlertToastTimer);
+      liveAlertToastTimer = null;
     }
 
-    // 3. Show full-screen incoming alert
-    const overlay = document.createElement("div");
-    overlay.className = "minasaty-live-alert-overlay";
-    overlay.setAttribute("role", "alertdialog");
-    overlay.setAttribute("aria-modal", "true");
-    overlay.innerHTML = `
-      <div class="minasaty-live-alert-card">
-        <div class="minasaty-live-alert-pulse-box">
-          <span class="minasaty-live-alert-pulse-circle"></span>
-          <span class="minasaty-live-alert-pulse-circle"></span>
-          <div class="minasaty-live-alert-icon-wrap">
-            <svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-            </svg>
-          </div>
+    // Standard gentle phone vibration pulse (like a text message)
+    if ("vibrate" in navigator) {
+      try { navigator.vibrate([180, 100, 180]); } catch (_) {}
+    }
+
+    // Create sleek in-app top toast banner (non-blocking)
+    const toast = document.createElement("div");
+    toast.className = "minasaty-live-toast-banner";
+    toast.setAttribute("role", "alert");
+    toast.innerHTML = `
+      <img src="/assets/teacher-azzeddine-charef.jpg" alt="الدكتور شارف عز الدين" class="minasaty-live-toast-avatar" />
+      <div class="minasaty-live-toast-content">
+        <div class="minasaty-live-toast-title">
+          <span class="minasaty-live-toast-badge"></span>
+          <span>${title}</span>
         </div>
-        <div class="minasaty-live-alert-badge">
-          <span class="live-dot"></span>
-          <span>الحصة بدأت الآن</span>
-        </div>
-        <h3 class="minasaty-live-alert-title">${title}</h3>
-        <p class="minasaty-live-alert-desc">${body}</p>
-        <div class="minasaty-live-alert-actions">
-          <a href="${targetLink}" class="minasaty-live-alert-enter-btn" id="minasaty-enter-live-btn">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-            <span>دخول الحصة المباشرة الآن</span>
-          </a>
-          <button type="button" class="minasaty-live-alert-dismiss-btn" id="minasaty-dismiss-live-alert-btn">
-            إيقاف الرنين والتجاهل
-          </button>
-        </div>
+        <p class="minasaty-live-toast-desc">${body}</p>
       </div>
+      <button type="button" class="minasaty-live-toast-close" aria-label="إغلاق">&times;</button>
     `;
 
-    document.body ? document.body.appendChild(overlay) : document.documentElement.appendChild(overlay);
-    liveAlertOverlay = overlay;
+    document.body ? document.body.appendChild(toast) : document.documentElement.appendChild(toast);
+    liveAlertToast = toast;
 
-    overlay.querySelector("#minasaty-enter-live-btn")?.addEventListener("click", () => {
+    // Trigger entrance animation
+    requestAnimationFrame(() => {
+      toast.classList.add("is-visible");
+    });
+
+    // Clicking anywhere on toast opens classroom
+    toast.addEventListener("click", (e) => {
+      if (e.target.closest(".minasaty-live-toast-close")) return;
+      stopContinuousLiveAlert();
+      window.location.assign(new URL(targetLink, window.location.origin).href);
+    });
+
+    // Dismiss button
+    toast.querySelector(".minasaty-live-toast-close")?.addEventListener("click", (e) => {
+      e.stopPropagation();
       stopContinuousLiveAlert();
     });
-    overlay.querySelector("#minasaty-dismiss-live-alert-btn")?.addEventListener("click", () => {
-      stopContinuousLiveAlert();
-    });
+
+    // Auto-dismiss after 8 seconds
+    liveAlertToastTimer = setTimeout(() => {
+      toast.classList.remove("is-visible");
+      setTimeout(() => {
+        if (liveAlertToast === toast) {
+          try { toast.remove(); } catch (_) {}
+          liveAlertToast = null;
+        }
+      }, 350);
+    }, 8000);
   }
 
   // Listen to service worker broadcast messages

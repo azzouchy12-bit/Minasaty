@@ -59,26 +59,8 @@ public class MinasatyFirebaseMessagingService extends FirebaseMessagingService {
                     targetUrl = "/student-live.html?alert=1";
                 }
 
-                // 1. Wake screen up immediately even from locked state
-                try {
-                    android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
-                    if (pm != null) {
-                        @SuppressWarnings("deprecation")
-                        android.os.PowerManager.WakeLock wakeLock = pm.newWakeLock(
-                            android.os.PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
-                            android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP |
-                            android.os.PowerManager.ON_AFTER_RELEASE,
-                            "Minasaty:FcmLiveAlertWake"
-                        );
-                        wakeLock.acquire(30000);
-                    }
-                } catch (Exception ignored) {}
-
-                // 2. Launch continuous native call-like ringing & heads-up banner
-                LiveAlertRingingService.startAlert(this, title, body, targetUrl);
-
-                // 3. Show Facebook Messenger-style floating overlay bubble
-                LiveAlertFloatingBubbleService.showBubble(this, title, body, targetUrl);
+                // Post standard text notification with system notification sound
+                MinasatyNotificationHelper.postStandardLiveNotification(this, title, body, targetUrl);
             }
         }
     }
