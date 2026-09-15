@@ -68,6 +68,9 @@ public class MainActivity extends BridgeActivity {
         fetchFcmToken();
         handleIncomingAlertIntent(getIntent());
 
+        // Pre-register live alert notification channel in the OS
+        MinasatyNotificationHelper.createNotificationChannel(this);
+
         // Start persistent background alert service and exact alarm clock loop
         MinasatyNativeAlertService.startService(this);
         MinasatyHeartbeatScheduler.scheduleImmediateHeartbeat(this);

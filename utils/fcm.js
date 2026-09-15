@@ -141,13 +141,20 @@ async function sendFcmNotificationToTokens(tokens, dataPayload = {}) {
     const url = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
 
     for (const deviceToken of tokens) {
+      const titleStr = String(dataPayload.title || "🔴 تنبيه عاجل: بدأت الحصة المباشرة!");
+      const bodyStr = String(dataPayload.body || "بدأت الحصة المباشرة الآن! الأستاذ بانتظارك، اضغط للدخول فوراً.");
+
       const messageBody = {
         message: {
           token: deviceToken,
+          notification: {
+            title: titleStr,
+            body: bodyStr,
+          },
           data: {
             type: String(dataPayload.type || "TEACHER_LIVE_ALERT"),
-            title: String(dataPayload.title || "🔴 تنبيه عاجل: بدأت الحصة المباشرة!"),
-            body: String(dataPayload.body || "بدأت الحصة المباشرة الآن! الأستاذ بانتظارك، اضغط للدخول فوراً."),
+            title: titleStr,
+            body: bodyStr,
             targetUrl: String(dataPayload.targetUrl || dataPayload.link || "/student-live.html?alert=1"),
             level: String(dataPayload.level || ""),
             subject: String(dataPayload.subject || ""),
@@ -158,6 +165,14 @@ async function sendFcmNotificationToTokens(tokens, dataPayload = {}) {
             priority: "high",
             ttl: "3600s",
             direct_boot_ok: true,
+            notification: {
+              channel_id: "minasaty_text_notifications_v6",
+              sound: "default",
+              default_sound: true,
+              default_vibrate_timings: true,
+              priority: "high",
+              visibility: "public",
+            },
           },
         },
       };
@@ -194,6 +209,9 @@ async function sendFcmNotificationToTokens(tokens, dataPayload = {}) {
   if (legacyKey) {
     const legacyUrl = "https://fcm.googleapis.com/fcm/send";
     for (const deviceToken of tokens) {
+      const titleStr = String(dataPayload.title || "🔴 تنبيه عاجل: بدأت الحصة المباشرة!");
+      const bodyStr = String(dataPayload.body || "بدأت الحصة المباشرة الآن! الأستاذ بانتظارك، اضغط للدخول فوراً.");
+
       try {
         const response = await fetch(legacyUrl, {
           method: "POST",
@@ -204,10 +222,16 @@ async function sendFcmNotificationToTokens(tokens, dataPayload = {}) {
           body: JSON.stringify({
             to: deviceToken,
             priority: "high",
+            notification: {
+              title: titleStr,
+              body: bodyStr,
+              sound: "default",
+              android_channel_id: "minasaty_text_notifications_v6",
+            },
             data: {
               type: dataPayload.type || "TEACHER_LIVE_ALERT",
-              title: dataPayload.title,
-              body: dataPayload.body,
+              title: titleStr,
+              body: bodyStr,
               targetUrl: dataPayload.targetUrl || "/student-live.html?alert=1",
               level: dataPayload.level,
               subject: dataPayload.subject,

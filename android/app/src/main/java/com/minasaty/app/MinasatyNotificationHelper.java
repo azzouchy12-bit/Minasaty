@@ -27,12 +27,51 @@ public class MinasatyNotificationHelper {
     public static final String CHANNEL_ID_LIVE = "minasaty_text_notifications_v6";
     public static final int NOTIFICATION_ID_LIVE = 9110;
 
+    public static void createNotificationChannel(Context context) {
+        if (context == null) return;
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm == null) return;
+
+                NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID_LIVE,
+                    "إشعارات الحصص المباشرة",
+                    NotificationManager.IMPORTANCE_HIGH
+                );
+                channel.setDescription("إشعارات نصية عند بدء الحصص المباشرة مع الدكتور شارف عز الدين");
+                channel.enableLights(true);
+                channel.setLightColor(Color.parseColor("#10B981"));
+                channel.enableVibration(true);
+                channel.setVibrationPattern(new long[]{0, 250, 150, 250});
+                channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+
+                Uri defaultNotificationSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+                if (defaultNotificationSound != null) {
+                    AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .build();
+                    channel.setSound(defaultNotificationSound, audioAttributes);
+                }
+
+                nm.createNotificationChannel(channel);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "createNotificationChannel error: " + e.getMessage());
+        }
+    }
+
     public static void postStandardLiveNotification(Context context, String title, String body, String targetUrl) {
         if (context == null) return;
 
         try {
             NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm == null) return;
+
+            // Ensure channel exists in the OS
+            createNotificationChannel(context);
 
             // Safe defaults
             String safeTitle = (title != null && !title.trim().isEmpty())
@@ -47,31 +86,6 @@ public class MinasatyNotificationHelper {
 
             // Use the phone's native default notification sound (NOT siren, NOT continuous alarm)
             Uri defaultNotificationSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-
-            // Create notification channel for Android 8.0+
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID_LIVE,
-                    "إشعارات الحصص المباشرة",
-                    NotificationManager.IMPORTANCE_HIGH
-                );
-                channel.setDescription("إشعارات نصية عند بدء الحصص المباشرة مع الدكتور شارف عز الدين");
-                channel.enableLights(true);
-                channel.setLightColor(Color.parseColor("#10B981"));
-                channel.enableVibration(true);
-                channel.setVibrationPattern(new long[]{0, 250, 150, 250});
-                channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-
-                if (defaultNotificationSound != null) {
-                    AudioAttributes audioAttributes = new AudioAttributes.Builder()
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                        .build();
-                    channel.setSound(defaultNotificationSound, audioAttributes);
-                }
-
-                nm.createNotificationChannel(channel);
-            }
 
             // Click intent opens MainActivity directly into the live classroom
             Intent openIntent = new Intent(context, MainActivity.class);

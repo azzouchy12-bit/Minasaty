@@ -19,49 +19,75 @@ public class MinasatyFirebaseMessagingService extends FirebaseMessagingService {
         }
     }
 
+    private static long lastAlertProcessedTime = 0;
+    private static String lastProcessedMessageId = "";
+
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
         super.onMessageReceived(remoteMessage);
 
+        if (remoteMessage == null) return;
+
+        // Deduplication check: ignore duplicate message IDs or rapid duplicate fires within 3 seconds
+        long now = System.currentTimeMillis();
+        String messageId = remoteMessage.getMessageId();
+        if (messageId != null && !messageId.isEmpty() && messageId.equals(lastProcessedMessageId)) {
+            return;
+        }
+        if (now - lastAlertProcessedTime < 3000) {
+            return;
+        }
+
         Map<String, String> data = remoteMessage.getData();
+        boolean isLiveAlert = false;
+
         if (data != null && !data.isEmpty()) {
             String type = data.get("type");
-            boolean isLiveAlert = "TEACHER_LIVE_ALERT".equals(type)
+            isLiveAlert = "TEACHER_LIVE_ALERT".equals(type)
                     || "true".equalsIgnoreCase(data.get("alertSound"))
                     || "teacher-live-alert".equals(data.get("tag"));
+        } else if (remoteMessage.getNotification() != null) {
+            isLiveAlert = true;
+        }
 
-            if (isLiveAlert) {
-                String title = data.get("title");
-                if (title == null || title.isEmpty()) {
-                    if (remoteMessage.getNotification() != null) {
-                        title = remoteMessage.getNotification().getTitle();
-                    }
-                }
-                if (title == null || title.isEmpty()) {
-                    title = "🔴 تنبيه عاجل: بدأت الحصة المباشرة!";
-                }
-
-                String body = data.get("body");
-                if (body == null || body.isEmpty()) {
-                    if (remoteMessage.getNotification() != null) {
-                        body = remoteMessage.getNotification().getBody();
-                    }
-                }
-                if (body == null || body.isEmpty()) {
-                    body = "بدأت الحصة المباشرة الآن! الأستاذ بانتظارك، اضغط للدخول فوراً.";
-                }
-
-                String targetUrl = data.get("targetUrl");
-                if (targetUrl == null || targetUrl.isEmpty()) {
-                    targetUrl = data.get("link");
-                }
-                if (targetUrl == null || targetUrl.isEmpty()) {
-                    targetUrl = "/student-live.html?alert=1";
-                }
-
-                // Post standard text notification with system notification sound
-                MinasatyNotificationHelper.postStandardLiveNotification(this, title, body, targetUrl);
+        if (isLiveAlert) {
+            lastAlertProcessedTime = now;
+            if (messageId != null) {
+                lastProcessedMessageId = messageId;
             }
+
+            String title = null;
+            String body = null;
+            String targetUrl = "/student-live.html?alert=1";
+
+            if (remoteMessage.getNotification() != null) {
+                title = remoteMessage.getNotification().getTitle();
+                body = remoteMessage.getNotification().getBody();
+            }
+
+            if (data != null && !data.isEmpty()) {
+                if (data.get("title") != null && !data.get("title").trim().isEmpty()) {
+                    title = data.get("title").trim();
+                }
+                if (data.get("body") != null && !data.get("body").trim().isEmpty()) {
+                    body = data.get("body").trim();
+                }
+                if (data.get("targetUrl") != null && !data.get("targetUrl").trim().isEmpty()) {
+                    targetUrl = data.get("targetUrl").trim();
+                } else if (data.get("link") != null && !data.get("link").trim().isEmpty()) {
+                    targetUrl = data.get("link").trim();
+                }
+            }
+
+            if (title == null || title.isEmpty()) {
+                title = "🔴 بدأت الآن الحصة المباشرة";
+            }
+            if (body == null || body.isEmpty()) {
+                body = "بدأت الحصة المباشرة مع الدكتور شارف عز الدين. اضغط هنا للدخول مباشرة إلى البث.";
+            }
+
+            // Post standard text notification with system notification sound
+            MinasatyNotificationHelper.postStandardLiveNotification(this, title, body, targetUrl);
         }
     }
 
