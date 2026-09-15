@@ -340,6 +340,7 @@
   el.subjectSelect.addEventListener("change", (e) => {
     if (!classActive) {
       activeSubject = e.target.value;
+      fetchLiveAbsentees();
     }
   });
 
@@ -754,15 +755,21 @@
 
     try {
       const res = await emitWithAcknowledgement("teacher_check_active_room", { level }, 4000);
-      if (res?.ok && res.hasActiveRoom) {
-        await enterCompanionMode(res.level, res.subject, res.teacherSocketId);
-      } else if (isCompanionMode) {
-        exitCompanionMode();
+      const isRoomActive = Boolean(res?.ok && (res.active || res.hasActiveRoom));
+      if (isRoomActive) {
+        await enterCompanionMode(res.level, res.subject, res.teacherSocketId, res.presentStudents);
+      } else {
+        if (isCompanionMode) {
+          exitCompanionMode();
+        }
+        fetchLiveAbsentees();
       }
-    } catch (_) {}
+    } catch (_) {
+      fetchLiveAbsentees();
+    }
   }
 
-  async function enterCompanionMode(level, subject, teacherSocketId) {
+  async function enterCompanionMode(level, subject, teacherSocketId, initialStudents = []) {
     isCompanionMode = true;
     classActive = true;
     activeLevel = level;
@@ -772,21 +779,38 @@
     if (el.levelSelect) {
       el.levelSelect.value = level;
       el.levelSelect.disabled = true;
+      updateLevelSelection(level);
     }
-    if (el.subjectSelect) {
-      el.subjectSelect.value = activeSubject;
+    if (el.subjectSelect && subject) {
+      el.subjectSelect.value = subject;
       el.subjectSelect.disabled = true;
     }
 
+    // Populate initial students if provided
+    if (Array.isArray(initialStudents) && initialStudents.length > 0) {
+      initialStudents.forEach((st) => {
+        if (st && st.socketId) {
+          upsertAttendee(st.socketId, st.studentId, st.studentName, st.participationCount || 0);
+        }
+      });
+    }
+
     try {
-      await emitWithAcknowledgement("teacher_companion_join", { level }, 5000);
+      const joinRes = await emitWithAcknowledgement("teacher_companion_join", { level }, 5000);
+      if (joinRes?.currentStudents && Array.isArray(joinRes.currentStudents)) {
+        joinRes.currentStudents.forEach((st) => {
+          if (st && st.socketId) {
+            upsertAttendee(st.socketId, st.studentId, st.studentName, st.participationCount || 0);
+          }
+        });
+      }
     } catch (err) {
       console.warn("teacher_companion_join acknowledge:", err);
     }
 
     setLiveState(true);
-    setStatus("🟢 وضع المساعد: متزامن مع بث الحاسوب مباشرة", "live");
-    showToast("متصل كمساعد للبث المباشر مع الحاسوب 📱💻");
+    setStatus(`🟢 وضع المساعد: متزامن مع بث الحاسوب (${level} - ${activeSubject === "MATH" ? "الرياضيات" : "الفيزياء"})`, "live");
+    showToast(`متصل كمساعد لبث ${level} مع الحاسوب 📱💻`);
 
     if (el.stageModeTag) {
       el.stageModeTag.innerHTML = `<span>📡 شاشة مراقبة الحاسوب مباشرة</span>`;
@@ -814,6 +838,7 @@
     if (el.chatInput) el.chatInput.disabled = false;
     if (el.chatSendBtn) el.chatSendBtn.disabled = !el.chatInput?.value.trim();
 
+    renderAttendees();
     fetchLiveAbsentees();
   }
 
@@ -839,6 +864,7 @@
     attendeesMap.clear();
     renderAttendees();
     updateControls();
+    fetchLiveAbsentees();
   }
 
   // ---------------------------------------------------------------------------
@@ -877,9 +903,10 @@
       // 2. Check if PC already has an active broadcast for this level
       try {
         const activeCheck = await emitWithAcknowledgement("teacher_check_active_room", { level: activeLevel }, 3000);
-        if (activeCheck?.ok && activeCheck.hasActiveRoom) {
+        const isRoomActive = Boolean(activeCheck?.ok && (activeCheck.active || activeCheck.hasActiveRoom));
+        if (isRoomActive) {
           showToast("تم اكتشاف بث مباشر جارٍ من الحاسوب! جارٍ المزامنة كمساعد…");
-          await enterCompanionMode(activeCheck.level, activeCheck.subject, activeCheck.teacherSocketId);
+          await enterCompanionMode(activeCheck.level, activeCheck.subject, activeCheck.teacherSocketId, activeCheck.presentStudents);
           return;
         }
       } catch (_) {}
@@ -1318,10 +1345,8 @@
   function scheduleAbsenteesRefresh() {
     clearTimeout(absenteesRefreshTimer);
     absenteesRefreshTimer = setTimeout(() => {
-      if (classActive || isCompanionMode) {
-        fetchLiveAbsentees();
-      }
-    }, 600);
+      fetchLiveAbsentees();
+    }, 300);
   }
 
   function handleAttendeeSearch() {

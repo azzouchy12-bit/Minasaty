@@ -1718,23 +1718,43 @@ io.on("connection", (socket) => {
       }
 
       if (foundLevel) {
+        const roomSockets = io.sockets.adapter.rooms.get(foundLevel);
+        const presentStudents = [];
+        if (roomSockets) {
+          for (const sid of roomSockets) {
+            const s = io.sockets.sockets.get(sid);
+            if (s && s.data && s.data.role === "student" && s.id !== socket.id) {
+              presentStudents.push({
+                socketId: s.id,
+                studentId: s.data.studentId,
+                studentName: s.data.studentName || "تلميذ",
+                participationCount: s.data.participationCount || 0,
+                handRaised: Boolean(s.data.handRaised),
+              });
+            }
+          }
+        }
+
         return acknowledge(acknowledgement, {
           ok: true,
           active: true,
+          hasActiveRoom: true,
           level: foundLevel,
           subject: foundSubject,
           subjectLabel: getLiveSubjectLabel(foundSubject),
           teacherSocketId,
+          presentStudents,
         });
       }
 
       return acknowledge(acknowledgement, {
         ok: true,
         active: false,
+        hasActiveRoom: false,
       });
     } catch (err) {
       console.error("[Socket.io] teacher_check_active_room failed:", err);
-      acknowledge(acknowledgement, { ok: false, active: false });
+      acknowledge(acknowledgement, { ok: false, active: false, hasActiveRoom: false });
     }
   });
 
@@ -1776,6 +1796,25 @@ io.on("connection", (socket) => {
       }
       companions.add(socket.id);
 
+      // Gather all currently present students in this classroom
+      const roomSockets = io.sockets.adapter.rooms.get(level);
+      const currentStudents = [];
+      if (roomSockets) {
+        for (const sid of roomSockets) {
+          const s = io.sockets.sockets.get(sid);
+          if (s && s.data && s.data.role === "student" && s.id !== socket.id) {
+            currentStudents.push({
+              socketId: s.id,
+              studentId: s.data.studentId,
+              studentName: s.data.studentName || "تلميذ",
+              participationCount: s.data.participationCount || 0,
+              handRaised: Boolean(s.data.handRaised),
+              micEnabled: isStudentMicrophoneOpen(level, s.id),
+            });
+          }
+        }
+      }
+
       // Signal the primary PC broadcaster so its RTCPeerConnection sends screen/video/audio to this companion
       io.to(teacherSocketId).emit("student_joined", {
         socketId: socket.id,
@@ -1786,6 +1825,19 @@ io.on("connection", (socket) => {
 
       emitClassroomChatHistory(socket, level);
 
+      // Immediately transmit the existing students to the companion so mobile attendance syncs
+      for (const st of currentStudents) {
+        socket.emit("student_joined", st);
+        if (st.handRaised) {
+          socket.emit("hand_raised", {
+            socketId: st.socketId,
+            studentId: st.studentId,
+            studentName: st.studentName,
+            level,
+          });
+        }
+      }
+
       acknowledge(acknowledgement, {
         ok: true,
         companion: true,
@@ -1793,8 +1845,9 @@ io.on("connection", (socket) => {
         subject: activeSubjectByLevel.get(level) || "MATH",
         teacherSocketId,
         screenShareActive: isScreenShareActive(level),
+        currentStudents,
       });
-      console.info(`[Socket.io] Teacher companion joined room ${level} from ${socket.id}`);
+      console.info(`[Socket.io] Teacher companion joined room ${level} from ${socket.id} (${currentStudents.length} students present)`);
     } catch (err) {
       console.error("[Socket.io] teacher_companion_join failed:", err);
       emitClassroomError(socket, "teacher_companion_join", "تعذر الانضمام كمساعد.", acknowledgement);
