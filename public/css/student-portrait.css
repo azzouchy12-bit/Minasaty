@@ -1103,6 +1103,17 @@ body.student-live-page {
     touch-action: manipulation !important;
   }
 
+  body.student-live-page .student-chat-react-btn:active {
+    transform: scale(1.28) !important;
+  }
+
+  body.student-live-page .student-chat-react-btn.is-active {
+    background: rgba(59, 130, 246, .45) !important;
+    border-color: rgba(96, 165, 250, .9) !important;
+    box-shadow: 0 0 8px rgba(59, 130, 246, .6) !important;
+    transform: scale(1.15) !important;
+  }
+
   body.student-live-page .student-chat-reactions-pills {
     display: flex !important;
     flex-wrap: wrap !important;
@@ -1121,6 +1132,11 @@ body.student-live-page {
     font-weight: 700 !important;
     padding: .12rem .42rem !important;
     border-radius: 999px !important;
+  }
+
+  body.student-live-page .student-reaction-pill.is-my-reaction {
+    border-color: rgba(96, 165, 250, .75) !important;
+    background: rgba(30, 64, 175, .35) !important;
   }
 
   body.student-live-page .student-reaction-pill.is-teacher-reaction {

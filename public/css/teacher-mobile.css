@@ -735,8 +735,8 @@ body {
 .tm-chat-react-bar {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  opacity: 0.88;
+  gap: 3px;
+  opacity: 0.95;
   transition: opacity 0.15s ease;
 }
 
@@ -748,9 +748,9 @@ body {
 .tm-chat-react-btn {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 12px;
-  padding: 2px 6px;
-  font-size: 0.82rem;
+  border-radius: 999px;
+  padding: 2px 5px;
+  font-size: 0.76rem;
   line-height: 1;
   cursor: pointer;
   display: inline-flex;

@@ -868,7 +868,7 @@ function appendClassroomChatMessage(level, entry) {
     entry.id = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
   if (!entry.reactions) {
-    entry.reactions = { love: 0, like: 0, teacherReacted: null };
+    entry.reactions = { love: 0, like: 0, cry: 0, dislike: 0, fire: 0, teacherReacted: {} };
   }
   history.push({ ...entry, sentAt: Date.now() });
   if (history.length > MAX_CLASSROOM_CHAT_HISTORY) {
@@ -2815,10 +2815,11 @@ io.on("connection", (socket) => {
   socket.on("classroom_chat_react", (data = {}, acknowledgement) => {
     try {
       const messageId = String(data.messageId || "").trim();
-      const reaction = String(data.reaction || "").trim().toLowerCase(); // "love" or "like"
+      const reaction = String(data.reaction || "").trim().toLowerCase();
       const level = String(data.level || socket.data.roomLevel || "").trim();
 
-      if (!messageId || (reaction !== "love" && reaction !== "like") || !isValidLevel(level)) {
+      const VALID_REACTIONS = new Set(["love", "like", "cry", "dislike", "fire"]);
+      if (!messageId || !VALID_REACTIONS.has(reaction) || !isValidLevel(level)) {
         return acknowledge(acknowledgement, { ok: false, error: "بيانات التفاعل غير صالحة." });
       }
 
@@ -2831,44 +2832,72 @@ io.on("connection", (socket) => {
       }
       const messageReactions = chatReactionsByMessage.get(messageId);
 
-      // Toggle or set new reaction
-      const currentReaction = messageReactions.get(userId);
-      let newReaction = null;
-      if (currentReaction === reaction) {
-        messageReactions.delete(userId); // toggle off
-        newReaction = null;
+      // Each user has a Set of active reactions
+      if (!messageReactions.has(userId)) {
+        messageReactions.set(userId, new Set());
+      }
+      const userReactions = messageReactions.get(userId);
+
+      let toggledOn = false;
+      if (userReactions.has(reaction)) {
+        userReactions.delete(reaction); // toggle off
+        toggledOn = false;
       } else {
-        messageReactions.set(userId, reaction); // switch or set
-        newReaction = reaction;
+        userReactions.add(reaction); // toggle on
+        toggledOn = true;
       }
 
       // Calculate aggregated reaction counts
-      let loveCount = 0;
-      let likeCount = 0;
-      let teacherReacted = null;
+      const counts = {
+        love: 0,
+        like: 0,
+        cry: 0,
+        dislike: 0,
+        fire: 0,
+      };
+      const teacherReacted = {
+        love: false,
+        like: false,
+        cry: false,
+        dislike: false,
+        fire: false,
+      };
 
-      for (const [uid, r] of messageReactions.entries()) {
-        if (r === "love") loveCount++;
-        if (r === "like") likeCount++;
-        if (uid === "teacher") teacherReacted = r;
+      for (const [uid, rSet] of messageReactions.entries()) {
+        for (const r of rSet) {
+          if (counts[r] !== undefined) {
+            counts[r]++;
+          }
+          if (uid === "teacher") {
+            teacherReacted[r] = true;
+          }
+        }
       }
 
       // Update cached history
       const history = classroomChatHistoryByLevel.get(level) || [];
       const targetMsg = history.find((m) => m.id === messageId);
       if (targetMsg) {
-        targetMsg.reactions = { love: loveCount, like: likeCount, teacherReacted };
+        targetMsg.reactions = {
+          ...counts,
+          teacherReacted,
+        };
       }
 
       const updatePayload = {
         messageId,
         level,
-        loveCount,
-        likeCount,
+        counts,
+        loveCount: counts.love,
+        likeCount: counts.like,
+        cryCount: counts.cry,
+        dislikeCount: counts.dislike,
+        fireCount: counts.fire,
         teacherReacted,
-        userReaction: newReaction,
+        userReaction: reaction,
+        toggledOn,
         lastReactorName: userName,
-        lastReaction: newReaction,
+        lastReaction: reaction,
         isTeacherReactor: isTeacher,
       };
 
@@ -2887,11 +2916,11 @@ io.on("connection", (socket) => {
         }
       }
 
-      // If teacher reacted to a student's message, notify that specific student directly
-      if (isTeacher && newReaction && targetMsg && targetMsg.kind === "student" && targetMsg.socketId) {
+      // If teacher reacted to a student's message (toggledOn), notify that student directly
+      if (isTeacher && toggledOn && targetMsg && targetMsg.kind === "student" && targetMsg.socketId) {
         io.to(targetMsg.socketId).emit("teacher_reacted_to_message", {
           messageId,
-          reaction: newReaction, // "love" or "like"
+          reaction, // "love", "like", "cry", "dislike", "fire"
           messageText: targetMsg.message || "",
         });
       }

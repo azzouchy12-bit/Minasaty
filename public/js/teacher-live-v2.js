@@ -716,31 +716,31 @@ function appendTeacherChatMessage({ id, sender, message = "", kind, imageUrl = n
     senderElem = senderWrap;
   }
 
-  // Quick reactions bar
+  // Quick reactions bar for teacher
   const reactBar = document.createElement("div");
   reactBar.className = "chat-message-react-bar";
 
-  const loveBtn = document.createElement("button");
-  loveBtn.type = "button";
-  loveBtn.className = "chat-message-react-btn";
-  loveBtn.title = "تفاعل بقلب ❤️";
-  loveBtn.textContent = "❤️";
-  loveBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    sendTeacherChatReaction(msgId, "love");
+  const TEACHER_REACTIONS_CONFIG = [
+    { key: "love", emoji: "❤️", title: "قلب ❤️" },
+    { key: "like", emoji: "👍", title: "إعجاب 👍" },
+    { key: "cry", emoji: "😭", title: "بكاء 😭" },
+    { key: "dislike", emoji: "👎", title: "لم يعجبني 👎" },
+    { key: "fire", emoji: "🔥", title: "نار 🔥" },
+  ];
+
+  TEACHER_REACTIONS_CONFIG.forEach((r) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chat-message-react-btn";
+    btn.title = r.title;
+    btn.textContent = r.emoji;
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      sendTeacherChatReaction(msgId, r.key);
+    });
+    reactBar.append(btn);
   });
 
-  const likeBtn = document.createElement("button");
-  likeBtn.type = "button";
-  likeBtn.className = "chat-message-react-btn";
-  likeBtn.title = "تفاعل بإعجاب 👍";
-  likeBtn.textContent = "👍";
-  likeBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    sendTeacherChatReaction(msgId, "like");
-  });
-
-  reactBar.append(loveBtn, likeBtn);
   header.append(senderElem, reactBar);
   bubble.append(header);
 
@@ -798,42 +798,41 @@ function renderTeacherReactionPills(container, reactions, messageId) {
   container.innerHTML = "";
   if (!reactions) return;
 
-  const loveCount = Number(reactions.love || 0);
-  const likeCount = Number(reactions.like || 0);
-  const teacherReacted = reactions.teacherReacted || null;
+  const TEACHER_REACTIONS_CONFIG = [
+    { key: "love", emoji: "❤️", title: "قلب ❤️" },
+    { key: "like", emoji: "👍", title: "إعجاب 👍" },
+    { key: "cry", emoji: "😭", title: "بكاء 😭" },
+    { key: "dislike", emoji: "👎", title: "لم يعجبني 👎" },
+    { key: "fire", emoji: "🔥", title: "نار 🔥" },
+  ];
 
-  if (loveCount > 0) {
-    const pill = document.createElement("button");
-    pill.type = "button";
-    pill.className = `chat-reaction-pill ${teacherReacted === "love" ? "is-teacher-reaction" : ""}`;
-    pill.title = teacherReacted === "love" ? "تفاعلت أنت بقلب ❤️" : "إعجابات بالقلب";
-    pill.innerHTML = `<span>❤️</span> <span>${loveCount}</span>${teacherReacted === "love" ? ' <small class="chat-teacher-tag">أنت</small>' : ""}`;
-    pill.addEventListener("click", (e) => {
-      e.stopPropagation();
-      sendTeacherChatReaction(messageId, "love");
-    });
-    container.append(pill);
-  }
+  TEACHER_REACTIONS_CONFIG.forEach((r) => {
+    const count = Number(reactions[r.key] || reactions[`${r.key}Count`] || 0);
+    const isTeacherReacted = Boolean(
+      reactions.teacherReacted?.[r.key] || reactions.teacherReacted === r.key
+    );
 
-  if (likeCount > 0) {
-    const pill = document.createElement("button");
-    pill.type = "button";
-    pill.className = `chat-reaction-pill ${teacherReacted === "like" ? "is-teacher-reaction" : ""}`;
-    pill.title = teacherReacted === "like" ? "تفاعلت أنت بإعجاب 👍" : "إعجابات";
-    pill.innerHTML = `<span>👍</span> <span>${likeCount}</span>${teacherReacted === "like" ? ' <small class="chat-teacher-tag">أنت</small>' : ""}`;
-    pill.addEventListener("click", (e) => {
-      e.stopPropagation();
-      sendTeacherChatReaction(messageId, "like");
-    });
-    container.append(pill);
-  }
+    if (count > 0) {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = `chat-reaction-pill ${isTeacherReacted ? "is-teacher-reaction" : ""}`;
+      pill.title = isTeacherReacted ? `تفاعلت أنت بـ ${r.title}` : r.title;
+      pill.innerHTML = `<span>${r.emoji}</span> <span>${count}</span>${isTeacherReacted ? ' <small class="chat-teacher-tag">أنت</small>' : ""}`;
+      pill.addEventListener("click", (e) => {
+        e.stopPropagation();
+        sendTeacherChatReaction(messageId, r.key);
+      });
+      container.append(pill);
+    }
+  });
 }
 
 function sendTeacherChatReaction(messageId, reaction) {
   if (!socket || !classActive) return;
   const bubble = document.querySelector(`.chat-message[data-message-id="${messageId}"]`);
+  const emojiMap = { love: "❤️", like: "👍", cry: "😭", dislike: "👎", fire: "🔥" };
   if (bubble) {
-    showTeacherFloatingReaction(bubble, reaction === "love" ? "❤️" : "👍");
+    showTeacherFloatingReaction(bubble, emojiMap[reaction] || "❤️");
   }
   socket.emit("classroom_chat_react", {
     messageId,
@@ -862,9 +861,12 @@ function updateTeacherMessageReactions(data) {
   if (!data || !data.messageId) return;
   const pillsWrap = document.querySelector(`.chat-message-reactions-pills[data-pills-for="${data.messageId}"]`);
   if (pillsWrap) {
-    renderTeacherReactionPills(pillsWrap, {
+    renderTeacherReactionPills(pillsWrap, data.counts || {
       love: data.loveCount,
       like: data.likeCount,
+      cry: data.cryCount,
+      dislike: data.dislikeCount,
+      fire: data.fireCount,
       teacherReacted: data.teacherReacted,
     }, data.messageId);
   }
