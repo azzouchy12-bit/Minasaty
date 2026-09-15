@@ -904,6 +904,102 @@
         color: #86efac;
       }
 
+      .chat-message-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.2rem;
+      }
+
+      .chat-message-react-bar {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+      }
+
+      .chat-message-react-btn {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        padding: 0.1rem 0.38rem;
+        font-size: 0.8rem;
+        line-height: 1;
+        cursor: pointer;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+
+      .chat-message-react-btn:active,
+      .chat-message-react-btn:hover {
+        transform: scale(1.22);
+        background: rgba(255, 255, 255, 0.25);
+      }
+
+      .chat-message-reactions-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.28rem;
+        margin-top: 0.32rem;
+      }
+
+      .chat-reaction-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.22rem;
+        background: rgba(15, 23, 42, 0.65);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: #e2e8f0;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 0.12rem 0.42rem;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .chat-reaction-pill:active {
+        transform: scale(1.1);
+      }
+
+      .chat-reaction-pill.is-teacher-reaction {
+        border-color: rgba(245, 158, 11, 0.75);
+        background: rgba(245, 158, 11, 0.22);
+        color: #fde047;
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.45);
+      }
+
+      .chat-teacher-tag {
+        font-size: 0.58rem;
+        background: #f59e0b;
+        color: #0f172a;
+        padding: 0.04rem 0.28rem;
+        border-radius: 4px;
+        font-weight: 800;
+        margin-inline-start: 0.2rem;
+      }
+
+      .chat-floating-reaction {
+        position: fixed;
+        pointer-events: none;
+        font-size: 1.85rem;
+        z-index: 9999;
+        animation: chatFloatReaction 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      @keyframes chatFloatReaction {
+        0% {
+          opacity: 1;
+          transform: translate(-50%, 0) scale(0.6);
+        }
+        50% {
+          transform: translate(-50%, -35px) scale(1.35);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(-50%, -70px) scale(1);
+        }
+      }
+
       .chat-message-body {
         display: block;
         overflow-wrap: anywhere;

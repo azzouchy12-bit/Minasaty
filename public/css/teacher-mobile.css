@@ -710,9 +710,16 @@ body {
 .tm-chat-bubble-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 0.72rem;
   color: var(--tm-text-secondary);
+}
+
+.tm-chat-bubble-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .tm-chat-bubble-name {
@@ -724,6 +731,40 @@ body {
   color: var(--tm-primary);
 }
 
+/* Quick Reaction Bar */
+.tm-chat-react-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.88;
+  transition: opacity 0.15s ease;
+}
+
+.tm-chat-bubble:hover .tm-chat-react-bar,
+.tm-chat-bubble:active .tm-chat-react-bar {
+  opacity: 1;
+}
+
+.tm-chat-react-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 2px 6px;
+  font-size: 0.82rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.tm-chat-react-btn:active {
+  transform: scale(1.3);
+  background: rgba(255, 255, 255, 0.22);
+}
+
 .tm-chat-bubble-body {
   padding: 10px 14px;
   border-radius: var(--tm-radius-md);
@@ -731,6 +772,7 @@ body {
   line-height: 1.45;
   word-break: break-word;
   white-space: pre-wrap;
+  position: relative;
 }
 
 .tm-chat-bubble.is-student .tm-chat-bubble-body {
@@ -745,6 +787,71 @@ body {
   color: #ffffff;
   border-top-left-radius: 4px;
   box-shadow: 0 4px 12px var(--tm-primary-glow);
+}
+
+/* Reaction Pills Container */
+.tm-chat-reactions-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.tm-reaction-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-size: 0.70rem;
+  font-weight: 700;
+  background: var(--tm-surface-elevated, #1e293b);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--tm-text, #f1f5f9);
+  cursor: pointer;
+  animation: tm-reaction-pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.tm-reaction-pill:active {
+  transform: scale(0.92);
+}
+
+.tm-reaction-pill.is-teacher-reaction {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.18);
+  color: #fde68a;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.35);
+}
+
+.tm-reaction-pill .tm-teacher-tag {
+  font-size: 0.62rem;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #f59e0b;
+  color: #000;
+  font-weight: 800;
+  margin-right: 2px;
+}
+
+@keyframes tm-reaction-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  75% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes tm-float-up {
+  0% { transform: translate(-50%, 0) scale(0.8); opacity: 1; }
+  100% { transform: translate(-50%, -50px) scale(1.4); opacity: 0; }
+}
+
+.tm-floating-reaction {
+  position: fixed;
+  pointer-events: none;
+  font-size: 1.6rem;
+  z-index: 99999;
+  animation: tm-float-up 0.85s ease-out forwards;
 }
 
 /* Student Question Image in chat */

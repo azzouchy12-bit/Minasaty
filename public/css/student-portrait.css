@@ -1076,6 +1076,68 @@ body.student-live-page {
     font-weight: 900 !important;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85) !important;
   }
+
+  /* Chat reactions styling */
+  body.student-live-page .student-chat-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: .4rem !important;
+    margin-bottom: .2rem !important;
+  }
+
+  body.student-live-page .student-chat-react-bar {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: .25rem !important;
+  }
+
+  body.student-live-page .student-chat-react-btn {
+    background: rgba(255, 255, 255, .1) !important;
+    border: 1px solid rgba(255, 255, 255, .15) !important;
+    border-radius: 999px !important;
+    padding: .1rem .4rem !important;
+    font-size: .8rem !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    touch-action: manipulation !important;
+  }
+
+  body.student-live-page .student-chat-reactions-pills {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: .28rem !important;
+    margin-top: .3rem !important;
+  }
+
+  body.student-live-page .student-reaction-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: .22rem !important;
+    background: rgba(15, 23, 42, .7) !important;
+    border: 1px solid rgba(255, 255, 255, .15) !important;
+    color: #e2e8f0 !important;
+    font-size: .72rem !important;
+    font-weight: 700 !important;
+    padding: .12rem .42rem !important;
+    border-radius: 999px !important;
+  }
+
+  body.student-live-page .student-reaction-pill.is-teacher-reaction {
+    border-color: rgba(245, 158, 11, .8) !important;
+    background: rgba(245, 158, 11, .25) !important;
+    color: #fde047 !important;
+    box-shadow: 0 0 10px rgba(245, 158, 11, .5) !important;
+  }
+
+  body.student-live-page .student-teacher-tag {
+    font-size: .58rem !important;
+    background: #f59e0b !important;
+    color: #0f172a !important;
+    padding: .04rem .28rem !important;
+    border-radius: 4px !important;
+    font-weight: 800 !important;
+    margin-inline-start: .2rem !important;
+  }
 }
 
-/* No rules outside the portrait media query: desktop remains untouched. */

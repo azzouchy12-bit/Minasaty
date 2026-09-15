@@ -1499,14 +1499,19 @@
     return url;
   }
 
-  function appendChatMessage({ sender, message, kind = "student", imageUrl = null }) {
+  function appendChatMessage({ id = null, sender, message, kind = "student", imageUrl = null, reactions = null }) {
     if (el.chatEmpty) el.chatEmpty.style.display = "none";
 
+    const msgId = id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const bubble = document.createElement("div");
     bubble.className = `tm-chat-bubble is-${kind}`;
+    bubble.dataset.messageId = msgId;
 
     const head = document.createElement("div");
     head.className = "tm-chat-bubble-head";
+
+    const meta = document.createElement("div");
+    meta.className = "tm-chat-bubble-meta";
 
     const name = document.createElement("span");
     name.className = "tm-chat-bubble-name";
@@ -1515,7 +1520,34 @@
     const time = document.createElement("span");
     time.textContent = new Date().toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" });
 
-    head.append(name, time);
+    meta.append(name, time);
+
+    // Quick Reaction Bar
+    const reactBar = document.createElement("div");
+    reactBar.className = "tm-chat-react-bar";
+
+    const loveBtn = document.createElement("button");
+    loveBtn.type = "button";
+    loveBtn.className = "tm-chat-react-btn";
+    loveBtn.title = "تفاعل بقلب ❤️";
+    loveBtn.textContent = "❤️";
+    loveBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      sendChatReaction(msgId, "love");
+    });
+
+    const likeBtn = document.createElement("button");
+    likeBtn.type = "button";
+    likeBtn.className = "tm-chat-react-btn";
+    likeBtn.title = "تفاعل بإعجاب 👍";
+    likeBtn.textContent = "👍";
+    likeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      sendChatReaction(msgId, "like");
+    });
+
+    reactBar.append(loveBtn, likeBtn);
+    head.append(meta, reactBar);
 
     const body = document.createElement("div");
     body.className = "tm-chat-bubble-body";
@@ -1541,6 +1573,13 @@
       bubble.append(imgWrap);
     }
 
+    // Reaction pills container
+    const pillsWrap = document.createElement("div");
+    pillsWrap.className = "tm-chat-reactions-pills";
+    pillsWrap.dataset.pillsFor = msgId;
+    renderReactionPills(pillsWrap, reactions, msgId);
+    bubble.append(pillsWrap);
+
     if (el.chatBox) {
       el.chatBox.append(bubble);
       el.chatBox.scrollTop = el.chatBox.scrollHeight;
@@ -1550,6 +1589,83 @@
     if (activeTab !== "chat" && kind === "student") {
       unreadChatCount++;
       updateChatNavBadge();
+    }
+  }
+
+  function renderReactionPills(container, reactions, messageId) {
+    if (!container) return;
+    container.innerHTML = "";
+    if (!reactions) return;
+
+    const loveCount = Number(reactions.love || 0);
+    const likeCount = Number(reactions.like || 0);
+    const teacherReacted = reactions.teacherReacted || null;
+
+    if (loveCount > 0) {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = `tm-reaction-pill ${teacherReacted === "love" ? "is-teacher-reaction" : ""}`;
+      pill.title = teacherReacted === "love" ? "الأستاذ تفاعل بقلب ❤️" : "إعجابات بالقلب";
+      pill.innerHTML = `<span>❤️</span> <span>${loveCount}</span>${teacherReacted === "love" ? ' <small class="tm-teacher-tag">الأستاذ</small>' : ""}`;
+      pill.addEventListener("click", (e) => {
+        e.stopPropagation();
+        sendChatReaction(messageId, "love");
+      });
+      container.append(pill);
+    }
+
+    if (likeCount > 0) {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = `tm-reaction-pill ${teacherReacted === "like" ? "is-teacher-reaction" : ""}`;
+      pill.title = teacherReacted === "like" ? "الأستاذ تفاعل بإعجاب 👍" : "إعجابات";
+      pill.innerHTML = `<span>👍</span> <span>${likeCount}</span>${teacherReacted === "like" ? ' <small class="tm-teacher-tag">الأستاذ</small>' : ""}`;
+      pill.addEventListener("click", (e) => {
+        e.stopPropagation();
+        sendChatReaction(messageId, "like");
+      });
+      container.append(pill);
+    }
+  }
+
+  function sendChatReaction(messageId, reaction) {
+    if (!socket || !classActive) return;
+    const bubble = document.querySelector(`.tm-chat-bubble[data-message-id="${messageId}"]`);
+    if (bubble) {
+      showFloatingReaction(bubble, reaction === "love" ? "❤️" : "👍");
+    }
+    socket.emit("classroom_chat_react", {
+      messageId,
+      reaction,
+      level: activeLevel,
+    }, (res) => {
+      if (res && res.ok) {
+        updateMessageReactions(res);
+      }
+    });
+  }
+
+  function showFloatingReaction(targetEl, emoji) {
+    if (!targetEl) return;
+    const floating = document.createElement("div");
+    floating.className = "tm-floating-reaction";
+    floating.textContent = emoji;
+    const rect = targetEl.getBoundingClientRect();
+    floating.style.left = `${rect.left + rect.width / 2}px`;
+    floating.style.top = `${rect.top + 10}px`;
+    document.body.append(floating);
+    setTimeout(() => floating.remove(), 800);
+  }
+
+  function updateMessageReactions(data) {
+    if (!data || !data.messageId) return;
+    const pillsWrap = document.querySelector(`.tm-chat-reactions-pills[data-pills-for="${data.messageId}"]`);
+    if (pillsWrap) {
+      renderReactionPills(pillsWrap, {
+        love: data.loveCount,
+        like: data.likeCount,
+        teacherReacted: data.teacherReacted,
+      }, data.messageId);
     }
   }
 
@@ -1579,12 +1695,13 @@
 
       el.chatSendBtn.disabled = true;
       try {
-        await emitWithAcknowledgement("teacher_send_message", {
+        const res = await emitWithAcknowledgement("teacher_send_message", {
           level: activeLevel,
           message: text,
         });
 
         appendChatMessage({
+          id: res?.messageId,
           sender: "أنت (الأستاذ)",
           message: text,
           kind: "teacher",
@@ -1689,21 +1806,30 @@
     }
 
     appendChatMessage({
+      id: data.id,
       sender: data.studentName || "تلميذ",
       message: fallback,
       kind: "student",
       imageUrl,
+      reactions: data.reactions || null,
     });
+  });
+
+  socket.on("classroom_chat_reaction_updated", (data = {}) => {
+    if (!classActive) return;
+    updateMessageReactions(data);
   });
 
   socket.on("classroom_chat_history", (data = {}) => {
     if (!classActive || !Array.isArray(data.messages)) return;
     data.messages.forEach((msg) => {
       appendChatMessage({
-        sender: msg.senderName || msg.sender || "تلميذ",
+        id: msg.id,
+        sender: msg.senderName || msg.sender || (msg.kind === "teacher" ? "الأستاذ" : "تلميذ"),
         message: msg.text || msg.message || "",
-        kind: msg.role === "teacher" ? "teacher" : "student",
-        imageUrl: msg.imageUrl || null,
+        kind: msg.kind === "teacher" || msg.role === "teacher" ? "teacher" : "student",
+        imageUrl: msg.imageUrl || msg.imageData || null,
+        reactions: msg.reactions || null,
       });
     });
   });

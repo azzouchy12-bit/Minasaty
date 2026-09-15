@@ -1959,25 +1959,54 @@ function isViewingLatestMessages(container, threshold = 36) {
   return container.scrollHeight - container.scrollTop - container.clientHeight <= threshold;
 }
 
-function appendStudentChatMessage({ sender, message = "", kind, imageUrl = null }) {
+function appendStudentChatMessage({ id = null, sender, message = "", kind, imageUrl = null, reactions = null }) {
   const safeMessage = normalizeChatMessage(message);
   if ((!safeMessage && !imageUrl) || !elements.chatBox) {
     return;
   }
 
-  // Match modern messengers: follow the newest message only while the viewer
-  // is already at the bottom. Scrolling upward keeps older messages in place.
+  const msgId = id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const shouldFollowNewestMessage = isViewingLatestMessages(elements.chatBox);
   elements.chatEmpty?.remove();
 
   const bubble = document.createElement("article");
   bubble.className = `student-chat-message ${kind === "teacher" ? "teacher-reply" : "own-message"}`;
+  bubble.dataset.messageId = msgId;
+
+  const header = document.createElement("div");
+  header.className = "student-chat-header";
 
   const senderLabel = document.createElement("strong");
   senderLabel.className = "student-chat-sender";
   senderLabel.textContent = sender;
 
-  bubble.append(senderLabel);
+  // Quick reaction buttons for students
+  const reactBar = document.createElement("div");
+  reactBar.className = "student-chat-react-bar";
+
+  const loveBtn = document.createElement("button");
+  loveBtn.type = "button";
+  loveBtn.className = "student-chat-react-btn";
+  loveBtn.title = "تفاعل بقلب ❤️";
+  loveBtn.textContent = "❤️";
+  loveBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    sendStudentChatReaction(msgId, "love");
+  });
+
+  const likeBtn = document.createElement("button");
+  likeBtn.type = "button";
+  likeBtn.className = "student-chat-react-btn";
+  likeBtn.title = "تفاعل بإعجاب 👍";
+  likeBtn.textContent = "👍";
+  likeBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    sendStudentChatReaction(msgId, "like");
+  });
+
+  reactBar.append(loveBtn, likeBtn);
+  header.append(senderLabel, reactBar);
+  bubble.append(header);
 
   if (safeMessage) {
     const body = document.createElement("span");
@@ -1995,12 +2024,97 @@ function appendStudentChatMessage({ sender, message = "", kind, imageUrl = null 
     image.addEventListener("click", () => openChatLinkInSeparateView({ preventDefault() {} }, imageUrl));
     bubble.append(image);
   }
+
+  // Reactions container
+  const pillsWrap = document.createElement("div");
+  pillsWrap.className = "student-chat-reactions-pills";
+  pillsWrap.dataset.pillsFor = msgId;
+  renderStudentReactionPills(pillsWrap, reactions, msgId);
+  bubble.append(pillsWrap);
+
   elements.chatBox.append(bubble);
 
   if (shouldFollowNewestMessage) {
     requestAnimationFrame(() => {
       elements.chatBox.scrollTop = elements.chatBox.scrollHeight;
     });
+  }
+}
+
+function renderStudentReactionPills(container, reactions, messageId) {
+  if (!container) return;
+  container.innerHTML = "";
+  if (!reactions) return;
+
+  const loveCount = Number(reactions.love || 0);
+  const likeCount = Number(reactions.like || 0);
+  const teacherReacted = reactions.teacherReacted || null;
+
+  if (loveCount > 0) {
+    const pill = document.createElement("button");
+    pill.type = "button";
+    pill.className = `student-reaction-pill ${teacherReacted === "love" ? "is-teacher-reaction" : ""}`;
+    pill.title = teacherReacted === "love" ? "الأستاذ تفاعل بقلب ❤️" : "إعجابات بالقلب";
+    pill.innerHTML = `<span>❤️</span> <span>${loveCount}</span>${teacherReacted === "love" ? ' <small class="student-teacher-tag">الأستاذ</small>' : ""}`;
+    pill.addEventListener("click", (e) => {
+      e.stopPropagation();
+      sendStudentChatReaction(messageId, "love");
+    });
+    container.append(pill);
+  }
+
+  if (likeCount > 0) {
+    const pill = document.createElement("button");
+    pill.type = "button";
+    pill.className = `student-reaction-pill ${teacherReacted === "like" ? "is-teacher-reaction" : ""}`;
+    pill.title = teacherReacted === "like" ? "الأستاذ تفاعل بإعجاب 👍" : "إعجابات";
+    pill.innerHTML = `<span>👍</span> <span>${likeCount}</span>${teacherReacted === "like" ? ' <small class="student-teacher-tag">الأستاذ</small>' : ""}`;
+    pill.addEventListener("click", (e) => {
+      e.stopPropagation();
+      sendStudentChatReaction(messageId, "like");
+    });
+    container.append(pill);
+  }
+}
+
+function sendStudentChatReaction(messageId, reaction) {
+  if (!socket || !joinedClass) return;
+  const bubble = document.querySelector(`.student-chat-message[data-message-id="${messageId}"]`);
+  if (bubble) {
+    showStudentFloatingReaction(bubble, reaction === "love" ? "❤️" : "👍");
+  }
+  socket.emit("classroom_chat_react", {
+    messageId,
+    reaction,
+    level,
+  }, (res) => {
+    if (res && res.ok) {
+      updateStudentMessageReactions(res);
+    }
+  });
+}
+
+function showStudentFloatingReaction(targetEl, emoji) {
+  if (!targetEl) return;
+  const floating = document.createElement("div");
+  floating.className = "student-floating-reaction";
+  floating.textContent = emoji;
+  const rect = targetEl.getBoundingClientRect();
+  floating.style.left = `${rect.left + rect.width / 2}px`;
+  floating.style.top = `${rect.top + 10}px`;
+  document.body.append(floating);
+  setTimeout(() => floating.remove(), 850);
+}
+
+function updateStudentMessageReactions(data) {
+  if (!data || !data.messageId) return;
+  const pillsWrap = document.querySelector(`.student-chat-reactions-pills[data-pills-for="${data.messageId}"]`);
+  if (pillsWrap) {
+    renderStudentReactionPills(pillsWrap, {
+      love: data.loveCount,
+      like: data.likeCount,
+      teacherReacted: data.teacherReacted,
+    }, data.messageId);
   }
 }
 
@@ -2045,10 +2159,12 @@ async function restoreStudentChatHistory(messages = []) {
     }
 
     appendStudentChatMessage({
+      id: entry.id,
       sender: entry.kind === "teacher" ? "الأستاذ" : "أنا",
       message: entry.message || "",
       kind: entry.kind === "teacher" ? "teacher" : "student",
       imageUrl,
+      reactions: entry.reactions || null,
     });
   }
 }
@@ -2222,14 +2338,20 @@ async function sendStudentChatMessage(event) {
       renderedQuestionImageUrls.add(localImageUrl);
     }
 
-    await emitWithAcknowledgement("student_send_message", {
+    const res = await emitWithAcknowledgement("student_send_message", {
       level,
       studentName,
       message,
       imageId,
     });
 
-    appendStudentChatMessage({ sender: "أنا", message, kind: "student", imageUrl: localImageUrl });
+    appendStudentChatMessage({
+      id: res?.messageId,
+      sender: "أنا",
+      message,
+      kind: "student",
+      imageUrl: localImageUrl,
+    });
     elements.chatInput.value = "";
     if (elements.desktopChatInput) elements.desktopChatInput.value = "";
     clearSelectedQuestionImage();
@@ -3393,11 +3515,30 @@ socket.on("teacher_message_received", (data = {}) => {
   }
 
   appendStudentChatMessage({
+    id: data.id,
     sender: "الأستاذ",
     message: data.message || "",
     kind: "teacher",
     imageUrl: imageData,
+    reactions: data.reactions || null,
   });
+});
+
+socket.on("classroom_chat_reaction_updated", (data = {}) => {
+  if (!joinedClass || data.level !== level) return;
+  updateStudentMessageReactions(data);
+});
+
+socket.on("teacher_reacted_to_message", (data = {}) => {
+  if (!joinedClass) return;
+  const emoji = data.reaction === "love" ? "❤️" : "👍";
+  const reactionText = data.reaction === "love" ? "أعجب الأستاذ بقلب ❤️" : "أعجب الأستاذ 👍";
+
+  // Trigger floating heart effect across chat
+  if (elements.chatBox) {
+    showStudentFloatingReaction(elements.chatBox, emoji);
+  }
+  setViewerStatus(`${emoji} تفاعل الأستاذ مع رسالتك! (${reactionText})`, "live");
 });
 
 socket.on("room_unavailable", (data = {}) => {

@@ -859,9 +859,17 @@ function clearClassroomChatHistory(level) {
   classroomChatHistoryByLevel.delete(level);
 }
 
+const chatReactionsByMessage = new Map();
+
 function appendClassroomChatMessage(level, entry) {
   if (!isValidLevel(level) || !entry?.kind) return;
   const history = classroomChatHistoryByLevel.get(level) || [];
+  if (!entry.id) {
+    entry.id = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+  if (!entry.reactions) {
+    entry.reactions = { love: 0, like: 0, teacherReacted: null };
+  }
   history.push({ ...entry, sentAt: Date.now() });
   if (history.length > MAX_CLASSROOM_CHAT_HISTORY) {
     history.splice(0, history.length - MAX_CLASSROOM_CHAT_HISTORY);
@@ -2723,7 +2731,9 @@ io.on("connection", (socket) => {
         approvedImageId = image.id;
       }
 
+      const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const chatEntry = {
+        id: messageId,
         kind: "student",
         level,
         studentId: socket.data.studentId,
@@ -2731,6 +2741,7 @@ io.on("connection", (socket) => {
         studentName: socket.data.studentName,
         message,
         imageId: approvedImageId,
+        reactions: { love: 0, like: 0, teacherReacted: null },
       };
       appendClassroomChatMessage(level, chatEntry);
       // This is intentionally a direct socket emission—not a level-room broadcast.
@@ -2745,7 +2756,7 @@ io.on("connection", (socket) => {
         title: "رسالة جديدة في الحصة",
         body: `أرسل التلميذ رسالة إلى الأستاذ.\nالتلميذ: ${socket.data.studentName || "غير معروف"}\nالمستوى: ${level}\nالنص: ${message.slice(0, 500)}${approvedImageId ? "\nمرفق: صورة" : ""}`,
       }).catch((error) => console.warn("Optional Telegram live-message notification failed:", error.message));
-      acknowledge(acknowledgement, { ok: true, imageId: approvedImageId });
+      acknowledge(acknowledgement, { ok: true, imageId: approvedImageId, messageId });
     } catch (error) {
       console.error("student_send_message failed:", error);
       emitClassroomError(
@@ -2782,11 +2793,14 @@ io.on("connection", (socket) => {
       );
     }
 
+    const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const chatEntry = {
+      id: messageId,
       kind: "teacher",
       level,
       message,
       imageData: imageData || null,
+      reactions: { love: 0, like: 0, teacherReacted: null },
     };
     appendClassroomChatMessage(level, chatEntry);
     socket.to(level).emit("teacher_message_received", chatEntry);
@@ -2794,7 +2808,99 @@ io.on("connection", (socket) => {
       const primaryTeacherId = activeTeachersByLevel.get(level);
       if (primaryTeacherId) io.to(primaryTeacherId).emit("teacher_message_received", chatEntry);
     }
-    acknowledge(acknowledgement, { ok: true, imageSent: Boolean(imageData) });
+    acknowledge(acknowledgement, { ok: true, imageSent: Boolean(imageData), messageId });
+  });
+
+  /** Handle chat message reactions (Like 👍 and Love ❤️) from teacher or students */
+  socket.on("classroom_chat_react", (data = {}, acknowledgement) => {
+    try {
+      const messageId = String(data.messageId || "").trim();
+      const reaction = String(data.reaction || "").trim().toLowerCase(); // "love" or "like"
+      const level = String(data.level || socket.data.roomLevel || "").trim();
+
+      if (!messageId || (reaction !== "love" && reaction !== "like") || !isValidLevel(level)) {
+        return acknowledge(acknowledgement, { ok: false, error: "بيانات التفاعل غير صالحة." });
+      }
+
+      const isTeacher = socket.data.role === "teacher" || socket.data.role === "teacher_companion";
+      const userId = isTeacher ? "teacher" : String(socket.data.studentId || socket.id);
+      const userName = isTeacher ? "الأستاذ" : String(socket.data.studentName || "تلميذ");
+
+      if (!chatReactionsByMessage.has(messageId)) {
+        chatReactionsByMessage.set(messageId, new Map());
+      }
+      const messageReactions = chatReactionsByMessage.get(messageId);
+
+      // Toggle or set new reaction
+      const currentReaction = messageReactions.get(userId);
+      let newReaction = null;
+      if (currentReaction === reaction) {
+        messageReactions.delete(userId); // toggle off
+        newReaction = null;
+      } else {
+        messageReactions.set(userId, reaction); // switch or set
+        newReaction = reaction;
+      }
+
+      // Calculate aggregated reaction counts
+      let loveCount = 0;
+      let likeCount = 0;
+      let teacherReacted = null;
+
+      for (const [uid, r] of messageReactions.entries()) {
+        if (r === "love") loveCount++;
+        if (r === "like") likeCount++;
+        if (uid === "teacher") teacherReacted = r;
+      }
+
+      // Update cached history
+      const history = classroomChatHistoryByLevel.get(level) || [];
+      const targetMsg = history.find((m) => m.id === messageId);
+      if (targetMsg) {
+        targetMsg.reactions = { love: loveCount, like: likeCount, teacherReacted };
+      }
+
+      const updatePayload = {
+        messageId,
+        level,
+        loveCount,
+        likeCount,
+        teacherReacted,
+        userReaction: newReaction,
+        lastReactorName: userName,
+        lastReaction: newReaction,
+        isTeacherReactor: isTeacher,
+      };
+
+      // Broadcast to room
+      io.to(level).emit("classroom_chat_reaction_updated", updatePayload);
+
+      // Notify teacher and companions
+      const primaryTeacherId = activeTeachersByLevel.get(level);
+      if (primaryTeacherId) {
+        io.to(primaryTeacherId).emit("classroom_chat_reaction_updated", updatePayload);
+      }
+      const companions = activeCompanionsByLevel.get(level);
+      if (companions) {
+        for (const compId of companions) {
+          io.to(compId).emit("classroom_chat_reaction_updated", updatePayload);
+        }
+      }
+
+      // If teacher reacted to a student's message, notify that specific student directly
+      if (isTeacher && newReaction && targetMsg && targetMsg.kind === "student" && targetMsg.socketId) {
+        io.to(targetMsg.socketId).emit("teacher_reacted_to_message", {
+          messageId,
+          reaction: newReaction, // "love" or "like"
+          messageText: targetMsg.message || "",
+        });
+      }
+
+      acknowledge(acknowledgement, { ok: true, ...updatePayload });
+    } catch (err) {
+      console.error("classroom_chat_react error:", err);
+      acknowledge(acknowledgement, { ok: false, error: err.message });
+    }
   });
 
   /**
