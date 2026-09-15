@@ -2741,7 +2741,7 @@ io.on("connection", (socket) => {
         studentName: socket.data.studentName,
         message,
         imageId: approvedImageId,
-        reactions: { love: 0, like: 0, teacherReacted: null },
+        reactions: { love: 0, like: 0, cry: 0, dislike: 0, fire: 0, teacherReacted: {} },
       };
       appendClassroomChatMessage(level, chatEntry);
       // This is intentionally a direct socket emission—not a level-room broadcast.
@@ -2800,7 +2800,7 @@ io.on("connection", (socket) => {
       level,
       message,
       imageData: imageData || null,
-      reactions: { love: 0, like: 0, teacherReacted: null },
+      reactions: { love: 0, like: 0, cry: 0, dislike: 0, fire: 0, teacherReacted: {} },
     };
     appendClassroomChatMessage(level, chatEntry);
     socket.to(level).emit("teacher_message_received", chatEntry);
@@ -2823,7 +2823,11 @@ io.on("connection", (socket) => {
         return acknowledge(acknowledgement, { ok: false, error: "بيانات التفاعل غير صالحة." });
       }
 
-      const isTeacher = socket.data.role === "teacher" || socket.data.role === "teacher_companion";
+      const isTeacher =
+        socket.data.role === "teacher" ||
+        socket.data.role === "teacher_companion" ||
+        activeTeachersByLevel.get(level) === socket.id ||
+        users.get(socket.id)?.role === "teacher";
       const userId = isTeacher ? "teacher" : String(socket.data.studentId || socket.id);
       const userName = isTeacher ? "الأستاذ" : String(socket.data.studentName || "تلميذ");
 
@@ -2901,8 +2905,13 @@ io.on("connection", (socket) => {
         isTeacherReactor: isTeacher,
       };
 
-      // Broadcast to room
+      // Broadcast to level room
       io.to(level).emit("classroom_chat_reaction_updated", updatePayload);
+
+      // If targetMsg has a specific student socketId, also emit directly to ensure instant arrival
+      if (targetMsg && targetMsg.socketId) {
+        io.to(targetMsg.socketId).emit("classroom_chat_reaction_updated", updatePayload);
+      }
 
       // Notify teacher and companions
       const primaryTeacherId = activeTeachersByLevel.get(level);

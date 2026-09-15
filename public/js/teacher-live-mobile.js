@@ -1606,10 +1606,13 @@
     ];
 
     TEACHER_REACTIONS_CONFIG.forEach((r) => {
-      const count = Number(reactions[r.key] || reactions[`${r.key}Count`] || 0);
       const isTeacherReacted = Boolean(
-        reactions.teacherReacted?.[r.key] || reactions.teacherReacted === r.key
+        (typeof reactions.teacherReacted === "object" && reactions.teacherReacted && reactions.teacherReacted[r.key]) ||
+        reactions.teacherReacted === r.key ||
+        (Array.isArray(reactions.teacherReacted) && reactions.teacherReacted.includes(r.key))
       );
+      let count = Number(reactions[r.key] || reactions[`${r.key}Count`] || 0);
+      if (isTeacherReacted && count === 0) count = 1;
 
       if (count > 0) {
         const pill = document.createElement("button");

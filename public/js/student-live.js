@@ -2059,10 +2059,15 @@ function renderStudentReactionPills(container, reactions, messageId) {
   if (!reactions) return;
 
   STUDENT_REACTIONS_CONFIG.forEach((r) => {
-    const count = Number(reactions[r.key] || reactions[`${r.key}Count`] || 0);
     const isTeacherReacted = Boolean(
-      reactions.teacherReacted?.[r.key] || reactions.teacherReacted === r.key
+      (typeof reactions.teacherReacted === "object" && reactions.teacherReacted && reactions.teacherReacted[r.key]) ||
+      reactions.teacherReacted === r.key ||
+      (Array.isArray(reactions.teacherReacted) && reactions.teacherReacted.includes(r.key)) ||
+      (reactions.isTeacherReactor && (reactions.lastReaction === r.key || reactions.userReaction === r.key))
     );
+
+    let count = Number(reactions[r.key] || reactions[`${r.key}Count`] || (reactions.counts && reactions.counts[r.key]) || 0);
+    if (isTeacherReacted && count === 0) count = 1;
 
     if (count > 0) {
       const pill = document.createElement("button");
@@ -3572,7 +3577,7 @@ socket.on("teacher_message_received", (data = {}) => {
 });
 
 socket.on("classroom_chat_reaction_updated", (data = {}) => {
-  if (!joinedClass || data.level !== level) return;
+  if (!joinedClass) return;
   updateStudentMessageReactions(data);
 });
 
@@ -3587,7 +3592,20 @@ socket.on("teacher_reacted_to_message", (data = {}) => {
   };
   const emoji = emojiMap[data.reaction] || "❤️";
 
-  if (elements.chatBox) {
+  const targetBubble = data.messageId ? document.querySelector(`.student-chat-message[data-message-id="${data.messageId}"]`) : null;
+  if (targetBubble) {
+    showStudentFloatingReaction(targetBubble, emoji);
+    const pillsWrap = targetBubble.querySelector(`.student-chat-reactions-pills`);
+    if (pillsWrap && data.reaction) {
+      const teacherReactedObj = {};
+      teacherReactedObj[data.reaction] = true;
+      renderStudentReactionPills(pillsWrap, {
+        [data.reaction]: 1,
+        teacherReacted: teacherReactedObj,
+        isTeacherReactor: true,
+      }, data.messageId);
+    }
+  } else if (elements.chatBox) {
     showStudentFloatingReaction(elements.chatBox, emoji);
   }
   setViewerStatus(`${emoji} تفاعل الأستاذ مع رسالتك!`, "live");
