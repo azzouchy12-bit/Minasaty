@@ -2907,6 +2907,13 @@ function beginStreamRecovery(message) {
   clearHandResetTimer();
   closePeerConnection();
   resetRemoteMedia();
+  microphonePermissionGranted = false;
+  if (localAudioStream) {
+    localAudioStream.getAudioTracks().forEach((track) => {
+      track.enabled = false;
+    });
+  }
+  updateMicControl();
   isJoining = false;
   joinedClass = true;
   isRecoveringStream = true;
@@ -3436,6 +3443,13 @@ socket.on("connect_error", () => {
 
 socket.on("room_joined", (data = {}) => {
   if (data.role === "student") {
+    microphonePermissionGranted = false;
+    if (localAudioStream) {
+      localAudioStream.getAudioTracks().forEach((track) => {
+        track.enabled = false;
+      });
+    }
+    updateMicControl();
     globalFreeClass = Boolean(data.globalFree);
     waitingForNextClass = false;
     teacherSocketId = data.teacherSocketId || teacherSocketId;
@@ -3755,6 +3769,21 @@ socket.on("microphone_revoked", () => {
   elements.handWaitingActions.hidden = true;
   updateMicControl();
   setViewerStatus("أغلق الأستاذ المايك. يمكنك رفع اليد عند الحاجة.", "neutral");
+});
+
+socket.on("classroom_all_mics_muted", () => {
+  clearHandResetTimer();
+  microphonePermissionGranted = false;
+
+  if (localAudioStream) {
+    localAudioStream.getAudioTracks().forEach((track) => {
+      track.enabled = false;
+    });
+  }
+  setRaisedHandState({ waiting: false });
+  elements.handWaitingActions.hidden = true;
+  updateMicControl();
+  setViewerStatus("أغلق الأستاذ ميكروفونات جميع التلاميذ.", "neutral");
 });
 
 socket.on("teacher_reconnecting", () => {

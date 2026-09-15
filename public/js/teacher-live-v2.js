@@ -163,6 +163,8 @@ const elements = {
   freeClassHint: document.getElementById("free-class-hint"),
   startButton: document.getElementById("start-class-btn"),
   toggleMicButton: document.getElementById("toggle-mic-btn"),
+  muteAllMicsButton: document.getElementById("mute-all-mics-btn"),
+  sidebarMuteAllButton: document.getElementById("sidebar-mute-all-btn"),
   recordLocalButton: document.getElementById("record-local-btn"),
   localRecordingState: document.getElementById("local-recording-state"),
   saveDriveButton: document.getElementById("save-drive-btn"),
@@ -3058,6 +3060,8 @@ function updateControls() {
   if (elements.levelSelect) elements.levelSelect.disabled = isStarting || isEnding || classActive;
   if (elements.subjectSelect) elements.subjectSelect.disabled = isStarting || isEnding || classActive;
   if (elements.toggleMicButton) elements.toggleMicButton.disabled = !classActive || !hasAudio || isEnding;
+  if (elements.muteAllMicsButton) elements.muteAllMicsButton.disabled = !classActive || isEnding;
+  if (elements.sidebarMuteAllButton) elements.sidebarMuteAllButton.disabled = !classActive || isEnding;
   if (elements.recordLocalButton) elements.recordLocalButton.disabled = (!canRecordLocalClass() && !isLocalRecording()) || isEnding;
   if (elements.saveDriveButton) elements.saveDriveButton.disabled = !lastLocalRecording || googleDriveUploadInProgress;
 
@@ -4894,6 +4898,24 @@ async function setStudentMicrophone(socketId, enabled, button) {
 }
 
 
+async function muteAllStudentsMicrophones() {
+  if (!classActive || isEnding) return;
+  try {
+    setStudioStatus("جارٍ كتم ميكروفونات جميع التلاميذ…", "neutral");
+    await emitWithAcknowledgement("teacher_mute_all_mics", { level: activeLevel });
+    attendeeElements.forEach((attendee, socketId) => {
+      applyStudentMicrophoneState(socketId, false);
+    });
+    approvedStudentMicrophones.clear();
+    rebuildClassroomAudioGraph();
+    setStudioStatus("تم كتم ميكروفونات جميع التلاميذ بنجاح.", "live");
+  } catch (err) {
+    console.error("Failed to mute all mics:", err);
+    setStudioStatus(err.message || "تعذر كتم ميكروفونات جميع التلاميذ.", "error");
+  }
+}
+
+
 socket.on("connect", () => {
   if (classActive && classResumeToken) {
     void resumeLiveClassAfterSocketReconnect();
@@ -4965,6 +4987,15 @@ socket.on("student_participation_updated", (data = {}) => {
   const attendee = attendeeElements.get(data.socketId);
   const participation = attendee?.querySelector(".attendee-participation");
   if (participation) participation.textContent = `المشاركات: ${Math.max(0, Number(data.count) || 0)}`;
+});
+
+
+socket.on("all_student_mics_muted", () => {
+  attendeeElements.forEach((attendee, socketId) => {
+    applyStudentMicrophoneState(socketId, false);
+  });
+  approvedStudentMicrophones.clear();
+  rebuildClassroomAudioGraph();
 });
 
 
@@ -5262,6 +5293,8 @@ elements.subjectSelect?.addEventListener("change", () => {
 });
 elements.screenShareButton?.addEventListener("click", () => void toggleScreenShare());
 elements.toggleMicButton.addEventListener("click", toggleMicrophone);
+elements.muteAllMicsButton?.addEventListener("click", () => void muteAllStudentsMicrophones());
+elements.sidebarMuteAllButton?.addEventListener("click", () => void muteAllStudentsMicrophones());
 elements.recordLocalButton.addEventListener("click", toggleLocalRecording);
 elements.downloadRecordingButton?.addEventListener("click", handleDownloadRecordingClick);
 elements.forceUploadYoutubeButton?.addEventListener("click", handleForceUploadYoutubeClick);

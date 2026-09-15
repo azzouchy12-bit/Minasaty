@@ -2132,10 +2132,10 @@ io.on("connection", (socket) => {
         screenShareActive: isScreenShareActive(classroomLevel),
       });
       emitClassroomChatHistory(socket, classroomLevel);
-      if (isStudentMicrophoneOpen(classroomLevel, socket.id)) {
-        setStudentWhiteboardAccess(classroomLevel, socket.id, true);
-        socket.emit("whiteboard_access_granted", { level: student.level, classroomLevel, globalFree: isGlobalFreeActive });
-      }
+      // When a student joins or rejoins, ensure their mic and whiteboard are strictly closed on entry
+      setStudentMicrophoneOpen(classroomLevel, socket.id, false);
+      setStudentWhiteboardAccess(classroomLevel, socket.id, false);
+      socket.emit("microphone_revoked", { level: student.level, classroomLevel, silent: true });
 
       // Only the active teacher receives the student identity/socket ID.
       // Other students receive no attendee or signaling information.
@@ -2590,6 +2590,81 @@ io.on("connection", (socket) => {
       enabled,
     });
     acknowledge(acknowledgement, { ok: true, enabled });
+  });
+
+  /**
+   * Teacher mutes all student microphones in the classroom at once.
+   * Payload: { level }
+   */
+  socket.on("teacher_mute_all_mics", async (data = {}, acknowledgement) => {
+    try {
+      const level = socket.data.roomLevel || normalizeText(data.level);
+      const isTeacher =
+        socket.data.role === "teacher" ||
+        socket.data.role === "teacher_companion" ||
+        activeTeachersByLevel.get(level) === socket.id ||
+        users.get(socket.id)?.role === "teacher";
+
+      if (!isTeacher || !level) {
+        return emitClassroomError(
+          socket,
+          "teacher_mute_all_mics",
+          "لا تملك صلاحية كتم الميكروفونات لهذه الحصة.",
+          acknowledgement
+        );
+      }
+
+      const openMics = openStudentMicsByLevel.get(level);
+      const mutedSocketIds = [];
+
+      if (openMics && openMics.size > 0) {
+        for (const targetSocketId of Array.from(openMics)) {
+          const targetSocket = io.sockets.sockets.get(targetSocketId);
+          if (targetSocket) {
+            if (targetSocket.data.micStartedAt) {
+              const micDurationSeconds = Math.floor((Date.now() - targetSocket.data.micStartedAt) / 1000);
+              targetSocket.data.micStartedAt = null;
+              if (micDurationSeconds >= 10) {
+                void recordClassParticipation({
+                  studentId: targetSocket.data.studentId,
+                  level: targetSocket.data.studentAcademicLevel || level,
+                  subject: activeSubjectByLevel.get(level),
+                  sessionKey: socket.data.classResumeToken,
+                }).then(async () => {
+                  const count = await getStudent24HourParticipation(targetSocket.data.studentId);
+                  targetSocket.data.participationCount = count;
+                  io.to(targetSocketId).emit("participation_count_updated", { level, count });
+                  io.to(socket.id).emit("student_participation_updated", { socketId: targetSocketId, count });
+                }).catch(err => console.error("Error recording participation on mute all:", err));
+              }
+            }
+
+            io.to(targetSocketId).emit("microphone_revoked", { level });
+            io.to(targetSocketId).emit("whiteboard_access_revoked", { level });
+            mutedSocketIds.push(targetSocketId);
+          }
+        }
+        openStudentMicsByLevel.delete(level);
+        whiteboardAccessByLevel.delete(level);
+      }
+
+      // Broadcast to room that all student mics are muted
+      io.to(level).emit("classroom_all_mics_muted", { level });
+
+      // Notify teacher and companions
+      io.to(socket.id).emit("all_student_mics_muted", { level, mutedSocketIds });
+      const companions = activeCompanionsByLevel.get(level);
+      if (companions) {
+        for (const compId of companions) {
+          io.to(compId).emit("all_student_mics_muted", { level, mutedSocketIds });
+        }
+      }
+
+      acknowledge(acknowledgement, { ok: true, count: mutedSocketIds.length });
+    } catch (err) {
+      console.error("teacher_mute_all_mics error:", err);
+      acknowledge(acknowledgement, { ok: false, error: err.message });
+    }
   });
 
   // Kept as a compatibility route for teacher pages that are still open while

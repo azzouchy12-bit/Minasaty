@@ -143,6 +143,7 @@
     chatNavBadge: document.getElementById("tm-chat-nav-badge"),
 
     // Attendees
+    muteAllBtn: document.getElementById("tm-mute-all-btn"),
     attendeeSearch: document.getElementById("tm-attendee-search"),
     subnavPresentBtn: document.getElementById("tm-subnav-present-btn"),
     subnavAbsentBtn: document.getElementById("tm-subnav-absent-btn"),
@@ -300,6 +301,22 @@
       if (el.subnavAbsentBtn) {
         el.subnavAbsentBtn.click();
       }
+    });
+  }
+
+  if (el.muteAllBtn) {
+    el.muteAllBtn.addEventListener("click", () => {
+      if (!classActive || !socket) return;
+      socket.emit("teacher_mute_all_mics", { level: activeLevel }, (res) => {
+        if (res && res.ok) {
+          approvedStudentMicrophones.clear();
+          attendeesMap.forEach((student) => {
+            student.micEnabled = false;
+          });
+          renderAttendees();
+          showToast("تم كتم ميكروفونات جميع التلاميذ 🔇");
+        }
+      });
     });
   }
 
@@ -1805,6 +1822,15 @@
       student.participationCount = Math.max(0, Number(count) || 0);
       renderAttendees();
     }
+  });
+
+  socket.on("all_student_mics_muted", () => {
+    approvedStudentMicrophones.clear();
+    attendeesMap.forEach((student) => {
+      student.micEnabled = false;
+    });
+    renderAttendees();
+    showToast("تم كتم ميكروفونات جميع التلاميذ 🔇");
   });
 
   socket.on("student_message_received", async (data = {}) => {

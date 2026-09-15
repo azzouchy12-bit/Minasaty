@@ -601,6 +601,45 @@
         background: rgba(153, 27, 27, 0.75);
       }
 
+      .studio-button.mute-all {
+        color: #fef3c7;
+        background: rgba(180, 83, 9, 0.45);
+        border-color: rgba(245, 158, 11, 0.35);
+      }
+
+      .studio-button.mute-all:hover:not(:disabled) {
+        color: #ffffff;
+        background: rgba(180, 83, 9, 0.75);
+        border-color: rgba(245, 158, 11, 0.6);
+      }
+
+      .sidebar-action-btn.mute-all-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.28rem 0.6rem;
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: #fef3c7;
+        background: rgba(180, 83, 9, 0.35);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin-inline-start: auto;
+      }
+
+      .sidebar-action-btn.mute-all-btn:hover:not(:disabled) {
+        background: rgba(180, 83, 9, 0.65);
+        border-color: rgba(245, 158, 11, 0.55);
+        color: #ffffff;
+      }
+
+      .sidebar-action-btn.mute-all-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
       .studio-button.record {
         color: #fee2e2;
         background: rgba(127, 29, 29, 0.48);
@@ -1548,6 +1587,11 @@
               <span>إيقاف المايك</span>
             </button>
 
+            <button id="mute-all-mics-btn" class="studio-button mute-all" type="button" title="كتم ميكروفونات جميع التلاميذ" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 0 0 3.5-3.5V6.5a3.5 3.5 0 0 0-7 0V12a3.5 3.5 0 0 0 3.5 3.5ZM5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7M3 3l18 18" /></svg>
+              <span>كتم ميكروفون الجميع</span>
+            </button>
+
             <button id="record-local-btn" class="studio-button record" type="button" title="بدء أو إيقاف التسجيل المحلي" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="currentColor" /></svg>
               <span>تسجيل</span>
@@ -1599,6 +1643,10 @@
         <aside class="studio-sidebar attendance-sidebar" aria-labelledby="attendees-title">
           <header class="sidebar-head">
             <div class="sidebar-title-group"><h2 id="attendees-title">الحضور وطلبات التحدث</h2><span id="attendee-count" class="attendee-count" aria-label="عدد الحضور">0</span></div>
+            <button id="sidebar-mute-all-btn" class="sidebar-action-btn mute-all-btn" type="button" title="كتم ميكروفونات جميع التلاميذ" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true" style="width:0.85rem;height:0.85rem;fill:none;stroke:currentColor;stroke-width:2;"><path d="M12 15.5a3.5 3.5 0 0 0 3.5-3.5V6.5a3.5 3.5 0 0 0-7 0V12a3.5 3.5 0 0 0 3.5 3.5ZM5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7M3 3l18 18" /></svg>
+              <span>كتم الجميع</span>
+            </button>
             <button id="attendance-sidebar-toggle" class="sidebar-collapse-button" type="button" aria-label="طي لوحة الحضور" aria-expanded="true">›</button>
           </header>
           <div id="participants-pane" class="sidebar-pane is-active" data-sidebar-pane="participants">
