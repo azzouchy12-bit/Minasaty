@@ -1597,10 +1597,24 @@
         sessionStorage.setItem("teacherDashboardDesktopMode", "1");
       });
 
-    document.getElementById("tdm-btn-logout")?.addEventListener("click", () => {
-      sessionStorage.removeItem(TEACHER_TOKEN_KEY);
-      sessionStorage.removeItem("teacherDashboardDesktopMode");
-      window.location.replace("./teacher-login.html");
+    document.getElementById("tdm-btn-logout")?.addEventListener("click", (e) => {
+      if (typeof handleTeacherLogout === "function") {
+        handleTeacherLogout(e);
+        return;
+      }
+      try {
+        void window.revokeServerSession?.();
+        fetch("/api/auth/logout", { method: "POST", credentials: "include", keepalive: true }).catch(() => {});
+      } catch (_) {}
+      try {
+        sessionStorage.clear();
+        localStorage.removeItem(TEACHER_TOKEN_KEY);
+        localStorage.removeItem("teacherAuth");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("teacherDashboardDesktopMode");
+        document.cookie = "teacherToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      } catch (_) {}
+      window.location.replace("./index.html");
     });
 
     // 11. Payments delegation

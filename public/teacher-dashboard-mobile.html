@@ -124,6 +124,7 @@
             class="tdm-grid-btn tdm-btn-logout"
             id="tdm-btn-logout"
             title="تسجيل الخروج"
+            onclick="handleTeacherLogout(event)"
           >
             <span class="btn-icon">🚪</span>
             <span class="btn-text">خروج</span>
@@ -679,7 +680,33 @@
     <!-- Toast Notification -->
     <div id="tdm-toast" class="tdm-toast" hidden></div>
 
+    <script>
+      function handleTeacherLogout(e) {
+        if (e) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+        try {
+          void window.revokeServerSession?.();
+          fetch("/api/auth/logout", { method: "POST", credentials: "include", keepalive: true }).catch(function() {});
+        } catch (_) {}
+        try {
+          sessionStorage.clear();
+          localStorage.removeItem("teacherToken");
+          localStorage.removeItem("teacherAuth");
+          localStorage.removeItem("userRole");
+          localStorage.removeItem("teacherDashboardDesktopMode");
+          document.cookie = "teacherToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        } catch (_) {}
+        window.location.replace("./index.html");
+      }
+      window.addEventListener("DOMContentLoaded", function() {
+        var btn = document.getElementById("tdm-btn-logout");
+        if (btn) btn.addEventListener("click", handleTeacherLogout, true);
+      });
+    </script>
+
     <!-- Scripts -->
-    <script src="./js/teacher-dashboard-mobile.js?v=tdm-gmail-2"></script>
+    <script src="./js/teacher-dashboard-mobile.js?v=tdm-gmail-3"></script>
   </body>
 </html>

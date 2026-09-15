@@ -59,7 +59,7 @@ body.tdm-gmail-body {
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--gmail-border);
   box-shadow: var(--gmail-shadow-sm);
-  padding: 8px 10px 4px;
+  padding: max(16px, env(safe-area-inset-top, 16px)) 10px 4px;
 }
 
 .tdm-header-brand {

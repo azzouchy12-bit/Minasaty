@@ -3938,10 +3938,25 @@ function jumpToRoster() {
   setDashboardTab("students");
 }
 
-function logoutTeacher() {
-  void window.revokeServerSession?.();
-  clearTeacherSession();
-  window.location.replace("./teacher-login.html");
+function logoutTeacher(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+  try {
+    void window.revokeServerSession?.();
+    fetch("/api/auth/logout", { method: "POST", credentials: "include", keepalive: true }).catch(() => {});
+  } catch (_) {}
+  try {
+    clearTeacherSession();
+    sessionStorage.clear();
+    localStorage.removeItem(TEACHER_TOKEN_KEY);
+    localStorage.removeItem("teacherAuth");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("teacherDashboardDesktopMode");
+    document.cookie = "teacherToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+  } catch (_) {}
+  window.location.replace("./index.html");
 }
 
 async function createPublicInvite() {
