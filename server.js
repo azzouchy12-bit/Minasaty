@@ -446,6 +446,8 @@ app.set("sendTelegramNotification", sendTelegramNotification);
  * Socket.io adapter (such as Redis) plus shared classroom state.
  */
 const activeTeachersByLevel = new Map();
+// Stores active mobile teacher companion sockets connected alongside the primary PC broadcaster
+const activeCompanionsByLevel = new Map();
 // Stores the selected class type for each active level: a subject for school levels
 // or a subscription type for university students.
 const activeSubjectByLevel = new Map();
@@ -987,6 +989,7 @@ async function closeClassroom(level, reason) {
   // room is being cleaned up asynchronously.
   clearPendingTeacherRecovery(level);
   activeTeachersByLevel.delete(level);
+  activeCompanionsByLevel.delete(level);
   activeSubjectByLevel.delete(level);
   activeScheduledClassByLevel.delete(level);
   setScreenShareActive(level, false);
@@ -1679,6 +1682,126 @@ io.on("connection", (socket) => {
   });
 
   /**
+   * Teacher checks whether there is an active classroom being broadcasted from PC.
+   * Useful when opening the mobile studio to switch into companion monitor mode.
+   */
+  socket.on("teacher_check_active_room", async (data = {}, acknowledgement) => {
+    try {
+      const authenticatedTeacher = await requireTeacherSocketSession(socket, "teacher_check_active_room", acknowledgement);
+      if (!authenticatedTeacher) return;
+
+      const requestedLevel = normalizeText(data.level);
+      let foundLevel = null;
+      let foundSubject = null;
+      let teacherSocketId = null;
+
+      if (requestedLevel && isValidLevel(requestedLevel)) {
+        const tSockId = activeTeachersByLevel.get(requestedLevel);
+        const tSock = tSockId ? io.sockets.sockets.get(tSockId) : null;
+        if (tSock && isInLevelRoom(tSock, requestedLevel) && tSock.id !== socket.id) {
+          foundLevel = requestedLevel;
+          foundSubject = activeSubjectByLevel.get(requestedLevel) || "MATH";
+          teacherSocketId = tSockId;
+        }
+      }
+
+      if (!foundLevel) {
+        for (const [lvl, tSockId] of activeTeachersByLevel.entries()) {
+          const tSock = tSockId ? io.sockets.sockets.get(tSockId) : null;
+          if (tSock && isInLevelRoom(tSock, lvl) && tSock.id !== socket.id) {
+            foundLevel = lvl;
+            foundSubject = activeSubjectByLevel.get(lvl) || "MATH";
+            teacherSocketId = tSockId;
+            break;
+          }
+        }
+      }
+
+      if (foundLevel) {
+        return acknowledge(acknowledgement, {
+          ok: true,
+          active: true,
+          level: foundLevel,
+          subject: foundSubject,
+          subjectLabel: getLiveSubjectLabel(foundSubject),
+          teacherSocketId,
+        });
+      }
+
+      return acknowledge(acknowledgement, {
+        ok: true,
+        active: false,
+      });
+    } catch (err) {
+      console.error("[Socket.io] teacher_check_active_room failed:", err);
+      acknowledge(acknowledgement, { ok: false, active: false });
+    }
+  });
+
+  /**
+   * Teacher joins an active room from mobile as a companion controller & monitor.
+   * Receives WebRTC stream from the PC teacher, syncs attendance/chat, and allows
+   * calling absentees via WhatsApp or phone.
+   */
+  socket.on("teacher_companion_join", async (data = {}, acknowledgement) => {
+    try {
+      const authenticatedTeacher = await requireTeacherSocketSession(socket, "teacher_companion_join", acknowledgement);
+      if (!authenticatedTeacher) return;
+
+      const level = normalizeText(data.level);
+      if (!isValidLevel(level)) {
+        return emitClassroomError(socket, "teacher_companion_join", "المستوى الدراسي غير صالح.", acknowledgement);
+      }
+
+      const teacherSocketId = activeTeachersByLevel.get(level);
+      const teacherSocket = teacherSocketId ? io.sockets.sockets.get(teacherSocketId) : null;
+      if (!teacherSocket || !isInLevelRoom(teacherSocket, level)) {
+        return emitClassroomError(
+          socket,
+          "teacher_companion_join",
+          "لا يوجد بث مباشر نشط من الحاسوب لهذا المستوى حالياً.",
+          acknowledgement
+        );
+      }
+
+      await socket.join(level);
+      socket.data.role = "teacher_companion";
+      socket.data.roomLevel = level;
+      socket.data.teacherId = authenticatedTeacher.id;
+
+      let companions = activeCompanionsByLevel.get(level);
+      if (!companions) {
+        companions = new Set();
+        activeCompanionsByLevel.set(level, companions);
+      }
+      companions.add(socket.id);
+
+      // Signal the primary PC broadcaster so its RTCPeerConnection sends screen/video/audio to this companion
+      io.to(teacherSocketId).emit("student_joined", {
+        socketId: socket.id,
+        studentId: `TEACHER_COMPANION_${socket.id}`,
+        studentName: "مساعد الأستاذ (الهاتف)",
+        isCompanion: true,
+      });
+
+      emitClassroomChatHistory(socket, level);
+
+      acknowledge(acknowledgement, {
+        ok: true,
+        companion: true,
+        level,
+        subject: activeSubjectByLevel.get(level) || "MATH",
+        teacherSocketId,
+        screenShareActive: isScreenShareActive(level),
+      });
+      console.info(`[Socket.io] Teacher companion joined room ${level} from ${socket.id}`);
+    } catch (err) {
+      console.error("[Socket.io] teacher_companion_join failed:", err);
+      emitClassroomError(socket, "teacher_companion_join", "تعذر الانضمام كمساعد.", acknowledgement);
+    }
+  });
+
+  /**
    * Student joins the live class for one level.
    * Payload: { level, studentId }. The server resolves the name and level from
    * the database; a client-supplied name is never used for attendance logging.
@@ -1882,13 +2005,20 @@ io.on("connection", (socket) => {
       // Only the active teacher receives the student identity/socket ID.
       // Other students receive no attendee or signaling information.
       if (!isAlreadyJoined || data.rejoin === true) {
-        io.to(teacherSocketId).emit("student_joined", {
+        const studentJoinedPayload = {
           socketId: socket.id,
           studentId: student.id,
           studentName,
           participationCount,
           recovering: data.rejoin === true,
-        });
+        };
+        io.to(teacherSocketId).emit("student_joined", studentJoinedPayload);
+        const companions = activeCompanionsByLevel.get(classroomLevel);
+        if (companions) {
+          for (const compId of companions) {
+            io.to(compId).emit("student_joined", studentJoinedPayload);
+          }
+        }
       }
 
       // The teacher owns the classroom peer connections. Its next offer to this
@@ -1933,7 +2063,7 @@ io.on("connection", (socket) => {
       !isValidSocketId(targetSocketId) ||
       !isValidSessionDescription(data.sdp) ||
       !shareSameClassroom(socket, targetSocket, level) ||
-      targetSocket.data.role !== "student"
+      (targetSocket.data.role !== "student" && targetSocket.data.role !== "teacher_companion")
     ) {
       return emitClassroomError(
         socket,
@@ -1960,7 +2090,7 @@ io.on("connection", (socket) => {
     const targetSocket = io.sockets.sockets.get(targetSocketId);
 
     if (
-      socket.data.role !== "student" ||
+      (socket.data.role !== "student" && socket.data.role !== "teacher_companion") ||
       activeTeachersByLevel.get(level) !== targetSocketId ||
       !isValidSocketId(targetSocketId) ||
       !isValidSessionDescription(data.sdp) ||
@@ -2091,10 +2221,10 @@ io.on("connection", (socket) => {
     const isTeacherToStudent =
       socket.data.role === "teacher" &&
       activeTeachersByLevel.get(level) === socket.id &&
-      targetSocket?.data.role === "student";
+      (targetSocket?.data.role === "student" || targetSocket?.data.role === "teacher_companion");
 
     const isStudentToTeacher =
-      socket.data.role === "student" &&
+      (socket.data.role === "student" || socket.data.role === "teacher_companion") &&
       activeTeachersByLevel.get(level) === targetSocketId &&
       targetSocket?.data.role === "teacher";
 
@@ -2155,14 +2285,21 @@ io.on("connection", (socket) => {
         acknowledgement
       );
     }
-    io.to(teacherSocketId).emit("hand_raised", {
+    const handRaisedPayload = {
       socketId: socket.id,
       studentId: socket.data.studentId,
       studentName: studentDisplayName,
       name: studentDisplayName,
       fullName: studentDisplayName,
       level,
-    });
+    };
+    io.to(teacherSocketId).emit("hand_raised", handRaisedPayload);
+    const companionsRaise = activeCompanionsByLevel.get(level);
+    if (companionsRaise) {
+      for (const compId of companionsRaise) {
+        io.to(compId).emit("hand_raised", handRaisedPayload);
+      }
+    }
     void sendTelegramNotification({
       title: "طلب رفع اليد",
       body: `طلب التلميذ التحدث في الحصة.\nالتلميذ: ${socket.data.studentName || "غير معروف"}\nالمستوى: ${level}`,
@@ -2191,6 +2328,12 @@ io.on("connection", (socket) => {
     }
 
     io.to(teacherSocketId).emit("hand_lowered", { socketId: socket.id });
+    const companionsLower = activeCompanionsByLevel.get(level);
+    if (companionsLower) {
+      for (const compId of companionsLower) {
+        io.to(compId).emit("hand_lowered", { socketId: socket.id });
+      }
+    }
     void sendTelegramNotification({
       title: "إنزال اليد",
       body: `ألغى التلميذ طلب التحدث.\nالتلميذ: ${socket.data.studentName || "غير معروف"}\nالمستوى: ${level}`,
@@ -2493,6 +2636,12 @@ io.on("connection", (socket) => {
       appendClassroomChatMessage(level, chatEntry);
       // This is intentionally a direct socket emission—not a level-room broadcast.
       io.to(teacherSocketId).emit("student_message_received", chatEntry);
+      const companionsChat = activeCompanionsByLevel.get(level);
+      if (companionsChat) {
+        for (const compId of companionsChat) {
+          io.to(compId).emit("student_message_received", chatEntry);
+        }
+      }
       void sendTelegramNotification({
         title: "رسالة جديدة في الحصة",
         body: `أرسل التلميذ رسالة إلى الأستاذ.\nالتلميذ: ${socket.data.studentName || "غير معروف"}\nالمستوى: ${level}\nالنص: ${message.slice(0, 500)}${approvedImageId ? "\nمرفق: صورة" : ""}`,
@@ -2516,12 +2665,14 @@ io.on("connection", (socket) => {
     const imageData = normalizeTeacherChatImageData(data.imageData);
     const hasInvalidImage = Boolean(data.imageData) && !imageData;
 
+    const isTeacherBroadcaster = socket.data.role === "teacher" && activeTeachersByLevel.get(level) === socket.id;
+    const isTeacherCompanion = socket.data.role === "teacher_companion" && activeTeachersByLevel.get(level);
+
     if (
-      socket.data.role !== "teacher" ||
+      (!isTeacherBroadcaster && !isTeacherCompanion) ||
       !isValidLevel(level || "") ||
       (!message && !imageData) ||
       hasInvalidImage ||
-      activeTeachersByLevel.get(level) !== socket.id ||
       !isInLevelRoom(socket, level)
     ) {
       return emitClassroomError(
@@ -2540,6 +2691,10 @@ io.on("connection", (socket) => {
     };
     appendClassroomChatMessage(level, chatEntry);
     socket.to(level).emit("teacher_message_received", chatEntry);
+    if (isTeacherCompanion) {
+      const primaryTeacherId = activeTeachersByLevel.get(level);
+      if (primaryTeacherId) io.to(primaryTeacherId).emit("teacher_message_received", chatEntry);
+    }
     acknowledge(acknowledgement, { ok: true, imageSent: Boolean(imageData) });
   });
 
@@ -2712,11 +2867,27 @@ io.on("connection", (socket) => {
         : null;
 
       if (teacherSocket && teacherSocket.id !== socket.id) {
-        io.to(teacherSocket.id).emit("student_left", {
+        const studentLeftPayload = {
           socketId: socket.id,
           studentId: socket.data.studentId || user.studentId || null,
           studentName: name,
-        });
+        };
+        io.to(teacherSocket.id).emit("student_left", studentLeftPayload);
+        const companions = activeCompanionsByLevel.get(classroomLevel);
+        if (companions) {
+          for (const compId of companions) {
+            io.to(compId).emit("student_left", studentLeftPayload);
+          }
+        }
+      }
+      return;
+    }
+
+    if (role === "teacher_companion") {
+      const companions = activeCompanionsByLevel.get(level);
+      if (companions) {
+        companions.delete(socket.id);
+        if (companions.size === 0) activeCompanionsByLevel.delete(level);
       }
       return;
     }

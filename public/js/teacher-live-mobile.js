@@ -89,6 +89,11 @@
   let unreadChatCount = 0;
   let activeTab = "studio";
   const questionImageUrls = new Set();
+  let isCompanionMode = false;
+  let companionPeerConnection = null;
+  let companionPrimaryTeacherSocketId = null;
+  let currentAbsenteesData = null;
+  let absenteesRefreshTimer = null;
 
   // ---------------------------------------------------------------------------
   // 4. DOM Elements
@@ -107,6 +112,7 @@
     // Stage
     stageImage: document.getElementById("tm-stage-image"),
     cameraVideo: document.getElementById("tm-camera-video"),
+    companionVideo: document.getElementById("tm-companion-video"),
     cameraFlipBtn: document.getElementById("tm-camera-flip-btn"),
     stageModeTag: document.getElementById("tm-stage-mode-tag"),
     stageTimer: document.getElementById("tm-stage-timer"),
@@ -125,6 +131,8 @@
     // Stats
     studentCountStat: document.getElementById("tm-student-count-stat"),
     handsCountStat: document.getElementById("tm-hands-count-stat"),
+    absentCardBtn: document.getElementById("tm-absent-card-btn"),
+    absentCountStat: document.getElementById("tm-absent-count-stat"),
 
     // Chat
     chatBox: document.getElementById("tm-chat-box"),
@@ -136,11 +144,19 @@
 
     // Attendees
     attendeeSearch: document.getElementById("tm-attendee-search"),
+    subnavPresentBtn: document.getElementById("tm-subnav-present-btn"),
+    subnavAbsentBtn: document.getElementById("tm-subnav-absent-btn"),
+    subnavPresentBadge: document.getElementById("tm-subnav-present-badge"),
+    subnavAbsentBadge: document.getElementById("tm-subnav-absent-badge"),
+    presentView: document.getElementById("tm-present-view"),
+    absentView: document.getElementById("tm-absent-view"),
     handsSection: document.getElementById("tm-hands-section"),
     handsBadgeNum: document.getElementById("tm-hands-badge-num"),
     handsList: document.getElementById("tm-hands-list"),
     attendeesContainer: document.getElementById("tm-attendees-container"),
     attendeesEmpty: document.getElementById("tm-attendees-empty"),
+    absenteesContainer: document.getElementById("tm-absentees-container"),
+    absenteesEmpty: document.getElementById("tm-absentees-empty"),
     handsNavBadge: document.getElementById("tm-hands-nav-badge"),
 
     // Nav
@@ -220,7 +236,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 6. Navigation Tabs
+  // 6. Navigation Tabs & Sub-navigation
   // ---------------------------------------------------------------------------
   function switchTab(targetTab) {
     activeTab = targetTab;
@@ -237,12 +253,43 @@
       if (el.chatBox) {
         el.chatBox.scrollTop = el.chatBox.scrollHeight;
       }
+    } else if (targetTab === "attendees") {
+      if (el.absentView && !el.absentView.hidden) {
+        fetchLiveAbsentees();
+      }
     }
   }
 
   el.navButtons.forEach((btn) => {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
   });
+
+  if (el.subnavPresentBtn && el.subnavAbsentBtn) {
+    el.subnavPresentBtn.addEventListener("click", () => {
+      el.subnavPresentBtn.classList.add("is-active");
+      el.subnavAbsentBtn.classList.remove("is-active");
+      if (el.presentView) el.presentView.hidden = false;
+      if (el.absentView) el.absentView.hidden = true;
+      renderAttendees();
+    });
+
+    el.subnavAbsentBtn.addEventListener("click", () => {
+      el.subnavAbsentBtn.classList.add("is-active");
+      el.subnavPresentBtn.classList.remove("is-active");
+      if (el.presentView) el.presentView.hidden = true;
+      if (el.absentView) el.absentView.hidden = false;
+      fetchLiveAbsentees();
+    });
+  }
+
+  if (el.absentCardBtn) {
+    el.absentCardBtn.addEventListener("click", () => {
+      switchTab("attendees");
+      if (el.subnavAbsentBtn) {
+        el.subnavAbsentBtn.click();
+      }
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // 7. Level & Subject Synchronization
@@ -286,6 +333,7 @@
   el.levelSelect.addEventListener("change", (e) => {
     if (!classActive) {
       updateLevelSelection(e.target.value);
+      checkActiveRoomForCompanion(e.target.value);
     }
   });
 
@@ -696,6 +744,104 @@
   }
 
   // ---------------------------------------------------------------------------
+  // 10.5 Companion Mode (PC Broadcast Synchronizer)
+  // ---------------------------------------------------------------------------
+  async function checkActiveRoomForCompanion(level) {
+    if (classActive && !isCompanionMode) return;
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    try {
+      const res = await emitWithAcknowledgement("teacher_check_active_room", { level }, 4000);
+      if (res?.ok && res.hasActiveRoom) {
+        await enterCompanionMode(res.level, res.subject, res.teacherSocketId);
+      } else if (isCompanionMode) {
+        exitCompanionMode();
+      }
+    } catch (_) {}
+  }
+
+  async function enterCompanionMode(level, subject, teacherSocketId) {
+    isCompanionMode = true;
+    classActive = true;
+    activeLevel = level;
+    if (subject) activeSubject = subject;
+    companionPrimaryTeacherSocketId = teacherSocketId;
+
+    if (el.levelSelect) {
+      el.levelSelect.value = level;
+      el.levelSelect.disabled = true;
+    }
+    if (el.subjectSelect) {
+      el.subjectSelect.value = activeSubject;
+      el.subjectSelect.disabled = true;
+    }
+
+    try {
+      await emitWithAcknowledgement("teacher_companion_join", { level }, 5000);
+    } catch (err) {
+      console.warn("teacher_companion_join acknowledge:", err);
+    }
+
+    setLiveState(true);
+    setStatus("🟢 وضع المساعد: متزامن مع بث الحاسوب مباشرة", "live");
+    showToast("متصل كمساعد للبث المباشر مع الحاسوب 📱💻");
+
+    if (el.stageModeTag) {
+      el.stageModeTag.innerHTML = `<span>📡 شاشة مراقبة الحاسوب مباشرة</span>`;
+    }
+
+    if (el.startBtn) {
+      el.startBtn.classList.add("is-companion");
+      if (el.startBtnText) el.startBtnText.textContent = "🟢 متزامن مع الحاسوب (مراقب للبث)";
+      if (el.startBtnIcon) el.startBtnIcon.textContent = "💻";
+      el.startBtn.disabled = true;
+    }
+
+    if (el.micBtn) {
+      el.micBtn.disabled = true;
+      if (el.micLabel) el.micLabel.textContent = "المايك (من الحاسوب)";
+    }
+    if (el.cameraBtn) {
+      el.cameraBtn.disabled = true;
+      if (el.cameraLabel) el.cameraLabel.textContent = "الكاميرا (من الحاسوب)";
+    }
+    if (el.endBtn) {
+      el.endBtn.disabled = false;
+    }
+
+    if (el.chatInput) el.chatInput.disabled = false;
+    if (el.chatSendBtn) el.chatSendBtn.disabled = !el.chatInput?.value.trim();
+
+    fetchLiveAbsentees();
+  }
+
+  function exitCompanionMode() {
+    if (companionPeerConnection) {
+      try { companionPeerConnection.close(); } catch (_) {}
+      companionPeerConnection = null;
+    }
+    companionPrimaryTeacherSocketId = null;
+    if (el.companionVideo) {
+      el.companionVideo.srcObject = null;
+      el.companionVideo.classList.remove("is-active");
+    }
+
+    isCompanionMode = false;
+    classActive = false;
+    setLiveState(false);
+    setStatus("تم الخروج من وضع المساعد. يمكنك بدء بث جديد من الهاتف.", "neutral");
+    if (el.stageModeTag) {
+      el.stageModeTag.innerHTML = `<span>🎙️ صوت وصورة المستوى</span>`;
+    }
+
+    attendeesMap.clear();
+    renderAttendees();
+    updateControls();
+  }
+
+  // ---------------------------------------------------------------------------
   // 11. Class Lifecycle (Start / Resume / End)
   // ---------------------------------------------------------------------------
   async function startLiveClass() {
@@ -708,14 +854,11 @@
     }
 
     isStarting = true;
-    setStatus("جارٍ إعداد الصوت والاتصال بالخادم…", "neutral");
+    setStatus("جارٍ فحص البث والاتصال بالخادم…", "neutral");
     updateControls();
 
     try {
-      // 1. Acquire mic
-      await setupMicrophone();
-
-      // 2. Connect socket if needed
+      // 1. Connect socket if needed
       if (!socket.connected) {
         socket.connect();
         await new Promise((resolve, reject) => {
@@ -731,7 +874,20 @@
         });
       }
 
-      // 3. Emit teacher_start_room
+      // 2. Check if PC already has an active broadcast for this level
+      try {
+        const activeCheck = await emitWithAcknowledgement("teacher_check_active_room", { level: activeLevel }, 3000);
+        if (activeCheck?.ok && activeCheck.hasActiveRoom) {
+          showToast("تم اكتشاف بث مباشر جارٍ من الحاسوب! جارٍ المزامنة كمساعد…");
+          await enterCompanionMode(activeCheck.level, activeCheck.subject, activeCheck.teacherSocketId);
+          return;
+        }
+      } catch (_) {}
+
+      // 3. Acquire mic for mobile standalone broadcast
+      await setupMicrophone();
+
+      // 4. Emit teacher_start_room
       classResumeToken = generateResumeToken();
       const response = await emitWithAcknowledgement("teacher_start_room", {
         level: activeLevel,
@@ -748,10 +904,11 @@
         resumeToken: classResumeToken,
       }));
 
-      // 4. Update UI to Live
+      // 5. Update UI to Live
       setLiveState(true);
       setStatus(`الحصة مباشرة الآن — ${activeLevel} | ${activeSubject}`, "live");
       showToast(`بدأت الحصة المباشرة لـ ${activeLevel} 🎉`);
+      fetchLiveAbsentees();
     } catch (err) {
       console.error("Unable to start live class:", err);
       classActive = false;
@@ -765,6 +922,11 @@
 
   async function endLiveClass() {
     if (!classActive || isEnding) return;
+
+    if (isCompanionMode) {
+      exitCompanionMode();
+      return;
+    }
 
     isEnding = true;
     setStatus("جارٍ إنهاء الحصة…", "neutral");
@@ -859,7 +1021,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 12. Attendees & Hands Raised
+  // 12. Attendees & Hands Raised & Absentees
   // ---------------------------------------------------------------------------
   function upsertAttendee(socketId, studentId, studentName = "تلميذ", participationCount = 0) {
     const existing = attendeesMap.get(socketId) || {};
@@ -873,11 +1035,13 @@
       micEnabled: existing.micEnabled || false,
     });
     renderAttendees();
+    scheduleAbsenteesRefresh();
   }
 
   function removeAttendee(socketId) {
     attendeesMap.delete(socketId);
     renderAttendees();
+    scheduleAbsenteesRefresh();
   }
 
   function toggleStudentMic(socketId) {
@@ -912,6 +1076,7 @@
 
     // Update Counts & Badges
     if (el.studentCountStat) el.studentCountStat.textContent = totalStudents;
+    if (el.subnavPresentBadge) el.subnavPresentBadge.textContent = totalStudents;
     if (el.handsCountStat) el.handsCountStat.textContent = handsRaisedList.length;
 
     if (el.handsNavBadge) {
@@ -1007,8 +1172,168 @@
     return card;
   }
 
+  // ---------------------------------------------------------------------------
+  // 12.5 Absence Register & WhatsApp / Phone Calling
+  // ---------------------------------------------------------------------------
+  function buildWhatsAppUrl(rawPhone, studentName, level, subject) {
+    if (!rawPhone) return "#";
+    let cleaned = String(rawPhone).replace(/\D/g, "");
+    if (cleaned.startsWith("0")) {
+      cleaned = "213" + cleaned.slice(1);
+    } else if (!cleaned.startsWith("213")) {
+      cleaned = "213" + cleaned;
+    }
+    const subjectName = subject === "MATH" ? "الرياضيات" : subject === "PHYSICS" ? "الفيزياء" : "الحصة المباشرة";
+    const text = encodeURIComponent(
+      `السلام عليكم ورحمة الله وبركاته،\nولي أمر التلميذ(ة) ${studentName || ""} المحترم، نود إعلامكم بأن الحصة المباشرة لمادة ${subjectName} (${level}) مع الأستاذ د. شارف عز الدين بدأت الآن، والتلميذ مسجل غائب بالمنصة. يرجى دخوله فوراً لمتابعة الحصة.`
+    );
+    return `https://wa.me/${cleaned}?text=${text}`;
+  }
+
+  function createAbsenteeElement(student) {
+    const card = document.createElement("div");
+    card.className = "tm-absentee-card";
+
+    const left = document.createElement("div");
+    left.className = "tm-absentee-left";
+
+    const nameRow = document.createElement("div");
+    nameRow.className = "tm-absentee-name-row";
+
+    const name = document.createElement("span");
+    name.className = "tm-absentee-name";
+    name.textContent = student.studentName || "تلميذ";
+
+    const tag = document.createElement("span");
+    tag.className = "tm-absentee-tag";
+    tag.textContent = "غائب";
+
+    nameRow.append(name, tag);
+
+    const phone = document.createElement("span");
+    phone.className = "tm-absentee-phone";
+    phone.textContent = student.parentPhone ? `هاتف الولي: ${student.parentPhone}` : "لا يوجد هاتف مسجل";
+
+    left.append(nameRow, phone);
+
+    const actions = document.createElement("div");
+    actions.className = "tm-absentee-actions";
+
+    if (student.parentPhone) {
+      const waUrl = buildWhatsAppUrl(student.parentPhone, student.studentName, activeLevel, activeSubject);
+      const waBtn = document.createElement("a");
+      waBtn.className = "tm-btn-whatsapp";
+      waBtn.href = waUrl;
+      waBtn.target = "_blank";
+      waBtn.rel = "noopener noreferrer";
+      waBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2m.01 1.67c4.56 0 8.27 3.71 8.27 8.27 0 2.21-.86 4.29-2.42 5.85a8.21 8.21 0 0 1-5.85 2.42c-1.42 0-2.82-.37-4.06-1.07l-.29-.17-3.11.82.83-3.03-.19-.3a8.23 8.23 0 0 1-1.26-4.38c0-4.56 3.71-8.27 8.27-8.27m4.54 11.69c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.02-1.25-.75-.67-1.25-1.5-1.4-1.75-.14-.25-.02-.38.11-.51.11-.11.25-.29.37-.44.13-.14.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.47c-.17 0-.44.06-.67.31-.23.25-.87.85-.87 2.08s.89 2.41 1.01 2.58c.13.17 1.75 2.67 4.24 3.75.59.26 1.05.41 1.41.53.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.68-1.18.2-.59.2-1.09.14-1.19-.05-.1-.22-.16-.47-.28z"/>
+        </svg>
+        <span>واتساب</span>
+      `;
+
+      const phoneBtn = document.createElement("a");
+      phoneBtn.className = "tm-btn-phone";
+      phoneBtn.href = `tel:${student.parentPhone}`;
+      phoneBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+        </svg>
+        <span>اتصال</span>
+      `;
+
+      actions.append(waBtn, phoneBtn);
+    }
+
+    card.append(left, actions);
+    return card;
+  }
+
+  function renderAbsenteesList(absentees = []) {
+    if (!el.absenteesContainer) return;
+    const query = (el.attendeeSearch?.value || "").trim().toLowerCase();
+    const filtered = absentees.filter((s) => {
+      if (!query) return true;
+      return (s.studentName || "").toLowerCase().includes(query) || (s.parentPhone || "").includes(query);
+    });
+
+    el.absenteesContainer.innerHTML = "";
+    if (filtered.length === 0) {
+      if (el.absenteesEmpty) {
+        el.absenteesEmpty.style.display = "block";
+        el.absenteesEmpty.textContent = query
+          ? `لا توجد نتائج مطابقة للبحث "${query}".`
+          : "لا يوجد تلاميذ غائبون حالياً (جميع المشتركين حاضرون أو لا توجد اشتراكات مفعلة).";
+        el.absenteesContainer.append(el.absenteesEmpty);
+      }
+    } else {
+      filtered.forEach((s) => {
+        el.absenteesContainer.append(createAbsenteeElement(s));
+      });
+    }
+  }
+
+  async function fetchLiveAbsentees() {
+    const level = activeLevel || el.levelSelect?.value || "";
+    const subject = activeSubject || el.subjectSelect?.value || "";
+    if (!level) return null;
+
+    const presentIds = Array.from(attendeesMap.values())
+      .map((s) => s.studentId)
+      .filter(Boolean)
+      .join(",");
+
+    const params = new URLSearchParams({
+      level,
+      subject,
+      presentIds,
+    });
+
+    try {
+      const res = await fetch(`/api/academic/live-absentees?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${teacherToken}`,
+          Accept: "application/json",
+        },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      currentAbsenteesData = data;
+
+      const count = data.absentCount || 0;
+      if (el.absentCountStat) el.absentCountStat.textContent = count;
+      if (el.subnavAbsentBadge) el.subnavAbsentBadge.textContent = count;
+
+      if (el.absentView && !el.absentView.hidden) {
+        renderAbsenteesList(data.absentees || []);
+      }
+      return data;
+    } catch (err) {
+      console.warn("fetchLiveAbsentees error:", err);
+      return null;
+    }
+  }
+
+  function scheduleAbsenteesRefresh() {
+    clearTimeout(absenteesRefreshTimer);
+    absenteesRefreshTimer = setTimeout(() => {
+      if (classActive || isCompanionMode) {
+        fetchLiveAbsentees();
+      }
+    }, 600);
+  }
+
+  function handleAttendeeSearch() {
+    if (el.absentView && !el.absentView.hidden) {
+      renderAbsenteesList(currentAbsenteesData?.absentees || []);
+    } else {
+      renderAttendees();
+    }
+  }
+
   if (el.attendeeSearch) {
-    el.attendeeSearch.addEventListener("input", renderAttendees);
+    el.attendeeSearch.addEventListener("input", handleAttendeeSearch);
   }
 
   // ---------------------------------------------------------------------------
@@ -1139,6 +1464,9 @@
   // ---------------------------------------------------------------------------
   socket.on("connect", () => {
     console.info("[Socket.io] Connected to live studio server.");
+    if (!classActive) {
+      checkActiveRoomForCompanion(el.levelSelect?.value || activeLevel);
+    }
   });
 
   socket.on("connect_error", (err) => {
@@ -1152,7 +1480,9 @@
 
     upsertAttendee(socketId, studentId, studentName, participationCount);
     showToast(`انضم ${studentName || "تلميذ"} إلى الحصة 👏`);
-    await createAndSendOffer(socketId);
+    if (!isCompanionMode) {
+      await createAndSendOffer(socketId);
+    }
   });
 
   socket.on("student_left", (data = {}) => {
@@ -1230,6 +1560,52 @@
     });
   });
 
+  socket.on("webrtc_offer", async (data = {}) => {
+    const { fromSocketId, sdp } = data;
+    if (!isCompanionMode || !sdp) return;
+
+    try {
+      if (companionPeerConnection) {
+        try { companionPeerConnection.close(); } catch (_) {}
+      }
+
+      companionPeerConnection = new RTCPeerConnection(rtcConfig);
+      companionPrimaryTeacherSocketId = fromSocketId;
+
+      companionPeerConnection.ontrack = (event) => {
+        if (event.streams && event.streams[0]) {
+          if (el.companionVideo) {
+            el.companionVideo.srcObject = event.streams[0];
+            el.companionVideo.classList.add("is-active");
+            el.companionVideo.play().catch((err) => console.warn("Companion video autoplay prevented:", err));
+          }
+        }
+      };
+
+      companionPeerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit("webrtc_ice_candidate", {
+            targetSocketId: fromSocketId,
+            candidate: event.candidate,
+            level: activeLevel,
+          });
+        }
+      };
+
+      await companionPeerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+      const answer = await companionPeerConnection.createAnswer();
+      await companionPeerConnection.setLocalDescription(answer);
+
+      socket.emit("webrtc_answer", {
+        targetSocketId: fromSocketId,
+        sdp: companionPeerConnection.localDescription,
+        level: activeLevel,
+      });
+    } catch (err) {
+      console.warn("Unable to process broadcaster offer on companion:", err);
+    }
+  });
+
   socket.on("webrtc_answer", async (data = {}) => {
     const { fromSocketId, sdp } = data;
     const pc = peerConnections[fromSocketId];
@@ -1266,9 +1642,16 @@
 
   socket.on("webrtc_ice_candidate", async (data = {}) => {
     const { fromSocketId, candidate } = data;
-    const pc = peerConnections[fromSocketId];
     if (!candidate) return;
 
+    if (isCompanionMode && companionPeerConnection && fromSocketId === companionPrimaryTeacherSocketId) {
+      try {
+        await companionPeerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (_) {}
+      return;
+    }
+
+    const pc = peerConnections[fromSocketId];
     if (!pc || !pc.remoteDescription) {
       pendingIceCandidates[fromSocketId] = pendingIceCandidates[fromSocketId] || [];
       pendingIceCandidates[fromSocketId].push(candidate);
@@ -1281,6 +1664,11 @@
   });
 
   socket.on("class_ended", () => {
+    if (isCompanionMode) {
+      showToast("أُنهي البث من الحاسوب.");
+      exitCompanionMode();
+      return;
+    }
     if (classActive) {
       showToast("أُنهيت الحصة.");
       endLiveClass();
@@ -1319,6 +1707,12 @@
   document.addEventListener("DOMContentLoaded", () => {
     updateLevelSelection(el.levelSelect.value || "السنة الأولى");
     updateControls();
+
+    // Connect socket to immediately check for running PC broadcast
+    if (!socket.connected) {
+      socket.connect();
+    }
+    checkActiveRoomForCompanion(el.levelSelect?.value || "السنة الأولى");
 
     // Check for previous active recovery
     try {

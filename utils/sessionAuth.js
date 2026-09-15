@@ -55,7 +55,12 @@ async function issueSession(payload, req) {
     select: { tokenId: true, userAgent: true, ipAddress: true },
   });
 
-  if (sessionTakeoverNotifier && previousSessions.length) {
+  const isTeacher = role === "teacher";
+
+  // Only enforce single-session takeover for non-teacher roles (students/parents).
+  // The teacher is explicitly permitted to open both PC (computer broadcast) and mobile phone
+  // concurrently to manage attendance, WhatsApp contact with absentees, and live chat.
+  if (!isTeacher && sessionTakeoverNotifier && previousSessions.length) {
     await Promise.allSettled(previousSessions.map((previousSession) => sessionTakeoverNotifier({
       previousSession,
       role,
@@ -66,17 +71,19 @@ async function issueSession(payload, req) {
   }
 
   await prisma.$transaction(async (tx) => {
-    // One active session per account. For the teacher, subjectId is null and
-    // role=teacher identifies the single teacher account.
-    await tx.session.updateMany({
-      where: {
-        role,
-        subjectId,
-        revokedAt: null,
-        expiresAt: { gt: now },
-      },
-      data: { revokedAt: now },
-    });
+    // One active session per account for parents and students.
+    // For teacher, do not revoke existing sessions so PC and phone remain active together.
+    if (!isTeacher) {
+      await tx.session.updateMany({
+        where: {
+          role,
+          subjectId,
+          revokedAt: null,
+          expiresAt: { gt: now },
+        },
+        data: { revokedAt: now },
+      });
+    }
     await tx.session.create({
       data: {
         tokenId,

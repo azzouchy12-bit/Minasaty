@@ -219,7 +219,7 @@ body {
 }
 
 .tm-tab-pane {
-  display: none;
+  display: none !important;
   width: 100%;
   height: 100%;
   overflow-y: auto;
@@ -229,7 +229,7 @@ body {
 }
 
 .tm-tab-pane.is-active {
-  display: flex;
+  display: flex !important;
   flex-direction: column;
   animation: tm-fade-in 0.25s ease forwards;
 }
@@ -602,14 +602,54 @@ body {
   color: var(--tm-text-secondary);
 }
 
+.tm-stat-card.is-clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tm-stat-card.is-clickable:active {
+  transform: scale(0.97);
+  background: var(--tm-surface-hover);
+}
+
+.tm-stats-row-secondary {
+  margin-top: 4px;
+}
+
+.tm-stat-card-absent {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(239, 68, 68, 0.08));
+  border-color: rgba(245, 158, 11, 0.3);
+  justify-content: space-between;
+}
+
+.tm-stat-icon.absent {
+  background: rgba(245, 158, 11, 0.18);
+  color: #f59e0b;
+}
+
+.tm-stat-action-hint {
+  margin-right: auto;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fbbf24;
+  padding: 4px 10px;
+  border-radius: var(--tm-radius-full);
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
 /* --------------------------------------------------------------------------
    Tab 2: Chat (الدردشة)
    -------------------------------------------------------------------------- */
 .tm-chat-pane {
   padding: 0;
-  display: flex;
-  flex-direction: column;
   height: 100%;
+}
+
+.tm-chat-pane.is-active {
+  display: flex !important;
+  flex-direction: column;
 }
 
 .tm-chat-header {
@@ -980,6 +1020,249 @@ body {
   color: var(--tm-text-muted);
   font-size: 0.82rem;
   padding: 30px 10px;
+}
+
+/* Sub-Navigation Switcher inside Attendees Pane */
+.tm-attendees-subnav {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: var(--tm-surface);
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-radius-md);
+  margin-bottom: 4px;
+}
+
+.tm-subnav-btn {
+  flex: 1;
+  height: 40px;
+  border-radius: var(--tm-radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--tm-text-secondary);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tm-subnav-btn.is-active {
+  background: var(--tm-surface-elevated);
+  color: var(--tm-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.tm-subnav-btn.is-active.tab-absent {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.tm-subnav-badge {
+  padding: 2px 7px;
+  border-radius: var(--tm-radius-full);
+  font-size: 0.7rem;
+  font-weight: 800;
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--tm-text-muted);
+}
+
+.tm-subnav-btn.is-active .tm-subnav-badge {
+  background: var(--tm-primary);
+  color: #ffffff;
+}
+
+.tm-subnav-btn.is-active.tab-absent .tm-subnav-badge {
+  background: var(--tm-warning);
+  color: #000000;
+}
+
+/* Absentees List & Cards */
+.tm-absentees-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tm-absentee-card {
+  background: var(--tm-surface);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--tm-radius-md);
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  transition: border-color 0.2s;
+}
+
+.tm-absentee-card:active {
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.tm-absentee-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tm-absentee-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tm-absentee-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--tm-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tm-absentee-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+  padding: 2px 6px;
+  border-radius: var(--tm-radius-full);
+}
+
+.tm-absentee-phone {
+  font-size: 0.76rem;
+  color: var(--tm-text-secondary);
+  font-family: monospace;
+  direction: ltr;
+  text-align: right;
+}
+
+.tm-absentee-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.tm-btn-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 11px;
+  border-radius: var(--tm-radius-sm);
+  background: #25d366;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.74rem;
+  text-decoration: none;
+  box-shadow: 0 3px 10px rgba(37, 211, 102, 0.35);
+  transition: all 0.15s ease;
+}
+
+.tm-btn-whatsapp:active {
+  transform: scale(0.93);
+  background: #20ba5a;
+}
+
+.tm-btn-whatsapp svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.tm-btn-phone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 11px;
+  border-radius: var(--tm-radius-sm);
+  background: var(--tm-surface-elevated);
+  border: 1px solid var(--tm-border);
+  color: var(--tm-text);
+  font-weight: 700;
+  font-size: 0.74rem;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.tm-btn-phone:active {
+  transform: scale(0.93);
+  background: var(--tm-surface-hover);
+}
+
+.tm-btn-phone svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+/* Companion / Monitor Mode Overlays */
+.tm-companion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--tm-radius-full);
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+  font-size: 0.74rem;
+  font-weight: 700;
+  animation: tm-fade-in 0.3s ease;
+}
+
+.tm-companion-badge .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: tm-pulse-dot 1.5s infinite;
+}
+
+.tm-companion-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: var(--tm-radius-md);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 95, 70, 0.2));
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  margin-bottom: 10px;
+}
+
+.tm-companion-banner-text {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #6ee7b7;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tm-companion-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  display: none;
+  z-index: 5;
+}
+
+.tm-companion-video.is-active {
+  display: block;
 }
 
 /* --------------------------------------------------------------------------

@@ -221,6 +221,9 @@
   }
 
   window.handleSessionTakeover = function handleSessionTakeover() {
+    if (sessionStorage.getItem("teacherToken") || sessionStorage.getItem("userRole") === "teacher") {
+      return; // The teacher is explicitly permitted to open PC and mobile concurrently
+    }
     clearLocalAuthState();
     window.location.replace("/index.html?session=takeover");
   };

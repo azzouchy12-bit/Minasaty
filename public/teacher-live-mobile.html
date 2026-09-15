@@ -105,6 +105,12 @@
               playsinline
               muted
             ></video>
+            <video
+              id="tm-companion-video"
+              class="tm-companion-video"
+              autoplay
+              playsinline
+            ></video>
 
             <!-- Camera flip button (Front / Back) -->
             <button
@@ -185,6 +191,20 @@
               </div>
             </div>
           </div>
+
+          <!-- Secondary Row: Absentees -->
+          <div class="tm-stats-row tm-stats-row-secondary">
+            <div id="tm-absent-card-btn" class="tm-stat-card is-clickable tm-stat-card-absent" role="button" tabindex="0" title="اضغط لعرض سجل الغائبين والتواصل معهم">
+              <div class="tm-stat-icon absent">⚠️</div>
+              <div class="tm-stat-info">
+                <span id="tm-absent-count-stat" class="tm-stat-value">0</span>
+                <span class="tm-stat-label">الغائبون عن الحصة</span>
+              </div>
+              <div class="tm-stat-action-hint">
+                <span>عرض والاتصال ‹</span>
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- TAB 2: CHAT (الدردشة) -->
@@ -224,8 +244,20 @@
           </form>
         </section>
 
-        <!-- TAB 3: ATTENDEES (الحضور وطلبات التحدث) -->
+        <!-- TAB 3: ATTENDEES (الحضور وطلبات التحدث وسجل الغياب) -->
         <section id="tab-pane-attendees" class="tm-tab-pane tm-attendees-pane" data-pane="attendees">
+          <!-- Sub-navigation: Present Students vs Absentees -->
+          <div class="tm-attendees-subnav" role="tablist">
+            <button id="tm-subnav-present-btn" class="tm-subnav-btn is-active" type="button" role="tab" aria-selected="true">
+              <span>👥 الحاضرون الآن</span>
+              <span id="tm-subnav-present-badge" class="tm-subnav-badge">0</span>
+            </button>
+            <button id="tm-subnav-absent-btn" class="tm-subnav-btn tab-absent" type="button" role="tab" aria-selected="false">
+              <span>⚠️ سجل الغياب</span>
+              <span id="tm-subnav-absent-badge" class="tm-subnav-badge">0</span>
+            </button>
+          </div>
+
           <!-- Search box -->
           <div class="tm-attendees-search-wrap">
             <span class="tm-attendees-search-icon" aria-hidden="true">🔍</span>
@@ -238,18 +270,30 @@
             />
           </div>
 
-          <!-- Highlighted Raised Hands Section -->
-          <div id="tm-hands-section" class="tm-hands-section" hidden>
-            <span class="tm-hands-section-title">
-              ✋ طلبات التحدث المرفوعة (<span id="tm-hands-badge-num">0</span>)
-            </span>
-            <div id="tm-hands-list" class="tm-hands-list"></div>
+          <!-- Present Students View -->
+          <div id="tm-present-view">
+            <!-- Highlighted Raised Hands Section -->
+            <div id="tm-hands-section" class="tm-hands-section" hidden>
+              <span class="tm-hands-section-title">
+                ✋ طلبات التحدث المرفوعة (<span id="tm-hands-badge-num">0</span>)
+              </span>
+              <div id="tm-hands-list" class="tm-hands-list"></div>
+            </div>
+
+            <!-- All Present Students List -->
+            <div id="tm-attendees-container" class="tm-hands-list">
+              <div id="tm-attendees-empty" class="tm-attendees-empty">
+                ستظهر أسماء التلاميذ المنضمين هنا فور دخولهم الحصة.
+              </div>
+            </div>
           </div>
 
-          <!-- All Students List -->
-          <div id="tm-attendees-container" class="tm-hands-list">
-            <div id="tm-attendees-empty" class="tm-attendees-empty">
-              ستظهر أسماء التلاميذ المنضمين هنا فور دخولهم الحصة.
+          <!-- Absentees View -->
+          <div id="tm-absent-view" hidden>
+            <div id="tm-absentees-container" class="tm-absentees-list">
+              <div id="tm-absentees-empty" class="tm-attendees-empty">
+                جارٍ تحميل سجل الغائبين...
+              </div>
             </div>
           </div>
         </section>
