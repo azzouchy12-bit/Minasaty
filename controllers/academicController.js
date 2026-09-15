@@ -952,6 +952,23 @@ async function getLiveClassAbsentees(req, res) {
     return res.status(400).json({ error: "المستوى الدراسي مطلوب." });
   }
 
+  // Automatically discover connected students from active socket room for this level
+  const io = req.app.get("io");
+  if (io && level) {
+    const levelNamesToCheck = [level, ...academicLevelCandidates(level)];
+    for (const lvl of levelNamesToCheck) {
+      const roomSockets = io.sockets.adapter.rooms.get(lvl);
+      if (roomSockets) {
+        for (const sid of roomSockets) {
+          const s = io.sockets.sockets.get(sid);
+          if (s && s.data && s.data.role === "student" && s.data.studentId) {
+            presentIds.add(String(s.data.studentId));
+          }
+        }
+      }
+    }
+  }
+
   const isUniversityClass = level === "طالب جامعي";
   const isGlobalFree = level === "FREE" || subject === "FREE";
 

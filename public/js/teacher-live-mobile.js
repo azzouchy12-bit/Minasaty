@@ -216,22 +216,34 @@
 
   function emitWithAcknowledgement(eventName, payload, timeoutMs = 10000) {
     return new Promise((resolve, reject) => {
-      if (!socket.connected) {
-        reject(new Error("الاتصال بالخادم غير متاح حالياً."));
-        return;
-      }
-      const timeoutId = window.setTimeout(() => {
-        reject(new Error("انتهت مهلة استجابة الخادم."));
-      }, timeoutMs);
+      const doEmit = () => {
+        const timeoutId = window.setTimeout(() => {
+          reject(new Error("انتهت مهلة استجابة الخادم."));
+        }, timeoutMs);
 
-      socket.emit(eventName, payload, (response) => {
-        window.clearTimeout(timeoutId);
-        if (response?.ok) {
-          resolve(response);
-          return;
-        }
-        reject(new Error(response?.message || response?.error || "تعذر تنفيذ الطلب من الخادم."));
-      });
+        socket.emit(eventName, payload, (response) => {
+          window.clearTimeout(timeoutId);
+          if (response?.ok) {
+            resolve(response);
+            return;
+          }
+          reject(new Error(response?.message || response?.error || "تعذر تنفيذ الطلب من الخادم."));
+        });
+      };
+
+      if (socket.connected) {
+        doEmit();
+      } else {
+        socket.connect();
+        const connectTimeout = window.setTimeout(() => {
+          reject(new Error("الاتصال بالخادم غير متاح حالياً."));
+        }, Math.min(timeoutMs, 6000));
+
+        socket.once("connect", () => {
+          window.clearTimeout(connectTimeout);
+          doEmit();
+        });
+      }
     });
   }
 
@@ -330,18 +342,27 @@
     }
   }
 
-  el.levelSelect.addEventListener("change", (e) => {
-    if (!classActive) {
-      updateLevelSelection(e.target.value);
-      checkActiveRoomForCompanion(e.target.value);
-    }
+  function isStandaloneBroadcaster() {
+    return classActive && !isCompanionMode;
+  }
+
+  el.levelSelect.addEventListener("change", async (e) => {
+    if (isStandaloneBroadcaster()) return;
+    activeLevel = e.target.value;
+    try { localStorage.setItem("tm_last_level", activeLevel); } catch (_) {}
+    updateLevelSelection(activeLevel);
+    attendeesMap.clear();
+    renderAttendees();
+    await checkActiveRoomForCompanion(activeLevel, activeSubject);
   });
 
-  el.subjectSelect.addEventListener("change", (e) => {
-    if (!classActive) {
-      activeSubject = e.target.value;
-      fetchLiveAbsentees();
-    }
+  el.subjectSelect.addEventListener("change", async (e) => {
+    if (isStandaloneBroadcaster()) return;
+    activeSubject = e.target.value;
+    try { localStorage.setItem("tm_last_subject", activeSubject); } catch (_) {}
+    attendeesMap.clear();
+    renderAttendees();
+    await checkActiveRoomForCompanion(activeLevel, activeSubject);
   });
 
   // ---------------------------------------------------------------------------
@@ -747,25 +768,26 @@
   // ---------------------------------------------------------------------------
   // 10.5 Companion Mode (PC Broadcast Synchronizer)
   // ---------------------------------------------------------------------------
-  async function checkActiveRoomForCompanion(level) {
-    if (classActive && !isCompanionMode) return;
-    if (!socket.connected) {
-      socket.connect();
-    }
+  async function checkActiveRoomForCompanion(level, subject) {
+    if (isStandaloneBroadcaster()) return;
 
     try {
-      const res = await emitWithAcknowledgement("teacher_check_active_room", { level }, 4000);
+      const res = await emitWithAcknowledgement("teacher_check_active_room", { level, subject }, 4000);
       const isRoomActive = Boolean(res?.ok && (res.active || res.hasActiveRoom));
       if (isRoomActive) {
         await enterCompanionMode(res.level, res.subject, res.teacherSocketId, res.presentStudents);
       } else {
         if (isCompanionMode) {
-          exitCompanionMode();
+          exitCompanionMode(false);
         }
-        fetchLiveAbsentees();
+        await fetchLiveAbsentees();
       }
-    } catch (_) {
-      fetchLiveAbsentees();
+    } catch (err) {
+      console.warn("checkActiveRoomForCompanion error:", err);
+      if (isCompanionMode) {
+        exitCompanionMode(false);
+      }
+      await fetchLiveAbsentees();
     }
   }
 
@@ -776,15 +798,17 @@
     if (subject) activeSubject = subject;
     companionPrimaryTeacherSocketId = teacherSocketId;
 
-    if (el.levelSelect) {
+    if (el.levelSelect && el.levelSelect.value !== level) {
       el.levelSelect.value = level;
-      el.levelSelect.disabled = true;
       updateLevelSelection(level);
     }
-    if (el.subjectSelect && subject) {
+    if (el.subjectSelect && subject && el.subjectSelect.value !== subject) {
       el.subjectSelect.value = subject;
-      el.subjectSelect.disabled = true;
     }
+
+    // Keep dropdowns enabled so teacher can switch levels anytime!
+    if (el.levelSelect) el.levelSelect.disabled = false;
+    if (el.subjectSelect) el.subjectSelect.disabled = false;
 
     // Populate initial students if provided
     if (Array.isArray(initialStudents) && initialStudents.length > 0) {
@@ -839,10 +863,10 @@
     if (el.chatSendBtn) el.chatSendBtn.disabled = !el.chatInput?.value.trim();
 
     renderAttendees();
-    fetchLiveAbsentees();
+    await fetchLiveAbsentees();
   }
 
-  function exitCompanionMode() {
+  function exitCompanionMode(resetDropdowns = false) {
     if (companionPeerConnection) {
       try { companionPeerConnection.close(); } catch (_) {}
       companionPeerConnection = null;
@@ -859,6 +883,13 @@
     setStatus("تم الخروج من وضع المساعد. يمكنك بدء بث جديد من الهاتف.", "neutral");
     if (el.stageModeTag) {
       el.stageModeTag.innerHTML = `<span>🎙️ صوت وصورة المستوى</span>`;
+    }
+
+    if (el.startBtn) {
+      el.startBtn.classList.remove("is-companion");
+      if (el.startBtnText) el.startBtnText.textContent = "بدء الحصة المباشرة";
+      if (el.startBtnIcon) el.startBtnIcon.textContent = "▶";
+      el.startBtn.disabled = false;
     }
 
     attendeesMap.clear();
@@ -938,6 +969,11 @@
       fetchLiveAbsentees();
     } catch (err) {
       console.error("Unable to start live class:", err);
+      if (err.message && err.message.includes("توجد حصة مباشرة نشطة لهذا المستوى بالفعل")) {
+        showToast("تم اكتشاف بث مباشر جارٍ من الحاسوب! جارٍ المزامنة كمساعد…");
+        await checkActiveRoomForCompanion(activeLevel, activeSubject);
+        return;
+      }
       classActive = false;
       setStatus(err.message || "تعذر بدء الحصة. حاول مرة أخرى.", "error");
       showToast("تعذر بدء الحصة: " + (err.message || "خطأ غير متوقع"));
@@ -1328,9 +1364,32 @@
       const data = await res.json();
       currentAbsenteesData = data;
 
+      // Sync any present students from server into attendeesMap
+      if (Array.isArray(data.present) && data.present.length > 0) {
+        data.present.forEach((pStudent) => {
+          const alreadyInMap = Array.from(attendeesMap.values()).some((att) => att.studentId === pStudent.id);
+          if (!alreadyInMap) {
+            attendeesMap.set(`student_${pStudent.id}`, {
+              socketId: `student_${pStudent.id}`,
+              studentId: pStudent.id,
+              studentName: pStudent.studentName,
+              participationCount: 0,
+              handRaised: false,
+              micEnabled: false,
+            });
+          }
+        });
+      }
+
       const count = data.absentCount || 0;
+      const presentCount = data.presentCount || attendeesMap.size;
+
       if (el.absentCountStat) el.absentCountStat.textContent = count;
       if (el.subnavAbsentBadge) el.subnavAbsentBadge.textContent = count;
+      if (el.studentCountStat) el.studentCountStat.textContent = presentCount;
+      if (el.subnavPresentBadge) el.subnavPresentBadge.textContent = presentCount;
+
+      renderAttendees();
 
       if (el.absentView && !el.absentView.hidden) {
         renderAbsenteesList(data.absentees || []);
@@ -1730,14 +1789,33 @@
   // 16. Initialization on Load
   // ---------------------------------------------------------------------------
   document.addEventListener("DOMContentLoaded", () => {
-    updateLevelSelection(el.levelSelect.value || "السنة الأولى");
+    let initialLevel = el.levelSelect?.value || "السنة الأولى";
+    let initialSubject = el.subjectSelect?.value || "MATH";
+
+    try {
+      const savedLevel = localStorage.getItem("tm_last_level");
+      if (savedLevel && el.levelSelect) {
+        el.levelSelect.value = savedLevel;
+        initialLevel = savedLevel;
+      }
+      const savedSub = localStorage.getItem("tm_last_subject");
+      if (savedSub && el.subjectSelect) {
+        el.subjectSelect.value = savedSub;
+        initialSubject = savedSub;
+      }
+    } catch (_) {}
+
+    activeLevel = initialLevel;
+    activeSubject = initialSubject;
+
+    updateLevelSelection(initialLevel);
     updateControls();
 
     // Connect socket to immediately check for running PC broadcast
     if (!socket.connected) {
       socket.connect();
     }
-    checkActiveRoomForCompanion(el.levelSelect?.value || "السنة الأولى");
+    checkActiveRoomForCompanion(initialLevel, initialSubject);
 
     // Check for previous active recovery
     try {

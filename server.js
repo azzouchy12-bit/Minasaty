@@ -33,6 +33,7 @@ const siteAnalyticsRoutes = require("./routes/siteAnalyticsRoutes");
 const referralRoutes = require("./routes/referralRoutes");
 const telegramRoutes = require("./routes/telegramRoutes");
 const messengerRoutes = require("./routes/messengerRoutes");
+const { academicLevelCandidates } = require("./utils/studentAudienceFilters");
 const ENFORCE_PARENT_MESSENGER_LINK = /^(1|true|yes)$/i.test(String(process.env.ENFORCE_PARENT_MESSENGER_LINK || ""));
 
 /**
@@ -1695,20 +1696,24 @@ io.on("connection", (socket) => {
       let foundSubject = null;
       let teacherSocketId = null;
 
-      if (requestedLevel && isValidLevel(requestedLevel)) {
-        const tSockId = activeTeachersByLevel.get(requestedLevel);
-        const tSock = tSockId ? io.sockets.sockets.get(tSockId) : null;
-        if (tSock && isInLevelRoom(tSock, requestedLevel) && tSock.id !== socket.id) {
-          foundLevel = requestedLevel;
-          foundSubject = activeSubjectByLevel.get(requestedLevel) || "MATH";
-          teacherSocketId = tSockId;
+      const candidateLevels = requestedLevel ? [requestedLevel, ...academicLevelCandidates(requestedLevel)] : [];
+      for (const lvl of candidateLevels) {
+        if (lvl && isValidLevel(lvl)) {
+          const tSockId = activeTeachersByLevel.get(lvl);
+          const tSock = tSockId ? io.sockets.sockets.get(tSockId) : null;
+          if (tSock && tSock.connected && tSock.id !== socket.id) {
+            foundLevel = lvl;
+            foundSubject = activeSubjectByLevel.get(lvl) || "MATH";
+            teacherSocketId = tSockId;
+            break;
+          }
         }
       }
 
       if (!foundLevel) {
         for (const [lvl, tSockId] of activeTeachersByLevel.entries()) {
           const tSock = tSockId ? io.sockets.sockets.get(tSockId) : null;
-          if (tSock && isInLevelRoom(tSock, lvl) && tSock.id !== socket.id) {
+          if (tSock && tSock.connected && tSock.id !== socket.id) {
             foundLevel = lvl;
             foundSubject = activeSubjectByLevel.get(lvl) || "MATH";
             teacherSocketId = tSockId;
@@ -1718,19 +1723,29 @@ io.on("connection", (socket) => {
       }
 
       if (foundLevel) {
-        const roomSockets = io.sockets.adapter.rooms.get(foundLevel);
+        const candidateRoomLevels = [foundLevel, ...academicLevelCandidates(foundLevel)];
         const presentStudents = [];
-        if (roomSockets) {
-          for (const sid of roomSockets) {
-            const s = io.sockets.sockets.get(sid);
-            if (s && s.data && s.data.role === "student" && s.id !== socket.id) {
-              presentStudents.push({
-                socketId: s.id,
-                studentId: s.data.studentId,
-                studentName: s.data.studentName || "تلميذ",
-                participationCount: s.data.participationCount || 0,
-                handRaised: Boolean(s.data.handRaised),
-              });
+        const seenStudentIds = new Set();
+
+        for (const roomLvl of candidateRoomLevels) {
+          const roomSockets = io.sockets.adapter.rooms.get(roomLvl);
+          if (roomSockets) {
+            for (const sid of roomSockets) {
+              const s = io.sockets.sockets.get(sid);
+              if (s && s.data && s.data.role === "student" && s.id !== socket.id) {
+                const sId = s.data.studentId || users.get(s.id)?.studentId || sid;
+                if (!seenStudentIds.has(sId)) {
+                  seenStudentIds.add(sId);
+                  presentStudents.push({
+                    socketId: s.id,
+                    studentId: s.data.studentId || users.get(s.id)?.studentId || null,
+                    studentName: s.data.studentName || users.get(s.id)?.name || "تلميذ",
+                    participationCount: s.data.participationCount || 0,
+                    handRaised: Boolean(s.data.handRaised),
+                    micEnabled: isStudentMicrophoneOpen(foundLevel, s.id),
+                  });
+                }
+              }
             }
           }
         }
@@ -1768,14 +1783,35 @@ io.on("connection", (socket) => {
       const authenticatedTeacher = await requireTeacherSocketSession(socket, "teacher_companion_join", acknowledgement);
       if (!authenticatedTeacher) return;
 
-      const level = normalizeText(data.level);
-      if (!isValidLevel(level)) {
-        return emitClassroomError(socket, "teacher_companion_join", "المستوى الدراسي غير صالح.", acknowledgement);
+      const requestedLevel = normalizeText(data.level);
+      let level = null;
+      let teacherSocketId = null;
+
+      const candidateLevels = requestedLevel ? [requestedLevel, ...academicLevelCandidates(requestedLevel)] : [];
+      for (const lvl of candidateLevels) {
+        if (lvl && isValidLevel(lvl)) {
+          const tSockId = activeTeachersByLevel.get(lvl);
+          const tSock = tSockId ? io.sockets.sockets.get(tSockId) : null;
+          if (tSock && tSock.connected && tSock.id !== socket.id) {
+            level = lvl;
+            teacherSocketId = tSockId;
+            break;
+          }
+        }
       }
 
-      const teacherSocketId = activeTeachersByLevel.get(level);
-      const teacherSocket = teacherSocketId ? io.sockets.sockets.get(teacherSocketId) : null;
-      if (!teacherSocket || !isInLevelRoom(teacherSocket, level)) {
+      if (!level) {
+        for (const [lvl, tSockId] of activeTeachersByLevel.entries()) {
+          const tSock = tSockId ? io.sockets.sockets.get(tSockId) : null;
+          if (tSock && tSock.connected && tSock.id !== socket.id) {
+            level = lvl;
+            teacherSocketId = tSockId;
+            break;
+          }
+        }
+      }
+
+      if (!level || !teacherSocketId) {
         return emitClassroomError(
           socket,
           "teacher_companion_join",
@@ -1796,21 +1832,30 @@ io.on("connection", (socket) => {
       }
       companions.add(socket.id);
 
-      // Gather all currently present students in this classroom
-      const roomSockets = io.sockets.adapter.rooms.get(level);
+      // Gather all currently present students in this classroom across candidate levels
+      const candidateRoomLevels = [level, ...academicLevelCandidates(level)];
       const currentStudents = [];
-      if (roomSockets) {
-        for (const sid of roomSockets) {
-          const s = io.sockets.sockets.get(sid);
-          if (s && s.data && s.data.role === "student" && s.id !== socket.id) {
-            currentStudents.push({
-              socketId: s.id,
-              studentId: s.data.studentId,
-              studentName: s.data.studentName || "تلميذ",
-              participationCount: s.data.participationCount || 0,
-              handRaised: Boolean(s.data.handRaised),
-              micEnabled: isStudentMicrophoneOpen(level, s.id),
-            });
+      const seenStudentIds = new Set();
+
+      for (const roomLvl of candidateRoomLevels) {
+        const roomSockets = io.sockets.adapter.rooms.get(roomLvl);
+        if (roomSockets) {
+          for (const sid of roomSockets) {
+            const s = io.sockets.sockets.get(sid);
+            if (s && s.data && s.data.role === "student" && s.id !== socket.id) {
+              const sId = s.data.studentId || users.get(s.id)?.studentId || sid;
+              if (!seenStudentIds.has(sId)) {
+                seenStudentIds.add(sId);
+                currentStudents.push({
+                  socketId: s.id,
+                  studentId: s.data.studentId || users.get(s.id)?.studentId || null,
+                  studentName: s.data.studentName || users.get(s.id)?.name || "تلميذ",
+                  participationCount: s.data.participationCount || 0,
+                  handRaised: Boolean(s.data.handRaised),
+                  micEnabled: isStudentMicrophoneOpen(level, s.id),
+                });
+              }
+            }
           }
         }
       }
