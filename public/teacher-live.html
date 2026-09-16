@@ -1697,7 +1697,7 @@
         <!-- شريط الرأس والأيقونة النابضة -->
         <div class="youtube-modal-head">
           <div class="youtube-icon-pulse-wrapper">
-            <svg class="youtube-brand-svg" viewBox="0 0 24 24" width="36" height="36" fill="#ff0000" aria-hidden="true">
+            <svg class="youtube-brand-svg" viewBox="0 0 24 24" width="32" height="32" fill="#ff0000" aria-hidden="true">
               <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
             </svg>
           </div>
@@ -1707,22 +1707,22 @@
           </div>
         </div>
 
-        <!-- شريط التقدم العصري مع النسبة والحجم -->
+        <!-- شريط التقدم العصري مع النسبة والحجم المنقول -->
         <div class="youtube-progress-container">
           <div class="youtube-progress-track">
             <div id="youtube-modal-progressbar" class="youtube-progress-fill" style="width: 0%;"></div>
           </div>
           <div class="youtube-progress-metrics">
             <span id="youtube-modal-percent" class="youtube-metric-percent">0%</span>
-            <span id="youtube-modal-bytes" class="youtube-metric-bytes">0 MB / 0 MB</span>
+            <span id="youtube-modal-bytes" class="youtube-metric-bytes" dir="ltr">0 MB / 0 MB</span>
           </div>
         </div>
 
-        <!-- بطاقات الإحصائيات الحية: السرعة والوقت المتبقي -->
-        <div class="youtube-stats-grid">
+        <!-- بطاقات الإحصائيات الحية أثناء الرفع: السرعة والوقت المتبقي -->
+        <div id="youtube-stats-grid" class="youtube-stats-grid">
           <div class="youtube-stat-card">
             <span class="stat-label">سرعة الرفع اللحظية:</span>
-            <strong id="youtube-modal-speed" class="stat-value">-- MB/s</strong>
+            <strong id="youtube-modal-speed" class="stat-value" dir="ltr">-- MB/s</strong>
           </div>
           <div class="youtube-stat-card">
             <span class="stat-label">الوقت المتبقي التقديري:</span>
@@ -1730,27 +1730,37 @@
           </div>
         </div>
 
-        <!-- رسالة التنبيه والتطمين -->
+        <!-- رسالة التنبيه والتطمين أثناء الرفع -->
         <div id="youtube-modal-alert-box" class="youtube-modal-alert-box info">
           <span class="alert-icon">💡</span>
-          <span id="youtube-modal-alert-text">يمكنك تصغير نافذة المتصفح ومتابعة أعمالك؛ سنطلق رنة تنبيهية واضحة وإشعاراً فور اكتمال الرفع بنسبة 100%.</span>
+          <span id="youtube-modal-alert-text">يمكنك تصغير نافذة المتصفح ومتابعة أعمالك؛ سنطلق رنة تنبيهية واضحة وإشعاراً فور الاكتمال بنسبة 100%.</span>
         </div>
 
-        <!-- أزرار الإجراءات -->
+        <!-- بطاقة الإنجاز والمعلومات المختصرة تظهر فقط عند اكتمال الرفع بنجاح -->
+        <div id="youtube-success-card" class="youtube-success-card" hidden>
+          <div class="success-info-tags">
+            <span class="success-tag is-privacy">🔒 غير مدرج (Unlisted)</span>
+            <span class="success-tag is-quality">🎬 جودة عالية 1080p</span>
+            <span class="success-tag is-size" id="youtube-tag-filesize">💾 الحجم: 0 MB</span>
+          </div>
+        </div>
+
+        <!-- أزرار الإجراءات واضحة وكاملة النصوص -->
         <div class="recording-ready-actions">
-          <button id="youtube-modal-minimize-btn" class="studio-button minimize-btn" type="button">
-            <span>🗕 تصغير وإبقاء في الخلفية</span>
-          </button>
-          <button id="modal-download-device-btn" class="studio-button download-device" type="button">
-            <span>💾 تنزيل نسخة في جهازي</span>
-          </button>
-          <a id="youtube-view-video-btn" class="studio-button view-youtube-btn" href="#" target="_blank" rel="noopener noreferrer" hidden>
-            <span>▶️ مشاهدة الفيديو على YouTube</span>
+          <a id="youtube-view-video-btn" class="yt-hud-btn view-youtube-btn" href="#" target="_blank" rel="noopener noreferrer" hidden>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 22c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 2c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/></svg>
+            <span>مشاهدة الفيديو على YouTube</span>
           </a>
-          <button id="upload-youtube-after-end-btn" class="studio-button force-youtube" type="button" hidden>
+          <button id="youtube-modal-minimize-btn" class="yt-hud-btn minimize-btn" type="button">
+            <span>🗕 تصغير وإبقاء بالخلفية</span>
+          </button>
+          <button id="modal-download-device-btn" class="yt-hud-btn download-device" type="button">
+            <span>💾 حفظ نسخة في الحاسوب</span>
+          </button>
+          <button id="upload-youtube-after-end-btn" class="yt-hud-btn force-youtube" type="button" hidden>
             <span>🔄 إعادة محاولة الرفع الآن</span>
           </button>
-          <button id="close-recording-ready-btn" class="studio-button close-btn" type="button">
+          <button id="close-recording-ready-btn" class="yt-hud-btn close-btn" type="button">
             <span>إغلاق الاستوديو</span>
           </button>
         </div>
@@ -1955,7 +1965,7 @@
     <script src="./js/message-notifications.js"></script>
     <script src="./js/webrtc-ice.js?v=coturn-1"></script>
     <script id="google-identity-services" src="https://accounts.google.com/gsi/client" defer></script>
-    <script src="./js/teacher-live-v2.js?v=yt-live-hud-1" defer></script>
+    <script src="./js/teacher-live-v2.js?v=yt-live-hud-2" defer></script>
   <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
   </body>
 </html>

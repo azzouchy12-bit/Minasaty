@@ -208,10 +208,13 @@ const elements = {
   youtubeModalProgressbar: document.getElementById("youtube-modal-progressbar"),
   youtubeModalPercent: document.getElementById("youtube-modal-percent"),
   youtubeModalBytes: document.getElementById("youtube-modal-bytes"),
+  youtubeStatsGrid: document.getElementById("youtube-stats-grid"),
   youtubeModalSpeed: document.getElementById("youtube-modal-speed"),
   youtubeModalEta: document.getElementById("youtube-modal-eta"),
   youtubeModalAlertBox: document.getElementById("youtube-modal-alert-box"),
   youtubeModalAlertText: document.getElementById("youtube-modal-alert-text"),
+  youtubeSuccessCard: document.getElementById("youtube-success-card"),
+  youtubeTagFilesize: document.getElementById("youtube-tag-filesize"),
   youtubeModalMinimizeButton: document.getElementById("youtube-modal-minimize-btn"),
   youtubeViewVideoButton: document.getElementById("youtube-view-video-btn"),
   youtubeMinimizedBadge: document.getElementById("youtube-minimized-badge"),
@@ -1889,6 +1892,7 @@ function updateYoutubeUploadUi({
       const loadedFormatted = formatBytesToHuman(loadedBytes || 0);
       const totalFormatted = formatBytesToHuman(totalBytes);
       elements.youtubeModalBytes.textContent = `${loadedFormatted} / ${totalFormatted}`;
+      elements.youtubeModalBytes.setAttribute("dir", "ltr");
     } else if (text) {
       elements.youtubeModalBytes.textContent = text;
     }
@@ -1929,14 +1933,33 @@ function updateYoutubeUploadUi({
       elements.recordingReadyTitle.style.color = "#4ade80";
     }
     if (elements.recordingReadySubtitle) {
-      elements.recordingReadySubtitle.textContent = "تمت معالجة الفيديو وربطه تلقائياً بسجل الحصة الرسمية في المنصة.";
+      elements.recordingReadySubtitle.textContent = "تمت معالجة الفيديو وربطه تلقائياً بسجل الحصة في المنصة.";
+    }
+
+    // إخفاء إحصائيات السرعة والوقت المتبقي عند الاكتمال لمنع التلوث البصري
+    if (elements.youtubeStatsGrid) {
+      elements.youtubeStatsGrid.hidden = true;
     }
     if (elements.youtubeModalAlertBox) {
-      elements.youtubeModalAlertBox.className = "youtube-modal-alert-box success";
+      elements.youtubeModalAlertBox.hidden = true;
     }
-    if (elements.youtubeModalAlertText) {
-      elements.youtubeModalAlertText.textContent = "🎉 اكتمل الرفع بالكامل! يمكنك الآن إغلاق الاستوديو بأمان، أو النقر على الزر لمشاهدة الفيديو على قناتك.";
+
+    // إظهار بطاقة معلومات الفيديو المختصرة والأنيقة
+    if (elements.youtubeSuccessCard) {
+      elements.youtubeSuccessCard.hidden = false;
     }
+    if (elements.youtubeTagFilesize) {
+      const displaySize = totalBytes > 0 ? totalBytes : (lastLocalRecording?.blob?.size || 0);
+      elements.youtubeTagFilesize.textContent = `💾 الحجم: ${formatBytesToHuman(displaySize)}`;
+    }
+
+    if (elements.youtubeModalBytes) {
+      const displaySize = totalBytes > 0 ? totalBytes : (lastLocalRecording?.blob?.size || 0);
+      const formatted = formatBytesToHuman(displaySize);
+      elements.youtubeModalBytes.textContent = `${formatted} / ${formatted}`;
+      elements.youtubeModalBytes.setAttribute("dir", "ltr");
+    }
+
     if (elements.youtubeModalProgressbar) {
       elements.youtubeModalProgressbar.style.background = "linear-gradient(90deg, #16a34a, #22c55e, #4ade80)";
       elements.youtubeModalProgressbar.style.boxShadow = "0 0 16px rgba(34, 197, 94, 0.7)";
@@ -1965,7 +1988,14 @@ function updateYoutubeUploadUi({
     if (elements.recordingReadySubtitle) {
       elements.recordingReadySubtitle.textContent = text || "حدث خطأ أثناء الرفع؛ لكن التسجيل محفوظ في جهازك.";
     }
+    if (elements.youtubeStatsGrid) {
+      elements.youtubeStatsGrid.hidden = true;
+    }
+    if (elements.youtubeSuccessCard) {
+      elements.youtubeSuccessCard.hidden = true;
+    }
     if (elements.youtubeModalAlertBox) {
+      elements.youtubeModalAlertBox.hidden = false;
       elements.youtubeModalAlertBox.className = "youtube-modal-alert-box error";
     }
     if (elements.youtubeModalAlertText) {
@@ -1991,7 +2021,14 @@ function updateYoutubeUploadUi({
     if (elements.recordingReadySubtitle) {
       elements.recordingReadySubtitle.textContent = "يرجى إبقاء هذه الصفحة مفتوحة حتى يكتمل الرفع ويتم ربط الحصة بقناتك";
     }
+    if (elements.youtubeStatsGrid) {
+      elements.youtubeStatsGrid.hidden = false;
+    }
+    if (elements.youtubeSuccessCard) {
+      elements.youtubeSuccessCard.hidden = true;
+    }
     if (elements.youtubeModalAlertBox) {
+      elements.youtubeModalAlertBox.hidden = false;
       elements.youtubeModalAlertBox.className = "youtube-modal-alert-box info";
     }
     if (elements.youtubeModalAlertText) {
