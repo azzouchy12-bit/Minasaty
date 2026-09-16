@@ -2488,6 +2488,133 @@ function toggleRaisedHand() {
   raiseHand();
 }
 
+let micAlertAudioContext = null;
+
+function getMicAlertAudioContext() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    if (!micAlertAudioContext || micAlertAudioContext.state === "closed") {
+      micAlertAudioContext = new AudioContextClass();
+    }
+    if (micAlertAudioContext.state === "suspended") {
+      micAlertAudioContext.resume().catch(() => {});
+    }
+    return micAlertAudioContext;
+  } catch (err) {
+    return null;
+  }
+}
+
+function unlockMicAlertAudio() {
+  const ctx = getMicAlertAudioContext();
+  if (ctx && ctx.state === "suspended") {
+    ctx.resume().catch(() => {});
+  }
+}
+
+if (typeof window !== "undefined") {
+  ["click", "touchstart", "touchend", "pointerdown", "keydown"].forEach((eventName) => {
+    window.addEventListener(eventName, unlockMicAlertAudio, { passive: true });
+  });
+}
+
+/**
+ * Plays a strong 0.5-second audio alert ring for the student when the teacher
+ * opens or approves their microphone, accompanied by tactile and visual feedback.
+ */
+function playMicOpenedAlert() {
+  let playedWithWebAudio = false;
+
+  try {
+    const ctx = getMicAlertAudioContext();
+    if (ctx) {
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+
+      const now = ctx.currentTime;
+      // Duration: exactly 0.5 seconds
+      // Pulse 1: 0.00s to 0.20s (853 Hz + 960 Hz)
+      // Pause:   0.20s to 0.25s (silence)
+      // Pulse 2: 0.25s to 0.50s (960 Hz + 1175 Hz)
+      const pulse1End = now + 0.20;
+      const pulse2Start = now + 0.25;
+      const totalEnd = now + 0.50;
+
+      const masterGain = ctx.createGain();
+      masterGain.connect(ctx.destination);
+
+      // Pulse 1 gain envelope (fast attack, loud hold, smooth release)
+      masterGain.gain.setValueAtTime(0, now);
+      masterGain.gain.linearRampToValueAtTime(0.95, now + 0.015);
+      masterGain.gain.setValueAtTime(0.95, now + 0.17);
+      masterGain.gain.linearRampToValueAtTime(0, pulse1End);
+
+      // Pulse 2 gain envelope (slightly higher volume for strong finish)
+      masterGain.gain.setValueAtTime(0, pulse2Start);
+      masterGain.gain.linearRampToValueAtTime(1.0, pulse2Start + 0.015);
+      masterGain.gain.setValueAtTime(1.0, pulse2Start + 0.21);
+      masterGain.gain.linearRampToValueAtTime(0, totalEnd);
+
+      // Pulse 1 Oscillators (urgent alert ring)
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      osc1.type = "sine";
+      osc2.type = "sine";
+      osc1.frequency.setValueAtTime(853, now);
+      osc2.frequency.setValueAtTime(960, now);
+      osc1.connect(masterGain);
+      osc2.connect(masterGain);
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(pulse1End + 0.01);
+      osc2.stop(pulse1End + 0.01);
+
+      // Pulse 2 Oscillators (rising attention ring)
+      const osc3 = ctx.createOscillator();
+      const osc4 = ctx.createOscillator();
+      osc3.type = "sine";
+      osc4.type = "sine";
+      osc3.frequency.setValueAtTime(960, pulse2Start);
+      osc4.frequency.setValueAtTime(1175, pulse2Start);
+      osc3.connect(masterGain);
+      osc4.connect(masterGain);
+      osc3.start(pulse2Start);
+      osc4.start(pulse2Start);
+      osc3.stop(totalEnd);
+      osc4.stop(totalEnd);
+
+      if (ctx.state === "running") {
+        playedWithWebAudio = true;
+      }
+    }
+  } catch (audioErr) {
+    console.warn("Unable to play alert via Web Audio API:", audioErr);
+  }
+
+  // Backup HTMLAudioElement fallback with /sounds/mic-alert.wav if Web Audio was not active
+  if (!playedWithWebAudio) {
+    try {
+      const audioFallback = new Audio("./sounds/mic-alert.wav");
+      audioFallback.volume = 1.0;
+      audioFallback.play().catch(() => {});
+    } catch (fallbackErr) {
+      console.warn("Audio element fallback error:", fallbackErr);
+    }
+  }
+
+  // Mobile vibration: 200ms ring, 50ms pause, 250ms ring (total 0.5s)
+  try {
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate([200, 50, 250]);
+    }
+  } catch (ignored) {}
+
+  // Prominent visual toast notification for the student
+  showMobileControlToast("فتح الأستاذ المايك لك! يمكنك التحدث الآن 🎙️");
+}
+
 function updateMicControl() {
   // Microphone state is intentionally controlled by the teacher only. The
   // student never receives a visible control that can mute an approved track.
@@ -3746,6 +3873,8 @@ socket.on("permission_granted", async () => {
   if (!joinedClass) {
     return;
   }
+
+  playMicOpenedAlert();
 
   microphonePermissionGranted = true;
   clearHandResetTimer();

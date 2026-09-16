@@ -5,3 +5,4 @@ prisma/dev.db
 public/uploads/*
 !public/uploads/.gitkeep
 npm-debug.log*
+.vscode/
