@@ -1691,16 +1691,80 @@
       </main>
     </div>
 
+    <!-- نافذة متابعة رفع التسجيل إلى YouTube وحماية المتصفح من الإغلاق -->
     <div id="recording-ready-modal" class="recording-ready-modal" role="dialog" aria-modal="true" aria-labelledby="recording-ready-title" hidden>
-      <section class="recording-ready-card">
-        <h2 id="recording-ready-title">تم تسجيل الحصة بنجاح</h2>
-        <p>يمكنك الآن تنزيل التسجيل مباشرة إلى جهازك (الحاسوب) أو إعادة رفعه إلى YouTube وربطه بسجل الحصص.</p>
+      <section class="recording-ready-card youtube-upload-dialog">
+        <!-- شريط الرأس والأيقونة النابضة -->
+        <div class="youtube-modal-head">
+          <div class="youtube-icon-pulse-wrapper">
+            <svg class="youtube-brand-svg" viewBox="0 0 24 24" width="36" height="36" fill="#ff0000" aria-hidden="true">
+              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            </svg>
+          </div>
+          <div class="youtube-modal-titles">
+            <h2 id="recording-ready-title">جارٍ رفع تسجيل الحصة إلى YouTube تلقائياً</h2>
+            <p id="recording-ready-subtitle" class="recording-ready-subtitle">يرجى إبقاء هذه الصفحة مفتوحة حتى يكتمل الرفع ويتم ربط الحصة بقناتك</p>
+          </div>
+        </div>
+
+        <!-- شريط التقدم العصري مع النسبة والحجم -->
+        <div class="youtube-progress-container">
+          <div class="youtube-progress-track">
+            <div id="youtube-modal-progressbar" class="youtube-progress-fill" style="width: 0%;"></div>
+          </div>
+          <div class="youtube-progress-metrics">
+            <span id="youtube-modal-percent" class="youtube-metric-percent">0%</span>
+            <span id="youtube-modal-bytes" class="youtube-metric-bytes">0 MB / 0 MB</span>
+          </div>
+        </div>
+
+        <!-- بطاقات الإحصائيات الحية: السرعة والوقت المتبقي -->
+        <div class="youtube-stats-grid">
+          <div class="youtube-stat-card">
+            <span class="stat-label">سرعة الرفع اللحظية:</span>
+            <strong id="youtube-modal-speed" class="stat-value">-- MB/s</strong>
+          </div>
+          <div class="youtube-stat-card">
+            <span class="stat-label">الوقت المتبقي التقديري:</span>
+            <strong id="youtube-modal-eta" class="stat-value">جارٍ الحساب...</strong>
+          </div>
+        </div>
+
+        <!-- رسالة التنبيه والتطمين -->
+        <div id="youtube-modal-alert-box" class="youtube-modal-alert-box info">
+          <span class="alert-icon">💡</span>
+          <span id="youtube-modal-alert-text">يمكنك تصغير نافذة المتصفح ومتابعة أعمالك؛ سنطلق رنة تنبيهية واضحة وإشعاراً فور اكتمال الرفع بنسبة 100%.</span>
+        </div>
+
+        <!-- أزرار الإجراءات -->
         <div class="recording-ready-actions">
-          <button id="modal-download-device-btn" class="studio-button download-device" type="button"><span>💾 تنزيل في الجهاز (الحاسوب)</span></button>
-          <button id="upload-youtube-after-end-btn" class="studio-button force-youtube" type="button"><span>☁ إجبار الرفع إلى YouTube</span></button>
-          <button id="close-recording-ready-btn" class="studio-button" type="button"><span>إغلاق</span></button>
+          <button id="youtube-modal-minimize-btn" class="studio-button minimize-btn" type="button">
+            <span>🗕 تصغير وإبقاء في الخلفية</span>
+          </button>
+          <button id="modal-download-device-btn" class="studio-button download-device" type="button">
+            <span>💾 تنزيل نسخة في جهازي</span>
+          </button>
+          <a id="youtube-view-video-btn" class="studio-button view-youtube-btn" href="#" target="_blank" rel="noopener noreferrer" hidden>
+            <span>▶️ مشاهدة الفيديو على YouTube</span>
+          </a>
+          <button id="upload-youtube-after-end-btn" class="studio-button force-youtube" type="button" hidden>
+            <span>🔄 إعادة محاولة الرفع الآن</span>
+          </button>
+          <button id="close-recording-ready-btn" class="studio-button close-btn" type="button">
+            <span>إغلاق الاستوديو</span>
+          </button>
         </div>
       </section>
+    </div>
+
+    <!-- شارة الرفع المصغرة في زاوية الشاشة عند النقر على تصغير -->
+    <div id="youtube-minimized-badge" class="youtube-minimized-badge" title="انقر لتوسيع نافذة متابعة الرفع" hidden>
+      <div class="minimized-badge-pulse"></div>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="#ff0000" aria-hidden="true">
+        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+      </svg>
+      <span id="youtube-minimized-text">رفع YouTube: 0%</span>
+      <span class="minimized-expand-icon">⤢</span>
     </div>
 
     <div id="question-image-modal" class="question-image-modal" role="dialog" aria-modal="true" aria-labelledby="question-image-modal-title" hidden>
@@ -1891,7 +1955,7 @@
     <script src="./js/message-notifications.js"></script>
     <script src="./js/webrtc-ice.js?v=coturn-1"></script>
     <script id="google-identity-services" src="https://accounts.google.com/gsi/client" defer></script>
-    <script src="./js/teacher-live-v2.js?v=screen-share-sync-1" defer></script>
+    <script src="./js/teacher-live-v2.js?v=yt-live-hud-1" defer></script>
   <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
   </body>
 </html>

@@ -218,17 +218,326 @@
   .studio-controls { bottom: 1rem; }
 }
 
-.recording-ready-modal { position: fixed; z-index: 80; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgba(0,0,0,.72); backdrop-filter: blur(7px); }
-.recording-ready-modal[hidden] { display: none; }
-.recording-ready-card { width: min(100%, 30rem); padding: 1.35rem; color: var(--text-primary); background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 1rem; box-shadow: 0 24px 80px rgba(0,0,0,.55); text-align: center; }
-.recording-ready-card h2 { margin: 0; color: #bbf7d0; font-size: 1.12rem; }
-.recording-ready-card p { margin: .7rem 0 1rem; color: var(--text-secondary); font-size: .78rem; line-height: 1.7; }
-.recording-ready-actions { display: flex; justify-content: center; gap: .6rem; }
-.recording-ready-actions .studio-button { width: auto; min-width: 10rem; min-height: 2.8rem; padding: .55rem .8rem; border-radius: .6rem; }
-@media (max-width: 520px) {
-  .recording-ready-actions { flex-direction: column; }
-  .recording-ready-actions .studio-button { width: 100%; }
+/* ── Modern YouTube Live Upload HUD Modal ── */
+.recording-ready-modal {
+  position: fixed;
+  z-index: 9990;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(4, 8, 16, 0.82);
+  backdrop-filter: blur(14px);
+  animation: fadeInModal 0.25s ease-out;
 }
+.recording-ready-modal[hidden] {
+  display: none !important;
+}
+@keyframes fadeInModal {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.recording-ready-card.youtube-upload-dialog {
+  position: relative;
+  width: min(100%, 36rem);
+  padding: 2rem;
+  color: var(--text-primary, #f8fafc);
+  background: linear-gradient(170deg, #111827 0%, #0b0f17 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1.25rem;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7), 0 0 35px rgba(220, 38, 38, 0.12);
+  text-align: center;
+  direction: rtl;
+}
+
+.youtube-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  text-align: right;
+  margin-bottom: 1.5rem;
+}
+
+.youtube-icon-pulse-wrapper {
+  flex-shrink: 0;
+  width: 3.5rem;
+  height: 3.5rem;
+  display: grid;
+  place-items: center;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 1rem;
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); transform: scale(1); }
+  50% { box-shadow: 0 0 22px rgba(239, 68, 68, 0.45); transform: scale(1.04); }
+}
+
+.youtube-modal-titles h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.35;
+}
+
+.youtube-modal-titles .recording-ready-subtitle {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+/* Progress bar container */
+.youtube-progress-container {
+  margin: 1.25rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.youtube-progress-track {
+  position: relative;
+  width: 100%;
+  height: 0.95rem;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.youtube-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #b91c1c 0%, #ef4444 60%, #f87171 100%);
+  border-radius: 999px;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.65);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.youtube-progress-metrics {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.youtube-metric-percent {
+  color: #f87171;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.youtube-metric-bytes {
+  color: #cbd5e1;
+  font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Stats grid: Speed & ETA */
+.youtube-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.youtube-stat-card {
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: right;
+}
+
+.youtube-stat-card .stat-label {
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+.youtube-stat-card .stat-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #38bdf8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Alert / Reassurance box */
+.youtube-modal-alert-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  text-align: right;
+  margin-bottom: 1.5rem;
+}
+
+.youtube-modal-alert-box.info {
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #bae6fd;
+}
+
+.youtube-modal-alert-box.success {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  color: #bbf7d0;
+}
+
+.youtube-modal-alert-box.error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  color: #fecaca;
+}
+
+.youtube-modal-alert-box .alert-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+/* Action buttons */
+.recording-ready-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.recording-ready-actions .studio-button {
+  flex: 1 1 auto;
+  min-height: 2.75rem;
+  padding: 0.65rem 1.1rem;
+  border-radius: 0.65rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.recording-ready-actions .minimize-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.recording-ready-actions .minimize-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.recording-ready-actions .view-youtube-btn {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: #ffffff;
+  border: 1px solid #ef4444;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
+}
+.recording-ready-actions .view-youtube-btn:hover {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  transform: translateY(-1px);
+}
+
+.recording-ready-actions .download-device {
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+.recording-ready-actions .download-device:hover {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: #60a5fa;
+}
+
+.recording-ready-actions .force-youtube {
+  background: linear-gradient(135deg, #ea580c, #c2410c);
+  color: #ffffff;
+  border: 1px solid #f97316;
+}
+
+.recording-ready-actions .close-btn {
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.recording-ready-actions .close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+}
+
+/* ── Minimized Floating Badge (Top Corner) ── */
+.youtube-minimized-badge {
+  position: fixed;
+  top: 75px;
+  right: 24px;
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem 1rem;
+  background: rgba(17, 24, 39, 0.94);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 999px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), 0 0 15px rgba(239, 68, 68, 0.25);
+  color: #f8fafc;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  backdrop-filter: blur(10px);
+  direction: rtl;
+  transition: all 0.2s ease;
+  animation: slideInBadge 0.3s ease-out;
+}
+.youtube-minimized-badge[hidden] {
+  display: none !important;
+}
+.youtube-minimized-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.55), 0 0 20px rgba(239, 68, 68, 0.4);
+  border-color: #ef4444;
+}
+.youtube-minimized-badge.is-success {
+  border-color: rgba(74, 222, 128, 0.6);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), 0 0 15px rgba(34, 197, 94, 0.3);
+}
+
+.minimized-badge-pulse {
+  width: 8px;
+  height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: pulseDot 1.4s infinite;
+}
+.youtube-minimized-badge.is-success .minimized-badge-pulse {
+  background: #22c55e;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.6); opacity: 0.4; }
+}
+
+@keyframes slideInBadge {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.minimized-expand-icon {
+  color: #94a3b8;
+  font-size: 1rem;
+}
+
 
 .studio-topbar-title { max-width: min(34vw, 28rem); overflow: hidden; color: var(--text-primary); font-size: .82rem; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
 @media (max-width: 700px) { .studio-topbar-title { display: none; } }
