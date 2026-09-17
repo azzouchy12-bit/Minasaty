@@ -70,7 +70,8 @@ async function connectStudentSfu(roomName) {
   }
   try {
     const sfuData = await window.fetchMinasatySfuToken(roomName, false);
-    if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuData.url) {
+    const sfuUrl = sfuData?.url || sfuData?.serverUrl;
+    if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuUrl) {
       console.info("[SFU-Student] SFU not enabled by server, staying on P2P.");
       return false;
     }
@@ -99,7 +100,7 @@ async function connectStudentSfu(roomName) {
       console.warn("[SFU-Student] Disconnected from SFU room.");
     });
 
-    await studentSfuRoom.connect(sfuData.url, sfuData.token);
+    await studentSfuRoom.connect(sfuUrl, sfuData.token);
     console.info("[SFU-Student] Connected to LiveKit SFU room successfully:", roomName);
     return true;
   } catch (error) {

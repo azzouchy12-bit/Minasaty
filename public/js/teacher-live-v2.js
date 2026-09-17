@@ -95,7 +95,8 @@ async function initTeacherSfuSession(roomName) {
   }
   try {
     const sfuData = await window.fetchMinasatySfuToken(roomName, true);
-    if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuData.url) {
+    const sfuUrl = sfuData?.url || sfuData?.serverUrl;
+    if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuUrl) {
       console.info("[SFU] SFU not enabled by server, running P2P fallback.");
       return false;
     }
@@ -127,7 +128,8 @@ async function initTeacherSfuSession(roomName) {
       sfuActiveForClass = false;
     });
 
-    await teacherSfuRoom.connect(sfuData.url, sfuData.token);
+    await teacherSfuRoom.connect(sfuUrl, sfuData.token);
+
     sfuActiveForClass = true;
     console.info("[SFU] Teacher successfully connected to LiveKit SFU:", roomName);
     await syncTeacherSfuMedia();

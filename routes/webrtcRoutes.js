@@ -93,7 +93,6 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
       room: roomName,
       roomJoin: true,
       canPublish: isTeacher || allowMic,
-      canPublishSources: isTeacher ? ["camera", "microphone", "screen_share", "screen_share_audio"] : (allowMic ? ["microphone"] : []),
       canSubscribe: true,
       canPublishData: true,
     });
@@ -103,6 +102,7 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
     return res.status(200).json({
       status: "success",
       enabled: true,
+      url: config.url,
       serverUrl: config.url,
       token,
       identity: participantId,
