@@ -400,11 +400,14 @@
   }
 
   function formatSpeedToHuman(bytesPerSec) {
-    if (!bytesPerSec || bytesPerSec <= 0 || !Number.isFinite(bytesPerSec)) return "0 KB/s";
+    if (!bytesPerSec || bytesPerSec <= 0 || !Number.isFinite(bytesPerSec)) return "0 KB/s (0 Mbps)";
+    const mbps = ((bytesPerSec * 8) / 1_000_000).toFixed(1);
     if (bytesPerSec >= 1024 * 1024) {
-      return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+      const mb = (bytesPerSec / (1024 * 1024)).toFixed(1);
+      return `${mb} MB/s (${mbps} Mbps)`;
     }
-    return `${(bytesPerSec / 1024).toFixed(0)} KB/s`;
+    const kb = (bytesPerSec / 1024).toFixed(0);
+    return `${kb} KB/s (${mbps} Mbps)`;
   }
 
   function formatSecondsToHuman(seconds) {
@@ -464,70 +467,191 @@
   }
 
   function directPutToGoogle(uploadUrl, blob, mimeType, onProgress) {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      activeUploadXhr = xhr;
-      xhr.open("PUT", uploadUrl);
-      xhr.setRequestHeader("Content-Type", mimeType);
+    const CHUNK_SIZE = 16 * 1024 * 1024; // 16 MB chunks (multiple of 256 KB)
+    const totalBytes = blob.size;
+    const startTime = Date.now();
+    let smoothSpeed = 0;
+    let lastLoadedForSpeed = 0;
+    let lastTimeForSpeed = startTime;
+    let isAborted = false;
 
-      const startTime = Date.now();
-      let lastLoaded = 0;
-      let lastTime = startTime;
-      let smoothSpeed = 0;
+    function queryGoogleStatus() {
+      return new Promise((resolve) => {
+        if (isAborted) return resolve({ aborted: true });
+        const xhr = new XMLHttpRequest();
+        activeUploadXhr = xhr;
+        xhr.open("PUT", uploadUrl, true);
+        xhr.setRequestHeader("Content-Range", `bytes */${totalBytes}`);
+        xhr.onload = () => {
+          activeUploadXhr = null;
+          if (xhr.status === 308) {
+            const rangeHeader = xhr.getResponseHeader("Range");
+            if (rangeHeader) {
+              const match = /bytes=0-(\d+)/.exec(rangeHeader);
+              if (match) return resolve({ nextByte: parseInt(match[1], 10) + 1 });
+            }
+            resolve({ nextByte: 0 });
+          } else if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve({ complete: true, data: JSON.parse(xhr.responseText) });
+            } catch (_) {
+              resolve({ complete: true, data: { id: null } });
+            }
+          } else {
+            resolve({ error: true, status: xhr.status });
+          }
+        };
+        xhr.onerror = () => {
+          activeUploadXhr = null;
+          resolve({ error: true });
+        };
+        xhr.onabort = () => {
+          activeUploadXhr = null;
+          resolve({ aborted: true });
+        };
+        xhr.send();
+      });
+    }
 
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable && e.total > 0) {
+    function uploadChunk(startByte, endByte) {
+      return new Promise((resolve, reject) => {
+        if (isAborted) return reject(new Error("تم إلغاء الرفع."));
+
+        const chunk = blob.slice(startByte, endByte);
+        const xhr = new XMLHttpRequest();
+        activeUploadXhr = xhr;
+        xhr.open("PUT", uploadUrl, true);
+        xhr.setRequestHeader("Content-Type", mimeType);
+        xhr.setRequestHeader("Content-Range", `bytes ${startByte}-${endByte - 1}/${totalBytes}`);
+
+        xhr.upload.onprogress = (e) => {
+          if (isAborted) return;
+          const chunkLoaded = e.lengthComputable ? e.loaded : 0;
+          const currentTotalLoaded = Math.min(totalBytes, startByte + chunkLoaded);
           const now = Date.now();
-          const percent = Math.round((e.loaded / e.total) * 100);
+          const percent = Math.min(99, Math.round((currentTotalLoaded / totalBytes) * 100));
           const elapsedSec = (now - startTime) / 1000;
 
-          const instantElapsed = (now - lastTime) / 1000;
+          const instantElapsed = (now - lastTimeForSpeed) / 1000;
           if (instantElapsed >= 0.4) {
-            const instantBytes = e.loaded - lastLoaded;
-            const currentSpeed = instantBytes / instantElapsed;
+            const instantBytes = currentTotalLoaded - lastLoadedForSpeed;
+            const currentSpeed = Math.max(0, instantBytes / instantElapsed);
             smoothSpeed = smoothSpeed === 0 ? currentSpeed : (smoothSpeed * 0.7 + currentSpeed * 0.3);
-            lastLoaded = e.loaded;
-            lastTime = now;
+            lastLoadedForSpeed = currentTotalLoaded;
+            lastTimeForSpeed = now;
           } else if (smoothSpeed === 0 && elapsedSec > 0.4) {
-            smoothSpeed = e.loaded / elapsedSec;
+            smoothSpeed = currentTotalLoaded / elapsedSec;
           }
 
-          const remainingBytes = Math.max(0, e.total - e.loaded);
+          const remainingBytes = Math.max(0, totalBytes - currentTotalLoaded);
           const remainingSec = smoothSpeed > 0 ? Math.ceil(remainingBytes / smoothSpeed) : null;
 
           onProgress?.({
             percent,
-            loadedBytes: e.loaded,
-            totalBytes: e.total,
+            loadedBytes: currentTotalLoaded,
+            totalBytes,
             speedBps: smoothSpeed,
             remainingSec,
           });
-        }
-      };
+        };
 
-      xhr.onload = () => {
-        activeUploadXhr = null;
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            resolve(JSON.parse(xhr.responseText));
-          } catch (_) {
-            resolve({ id: null });
+        xhr.onload = () => {
+          activeUploadXhr = null;
+          if (xhr.status === 308) {
+            const rangeHeader = xhr.getResponseHeader("Range");
+            let nextByte = endByte;
+            if (rangeHeader) {
+              const match = /bytes=0-(\d+)/.exec(rangeHeader);
+              if (match) nextByte = parseInt(match[1], 10) + 1;
+            }
+            resolve({ status: 308, nextByte });
+          } else if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve({ status: 200, data: JSON.parse(xhr.responseText) });
+            } catch (_) {
+              resolve({ status: 200, data: { id: null } });
+            }
+          } else {
+            let msg = "فشل رفع أحد أجزاء الفيديو.";
+            try { msg = JSON.parse(xhr.responseText)?.error?.message || msg; } catch (_) {}
+            resolve({ status: xhr.status, errorMsg: msg });
           }
-        } else {
-          let msg = "تعذر رفع الفيديو مباشرة إلى YouTube.";
-          try { msg = JSON.parse(xhr.responseText)?.error?.message || msg; } catch (_) {}
-          reject(new Error(`${msg} (${xhr.status})`));
+        };
+
+        xhr.onerror = () => {
+          activeUploadXhr = null;
+          resolve({ status: 0, networkError: true });
+        };
+
+        xhr.onabort = () => {
+          activeUploadXhr = null;
+          isAborted = true;
+          reject(new Error("تم إلغاء الرفع."));
+        };
+
+        xhr.send(chunk);
+      });
+    }
+
+    return new Promise(async (resolve, reject) => {
+      let currentStart = 0;
+      let consecutiveRetries = 0;
+      const MAX_RETRIES = 5;
+
+      while (currentStart < totalBytes) {
+        if (isAborted) {
+          return reject(new Error("تم إلغاء الرفع."));
         }
-      };
-      xhr.onerror = () => {
-        activeUploadXhr = null;
-        reject(new Error("انقطع الاتصال أثناء الرفع المباشر إلى YouTube."));
-      };
-      xhr.onabort = () => {
-        activeUploadXhr = null;
-        reject(new Error("تم إلغاء الرفع."));
-      };
-      xhr.send(blob);
+
+        const currentEnd = Math.min(currentStart + CHUNK_SIZE, totalBytes);
+        try {
+          const result = await uploadChunk(currentStart, currentEnd);
+
+          if (result.status === 308) {
+            consecutiveRetries = 0;
+            currentStart = result.nextByte;
+          } else if (result.status === 200) {
+            onProgress?.({
+              percent: 100,
+              loadedBytes: totalBytes,
+              totalBytes,
+              speedBps: smoothSpeed,
+              remainingSec: 0,
+            });
+            return resolve(result.data);
+          } else {
+            consecutiveRetries++;
+            if (consecutiveRetries > MAX_RETRIES) {
+              return reject(new Error(result.errorMsg || `تعذر استكمال رفع الفيديو بعد عدة محاولات (${result.status || "انقطاع اتصال"}).`));
+            }
+            const delayMs = Math.min(1000 * Math.pow(2, consecutiveRetries - 1), 10000);
+            await new Promise((r) => setTimeout(r, delayMs));
+
+            const statusCheck = await queryGoogleStatus();
+            if (statusCheck.complete) {
+              return resolve(statusCheck.data);
+            }
+            if (typeof statusCheck.nextByte === "number") {
+              currentStart = statusCheck.nextByte;
+            }
+          }
+        } catch (err) {
+          if (isAborted || err.message === "تم إلغاء الرفع.") {
+            return reject(err);
+          }
+          consecutiveRetries++;
+          if (consecutiveRetries > MAX_RETRIES) {
+            return reject(err);
+          }
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+
+      const finalStatus = await queryGoogleStatus();
+      if (finalStatus.complete) {
+        return resolve(finalStatus.data);
+      }
+      reject(new Error("اكتمل إرسال الأجزاء ولكن لم يتم تأكيد الاستلام من YouTube."));
     });
   }
 

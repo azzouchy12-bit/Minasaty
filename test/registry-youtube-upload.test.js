@@ -23,7 +23,7 @@ test("teacher-dashboard.html includes YouTube device upload buttons, file input,
   assert.ok(content.includes('id="registry-upload-eta"'), "ETA metric must exist");
   assert.ok(content.includes('id="registry-upload-success-card"'), "success card must exist");
   assert.ok(content.includes('id="registry-upload-watch-btn"'), "watch button must exist");
-  assert.ok(content.includes('src="./js/class-registry-teacher.js?v=registry-upload-1"'), "script must have cache-busting v=registry-upload-1");
+  assert.ok(content.includes('src="./js/class-registry-teacher.js?v=registry-upload-2"'), "script must have cache-busting v=registry-upload-2");
 });
 
 test("app.css includes styling for YouTube upload button, modal, and animations", () => {
