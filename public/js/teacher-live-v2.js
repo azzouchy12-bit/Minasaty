@@ -4900,11 +4900,12 @@ function getAdaptiveVideoQualityProfile(quality = "auto", allocation = null) {
       degradationPreference: "maintain-resolution",
     };
   }
-  // Auto adaptive mode optimized for online tutoring slides & blackboard
-  const videoBitrate = Math.min(6_000_000, Math.max(800_000, allocation?.videoBitrate ?? 3_500_000));
+  // Auto adaptive mode optimized for online tutoring slides & blackboard:
+  // In mesh topology, 30fps is the golden standard for smooth handwriting and video without network bloat.
+  const videoBitrate = Math.min(2_500_000, Math.max(300_000, allocation?.videoBitrate ?? 1_200_000));
   return {
     maxBitrate: videoBitrate,
-    maxFramerate: 60,
+    maxFramerate: 30,
     scaleResolutionDownBy: 1.0,
     degradationPreference: "maintain-resolution",
   };
@@ -4935,7 +4936,11 @@ async function applyAdaptiveAudioQuality(peerConnection, allocation) {
   try {
     const parameters = audioSender.getParameters();
     parameters.encodings = parameters.encodings?.length ? parameters.encodings : [{}];
-    parameters.encodings[0].maxBitrate = allocation.audioBitrate;
+    // Guard against repeated audio parameter resets during live stream which glitch the Opus packetizer
+    if (parameters.encodings[0].maxBitrate === AUDIO_BITRATE_CEILING && parameters.encodings[0].priority === "high") {
+      return;
+    }
+    parameters.encodings[0].maxBitrate = AUDIO_BITRATE_CEILING;
     parameters.encodings[0].priority = "high";
     parameters.encodings[0].networkPriority = "high";
     await audioSender.setParameters(parameters);
@@ -4974,11 +4979,12 @@ async function refreshTeacherQos() {
       const fallbackBitrate = Math.round(4_000_000 / (1 + (rtt || 0) / 400) / (1 + loss / 8));
       const totalAvailableBitrate = Math.max(0, Math.round(candidatePair?.availableOutgoingBitrate || fallbackBitrate));
       const allocation = computeContinuousBandwidthAllocation(totalAvailableBitrate);
-      const allocationKey = `${allocation.audioBitrate}:${allocation.videoBitrate}`;
-      if (teacherQosAllocations.get(studentSocketId) !== allocationKey) {
-        teacherQosAllocations.set(studentSocketId, allocationKey);
+      const targetVideoBitrate = allocation.videoBitrate;
+      const lastBitrate = teacherQosAllocations.get(studentSocketId);
+      // Hysteresis: only update video sender if target bitrate shifts by at least 150kbps to avoid jitter
+      if (lastBitrate == null || Math.abs(lastBitrate - targetVideoBitrate) >= 150_000) {
+        teacherQosAllocations.set(studentSocketId, targetVideoBitrate);
         void applyAdaptiveVideoQuality(studentSocketId, peerConnection, allocation);
-        void applyAdaptiveAudioQuality(peerConnection, allocation);
       }
       let state = "جيدة";
       let stateClass = "good";
@@ -5008,8 +5014,8 @@ async function tuneOutboundSender(sender, kind) {
 
     if (kind === "video") {
       parameters.encodings[0].maxBitrate = VIDEO_BITRATE_CEILING;
-      parameters.encodings[0].maxFramerate = 60;
-      parameters.degradationPreference = "balanced";
+      parameters.encodings[0].maxFramerate = 30;
+      parameters.degradationPreference = "maintain-resolution";
     } else {
       parameters.encodings[0].maxBitrate = AUDIO_BITRATE_CEILING;
       parameters.encodings[0].priority = "high";
@@ -5205,6 +5211,57 @@ async function emitWithAcknowledgement(eventName, payload, timeoutMs = 10_000) {
 }
 
 
+function optimizeOpusSdp(sdp) {
+  if (!sdp || typeof sdp !== "string") return sdp;
+  const lines = sdp.split("\r\n");
+  let opusPayload = null;
+  for (const line of lines) {
+    const match = line.match(/^a=rtpmap:(\d+)\s+opus\/48000\/2/i);
+    if (match) {
+      opusPayload = match[1];
+      break;
+    }
+  }
+  if (!opusPayload) return sdp;
+
+  let fmtpFound = false;
+  const modifiedLines = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith(`a=fmtp:${opusPayload} `) || line === `a=fmtp:${opusPayload}`) {
+      fmtpFound = true;
+      let params = line.substring(`a=fmtp:${opusPayload}`.length).trim();
+      const paramMap = new Map();
+      params.split(";").forEach((p) => {
+        const [k, v] = p.trim().split("=");
+        if (k) paramMap.set(k.toLowerCase(), v ?? "");
+      });
+      paramMap.set("useinbandfec", "1");
+      paramMap.set("stereo", "0");
+      paramMap.set("sprop-stereo", "0");
+      paramMap.set("cbr", "1");
+      if (!paramMap.has("maxaveragebitrate")) {
+        paramMap.set("maxaveragebitrate", "32000");
+      }
+      const newParams = Array.from(paramMap.entries())
+        .map(([k, v]) => (v ? `${k}=${v}` : k))
+        .join(";");
+      modifiedLines.push(`a=fmtp:${opusPayload} ${newParams}`);
+    } else {
+      modifiedLines.push(line);
+      if (line.startsWith(`a=rtpmap:${opusPayload} `) && !fmtpFound) {
+        const nextLine = lines[i + 1] || "";
+        if (!nextLine.startsWith(`a=fmtp:${opusPayload}`)) {
+          modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;useinbandfec=1;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=32000`);
+          fmtpFound = true;
+        }
+      }
+    }
+  }
+  return modifiedLines.join("\r\n");
+}
+
+
 async function createAndSendOffer(studentSocketId, { iceRestart = false } = {}) {
   if (!classActive || !getActiveTeacherVideoTrack()) {
     return;
@@ -5244,7 +5301,8 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false } = {}) 
 
   try {
     const offer = await peerConnection.createOffer({ iceRestart });
-    await peerConnection.setLocalDescription(offer);
+    const optimizedSdp = optimizeOpusSdp(offer.sdp);
+    await peerConnection.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: optimizedSdp }));
 
 
     await emitWithAcknowledgement("webrtc_offer", {
@@ -6069,7 +6127,8 @@ socket.on("webrtc_renegotiation_offer", async (data = {}) => {
 
 
     const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
+    const optimizedSdp = optimizeOpusSdp(answer.sdp);
+    await peerConnection.setLocalDescription(new RTCSessionDescription({ type: answer.type, sdp: optimizedSdp }));
 
 
     await emitWithAcknowledgement("webrtc_renegotiation_answer", {

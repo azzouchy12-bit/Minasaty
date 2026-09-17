@@ -526,6 +526,56 @@
     return pc;
   }
 
+  function optimizeOpusSdp(sdp) {
+    if (!sdp || typeof sdp !== "string") return sdp;
+    const lines = sdp.split("\r\n");
+    let opusPayload = null;
+    for (const line of lines) {
+      const match = line.match(/^a=rtpmap:(\d+)\s+opus\/48000\/2/i);
+      if (match) {
+        opusPayload = match[1];
+        break;
+      }
+    }
+    if (!opusPayload) return sdp;
+
+    let fmtpFound = false;
+    const modifiedLines = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.startsWith(`a=fmtp:${opusPayload} `) || line === `a=fmtp:${opusPayload}`) {
+        fmtpFound = true;
+        let params = line.substring(`a=fmtp:${opusPayload}`.length).trim();
+        const paramMap = new Map();
+        params.split(";").forEach((p) => {
+          const [k, v] = p.trim().split("=");
+          if (k) paramMap.set(k.toLowerCase(), v ?? "");
+        });
+        paramMap.set("useinbandfec", "1");
+        paramMap.set("stereo", "0");
+        paramMap.set("sprop-stereo", "0");
+        paramMap.set("cbr", "1");
+        if (!paramMap.has("maxaveragebitrate")) {
+          paramMap.set("maxaveragebitrate", "32000");
+        }
+        const newParams = Array.from(paramMap.entries())
+          .map(([k, v]) => (v ? `${k}=${v}` : k))
+          .join(";");
+        modifiedLines.push(`a=fmtp:${opusPayload} ${newParams}`);
+      } else {
+        modifiedLines.push(line);
+        if (line.startsWith(`a=rtpmap:${opusPayload} `) && !fmtpFound) {
+          const nextLine = lines[i + 1] || "";
+          if (!nextLine.startsWith(`a=fmtp:${opusPayload}`)) {
+            modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;useinbandfec=1;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=32000`);
+            fmtpFound = true;
+          }
+        }
+      }
+    }
+    return modifiedLines.join("\r\n");
+  }
+
   async function createAndSendOffer(studentSocketId, { iceRestart = false } = {}) {
     if (!classActive) return;
 
@@ -553,7 +603,8 @@
     pc.makingOffer = true;
     try {
       const offer = await pc.createOffer({ iceRestart });
-      await pc.setLocalDescription(offer);
+      const optimizedSdp = optimizeOpusSdp(offer.sdp);
+      await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: optimizedSdp }));
       const videoSender = pc.getSenders().find((s) => s.__classroomVideoTrack);
       if (videoSender && typeof videoSender.setParameters === "function") {
         try {

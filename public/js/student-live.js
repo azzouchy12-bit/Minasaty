@@ -2984,6 +2984,16 @@ function attachTeacherTrack(event) {
   const track = event.track;
   if (!track) return;
 
+  if (track.kind === "audio" && event.receiver) {
+    try {
+      if ("jitterBufferTarget" in event.receiver) {
+        event.receiver.jitterBufferTarget = 80;
+      } else if ("playoutDelayHint" in event.receiver) {
+        event.receiver.playoutDelayHint = 0.08;
+      }
+    } catch (_) {}
+  }
+
   if (!remoteMediaStream) {
     remoteMediaStream = new MediaStream();
     elements.remoteVideo.srcObject = remoteMediaStream;
@@ -3037,6 +3047,7 @@ function scheduleClassRecovery(delayMs = 1_000) {
     return;
   }
 
+  isRecoveringStream = true;
   recoveryTimer = window.setTimeout(() => {
     recoveryTimer = null;
     void joinClass({ rejoin: true });
@@ -3163,6 +3174,56 @@ function emitWithAcknowledgement(eventName, payload, timeoutMs = 10_000) {
   });
 }
 
+function optimizeOpusSdp(sdp) {
+  if (!sdp || typeof sdp !== "string") return sdp;
+  const lines = sdp.split("\r\n");
+  let opusPayload = null;
+  for (const line of lines) {
+    const match = line.match(/^a=rtpmap:(\d+)\s+opus\/48000\/2/i);
+    if (match) {
+      opusPayload = match[1];
+      break;
+    }
+  }
+  if (!opusPayload) return sdp;
+
+  let fmtpFound = false;
+  const modifiedLines = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith(`a=fmtp:${opusPayload} `) || line === `a=fmtp:${opusPayload}`) {
+      fmtpFound = true;
+      let params = line.substring(`a=fmtp:${opusPayload}`.length).trim();
+      const paramMap = new Map();
+      params.split(";").forEach((p) => {
+        const [k, v] = p.trim().split("=");
+        if (k) paramMap.set(k.toLowerCase(), v ?? "");
+      });
+      paramMap.set("useinbandfec", "1");
+      paramMap.set("stereo", "0");
+      paramMap.set("sprop-stereo", "0");
+      paramMap.set("cbr", "1");
+      if (!paramMap.has("maxaveragebitrate")) {
+        paramMap.set("maxaveragebitrate", "32000");
+      }
+      const newParams = Array.from(paramMap.entries())
+        .map(([k, v]) => (v ? `${k}=${v}` : k))
+        .join(";");
+      modifiedLines.push(`a=fmtp:${opusPayload} ${newParams}`);
+    } else {
+      modifiedLines.push(line);
+      if (line.startsWith(`a=rtpmap:${opusPayload} `) && !fmtpFound) {
+        const nextLine = lines[i + 1] || "";
+        if (!nextLine.startsWith(`a=fmtp:${opusPayload}`)) {
+          modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;useinbandfec=1;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=32000`);
+          fmtpFound = true;
+        }
+      }
+    }
+  }
+  return modifiedLines.join("\r\n");
+}
+
 async function negotiateStudentMicrophone() {
   if (
     !microphonePermissionGranted ||
@@ -3181,7 +3242,8 @@ async function negotiateStudentMicrophone() {
 
   try {
     const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
+    const optimizedSdp = optimizeOpusSdp(offer.sdp);
+    await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: optimizedSdp }));
 
     await emitWithAcknowledgement("webrtc_renegotiation_offer", {
       targetSocketId: teacherSocketId,
@@ -3259,7 +3321,8 @@ function createViewerPeerConnection() {
     if (iceConnectionState === "disconnected") {
       showConnectionOverlay("اتصال البث غير مستقر. جارٍ محاولة الاستعادة…", "warning");
       setViewerStatus("اتصال البث غير مستقر. جارٍ محاولة الاستعادة…", "warning");
-      scheduleClassRecovery(3_000);
+      isRecoveringStream = true;
+      scheduleClassRecovery(2_000);
       return;
     }
 
@@ -3382,8 +3445,12 @@ async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
     await prepareStudentMicrophone();
   }
 
-  if ((joinedClass && !isRecoveringStream) || isJoining) {
+  if ((!rejoin && joinedClass && !isRecoveringStream) || isJoining) {
     return;
+  }
+
+  if (rejoin) {
+    isRecoveringStream = true;
   }
 
   if (!socket.connected) {
@@ -3841,7 +3908,8 @@ socket.on("webrtc_offer", async (data = {}) => {
     await flushPendingIceCandidates();
 
     const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
+    const optimizedSdp = optimizeOpusSdp(answer.sdp);
+    await peerConnection.setLocalDescription(new RTCSessionDescription({ type: answer.type, sdp: optimizedSdp }));
 
     await emitWithAcknowledgement("webrtc_answer", {
       targetSocketId: teacherSocketId,
