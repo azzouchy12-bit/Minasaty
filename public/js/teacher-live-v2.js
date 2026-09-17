@@ -133,8 +133,8 @@ let localRecordingDownloadRequested = true;
 let localRecordingFinalized = false;
 const LOCAL_RECORDING_WIDTH = 1920;
 const LOCAL_RECORDING_HEIGHT = 1080;
-const LOCAL_RECORDING_FRAME_RATE = 30;
-const LOCAL_RECORDING_VIDEO_BITRATE = 4_000_000;
+const LOCAL_RECORDING_FRAME_RATE = 60;
+const LOCAL_RECORDING_VIDEO_BITRATE = 16_000_000;
 const LOCAL_RECORDING_AUDIO_BITRATE = 128_000;
 const GOOGLE_DRIVE_CLIENT_ID = "938017291163-a6dar2h6u2d5isf5h4nqtaccp7jpkk28.apps.googleusercontent.com";
 const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
@@ -2248,6 +2248,16 @@ function directPutToGoogle(uploadUrl, blob, mimeType, onProgress) {
           if (consecutiveRetries > MAX_RETRIES) {
             return reject(new Error(result.errorMsg || `تعذر استكمال رفع الفيديو بعد عدة محاولات (${result.status || "انقطاع اتصال"}).`));
           }
+          const savedMb = (currentStart / (1024 * 1024)).toFixed(1);
+          const chunkNum = Math.floor(currentStart / CHUNK_SIZE) + 1;
+          onProgress?.({
+            percent: Math.min(99, Math.round((currentStart / totalBytes) * 100)),
+            loadedBytes: currentStart,
+            totalBytes,
+            speedBps: 0,
+            remainingSec: null,
+            statusText: `جارٍ الاستئناف الذكي من الجزء (${chunkNum})... تم حفظ ${savedMb} MB بأمان لدى Google`,
+          });
           const delayMs = Math.min(1000 * Math.pow(2, consecutiveRetries - 1), 10000);
           await new Promise((r) => setTimeout(r, delayMs));
 
@@ -2336,6 +2346,17 @@ async function uploadRecordingToYouTube(recording, { force = false } = {}) {
       videoBlob = new Blob([videoBlob], { type: "video/webm" });
     }
 
+    // Instant Silent Local Backup to teacher's computer Downloads folder for 100% data safety
+    try {
+      if (!recording._autoDownloaded) {
+        recording._autoDownloaded = true;
+        downloadLocalRecording({ ...recording, blob: videoBlob });
+        console.log("Instant silent backup saved to teacher's computer Downloads.");
+      }
+    } catch (backupErr) {
+      console.warn("Unable to trigger initial local backup:", backupErr);
+    }
+
     // Step 2: Request resumable upload session from backend
     updateYoutubeUploadUi({
       visible: true,
@@ -2371,10 +2392,10 @@ async function uploadRecordingToYouTube(recording, { force = false } = {}) {
       sessionPayload.uploadUrl,
       videoBlob,
       mimeType,
-      ({ percent, loadedBytes, totalBytes, speedBps, remainingSec }) => {
+      ({ percent, loadedBytes, totalBytes, speedBps, remainingSec, statusText }) => {
         updateYoutubeUploadUi({
           visible: true,
-          text: `جارٍ الرفع المباشر إلى YouTube…`,
+          text: statusText || `جارٍ الرفع المباشر إلى YouTube…`,
           progress: percent,
           loadedBytes,
           totalBytes,
@@ -4734,33 +4755,33 @@ function getAdaptiveVideoQualityProfile(quality = "auto", allocation = null) {
   const normalized = String(quality || "auto").trim().toLowerCase();
   if (normalized === "high") {
     return {
-      maxBitrate: 600_000,
-      maxFramerate: 20,
+      maxBitrate: 6_000_000,
+      maxFramerate: 60,
       scaleResolutionDownBy: 1.0,
       degradationPreference: "maintain-resolution",
     };
   }
   if (normalized === "medium") {
     return {
-      maxBitrate: 400_000,
-      maxFramerate: 15,
+      maxBitrate: 2_500_000,
+      maxFramerate: 30,
       scaleResolutionDownBy: 1.0,
       degradationPreference: "maintain-resolution",
     };
   }
   if (normalized === "low") {
     return {
-      maxBitrate: 220_000,
-      maxFramerate: 12,
-      scaleResolutionDownBy: 1.5,
+      maxBitrate: 500_000,
+      maxFramerate: 20,
+      scaleResolutionDownBy: 2.5,
       degradationPreference: "maintain-resolution",
     };
   }
   // Auto adaptive mode optimized for online tutoring slides & blackboard
-  const videoBitrate = Math.min(500_000, Math.max(180_000, allocation?.videoBitrate ?? 380_000));
+  const videoBitrate = Math.min(6_000_000, Math.max(800_000, allocation?.videoBitrate ?? 3_500_000));
   return {
     maxBitrate: videoBitrate,
-    maxFramerate: 15,
+    maxFramerate: 60,
     scaleResolutionDownBy: 1.0,
     degradationPreference: "maintain-resolution",
   };
@@ -5354,7 +5375,7 @@ async function replaceScreenShareStream() {
       video: {
         width: { ideal: 1920, max: 1920 },
         height: { ideal: 1080, max: 1080 },
-        frameRate: { ideal: 15, max: 20 },
+        frameRate: { ideal: 60, max: 60 },
       },
       audio: true,
     });

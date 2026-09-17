@@ -624,6 +624,16 @@
             if (consecutiveRetries > MAX_RETRIES) {
               return reject(new Error(result.errorMsg || `تعذر استكمال رفع الفيديو بعد عدة محاولات (${result.status || "انقطاع اتصال"}).`));
             }
+            const savedMb = (currentStart / (1024 * 1024)).toFixed(1);
+            const chunkNum = Math.floor(currentStart / CHUNK_SIZE) + 1;
+            onProgress?.({
+              percent: Math.min(99, Math.round((currentStart / totalBytes) * 100)),
+              loadedBytes: currentStart,
+              totalBytes,
+              speedBps: 0,
+              remainingSec: null,
+              statusText: `جارٍ الاستئناف الذكي من الجزء (${chunkNum})... تم حفظ ${savedMb} MB بأمان لدى Google`,
+            });
             const delayMs = Math.min(1000 * Math.pow(2, consecutiveRetries - 1), 10000);
             await new Promise((r) => setTimeout(r, delayMs));
 
@@ -770,12 +780,13 @@
         sessionPayload.uploadUrl,
         file,
         mimeType,
-        ({ percent, loadedBytes, totalBytes, speedBps, remainingSec }) => {
+        ({ percent, loadedBytes, totalBytes, speedBps, remainingSec, statusText }) => {
           uploadProgressbar.style.width = `${percent}%`;
           uploadPercent.textContent = `${percent}%`;
           uploadBytes.textContent = `${formatBytesToHuman(loadedBytes)} / ${formatBytesToHuman(totalBytes)}`;
           uploadSpeed.textContent = formatSpeedToHuman(speedBps);
           uploadEta.textContent = formatSecondsToHuman(remainingSec);
+          if (statusText) uploadStatusText.textContent = statusText;
         }
       );
 

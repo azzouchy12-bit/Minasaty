@@ -90,7 +90,7 @@ test("teacher live streaming targets adaptive quality and 1080p60 recording", ()
   assert.match(teacherLive, /async function syncTeacherVideoTrackToAllPeers\(\)/);
   assert.match(teacherLive, /await sender\.replaceTrack\(track\)/);
   assert.match(teacherLive, /revision/);
-  assert.match(fs.readFileSync(path.join(root, "public/teacher-live.html"), "utf8"), /teacher-live-v2\.js\?v=screen-share-sync-1/);
+  assert.match(fs.readFileSync(path.join(root, "public/teacher-live.html"), "utf8"), /teacher-live-v2\.js\?v=(screen-share-sync-1|yt-live-hud-\d+)/);
   const studentLive = fs.readFileSync(path.join(root, "public/js/student-live.js"), "utf8");
   assert.match(studentLive, /lastScreenShareRevision/);
   assert.match(studentLive, /revision <= lastScreenShareRevision/);
