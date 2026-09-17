@@ -226,6 +226,7 @@ let googleDriveAccessToken = null;
 let googleDriveTokenExpiresAt = 0;
 let googleDriveUploadInProgress = false;
 let youtubeUploadInProgress = false;
+let currentServerUploadId = null;
 let googleIdentityLoadPromise = null;
 let studioDurationStartedAt = 0;
 
@@ -2397,6 +2398,136 @@ function directPutToGoogle(uploadUrl, blob, mimeType, onProgress) {
 }
 
 
+/**
+ * نقل مقاطع التسجيل (5 ميغابايت لكل جزء) تباعاً إلى خادم المنصة.
+ * هذه الطريقة تقضي نهائياً على أخطاء 502/504 لأن كل طلب يستغرق ثوانٍ معدودة،
+ * مع حساب فوري لسرعة النقل والوقت المتبقي (ETA) وإعادة المحاولة التلقائية.
+ */
+async function uploadBlobToServerInChunks({
+  blob,
+  token,
+  uploadId,
+  title,
+  description,
+  level,
+  subject,
+  recordedAt,
+  scheduledClassId,
+  mimeType,
+  onProgress,
+}) {
+  const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB لكل مقطع
+  const totalBytes = blob.size;
+  const totalChunks = Math.max(1, Math.ceil(totalBytes / CHUNK_SIZE));
+  const startTime = Date.now();
+  let smoothSpeed = 0;
+  let lastLoadedForSpeed = 0;
+  let lastTimeForSpeed = startTime;
+
+  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+    const startByte = chunkIndex * CHUNK_SIZE;
+    const endByte = Math.min(startByte + CHUNK_SIZE, totalBytes);
+    const chunkBlob = blob.slice(startByte, endByte);
+
+    let retries = 0;
+    const MAX_RETRIES = 5;
+    let chunkSuccess = false;
+
+    while (!chunkSuccess) {
+      try {
+        const formData = new FormData();
+        formData.append("chunk", chunkBlob, `chunk-${chunkIndex}.webm`);
+        formData.append("uploadId", uploadId);
+        formData.append("chunkIndex", String(chunkIndex));
+        formData.append("totalChunks", String(totalChunks));
+        formData.append("title", title);
+        formData.append("description", description);
+        formData.append("level", level);
+        formData.append("subject", subject);
+        formData.append("recordedAt", recordedAt);
+        formData.append("scheduledClassId", scheduledClassId);
+        formData.append("mimeType", mimeType);
+
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/youtube/server-chunk", true);
+          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+          xhr.upload.onprogress = (e) => {
+            const chunkLoaded = e.lengthComputable ? e.loaded : 0;
+            const currentTotalLoaded = Math.min(totalBytes, startByte + chunkLoaded);
+            const now = Date.now();
+            const elapsed = (now - lastTimeForSpeed) / 1000;
+            if (elapsed >= 0.4) {
+              const instantBytes = currentTotalLoaded - lastLoadedForSpeed;
+              const instantSpeed = Math.max(0, instantBytes / elapsed);
+              smoothSpeed = smoothSpeed === 0 ? instantSpeed : (smoothSpeed * 0.7 + instantSpeed * 0.3);
+              lastLoadedForSpeed = currentTotalLoaded;
+              lastTimeForSpeed = now;
+            }
+
+            const percent = Math.min(99, Math.round((currentTotalLoaded / totalBytes) * 100));
+            const remainingBytes = Math.max(0, totalBytes - currentTotalLoaded);
+            const remainingSec = smoothSpeed > 0 ? Math.ceil(remainingBytes / smoothSpeed) : null;
+
+            onProgress?.({
+              percent,
+              loadedBytes: currentTotalLoaded,
+              totalBytes,
+              speedBps: smoothSpeed,
+              remainingSec,
+              statusText: `جارٍ نقل التسجيل إلى خادم المنصة (${chunkIndex + 1}/${totalChunks})…`,
+            });
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const res = JSON.parse(xhr.responseText);
+                resolve(res);
+              } catch (_) {
+                resolve({ status: "success" });
+              }
+            } else {
+              let msg = `خطأ في استلام المقطع ${chunkIndex + 1}`;
+              try {
+                const errJson = JSON.parse(xhr.responseText);
+                msg = errJson.error || msg;
+              } catch (_) {}
+              reject(new Error(msg));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error("انقطاع في الاتصال أثناء نقل المقطع إلى خادم المنصة."));
+          xhr.ontimeout = () => reject(new Error("انتهت مهلة الاتصال أثناء نقل المقطع إلى خادم المنصة."));
+          xhr.send(formData);
+        });
+
+        chunkSuccess = true;
+      } catch (err) {
+        retries++;
+        if (retries > MAX_RETRIES) {
+          throw new Error(`تعذر نقل المقطع ${chunkIndex + 1} بعد عدة محاولات: ${err.message}`);
+        }
+        console.warn(`[Chunk Transfer Retry] Chunk ${chunkIndex + 1}/${totalChunks}, attempt ${retries}:`, err);
+        const retryDelay = Math.min(1000 * Math.pow(2, retries - 1), 8000);
+        onProgress?.({
+          percent: Math.min(99, Math.round((startByte / totalBytes) * 100)),
+          loadedBytes: startByte,
+          totalBytes,
+          speedBps: 0,
+          remainingSec: null,
+          statusText: `إعادة محاولة نقل المقطع ${chunkIndex + 1} إلى السيرفر (المحاولة ${retries})…`,
+        });
+        await new Promise((r) => setTimeout(r, retryDelay));
+      }
+    }
+  }
+
+  return { success: true, uploadId };
+}
+
+
 async function uploadRecordingToYouTube(recording, { force = false } = {}) {
   if (force) {
     youtubeUploadInProgress = false;
@@ -2434,7 +2565,7 @@ async function uploadRecordingToYouTube(recording, { force = false } = {}) {
   showRecordingReadyModal();
   updateYoutubeUploadUi({
     visible: true,
-    text: `جارٍ تجهيز تسجيل الحصة للرفع المباشر إلى YouTube (${fileSizeMb} MB)…`,
+    text: `جارٍ تجهيز تسجيل الحصة ونقله إلى السيرفر (${fileSizeMb} MB)…`,
     progress: 1,
     loadedBytes: 0,
     totalBytes: recording.blob.size,
@@ -2443,7 +2574,7 @@ async function uploadRecordingToYouTube(recording, { force = false } = {}) {
   updateControls();
 
   try {
-    // Step 1: Fix WebM duration metadata if possible
+    // الخطوة 1: إصلاح بيانات WebM إن أمكن
     const durationMs = localRecordingStartedAt ? Date.now() - localRecordingStartedAt : 0;
     let videoBlob = recording.blob;
     if (durationMs > 0 && (videoBlob.type || "").includes("webm")) {
@@ -2453,7 +2584,7 @@ async function uploadRecordingToYouTube(recording, { force = false } = {}) {
       videoBlob = new Blob([videoBlob], { type: "video/webm" });
     }
 
-    // Instant Silent Local Backup to teacher's computer Downloads folder for 100% data safety
+    // الخطوة 2: التنزيل المحلي الفوري على جهاز الأستاذ (Instant Silent Local Backup)
     try {
       if (!recording._autoDownloaded) {
         recording._autoDownloaded = true;
@@ -2464,45 +2595,35 @@ async function uploadRecordingToYouTube(recording, { force = false } = {}) {
       console.warn("Unable to trigger initial local backup:", backupErr);
     }
 
-    // Step 2: Request resumable upload session from backend
-    updateYoutubeUploadUi({
-      visible: true,
-      text: "جارٍ فتح جلسة الرفع المباشر إلى YouTube…",
-      progress: 3,
-      loadedBytes: 0,
-      totalBytes: videoBlob.size,
-      status: "preparing",
-    });
-
+    // الخطوة 3: نقل التسجيل إلى السيرفر عبر أجزاء 5MB (لتفادي أي 502/504)
+    const uploadId = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    currentServerUploadId = uploadId;
     const mimeType = videoBlob.type || "video/webm";
-    const sessionRes = await fetch("/api/youtube/resumable-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ title, description, mimeType, fileSize: videoBlob.size }),
-    });
-    const sessionPayload = await sessionRes.json().catch(() => ({}));
-    if (!sessionRes.ok || !sessionPayload.uploadUrl) {
-      throw new Error(sessionPayload.error || "تعذر فتح جلسة الرفع المباشر إلى YouTube.");
-    }
 
-    // Step 3: PUT blob directly to Google (bypasses server proxy entirely)
     updateYoutubeUploadUi({
       visible: true,
-      text: `جارٍ الرفع المباشر إلى YouTube (${fileSizeMb} MB)…`,
-      progress: 4,
+      text: `جارٍ نقل التسجيل إلى خادم المنصة فائق السرعة (${fileSizeMb} MB)…`,
+      progress: 2,
       loadedBytes: 0,
       totalBytes: videoBlob.size,
       status: "uploading",
     });
 
-    const googleResponse = await directPutToGoogle(
-      sessionPayload.uploadUrl,
-      videoBlob,
+    await uploadBlobToServerInChunks({
+      blob: videoBlob,
+      token,
+      uploadId,
+      title,
+      description,
+      level,
+      subject,
+      recordedAt: recording.recordedAt || new Date().toISOString(),
+      scheduledClassId,
       mimeType,
-      ({ percent, loadedBytes, totalBytes, speedBps, remainingSec, statusText }) => {
+      onProgress: ({ percent, loadedBytes, totalBytes, speedBps, remainingSec, statusText }) => {
         updateYoutubeUploadUi({
           visible: true,
-          text: statusText || `جارٍ الرفع المباشر إلى YouTube…`,
+          text: statusText || `جارٍ نقل التسجيل إلى خادم المنصة (${percent}%)…`,
           progress: percent,
           loadedBytes,
           totalBytes,
@@ -2510,69 +2631,71 @@ async function uploadRecordingToYouTube(recording, { force = false } = {}) {
           remainingSec,
           status: "uploading",
         });
-      }
-    );
-
-    const videoId = googleResponse?.id;
-    if (!videoId) throw new Error("لم تُرجع Google معرّف الفيديو بعد الرفع.");
-
-    // Step 4: Sync with backend — link video to scheduled class registry
-    updateYoutubeUploadUi({
-      visible: true,
-      text: "جارٍ ربط الفيديو بسجل الحصة في المنصة…",
-      progress: 99,
-      loadedBytes: videoBlob.size,
-      totalBytes: videoBlob.size,
-      status: "preparing",
+      },
     });
 
-    const finishRes = await fetch("/api/youtube/resumable-finish", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ videoId, level, subject, recordedAt: recording.recordedAt || new Date().toISOString(), scheduledClassId, title }),
-    });
-    const finishPayload = await finishRes.json().catch(() => ({}));
-
-    // Release beforeunload protection safely now that upload completed!
+    // الخطوة 4: تم استلام وتجميع الفيديو بالكامل على السيرفر!
+    // تحرير قفل إغلاق الصفحة بأمان تام لأن الملف أصبح في السيرفر
     setUploadBeforeUnloadProtection(false);
 
-    // Play pleasant completion chime & send desktop notification
+    // إطلاق رنة النجاح وإشعار سطح المكتب
     playUploadSuccessChime();
     showUploadDesktopNotification(
-      "منصتي — تم رفع الحصة بنجاح!",
-      `تم اكتمال رفع تسجيل حصة ${subject} (${level}) بنجاح وربطه بقناتك على YouTube.`
+      "منصتي — تم تسليم التسجيل للسيرفر بنجاح!",
+      `تم استلام تسجيل حصة ${subject} (${level}) في خادم المنصة. السيرفر يرفع الفيديو إلى قناتك في الخلفية بسرعة فائقة، والتسجيل محفوظ في حاسوبك.`
     );
 
+    // الخطوة 5: مسح الفيديو تماماً من متصفح الأستاذ وذاكرة IndexedDB لتحرير RAM
+    try {
+      await clearRecordingDb();
+      console.log("Cleared recording IndexedDB cache successfully after server hand-off.");
+    } catch (dbErr) {
+      console.warn("Unable to clear recording db:", dbErr);
+    }
+    localRecordingChunks = [];
+    lastLocalRecording = null;
+
+    // الخطوة 6: إشعار الأستاذ بالنجاح التام وإمكانية إغلاق المتصفح بحرية
     updateYoutubeUploadUi({
       visible: true,
-      text: "✅ تم حفظ ورفع التسجيل إلى YouTube بنجاح!",
+      text: "✅ تم تسليم التسجيل إلى خادم المنصة بنجاح!",
       progress: 100,
       loadedBytes: videoBlob.size,
       totalBytes: videoBlob.size,
       status: "success",
-      videoId,
     });
-    setStudioStatus("✅ تم حفظ ورفع التسجيل إلى YouTube بنجاح.", "live");
 
-    return finishPayload.data || { id: videoId };
+    if (elements.recordingReadyTitle) {
+      elements.recordingReadyTitle.textContent = "✅ تم تسليم التسجيل إلى خادم المنصة بنجاح!";
+      elements.recordingReadyTitle.style.color = "#4ade80";
+    }
+    if (elements.recordingReadySubtitle) {
+      elements.recordingReadySubtitle.textContent = "يقوم خادم المنصة برفع الحصة إلى قناتك على YouTube في الخلفية بسرعة فائقة، والتسجيل محفوظ بنسخة احتياطية في حاسوبك. يمكنك إغلاق هذه الصفحة بأمان تام.";
+    }
+    if (elements.youtubeModalAlertText) {
+      elements.youtubeModalAlertText.textContent = "🚀 السيرفر يرفع الحصة إلى قناتك الآن بصبيب فائق، ولن تتأثر ببطء الإنترنت المنزلي. التسجيل محفوظ أيضاً في مجلد التنزيلات.";
+    }
+    setStudioStatus("✅ تم تسليم التسجيل إلى السيرفر بنجاح؛ السيرفر يرفع الحصة في الخلفية ونسختك محفوظة بجهازك.", "live");
+
+    return { uploadId, status: "server_processing" };
   } catch (error) {
-    console.error("Unable to upload recording to YouTube:", error);
+    console.error("Unable to upload recording to YouTube server:", error);
     setUploadBeforeUnloadProtection(false);
 
     updateYoutubeUploadUi({
       visible: true,
-      text: error.message || "تعذر إكمال الرفع إلى YouTube.",
+      text: error.message || "تعذر إكمال نقل التسجيل إلى السيرفر.",
       progress: 0,
       status: "error",
     });
-    setStudioStatus("تعذر رفع التسجيل إلى YouTube؛ الملف محفوظ بجهازك ويمكنك إعادة الرفع بالزر الأحمر.", "error");
+    setStudioStatus("تعذر نقل التسجيل إلى السيرفر؛ الملف محفوظ بجهازك في التنزيلات ويمكنك إعادة المحاولة بالزر الأحمر.", "error");
 
-    // تنزيل احتياطي تلقائي لضمان سلامة الملف في مجلد التحميلات في حال فشل الرفع
+    // تنزيل احتياطي تلقائي في حال فشل أي شيء
     try {
       if (recording && !recording._autoDownloaded) {
         recording._autoDownloaded = true;
         downloadLocalRecording(recording);
-        console.log("Auto-downloaded local recording to PC as backup after YouTube upload failure.");
+        console.log("Auto-downloaded local recording to PC as backup after upload failure.");
       }
     } catch (_) {}
 
@@ -6079,6 +6202,40 @@ socket.on("recovery_students", async (data = {}) => {
     await createAndSendOffer(student.socketId, { iceRestart: true });
   }
 });
+
+
+socket.on("youtube_server_upload_completed", (data = {}) => {
+  if (data && (!currentServerUploadId || data.uploadId === currentServerUploadId)) {
+    console.log("Server background YouTube upload completed:", data);
+    if (data.videoId && elements.youtubeViewVideoButton) {
+      elements.youtubeViewVideoButton.href = `https://youtu.be/${data.videoId}`;
+      elements.youtubeViewVideoButton.hidden = false;
+    }
+    if (elements.recordingReadyTitle) {
+      elements.recordingReadyTitle.textContent = "✅ اكتمل رفع الحصة في قناتك على YouTube!";
+      elements.recordingReadyTitle.style.color = "#4ade80";
+    }
+    if (elements.recordingReadySubtitle) {
+      elements.recordingReadySubtitle.textContent = "تم نشر التسجيل في قناتك وربطه بسجل الحصة في المنصة بنجاح.";
+    }
+    if (elements.youtubeModalAlertText) {
+      elements.youtubeModalAlertText.textContent = "🎉 تم اكتمال الرفع والمعالجة على YouTube وربط الفيديو بالقسم بنجاح!";
+    }
+    setStudioStatus("✅ اكتمل رفع الفيديو إلى قناتك على YouTube وربطه بالحصة بنجاح.", "live");
+  }
+});
+
+
+socket.on("youtube_server_upload_failed", (data = {}) => {
+  if (data && (!currentServerUploadId || data.uploadId === currentServerUploadId)) {
+    console.warn("Server background YouTube upload failed:", data);
+    if (elements.youtubeModalAlertText) {
+      elements.youtubeModalAlertText.textContent = `⚠️ تنبيه: تعذر رفع الفيديو إلى YouTube (${data.error || "خطأ غير متوقع"}). الملف محفوظ في جهازك (مجلد التنزيلات).`;
+    }
+    setStudioStatus(`تعذر رفع الحصة إلى YouTube: ${data.error || "خطأ"}. التسجيل محفوظ في جهازك.`, "error");
+  }
+});
+
 
 
 socket.on("webrtc_answer", async (data = {}) => {

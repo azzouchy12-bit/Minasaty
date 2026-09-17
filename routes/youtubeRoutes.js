@@ -25,6 +25,27 @@ if (!fs.existsSync(uploadDirectory)) {
   fs.mkdirSync(uploadDirectory, { recursive: true });
 }
 
+function cleanOldTempUploads() {
+  try {
+    if (!fs.existsSync(uploadDirectory)) return;
+    const files = fs.readdirSync(uploadDirectory);
+    const now = Date.now();
+    const MAX_AGE = 3 * 60 * 60 * 1000; // 3 hours
+    for (const file of files) {
+      const fullPath = path.join(uploadDirectory, file);
+      try {
+        const stat = fs.statSync(fullPath);
+        if (now - stat.mtimeMs > MAX_AGE) {
+          fs.unlinkSync(fullPath);
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+cleanOldTempUploads();
+setInterval(cleanOldTempUploads, 60 * 60 * 1000).unref();
+
+
 const upload = multer({
   dest: uploadDirectory,
   limits: { fileSize: 10_000 * 1024 * 1024 }, // 4GB limit for legacy fallback
@@ -293,6 +314,223 @@ router.post("/resumable-finish", verifyToken, isTeacher, async (req, res) => {
     return res.status(500).json({ error: error.message || "تعذر إتمام ربط الفيديو بالمنصة." });
   }
 });
+
+/**
+ * دالة معالجة الرفع إلى YouTube في خلفية السيرفر (Background Processing)
+ * يستقبل الملف المجمع من القرص، ويرفعه مباشرة إلى YouTube باستخدام صبيب السيرفر الفائق (Gigabit)،
+ * ثم يربطه بالحصة، ويقوم فوراً بحذف الملف المؤقت من القرص لتحرير المساحة بالكامل.
+ */
+async function processServerYoutubeUpload({
+  app,
+  filePath,
+  uploadId,
+  title,
+  description,
+  level,
+  subject,
+  recordedAt,
+  scheduledClassId,
+  mimeType,
+}) {
+  console.log(`[Server YouTube Upload] Starting background YouTube upload for ${uploadId} (${filePath})...`);
+  const io = app?.get("io");
+  try {
+    const fileStats = await fs.promises.stat(filePath).catch(() => null);
+    if (!fileStats || fileStats.size === 0) {
+      throw new Error("ملف التسجيل المجمّع غير موجود أو فارغ على القرص.");
+    }
+
+    const uploadTitle = String(title || `حصة ${subject || "مباشرة"} - ${level || "الأكاديمية"}`).slice(0, 100);
+    const stream = fs.createReadStream(filePath);
+    const result = await uploadVideo({
+      stream,
+      mimeType: mimeType || "video/webm",
+      title: uploadTitle,
+      description: description || `تسجيل تلقائي من أكاديمية التفوق\nالمستوى: ${level}\nالمادة: ${subject}`,
+    });
+
+    console.log(`[Server YouTube Upload] Successfully uploaded ${uploadId} to YouTube. Video ID: ${result.id}`);
+
+    const mockReq = { app };
+    const registryClass = await attachVideoToNearestScheduledClass({
+      req: mockReq,
+      level,
+      subject,
+      videoId: result.id,
+      recordedAt,
+      scheduledClassId,
+    }).catch((err) => {
+      console.error("[Server YouTube Upload] Error attaching to scheduled class:", err);
+      return null;
+    });
+
+    let repositoryVideo = null;
+    if (registryClass) {
+      try {
+        const repositoryType = canonicalSubject(subject);
+        repositoryVideo = await prisma.lessonVideo.create({
+          data: {
+            title: uploadTitle.slice(0, 160),
+            level: registryClass.level,
+            driveFileId: result.id,
+            driveUrl: result.embedUrl,
+            repositoryType,
+          },
+        });
+        console.log(`[Server YouTube Upload] Added video ${result.id} to lesson repository.`);
+      } catch (repoErr) {
+        console.error("[Server YouTube Upload] Error adding to lesson repository:", repoErr);
+      }
+    }
+
+    if (io) {
+      io.emit("youtube_server_upload_completed", {
+        uploadId,
+        videoId: result.id,
+        embedUrl: result.embedUrl,
+        level,
+        subject,
+        registryClass,
+        repositoryVideoId: repositoryVideo?.id || null,
+      });
+
+      const normalizedLevel = canonicalLevel(level);
+      if (normalizedLevel) {
+        io.to(`${normalizedLevel}_lobby`).emit("class_registry_updated", {
+          level: normalizedLevel,
+          classId: registryClass?.id || null,
+        });
+      }
+    }
+  } catch (err) {
+    console.error(`[Server YouTube Upload] Background upload failed for ${uploadId}:`, err);
+    if (io) {
+      io.emit("youtube_server_upload_failed", {
+        uploadId,
+        error: err.message || "تعذر رفع الفيديو إلى YouTube من السيرفر.",
+      });
+    }
+  } finally {
+    // مسح الملف المؤقت من القرص لتحرير المساحة فور الانتهاء تماماً
+    try {
+      await fs.promises.unlink(filePath).catch(() => {});
+      console.log(`[Server YouTube Upload] Cleaned up temporary recording file: ${filePath}`);
+    } catch (_) {}
+  }
+}
+
+/**
+ * 3. مسار استلام أجزاء التسجيل المقطعة على السيرفر (Chunked Server Upload)
+ * يتلقى المتصفح المقاطع الصغيرة (5 ميغابايت) تباعاً لتجنب أي 502/504 من البروكسي،
+ * وعند اكتمال جميع الأجزاء يجيب المتصفح فوراً بالنجاح ويطلق رفع YouTube في الخلفية.
+ */
+router.post(
+  "/server-chunk",
+  verifyToken,
+  isTeacher,
+  upload.single("chunk"),
+  async (req, res) => {
+    const uploadedChunkPath = req.file?.path;
+    try {
+      const uploadId = String(req.body.uploadId || "").replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!uploadId) {
+        if (uploadedChunkPath) await fs.promises.unlink(uploadedChunkPath).catch(() => {});
+        return res.status(400).json({ error: "معرّف الرفع uploadId غير صالح أو مفقود." });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "لم يتم إرسال أي جزء من الملف." });
+      }
+
+      const chunkIndex = parseInt(req.body.chunkIndex, 10);
+      const totalChunks = parseInt(req.body.totalChunks, 10);
+
+      if (Number.isNaN(chunkIndex) || Number.isNaN(totalChunks) || totalChunks <= 0 || chunkIndex < 0 || chunkIndex >= totalChunks) {
+        if (uploadedChunkPath) await fs.promises.unlink(uploadedChunkPath).catch(() => {});
+        return res.status(400).json({ error: "بيانات ترقيم الأجزاء غير صالحة." });
+      }
+
+      const targetFilePath = path.join(uploadDirectory, `rec-${uploadId}.webm`);
+      const chunkPartPath = `${targetFilePath}.chunk.${chunkIndex}`;
+
+      try {
+        await fs.promises.rename(uploadedChunkPath, chunkPartPath);
+      } catch (_) {
+        const chunkData = await fs.promises.readFile(uploadedChunkPath);
+        await fs.promises.writeFile(chunkPartPath, chunkData);
+        await fs.promises.unlink(uploadedChunkPath).catch(() => {});
+      }
+
+      const isFinalChunk = chunkIndex + 1 >= totalChunks;
+
+      if (!isFinalChunk) {
+        return res.status(200).json({
+          status: "success",
+          complete: false,
+          chunkIndex,
+          totalChunks,
+        });
+      }
+
+      // تجميع كافة الأجزاء المقطعة بترتيب تصاعدي في ملف الفيديو النهائي
+      const writeStream = fs.createWriteStream(targetFilePath, { flags: "w" });
+      try {
+        for (let i = 0; i < totalChunks; i++) {
+          const partPath = `${targetFilePath}.chunk.${i}`;
+          if (!fs.existsSync(partPath)) {
+            throw new Error(`الجزء رقم ${i + 1} من ${totalChunks} مفقود في السيرفر.`);
+          }
+          const partData = await fs.promises.readFile(partPath);
+          writeStream.write(partData);
+          await fs.promises.unlink(partPath).catch(() => {});
+        }
+        await new Promise((resolve, reject) => {
+          writeStream.end(resolve);
+          writeStream.on("error", reject);
+        });
+      } catch (assemblyErr) {
+        writeStream.destroy();
+        await fs.promises.unlink(targetFilePath).catch(() => {});
+        throw assemblyErr;
+      }
+
+      const level = String(req.body.level || "").trim();
+      const subject = String(req.body.subject || "").trim();
+      const title = String(req.body.title || "").slice(0, 100);
+      const description = String(req.body.description || "").slice(0, 5000);
+      const recordedAt = String(req.body.recordedAt || "").trim();
+      const scheduledClassId = String(req.body.scheduledClassId || "").trim();
+      const mimeType = String(req.body.mimeType || "video/webm").trim();
+
+      // إطلاق مهمة الرفع إلى YouTube في الخلفية
+      processServerYoutubeUpload({
+        app: req.app,
+        filePath: targetFilePath,
+        uploadId,
+        title,
+        description,
+        level,
+        subject,
+        recordedAt,
+        scheduledClassId,
+        mimeType,
+      }).catch((err) => {
+        console.error(`[Server YouTube Upload] Background task failed to initiate for ${uploadId}:`, err);
+      });
+
+      return res.status(200).json({
+        status: "success",
+        complete: true,
+        uploadId,
+        message: "تم استلام جميع أجزاء التسجيل في السيرفر بنجاح، وبدأت عملية الرفع المباشر إلى YouTube في الخلفية.",
+      });
+    } catch (err) {
+      console.error("Server chunk upload error:", err);
+      if (uploadedChunkPath) await fs.promises.unlink(uploadedChunkPath).catch(() => {});
+      return res.status(500).json({ error: err.message || "حدث خطأ أثناء معالجة مقطع الفيديو في السيرفر." });
+    }
+  }
+);
 
 // المسار التقليدي القديم (مع رفع الحد إلى 4 جيجابايت كاحتياط)
 router.post("/upload", verifyToken, isTeacher, (req, res, next) => {
