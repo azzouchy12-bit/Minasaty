@@ -31,6 +31,8 @@
     "googleapis": "^174.0.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "livekit-client": "^2.22.3",
+    "livekit-server-sdk": "^2.19.0",
     "multer": "^1.4.5-lts.2",
     "nodemailer": "^7.0.13",
     "redis": "^6.2.1",
@@ -39,6 +41,7 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.10",
-    "prisma": "^6.7.0"
+    "prisma": "^6.7.0",
+    "ssh2": "^1.17.0"
   }
 }

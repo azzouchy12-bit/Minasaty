@@ -39,6 +39,28 @@
     return cachedConfigPromise;
   };
 
+  window.fetchMinasatySfuToken = async function fetchMinasatySfuToken(roomName, allowMic = false, tokenOverride = "") {
+    const token = getToken(tokenOverride);
+    if (!token || !roomName) return null;
+    try {
+      const response = await fetch("/api/webrtc/sfu-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ roomName, allowMic }),
+        credentials: "same-origin",
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch {
+      return null;
+    }
+  };
+
   // Fetch immediately so the credentials are normally ready before the first offer.
   void window.getMinasatyRtcConfig();
 })();
+

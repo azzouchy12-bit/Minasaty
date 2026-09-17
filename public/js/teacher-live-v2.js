@@ -81,6 +81,119 @@ const ICE_DISCONNECT_GRACE_MS = 15_000;
 let activeLevel = null;
 let activeSubject = null;
 let classActive = false;
+
+// SFU (LiveKit Media Server) State for zero-lag 70+ student broadcasting
+let teacherSfuRoom = null;
+let teacherSfuVideoPub = null;
+let teacherSfuAudioPub = null;
+let sfuActiveForClass = false;
+
+async function initTeacherSfuSession(roomName) {
+  if (typeof window.fetchMinasatySfuToken !== "function" || !window.LivekitClient?.Room) {
+    console.info("[SFU] LiveKit client or helper not available, running in P2P mode.");
+    return false;
+  }
+  try {
+    const sfuData = await window.fetchMinasatySfuToken(roomName, true);
+    if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuData.url) {
+      console.info("[SFU] SFU not enabled by server, running P2P fallback.");
+      return false;
+    }
+    closeTeacherSfuSession();
+    const Room = window.LivekitClient.Room;
+    teacherSfuRoom = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+    });
+
+    teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      if (track.kind === "audio") {
+        const studentAudio = track.attach();
+        studentAudio.id = `sfu-audio-${participant.identity}`;
+        studentAudio.style.display = "none";
+        document.body.appendChild(studentAudio);
+      }
+    });
+
+    teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+      if (track.kind === "audio") {
+        const el = document.getElementById(`sfu-audio-${participant.identity}`);
+        if (el) el.remove();
+      }
+    });
+
+    teacherSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
+      console.warn("[SFU] Teacher disconnected from SFU room.");
+      sfuActiveForClass = false;
+    });
+
+    await teacherSfuRoom.connect(sfuData.url, sfuData.token);
+    sfuActiveForClass = true;
+    console.info("[SFU] Teacher successfully connected to LiveKit SFU:", roomName);
+    await syncTeacherSfuMedia();
+    return true;
+  } catch (error) {
+    console.warn("[SFU] Could not connect to SFU, using P2P fallback:", error);
+    sfuActiveForClass = false;
+    return false;
+  }
+}
+
+async function syncTeacherSfuMedia() {
+  if (!teacherSfuRoom || teacherSfuRoom.state !== "connected") return;
+  try {
+    const videoTrack = getActiveTeacherVideoTrack();
+    if (videoTrack) {
+      if (teacherSfuVideoPub) {
+        if (teacherSfuVideoPub.track !== videoTrack) {
+          await teacherSfuVideoPub.replaceTrack(videoTrack);
+        }
+      } else {
+        teacherSfuVideoPub = await teacherSfuRoom.localParticipant.publishTrack(videoTrack, {
+          name: "teacher-screen",
+          simulcast: true,
+        });
+      }
+    } else if (teacherSfuVideoPub) {
+      try {
+        await teacherSfuRoom.localParticipant.unpublishTrack(teacherSfuVideoPub.track);
+      } catch (_) {}
+      teacherSfuVideoPub = null;
+    }
+
+    const audioTrack = classroomMasterAudioDestination?.stream?.getAudioTracks?.()[0]
+      || teacherMicStream?.getAudioTracks?.()[0]
+      || getAllAudioTracks()[0];
+    if (audioTrack && audioTrack.readyState === "live") {
+      if (teacherSfuAudioPub) {
+        if (teacherSfuAudioPub.track !== audioTrack) {
+          await teacherSfuAudioPub.replaceTrack(audioTrack);
+        }
+      } else {
+        teacherSfuAudioPub = await teacherSfuRoom.localParticipant.publishTrack(audioTrack, {
+          name: "teacher-audio",
+          dtx: true,
+          red: true,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("[SFU] Error syncing media with SFU room:", err);
+  }
+}
+
+function closeTeacherSfuSession() {
+  sfuActiveForClass = false;
+  teacherSfuVideoPub = null;
+  teacherSfuAudioPub = null;
+  if (teacherSfuRoom) {
+    try {
+      teacherSfuRoom.disconnect();
+    } catch (_) {}
+    teacherSfuRoom = null;
+  }
+}
+
 let screenShareRevision = 0;
 let isStarting = false;
 let isEnding = false;
@@ -4415,7 +4528,9 @@ function syncMixMinusAudioToAllPeers() {
   Object.entries(peerConnections).forEach(([studentSocketId, peerConnection]) => {
     ensureStudentAudioSender(peerConnection, studentSocketId);
   });
+  void syncTeacherSfuMedia();
 }
+
 
 
 function applyStudentMicrophoneState(studentSocketId, enabled) {
@@ -4497,11 +4612,13 @@ async function syncTeacherVideoTrackToAllPeers() {
     return true;
   });
   const results = await Promise.allSettled(operations);
+  void syncTeacherSfuMedia();
   return {
     updated: results.filter((result) => result.status === "fulfilled" && result.value === true).length,
     failed: results.filter((result) => result.status === "rejected").length,
   };
 }
+
 
 
 function addClassroomAudioSource(sourceKey, stream, { enabled = true } = {}) {
@@ -5458,7 +5575,9 @@ function stopLocalStreams() {
   cameraStream = undefined;
   if (elements.localVideo) elements.localVideo.srcObject = null;
   setStageMode("idle");
+  closeTeacherSfuSession();
 }
+
 
 
 async function resumeLiveClassAfterSocketReconnect() {
@@ -5497,8 +5616,10 @@ async function resumeLiveClassAfterSocketReconnect() {
 
     await ensureTeacherMicrophoneActive();
     await syncTeacherVideoTrackToAllPeers();
+    void initTeacherSfuSession(activeLevel);
 
     const studentSocketIds = Object.keys(peerConnections);
+
     for (const studentSocketId of studentSocketIds) {
       void createAndSendOffer(studentSocketId, { iceRestart: true });
     }
@@ -5957,6 +6078,7 @@ async function startLiveClass() {
     void publishScreenShareState(false);
     void publishTeacherMicState(!microphoneUnavailableMessage && getAllAudioTracks().some((track) => track.enabled));
     void refreshAbsenteesBadge();
+    void initTeacherSfuSession(selectedLevel);
   } catch (error) {
     console.error("Unable to start live class:", error);
     classActive = false;

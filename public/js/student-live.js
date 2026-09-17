@@ -59,6 +59,93 @@ if (typeof window.getMinasatyRtcConfig === "function") {
   void window.getMinasatyRtcConfig().then((config) => Object.assign(rtcConfig, config));
 }
 
+// SFU (LiveKit Media Server) State for zero-lag 70+ student broadcasting
+let studentSfuRoom = null;
+let studentSfuMicPub = null;
+
+async function connectStudentSfu(roomName) {
+  if (typeof window.fetchMinasatySfuToken !== "function" || !window.LivekitClient?.Room) {
+    console.info("[SFU-Student] LiveKit client or helper not available, using P2P.");
+    return false;
+  }
+  try {
+    const sfuData = await window.fetchMinasatySfuToken(roomName, false);
+    if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuData.url) {
+      console.info("[SFU-Student] SFU not enabled by server, staying on P2P.");
+      return false;
+    }
+    disconnectStudentSfu();
+    const Room = window.LivekitClient.Room;
+    studentSfuRoom = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+    });
+
+    studentSfuRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      console.info("[SFU-Student] Received teacher track via SFU:", track.kind);
+      if (track.mediaStreamTrack) {
+        attachTeacherTrack({ track: track.mediaStreamTrack });
+      }
+    });
+
+    studentSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
+      if (track.mediaStreamTrack && remoteMediaStream) {
+        remoteMediaStream.removeTrack(track.mediaStreamTrack);
+        updateRemoteVideoPresentation();
+      }
+    });
+
+    studentSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
+      console.warn("[SFU-Student] Disconnected from SFU room.");
+    });
+
+    await studentSfuRoom.connect(sfuData.url, sfuData.token);
+    console.info("[SFU-Student] Connected to LiveKit SFU room successfully:", roomName);
+    return true;
+  } catch (error) {
+    console.warn("[SFU-Student] SFU connection failed, falling back to P2P:", error);
+    return false;
+  }
+}
+
+async function publishStudentSfuMic(audioStream) {
+  if (!studentSfuRoom || studentSfuRoom.state !== "connected") return;
+  const track = audioStream?.getAudioTracks?.()[0];
+  if (!track) return;
+  try {
+    if (studentSfuMicPub) {
+      await studentSfuMicPub.replaceTrack(track);
+    } else {
+      studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, {
+        name: "student-mic",
+        source: window.LivekitClient.Track.Source.Microphone,
+      });
+    }
+  } catch (e) {
+    console.warn("[SFU-Student] Could not publish mic to SFU:", e);
+  }
+}
+
+function unpublishStudentSfuMic() {
+  if (studentSfuRoom && studentSfuMicPub) {
+    try {
+      studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track);
+    } catch (_) {}
+    studentSfuMicPub = null;
+  }
+}
+
+function disconnectStudentSfu() {
+  unpublishStudentSfuMic();
+  if (studentSfuRoom) {
+    try {
+      studentSfuRoom.disconnect();
+    } catch (_) {}
+    studentSfuRoom = null;
+  }
+}
+
+
 // Required viewer state for this phase.
 let pc;
 let localAudioStream;
@@ -2651,8 +2738,10 @@ function stopLocalAudio() {
   if (localAudioStream) {
     localAudioStream.getTracks().forEach((track) => track.stop());
   }
+  unpublishStudentSfuMic();
 
   localAudioStream = undefined;
+
   microphonePermissionGranted = false;
   microphonePrepared = false;
   isPreparingMicrophone = false;
@@ -3380,9 +3469,9 @@ async function enableApprovedMicrophone() {
     }
     updateMicControl();
     await negotiateStudentMicrophone();
-    // All approved student audio arrives through the teacher's master mix.
-
+    void publishStudentSfuMic(localAudioStream);
     return;
+
   }
 
   isRequestingMicrophone = true;
@@ -3413,7 +3502,9 @@ async function enableApprovedMicrophone() {
     // Do not depend only on negotiationneeded: explicitly create the offer so
     // the approved microphone works consistently across browsers.
     await negotiateStudentMicrophone();
+    void publishStudentSfuMic(localAudioStream);
     // All approved student audio arrives through the teacher's master mix.
+
 
   } catch (error) {
     console.error("Unable to access student microphone:", error);
@@ -3679,8 +3770,10 @@ socket.on("room_joined", (data = {}) => {
       title: elements.classLevelLabel?.textContent || "الحصة المباشرة",
       teacher: "أكاديمية التفوق"
     });
+    void connectStudentSfu(data.classroomLevel || data.level);
   }
 });
+
 
 function clearScreenShareRefreshGuard() {
   screenShareRefreshScheduled = false;
@@ -3990,6 +4083,7 @@ socket.on("permission_granted", async () => {
 socket.on("microphone_revoked", () => {
   clearHandResetTimer();
   microphonePermissionGranted = false;
+  unpublishStudentSfuMic();
 
   const audioTrack = localAudioStream?.getAudioTracks()[0];
   if (audioTrack) {
@@ -4004,12 +4098,14 @@ socket.on("microphone_revoked", () => {
 socket.on("classroom_all_mics_muted", () => {
   clearHandResetTimer();
   microphonePermissionGranted = false;
+  unpublishStudentSfuMic();
 
   if (localAudioStream) {
     localAudioStream.getAudioTracks().forEach((track) => {
       track.enabled = false;
     });
   }
+
   setRaisedHandState({ waiting: false });
   elements.handWaitingActions.hidden = true;
   updateMicControl();
