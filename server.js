@@ -457,6 +457,8 @@ const activeScheduledClassByLevel = new Map();
 // Explicit screen-share state lets students distinguish a real shared screen
 // from the static level welcome image that remains local to their page.
 const screenShareActiveByLevel = new Map();
+// Explicit teacher microphone state lets students know when the teacher is muted
+const teacherMicActiveByLevel = new Map();
 // A brief signaling outage must not end an otherwise healthy direct WebRTC
 // stream. This map reserves a room only for its original teacher while the
 // teacher's browser reconnects with its per-class recovery token.
@@ -817,6 +819,18 @@ function setScreenShareActive(level, active) {
   }
 }
 
+function isTeacherMicActive(level) {
+  return teacherMicActiveByLevel.get(level) !== false;
+}
+
+function setTeacherMicActive(level, active) {
+  if (active === false) {
+    teacherMicActiveByLevel.set(level, false);
+  } else {
+    teacherMicActiveByLevel.set(level, true);
+  }
+}
+
 function isStudentMicrophoneOpen(level, socketId) {
   return openStudentMicsByLevel.get(level)?.has(socketId) || false;
 }
@@ -1024,6 +1038,7 @@ async function closeClassroom(level, reason) {
   activeSubjectByLevel.delete(level);
   activeScheduledClassByLevel.delete(level);
   setScreenShareActive(level, false);
+  teacherMicActiveByLevel.delete(level);
   openStudentMicsByLevel.delete(level);
   whiteboardAccessByLevel.delete(level);
   clearClassroomChatHistory(level);
@@ -1648,6 +1663,7 @@ io.on("connection", (socket) => {
       // A new teacher page has no active display stream until it explicitly
       // publishes screen-share state after the room handshake.
       setScreenShareActive(level, false);
+      setTeacherMicActive(level, true);
       users.set(socket.id, { role: "teacher", level, name: "الأستاذ" });
 
       const recoveryStudents = isResuming
@@ -2130,6 +2146,7 @@ io.on("connection", (socket) => {
         teacherSocketId,
         participationCount,
         screenShareActive: isScreenShareActive(classroomLevel),
+        teacherMicActive: isTeacherMicActive(classroomLevel),
       });
       emitClassroomChatHistory(socket, classroomLevel);
       // When a student joins or rejoins, ensure their mic and whiteboard are strictly closed on entry
@@ -2341,6 +2358,34 @@ io.on("connection", (socket) => {
     setScreenShareActive(level, active);
     io.to(level).emit("screen_share_state", { level, active, revision });
     acknowledge(acknowledgement, { ok: true, level, active, revision });
+  });
+
+  /**
+   * Teacher broadcasts microphone state changes (muted/unmuted) so students
+   * receive an immediate floating visual notice when the teacher is not speaking.
+   * Payload: { level, active }
+   */
+  socket.on("teacher_mic_state", (data = {}, acknowledgement) => {
+    const level = normalizeText(data.level);
+    const active = Boolean(data.active);
+    if (
+      !isValidLevel(level) ||
+      socket.data.role !== "teacher" ||
+      socket.data.roomLevel !== level ||
+      activeTeachersByLevel.get(level) !== socket.id ||
+      !isInLevelRoom(socket, level)
+    ) {
+      return emitClassroomError(
+        socket,
+        "teacher_mic_state",
+        "لا تملك صلاحية تغيير حالة مايكروفون الحصة.",
+        acknowledgement
+      );
+    }
+
+    setTeacherMicActive(level, active);
+    io.to(level).emit("teacher_mic_state", { level, active });
+    acknowledge(acknowledgement, { ok: true, level, active });
   });
 
   /**
@@ -3088,6 +3133,7 @@ io.on("connection", (socket) => {
       await socket.leave(level);
       users.delete(socket.id);
       setScreenShareActive(level, false);
+      teacherMicActiveByLevel.delete(level);
       io.to(level).emit("screen_share_state", { level, active: false });
       activeTeachersByLevel.delete(level);
       resetClassroomData(socket, level);

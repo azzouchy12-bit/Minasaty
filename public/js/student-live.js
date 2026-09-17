@@ -180,6 +180,8 @@ const elements = {
   prejoinMicStatus: document.getElementById("student-prejoin-mic-status"),
   prejoinCameraStatus: document.getElementById("student-prejoin-camera-status"),
   prejoinMessage: document.getElementById("student-prejoin-message"),
+  teacherMicMuteBanner: document.getElementById("teacher-mic-mute-banner"),
+  dismissTeacherMicMuteBtn: document.getElementById("dismiss-teacher-mic-mute-btn"),
 };
 
 function openSubscriptionUpgradeModal(reason = "university") {
@@ -1862,6 +1864,22 @@ function renderTeacherAbsenceNotice(isAbsent) {
   if (teacherAbsentRealtime) {
     overlay.textContent = "الأستاذ غائب اليوم\nسيتم إعلامك فور تحديث برنامج الحصة.";
     setPlaceholder("الأستاذ غائب اليوم", "تم تحديث الحالة مباشرة من لوحة الأستاذ.");
+  }
+}
+
+let teacherMicMutedNoticeDismissed = false;
+
+function setTeacherMicMutedState(isMuted) {
+  const banner = elements.teacherMicMuteBanner || document.getElementById("teacher-mic-mute-banner");
+  if (!banner) return;
+
+  if (isMuted) {
+    if (!teacherMicMutedNoticeDismissed) {
+      banner.hidden = false;
+    }
+  } else {
+    banner.hidden = true;
+    teacherMicMutedNoticeDismissed = false;
   }
 }
 
@@ -3581,6 +3599,12 @@ socket.on("room_joined", (data = {}) => {
     waitingForNextClass = false;
     teacherSocketId = data.teacherSocketId || teacherSocketId;
     screenShareActive = Boolean(data.screenShareActive);
+    if (data.teacherMicActive === false) {
+      teacherMicMutedNoticeDismissed = false;
+      setTeacherMicMutedState(true);
+    } else {
+      setTeacherMicMutedState(false);
+    }
     setParticipationCount(data.participationCount);
     updateRemoteVideoPresentation();
     setStudentVideoQuality(currentVideoQuality, { notifyServer: true, showToast: false });
@@ -3648,6 +3672,15 @@ socket.on("teacher_absence_updated", (data = {}) => {
   const eventLevel = canonicalLevel(data.level);
   if (!eventLevel || eventLevel !== level) return;
   renderTeacherAbsenceNotice(data.isAbsent === true);
+});
+
+socket.on("teacher_mic_state", (data = {}) => {
+  if (!globalFreeClass && data.level && data.level !== level) return;
+  const isMuted = data.active === false;
+  if (isMuted) {
+    teacherMicMutedNoticeDismissed = false;
+  }
+  setTeacherMicMutedState(isMuted);
 });
 
 socket.on("screen_share_state", (data = {}) => {
@@ -3991,6 +4024,12 @@ socket.on("disconnect", () => {
 relocateStudentChatComposer();
 if (!isDesktopStudentView()) openStudentChatComposer({ focus: false });
 elements.enableAudioButton?.addEventListener("click", enableTeacherAudio);
+elements.dismissTeacherMicMuteBtn?.addEventListener("click", () => {
+  teacherMicMutedNoticeDismissed = true;
+  if (elements.teacherMicMuteBanner) {
+    elements.teacherMicMuteBanner.hidden = true;
+  }
+});
 elements.screenShareWatchButton?.addEventListener("click", watchCurrentScreenShare);
 elements.remoteVideo?.addEventListener("volumechange", updateRemoteAudioControl);
 elements.raiseHandButton.addEventListener("click", toggleRaisedHand);

@@ -647,6 +647,9 @@
     if (el.micLabel) {
       el.micLabel.textContent = isMicActive ? "المايك يعمل" : "المايك مكتوم";
     }
+    if (socket && socket.connected && activeLevel) {
+      socket.emit("teacher_mic_state", { level: activeLevel, active: isMicActive });
+    }
     showToast(isMicActive ? "تم تشغيل المايكروفون 🎙️" : "تم كتم المايكروفون 🔇");
   }
 

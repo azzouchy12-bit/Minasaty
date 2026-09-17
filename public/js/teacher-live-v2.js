@@ -77,7 +77,7 @@ let teacherAgcEnabled = localStorage.getItem("minasaty_teacher_agc_enabled") ===
 let teacherEchoCancellation = localStorage.getItem("minasaty_teacher_echo_cancellation") !== "false"; // True by default
 let teacherNoiseSuppression = localStorage.getItem("minasaty_teacher_noise_suppression") === "true"; // False by default for studio mic
 const iceDisconnectTimers = Object.create(null);
-const ICE_DISCONNECT_GRACE_MS = 8_000;
+const ICE_DISCONNECT_GRACE_MS = 15_000;
 let activeLevel = null;
 let activeSubject = null;
 let classActive = false;
@@ -135,7 +135,88 @@ const LOCAL_RECORDING_WIDTH = 1920;
 const LOCAL_RECORDING_HEIGHT = 1080;
 const LOCAL_RECORDING_FRAME_RATE = 60;
 const LOCAL_RECORDING_VIDEO_BITRATE = 16_000_000;
+const OPTIMAL_RECORDING_VIDEO_BITRATE = 3_500_000;
 const LOCAL_RECORDING_AUDIO_BITRATE = 128_000;
+
+const RECORDING_DB_NAME = "minasaty_recording_cache_v1";
+const RECORDING_STORE_NAME = "chunks";
+let recordingDbPromise = null;
+
+function getRecordingDb() {
+  if (!recordingDbPromise) {
+    recordingDbPromise = new Promise((resolve) => {
+      if (typeof window === "undefined" || typeof window.indexedDB === "undefined") {
+        return resolve(null);
+      }
+      try {
+        const request = window.indexedDB.open(RECORDING_DB_NAME, 1);
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains(RECORDING_STORE_NAME)) {
+            db.createObjectStore(RECORDING_STORE_NAME, { keyPath: "id", autoIncrement: true });
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => {
+          console.warn("IndexedDB not available for recording cache:", request.error);
+          resolve(null);
+        };
+      } catch (err) {
+        console.warn("IndexedDB initialization error:", err);
+        resolve(null);
+      }
+    });
+  }
+  return recordingDbPromise;
+}
+
+async function clearRecordingDb() {
+  try {
+    const db = await getRecordingDb();
+    if (!db) return;
+    const tx = db.transaction(RECORDING_STORE_NAME, "readwrite");
+    tx.objectStore(RECORDING_STORE_NAME).clear();
+    await new Promise((resolve) => {
+      tx.oncomplete = resolve;
+      tx.onerror = resolve;
+    });
+  } catch (_) {}
+}
+
+async function saveRecordingChunkToStorage(chunk) {
+  try {
+    const db = await getRecordingDb();
+    if (!db) return false;
+    const tx = db.transaction(RECORDING_STORE_NAME, "readwrite");
+    tx.objectStore(RECORDING_STORE_NAME).add({ chunk });
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = reject;
+    });
+    return true;
+  } catch (err) {
+    console.warn("Failed to persist recording chunk to IndexedDB:", err);
+    return false;
+  }
+}
+
+async function retrieveRecordingChunksFromStorage() {
+  try {
+    const db = await getRecordingDb();
+    if (!db) return null;
+    const tx = db.transaction(RECORDING_STORE_NAME, "readonly");
+    const req = tx.objectStore(RECORDING_STORE_NAME).getAll();
+    const result = await new Promise((resolve, reject) => {
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = reject;
+    });
+    if (!result || !result.length) return null;
+    return result.map((item) => item.chunk);
+  } catch (err) {
+    console.warn("Failed to retrieve recording chunks from IndexedDB:", err);
+    return null;
+  }
+}
 const GOOGLE_DRIVE_CLIENT_ID = "938017291163-a6dar2h6u2d5isf5h4nqtaccp7jpkk28.apps.googleusercontent.com";
 const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const GOOGLE_DRIVE_ROOT_FOLDER = "تسجيلات أكاديمية التفوق";
@@ -824,6 +905,15 @@ function appendTeacherChatMessage({ id, sender, message = "", kind, imageUrl = n
 
   elements.chatBox.append(bubble);
 
+  // Prune older DOM bubbles to prevent texture memory bloat during long classes
+  while (elements.chatBox.children.length > 200) {
+    const oldest = elements.chatBox.firstElementChild;
+    if (oldest && oldest !== elements.chatEmpty) {
+      oldest.remove();
+    } else {
+      break;
+    }
+  }
 
   if (shouldFollowNewestMessage) {
     requestAnimationFrame(() => {
@@ -1385,10 +1475,12 @@ function disposeLocalRecordingResources() {
   localRecordingVideoElement = null;
   localRecordingCanvas = null;
   localRecordingCanvasContext = null;
-  if (localRecordingVideoTrack) {
-    localRecordingVideoTrack.stop();
-    localRecordingVideoTrack = null;
+  if (localRecordingVideoTrack && localRecordingVideoTrack !== screenStream?.getVideoTracks?.()[0]) {
+    try {
+      localRecordingVideoTrack.stop();
+    } catch (_) {}
   }
+  localRecordingVideoTrack = null;
   localRecordingIs1080p = false;
 
 
@@ -1501,9 +1593,24 @@ function syncLocalRecordingAudioSources() {
 
 
 function build1080pRecordingVideoTrack(sourceTrack) {
+  if (!sourceTrack || sourceTrack.readyState !== "live") {
+    return sourceTrack;
+  }
+
+  // Direct zero-copy hardware pass-through:
+  // Bypass 60fps software canvas rasterization on the main thread when a live screen track is present.
+  // This prevents main-thread starvation of WebRTC audio/video encoding and keeps renderer RAM low.
+  const settings = typeof sourceTrack.getSettings === "function" ? sourceTrack.getSettings() : {};
+  const isDirectCandidate = sourceTrack.kind === "video" && (settings.displaySurface || sourceTrack.contentHint === "detail" || (settings.width && settings.width >= 1280));
+  if (isDirectCandidate) {
+    localRecordingIs1080p = (settings.width === LOCAL_RECORDING_WIDTH && settings.height === LOCAL_RECORDING_HEIGHT) || !settings.width || settings.width >= 1280;
+    localRecordingVideoTrack = sourceTrack;
+    return sourceTrack;
+  }
+
   const CanvasConstructor = window.HTMLCanvasElement;
   const VideoConstructor = window.HTMLVideoElement;
-  if (!sourceTrack || !CanvasConstructor || !VideoConstructor || typeof CanvasConstructor.prototype.captureStream !== "function") {
+  if (!CanvasConstructor || !VideoConstructor || typeof CanvasConstructor.prototype.captureStream !== "function") {
     return sourceTrack;
   }
 
@@ -3553,14 +3660,16 @@ function closeAbsenteesModal() {
 
 
 
-function finalizeLocalRecording() {
+async function finalizeLocalRecording() {
   if (localRecordingFinalized) {
     return;
   }
   localRecordingFinalized = true;
 
-
-  const chunks = localRecordingChunks;
+  let chunks = await retrieveRecordingChunksFromStorage();
+  if (!chunks || !chunks.length) {
+    chunks = localRecordingChunks;
+  }
   const mimeType = localRecordingMimeType;
   const shouldDownload = localRecordingDownloadRequested;
   const resolver = localRecordingStopResolver;
@@ -3578,7 +3687,7 @@ function finalizeLocalRecording() {
     setButtonLabel(elements.recordLocalButton, "بدء تسجيل الحصة");
   }
   disposeLocalRecordingResources();
-
+  void clearRecordingDb();
 
   const downloaded = shouldDownload && downloadLocalRecording(recording);
   if (downloaded && classActive && !isEnding && !isPageNavigatingAway) {
@@ -3594,19 +3703,19 @@ function finalizeLocalRecording() {
   }
 }
 
-
 function startLocalRecording() {
   if (!canRecordLocalClass() || isLocalRecording()) {
     return;
   }
 
-
   try {
+    void clearRecordingDb();
     localRecordingStream = buildLocalRecordingStream();
     const mimeType = getLocalRecordingMimeType();
+    const targetVideoBitrate = OPTIMAL_RECORDING_VIDEO_BITRATE;
     const options = mimeType
-      ? { mimeType, videoBitsPerSecond: LOCAL_RECORDING_VIDEO_BITRATE, audioBitsPerSecond: LOCAL_RECORDING_AUDIO_BITRATE }
-      : { videoBitsPerSecond: LOCAL_RECORDING_VIDEO_BITRATE, audioBitsPerSecond: LOCAL_RECORDING_AUDIO_BITRATE };
+      ? { mimeType, videoBitsPerSecond: LOCAL_RECORDING_VIDEO_BITRATE ? targetVideoBitrate : LOCAL_RECORDING_VIDEO_BITRATE, audioBitsPerSecond: LOCAL_RECORDING_AUDIO_BITRATE }
+      : { videoBitsPerSecond: LOCAL_RECORDING_VIDEO_BITRATE ? targetVideoBitrate : LOCAL_RECORDING_VIDEO_BITRATE, audioBitsPerSecond: LOCAL_RECORDING_AUDIO_BITRATE };
     const recorder = new MediaRecorder(localRecordingStream, options);
     localMediaRecorder = recorder;
     localRecordingMimeType = recorder.mimeType || mimeType || "video/webm";
@@ -3614,16 +3723,19 @@ function startLocalRecording() {
     localRecordingStartedAt = Date.now();
     localRecordingDownloadRequested = true;
     localRecordingFinalized = false;
-    recorder.ondataavailable = (event) => {
+    recorder.ondataavailable = async (event) => {
       if (event.data?.size) {
-        localRecordingChunks.push(event.data);
+        const storedInDb = await saveRecordingChunkToStorage(event.data);
+        if (!storedInDb) {
+          localRecordingChunks.push(event.data);
+        }
       }
     };
     recorder.onerror = (event) => {
       console.error("Local class recording failed:", event.error);
       setStudioStatus("تعذر متابعة التسجيل المحلي للحصة.", "error");
     };
-    recorder.onstop = finalizeLocalRecording;
+    recorder.onstop = () => { void finalizeLocalRecording(); };
     recorder.start(3_000);
     if (elements.localRecordingState) elements.localRecordingState.hidden = false;
     if (elements.recordLocalButton) {
@@ -4050,6 +4162,12 @@ function rebuildClassroomAudioGraph() {
       }
     });
   });
+
+  if (teacherMicGainNode && teacherMicAnalyserNode) {
+    try {
+      teacherMicGainNode.connect(teacherMicAnalyserNode);
+    } catch {}
+  }
 }
 
 
@@ -4329,6 +4447,11 @@ function primeClassroomAudioContext() {
     if (classroomAudioContext.state === "suspended") {
       classroomAudioContext.resume().catch(() => {});
     }
+    classroomAudioContext.onstatechange = () => {
+      if (classroomAudioContext?.state === "suspended" && classActive) {
+        classroomAudioContext.resume().catch(() => {});
+      }
+    };
   } catch (error) {
     console.warn("Unable to prime classroom audio:", error);
     classroomAudioContext = undefined;
@@ -5351,6 +5474,18 @@ async function publishScreenShareState(active) {
   }
 }
 
+async function publishTeacherMicState(active) {
+  if (!activeLevel || !socket.connected) return;
+  try {
+    await emitWithAcknowledgement("teacher_mic_state", {
+      level: activeLevel,
+      active: Boolean(active),
+    }, 5_000);
+  } catch (error) {
+    console.warn("Unable to publish teacher mic state:", error);
+  }
+}
+
 
 async function stopScreenShare() {
   const streamToStop = screenStream;
@@ -5639,6 +5774,7 @@ async function startLiveClass() {
       "live"
     );
     void publishScreenShareState(false);
+    void publishTeacherMicState(!microphoneUnavailableMessage && getAllAudioTracks().some((track) => track.enabled));
     void refreshAbsenteesBadge();
   } catch (error) {
     console.error("Unable to start live class:", error);
@@ -5671,15 +5807,18 @@ function toggleMicrophone() {
     return;
   }
 
-
   const shouldEnable = !audioTracks.some((track) => track.enabled);
   audioTracks.forEach((track) => {
     track.enabled = shouldEnable;
   });
 
+  if (shouldEnable && classroomAudioContext && classroomAudioContext.state === "suspended") {
+    classroomAudioContext.resume().catch(() => {});
+  }
 
   setStudioStatus(shouldEnable ? "تم تشغيل المايك." : "تم إيقاف المايك.", "live");
   updateControls();
+  void publishTeacherMicState(shouldEnable);
 }
 
 

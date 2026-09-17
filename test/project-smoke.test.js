@@ -142,7 +142,7 @@ test("teacher class registry selects term before month and subject", () => {
 });
 
 test("teacher dashboard keeps level selection above an internal scrollable section nav", () => {
-  const teacherHtml = fs.readFileSync(path.join(root, "public/teacher-dashboard.html"), "utf8");
+  const teacherHtml = fs.readFileSync(path.join(root, "public/teacher-dashboard.html"), "utf8").replace(/\r\n/g, "\n");
   const appCss = fs.readFileSync(path.join(root, "public/css/app.css"), "utf8");
   const levelIndex = teacherHtml.indexOf("id=\"teacher-level-strip\"");
   const frameIndex = teacherHtml.indexOf("id=\"teacher-main-frame\"");
