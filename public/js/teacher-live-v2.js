@@ -141,6 +141,14 @@ async function initTeacherSfuSession(roomName) {
   }
 }
 
+function getActiveTeacherAudioTrack() {
+  const micTrack = cameraStream?.getAudioTracks?.().find((track) => track.readyState === "live");
+  if (micTrack) return micTrack;
+  const screenAudioTrack = screenStream?.getAudioTracks?.().find((track) => track.readyState === "live");
+  if (screenAudioTrack) return screenAudioTrack;
+  return null;
+}
+
 async function syncTeacherSfuMedia() {
   if (!teacherSfuRoom || teacherSfuRoom.state !== "connected") return;
   try {
@@ -151,33 +159,52 @@ async function syncTeacherSfuMedia() {
           await teacherSfuVideoPub.replaceTrack(videoTrack);
         }
       } else {
-        teacherSfuVideoPub = await teacherSfuRoom.localParticipant.publishTrack(videoTrack, {
-          name: "teacher-screen",
-          simulcast: true,
-        });
+        const existingVideoPub = Array.from(teacherSfuRoom.localParticipant.trackPublications.values())
+          .find((pub) => pub.track === videoTrack || pub.trackName === "teacher-screen");
+        if (existingVideoPub) {
+          teacherSfuVideoPub = existingVideoPub;
+        } else {
+          teacherSfuVideoPub = await teacherSfuRoom.localParticipant.publishTrack(videoTrack, {
+            name: "teacher-screen",
+            simulcast: true,
+          });
+        }
       }
     } else if (teacherSfuVideoPub) {
       try {
-        await teacherSfuRoom.localParticipant.unpublishTrack(teacherSfuVideoPub.track);
+        if (teacherSfuVideoPub.track) {
+          await teacherSfuRoom.localParticipant.unpublishTrack(teacherSfuVideoPub.track);
+        }
       } catch (_) {}
       teacherSfuVideoPub = null;
     }
 
-    const audioTrack = classroomMasterAudioDestination?.stream?.getAudioTracks?.()[0]
-      || teacherMicStream?.getAudioTracks?.()[0]
-      || getAllAudioTracks()[0];
+    const audioTrack = getActiveTeacherAudioTrack();
     if (audioTrack && audioTrack.readyState === "live") {
       if (teacherSfuAudioPub) {
         if (teacherSfuAudioPub.track !== audioTrack) {
           await teacherSfuAudioPub.replaceTrack(audioTrack);
         }
       } else {
-        teacherSfuAudioPub = await teacherSfuRoom.localParticipant.publishTrack(audioTrack, {
-          name: "teacher-audio",
-          dtx: true,
-          red: true,
-        });
+        const existingAudioPub = Array.from(teacherSfuRoom.localParticipant.trackPublications.values())
+          .find((pub) => pub.track === audioTrack || pub.trackName === "teacher-audio");
+        if (existingAudioPub) {
+          teacherSfuAudioPub = existingAudioPub;
+        } else {
+          teacherSfuAudioPub = await teacherSfuRoom.localParticipant.publishTrack(audioTrack, {
+            name: "teacher-audio",
+            dtx: true,
+            red: true,
+          });
+        }
       }
+    } else if (teacherSfuAudioPub) {
+      try {
+        if (teacherSfuAudioPub.track) {
+          await teacherSfuRoom.localParticipant.unpublishTrack(teacherSfuAudioPub.track);
+        }
+      } catch (_) {}
+      teacherSfuAudioPub = null;
     }
   } catch (err) {
     console.warn("[SFU] Error syncing media with SFU room:", err);

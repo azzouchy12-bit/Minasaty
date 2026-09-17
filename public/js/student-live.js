@@ -117,10 +117,15 @@ async function publishStudentSfuMic(audioStream) {
     if (studentSfuMicPub) {
       await studentSfuMicPub.replaceTrack(track);
     } else {
-      studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, {
-        name: "student-mic",
-        source: window.LivekitClient.Track.Source.Microphone,
-      });
+      const existingPub = Array.from(studentSfuRoom.localParticipant.trackPublications.values())
+        .find((pub) => pub.track === track || pub.trackName === "student-mic");
+      if (existingPub) {
+        studentSfuMicPub = existingPub;
+      } else {
+        studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, {
+          name: "student-mic",
+        });
+      }
     }
   } catch (e) {
     console.warn("[SFU-Student] Could not publish mic to SFU:", e);
