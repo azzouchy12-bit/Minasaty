@@ -1754,6 +1754,285 @@ body.parent-login-modal-open {
   color: #64748b;
   font-size: .65rem;
 }
+.youtube-upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .42rem;
+  min-height: 2.45rem;
+  padding: .45rem .88rem;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border: 1px solid #1d4ed8;
+  border-radius: .65rem;
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.youtube-upload-button:hover,
+.youtube-upload-button:focus-visible {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 8px 16px rgba(37, 99, 235, .25);
+  outline: none;
+  transform: translateY(-1px);
+}
+.youtube-upload-button.is-secondary {
+  color: #1e40af;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.youtube-upload-button.is-secondary:hover,
+.youtube-upload-button.is-secondary:focus-visible {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-color: #93c5fd;
+  box-shadow: 0 6px 12px rgba(37, 99, 235, .15);
+}
+.class-registry-youtube-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .5rem;
+  align-items: center;
+}
+@media (max-width: 580px) {
+  .class-registry-youtube-actions {
+    grid-template-columns: 1fr;
+  }
+}
+.registry-upload-modal-card {
+  width: min(34rem, calc(100vw - 2rem));
+  padding: 1.5rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1.15rem;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, .18);
+  direction: rtl;
+  text-align: right;
+}
+.registry-upload-head {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 1.1rem;
+}
+.registry-upload-icon-pulse {
+  display: grid;
+  place-items: center;
+  width: 3.2rem;
+  height: 3.2rem;
+  flex: 0 0 auto;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 50%;
+  animation: pulseRegistryIcon 2s infinite;
+}
+@keyframes pulseRegistryIcon {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .35); }
+  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+.registry-upload-head-copy h2 {
+  margin: 0 0 .2rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+.registry-upload-subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: .72rem;
+}
+.registry-upload-file-info {
+  display: grid;
+  gap: .8rem;
+  background: #f8fafc;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: .85rem;
+}
+.registry-upload-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  font-size: .78rem;
+}
+.registry-upload-info-row .info-label {
+  color: #64748b;
+  font-weight: 700;
+}
+.registry-upload-info-row .info-value {
+  color: #0f172a;
+  font-weight: 800;
+}
+.registry-upload-field {
+  display: grid;
+  gap: .35rem;
+  font-size: .75rem;
+  font-weight: 700;
+  color: #334155;
+}
+.registry-upload-field input,
+.registry-upload-field select {
+  width: 100%;
+  padding: .5rem .75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: .55rem;
+  font: inherit;
+  font-size: .8rem;
+  color: #0f172a;
+  background: #ffffff;
+}
+.registry-upload-field input:focus,
+.registry-upload-field select:focus {
+  border-color: #2563eb;
+  outline: 2px solid rgba(37, 99, 235, .2);
+}
+.registry-upload-start-actions {
+  margin-top: .4rem;
+}
+.registry-upload-start-btn {
+  width: 100%;
+  padding: .65rem 1rem;
+  font-size: .85rem;
+  font-weight: 800;
+}
+.registry-upload-progress-box {
+  display: grid;
+  gap: .75rem;
+  padding: 1.15rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: .85rem;
+}
+.registry-upload-progress-track {
+  width: 100%;
+  height: .85rem;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .1);
+}
+.registry-upload-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ef4444, #dc2626, #2563eb);
+  background-size: 200% 100%;
+  border-radius: 999px;
+  transition: width .25s ease;
+  animation: uploadGradientMove 2.2s linear infinite;
+}
+@keyframes uploadGradientMove {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+.registry-upload-metrics {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: .82rem;
+  font-weight: 800;
+}
+.registry-upload-percent {
+  color: #2563eb;
+  font-size: .95rem;
+}
+.registry-upload-bytes {
+  color: #64748b;
+}
+.registry-upload-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .65rem;
+}
+.registry-stat-card {
+  display: grid;
+  gap: .2rem;
+  padding: .55rem .75rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: .65rem;
+  text-align: center;
+}
+.registry-stat-card .stat-label {
+  font-size: .66rem;
+  font-weight: 700;
+  color: #64748b;
+}
+.registry-stat-card strong {
+  font-size: .84rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+.registry-upload-status-text {
+  margin: 0;
+  text-align: center;
+  font-size: .74rem;
+  font-weight: 700;
+  color: #475569;
+}
+.registry-upload-success-card {
+  display: grid;
+  gap: .85rem;
+  padding: 1.25rem;
+  text-align: center;
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border: 1px solid #86efac;
+  border-radius: .95rem;
+}
+.registry-success-badge {
+  display: grid;
+  place-items: center;
+  width: 3.2rem;
+  height: 3.2rem;
+  margin: 0 auto;
+  color: #ffffff;
+  background: #16a34a;
+  border-radius: 50%;
+  font-size: 1.6rem;
+  font-weight: 900;
+  box-shadow: 0 8px 16px rgba(22, 163, 74, .25);
+}
+.registry-upload-success-card h3 {
+  margin: 0;
+  color: #14532d;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.registry-upload-success-card p {
+  margin: 0;
+  color: #166534;
+  font-size: .78rem;
+}
+.registry-success-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: .65rem;
+  margin-top: .4rem;
+}
+.registry-success-links a,
+.registry-success-links button {
+  padding: .5rem .85rem;
+  font-size: .76rem;
+  font-weight: 800;
+}
+.registry-success-close-btn {
+  margin-top: .4rem;
+  padding: .45rem;
+  background: transparent;
+  border: 0;
+  color: #166534;
+  font: inherit;
+  font-size: .75rem;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline;
+}
 @media (max-width: 620px) {
   .class-registry-head { display: grid; gap: .2rem; }
   .youtube-connection-actions { justify-content: flex-start; }

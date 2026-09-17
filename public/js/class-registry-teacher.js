@@ -27,11 +27,40 @@
   const youtubeConnectionStatus = $("youtube-connection-status");
   const youtubePickerModal = $("youtube-video-picker-modal");
   const youtubePickerList = $("youtube-video-picker-list");
+  const registryUploadVideoBtn = $("registry-upload-video-btn");
+  const registryVideoFileInput = $("registry-video-file-input");
+  const classRegistryDirectUploadBtn = $("class-registry-direct-upload-btn");
+
+  const uploadModal = $("registry-youtube-upload-modal");
+  const uploadModalClose = $("registry-upload-modal-close");
+  const uploadFileName = $("registry-upload-file-name");
+  const uploadFileSize = $("registry-upload-file-size");
+  const uploadVideoTitle = $("registry-upload-video-title");
+  const uploadTargetClassRow = $("registry-upload-class-select-row");
+  const uploadTargetClassSelect = $("registry-upload-target-class");
+  const uploadFileInfoBox = $("registry-upload-file-info");
+  const uploadStartBtn = $("registry-upload-start-btn");
+  const uploadProgressBox = $("registry-upload-progress-box");
+  const uploadProgressbar = $("registry-upload-progressbar");
+  const uploadPercent = $("registry-upload-percent");
+  const uploadBytes = $("registry-upload-bytes");
+  const uploadSpeed = $("registry-upload-speed");
+  const uploadEta = $("registry-upload-eta");
+  const uploadStatusText = $("registry-upload-status-text");
+  const uploadSuccessCard = $("registry-upload-success-card");
+  const uploadWatchBtn = $("registry-upload-watch-btn");
+  const uploadCopyBtn = $("registry-upload-copy-btn");
+  const uploadDoneBtn = $("registry-upload-done-btn");
+
   let currentLevel = document.querySelector(".level-btn.is-active")?.dataset.level || "السنة الأولى";
   let selectedTerm = "";
   let selectedMonth = "";
   let selectedSubject = "";
   let selectedClass = null;
+  let currentClasses = [];
+  let pendingUploadFile = null;
+  let activeUploadXhr = null;
+  let isUploadingToYoutube = false;
   let youtubeConnected = false;
   let registryOpen = false;
 
@@ -340,8 +369,10 @@
     list.innerHTML = '<p class="class-registry-loading">جارٍ تحميل سجل الحصص…</p>';
     try {
       const payload = await api(`/api/schedules/registry/${encodeURIComponent(currentLevel)}?month=${encodeURIComponent(selectedMonth)}&subject=${encodeURIComponent(selectedSubject)}`);
-      render(Array.isArray(payload.data) ? payload.data : []);
+      currentClasses = Array.isArray(payload.data) ? payload.data : [];
+      render(currentClasses);
     } catch (error) {
+      currentClasses = [];
       list.innerHTML = `<p class="class-registry-empty">${error.message}</p>`;
     }
   }
@@ -357,6 +388,329 @@
       await load();
     } catch (error) {
       showError(error.message);
+    }
+  }
+
+  function formatBytesToHuman(bytes) {
+    if (!bytes || bytes <= 0 || !Number.isFinite(bytes)) return "0 MB";
+    if (bytes >= 1024 * 1024 * 1024) {
+      return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function formatSpeedToHuman(bytesPerSec) {
+    if (!bytesPerSec || bytesPerSec <= 0 || !Number.isFinite(bytesPerSec)) return "0 KB/s";
+    if (bytesPerSec >= 1024 * 1024) {
+      return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+    }
+    return `${(bytesPerSec / 1024).toFixed(0)} KB/s`;
+  }
+
+  function formatSecondsToHuman(seconds) {
+    if (!seconds || seconds <= 0 || !Number.isFinite(seconds)) return "أقل من ثانية";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins === 0) return `${secs} ثانية`;
+    if (secs === 0) return `${mins} دقيقة`;
+    return `${mins} دقيقة و ${secs} ثانية`;
+  }
+
+  function playUploadSuccessChime() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      const now = ctx.currentTime;
+      const notes = [
+        { freq: 523.25, time: 0, dur: 0.22, vol: 0.25 },
+        { freq: 659.25, time: 0.12, dur: 0.22, vol: 0.25 },
+        { freq: 783.99, time: 0.24, dur: 0.28, vol: 0.28 },
+        { freq: 1046.50, time: 0.38, dur: 0.65, vol: 0.32 },
+      ];
+      notes.forEach(({ freq, time, dur, vol }) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, now + time);
+        gain.gain.setValueAtTime(0.001, now + time);
+        gain.gain.exponentialRampToValueAtTime(vol, now + time + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + time + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + time);
+        osc.stop(now + time + dur);
+      });
+    } catch (err) {
+      console.warn("Unable to play upload success chime:", err);
+    }
+  }
+
+  function onBeforeUnloadGuard(e) {
+    if (!isUploadingToYoutube) return;
+    e.preventDefault();
+    e.returnValue = "يجري حالياً رفع الفيديو إلى YouTube. إذا أغلقت الصفحة سينقطع الرفع.";
+    return e.returnValue;
+  }
+
+  function setUploadBeforeUnloadProtection(enabled) {
+    isUploadingToYoutube = Boolean(enabled);
+    if (isUploadingToYoutube) {
+      window.addEventListener("beforeunload", onBeforeUnloadGuard);
+    } else {
+      window.removeEventListener("beforeunload", onBeforeUnloadGuard);
+    }
+  }
+
+  function directPutToGoogle(uploadUrl, blob, mimeType, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      activeUploadXhr = xhr;
+      xhr.open("PUT", uploadUrl);
+      xhr.setRequestHeader("Content-Type", mimeType);
+
+      const startTime = Date.now();
+      let lastLoaded = 0;
+      let lastTime = startTime;
+      let smoothSpeed = 0;
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && e.total > 0) {
+          const now = Date.now();
+          const percent = Math.round((e.loaded / e.total) * 100);
+          const elapsedSec = (now - startTime) / 1000;
+
+          const instantElapsed = (now - lastTime) / 1000;
+          if (instantElapsed >= 0.4) {
+            const instantBytes = e.loaded - lastLoaded;
+            const currentSpeed = instantBytes / instantElapsed;
+            smoothSpeed = smoothSpeed === 0 ? currentSpeed : (smoothSpeed * 0.7 + currentSpeed * 0.3);
+            lastLoaded = e.loaded;
+            lastTime = now;
+          } else if (smoothSpeed === 0 && elapsedSec > 0.4) {
+            smoothSpeed = e.loaded / elapsedSec;
+          }
+
+          const remainingBytes = Math.max(0, e.total - e.loaded);
+          const remainingSec = smoothSpeed > 0 ? Math.ceil(remainingBytes / smoothSpeed) : null;
+
+          onProgress?.({
+            percent,
+            loadedBytes: e.loaded,
+            totalBytes: e.total,
+            speedBps: smoothSpeed,
+            remainingSec,
+          });
+        }
+      };
+
+      xhr.onload = () => {
+        activeUploadXhr = null;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch (_) {
+            resolve({ id: null });
+          }
+        } else {
+          let msg = "تعذر رفع الفيديو مباشرة إلى YouTube.";
+          try { msg = JSON.parse(xhr.responseText)?.error?.message || msg; } catch (_) {}
+          reject(new Error(`${msg} (${xhr.status})`));
+        }
+      };
+      xhr.onerror = () => {
+        activeUploadXhr = null;
+        reject(new Error("انقطع الاتصال أثناء الرفع المباشر إلى YouTube."));
+      };
+      xhr.onabort = () => {
+        activeUploadXhr = null;
+        reject(new Error("تم إلغاء الرفع."));
+      };
+      xhr.send(blob);
+    });
+  }
+
+  function openUploadModalForFile(file, classToTarget = selectedClass) {
+    if (!file) return;
+    pendingUploadFile = file;
+
+    uploadFileInfoBox.hidden = false;
+    uploadProgressBox.hidden = true;
+    uploadSuccessCard.hidden = true;
+    uploadStartBtn.disabled = false;
+    uploadStartBtn.textContent = "🚀 بدء الرفع المباشر إلى YouTube";
+
+    uploadFileName.textContent = file.name;
+    uploadFileSize.textContent = formatBytesToHuman(file.size);
+
+    const baseName = file.name.replace(/\.[^/.]+$/, "").trim();
+    if (classToTarget) {
+      const subjectLabel = labels[classToTarget.subject] || classToTarget.subject;
+      uploadVideoTitle.value = `حصة ${subjectLabel} — ${currentLevel} — ${baseName}`;
+    } else {
+      uploadVideoTitle.value = baseName || `حصة ${currentLevel} مسجلة`;
+    }
+
+    if (uploadTargetClassSelect && uploadTargetClassRow) {
+      uploadTargetClassSelect.replaceChildren();
+      const defaultOption = document.createElement("option");
+      defaultOption.value = "";
+      defaultOption.textContent = "رفع إلى القناة فقط (دون ربط بحصة محددة)";
+      uploadTargetClassSelect.append(defaultOption);
+
+      if (currentClasses && currentClasses.length > 0) {
+        uploadTargetClassRow.hidden = false;
+        currentClasses.forEach((c) => {
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          const statusText = statusLabels[c.status] || c.status;
+          opt.textContent = `${labels[c.subject] || c.subject} — ${formatDate(c.scheduledAt)} (${statusText})`;
+          if (classToTarget && classToTarget.id === c.id) {
+            opt.selected = true;
+          }
+          uploadTargetClassSelect.append(opt);
+        });
+      } else {
+        uploadTargetClassRow.hidden = true;
+      }
+    }
+
+    uploadModal.hidden = false;
+  }
+
+  function closeUploadModal() {
+    if (isUploadingToYoutube) {
+      if (!confirm("هل أنت متأكد من رغبتك في إلغاء عملية الرفع الجارية؟")) {
+        return;
+      }
+      if (activeUploadXhr) {
+        activeUploadXhr.abort();
+      }
+      setUploadBeforeUnloadProtection(false);
+    }
+    uploadModal.hidden = true;
+    pendingUploadFile = null;
+    activeUploadXhr = null;
+  }
+
+  async function startDirectUpload() {
+    if (!pendingUploadFile || isUploadingToYoutube) return;
+
+    if (!youtubeConnected) {
+      await connectYoutube();
+      return;
+    }
+
+    const file = pendingUploadFile;
+    const titleText = (uploadVideoTitle?.value || "").trim().slice(0, 100) || file.name.replace(/\.[^/.]+$/, "");
+    const targetClassId = uploadTargetClassSelect?.value || selectedClass?.id || "";
+
+    uploadFileInfoBox.hidden = true;
+    uploadProgressBox.hidden = false;
+    uploadSuccessCard.hidden = true;
+
+    uploadProgressbar.style.width = "2%";
+    uploadPercent.textContent = "2%";
+    uploadBytes.textContent = `0 MB / ${formatBytesToHuman(file.size)}`;
+    uploadSpeed.textContent = "0 KB/s";
+    uploadEta.textContent = "جارٍ البدء…";
+    uploadStatusText.textContent = "جارٍ فتح جلسة الرفع مع YouTube…";
+
+    setUploadBeforeUnloadProtection(true);
+
+    try {
+      const mimeType = file.type || "video/webm";
+      const sessionRes = await fetch("/api/youtube/resumable-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: titleText,
+          description: `تسجيل مرفوع من منصتي\nالمستوى: ${currentLevel}`,
+          mimeType,
+          fileSize: file.size,
+        }),
+      });
+
+      const sessionPayload = await sessionRes.json().catch(() => ({}));
+      if (!sessionRes.ok || !sessionPayload.uploadUrl) {
+        throw new Error(sessionPayload.error || "تعذر فتح جلسة الرفع إلى YouTube.");
+      }
+
+      uploadStatusText.textContent = "جارٍ الرفع المباشر إلى YouTube بحالة غير مدرج (Unlisted)…";
+
+      const googleResponse = await directPutToGoogle(
+        sessionPayload.uploadUrl,
+        file,
+        mimeType,
+        ({ percent, loadedBytes, totalBytes, speedBps, remainingSec }) => {
+          uploadProgressbar.style.width = `${percent}%`;
+          uploadPercent.textContent = `${percent}%`;
+          uploadBytes.textContent = `${formatBytesToHuman(loadedBytes)} / ${formatBytesToHuman(totalBytes)}`;
+          uploadSpeed.textContent = formatSpeedToHuman(speedBps);
+          uploadEta.textContent = formatSecondsToHuman(remainingSec);
+        }
+      );
+
+      const videoId = googleResponse?.id;
+      if (!videoId) throw new Error("لم تُرجع YouTube معرّف الفيديو بعد الرفع.");
+
+      uploadStatusText.textContent = "تم الرفع بنجاح! جارٍ تسجيل الفيديو بالمنصة…";
+      uploadProgressbar.style.width = "100%";
+      uploadPercent.textContent = "100%";
+
+      await fetch("/api/youtube/resumable-finish", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          videoId,
+          level: currentLevel,
+          subject: selectedSubject || "MATH",
+          scheduledClassId: targetClassId || "",
+          title: titleText,
+        }),
+      });
+
+      setUploadBeforeUnloadProtection(false);
+      playUploadSuccessChime();
+
+      uploadProgressBox.hidden = true;
+      uploadSuccessCard.hidden = false;
+
+      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      uploadWatchBtn.href = videoUrl;
+
+      uploadCopyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(`https://youtu.be/${videoId}`);
+          uploadCopyBtn.textContent = "تم نسخ الرابط! ✓";
+          setTimeout(() => { uploadCopyBtn.textContent = "نسخ رابط الفيديو"; }, 2500);
+        } catch (_) {
+          prompt("انسخ رابط الفيديو:", `https://youtu.be/${videoId}`);
+        }
+      };
+
+      if (targetClassId) {
+        if (selectedClass && selectedClass.id === targetClassId) {
+          youtubeVideoIdInput.value = videoId;
+          youtubeSelectedLabel.textContent = `تم اختيار: ${titleText} (${videoId})`;
+          youtubeSelectedLabel.title = titleText;
+        }
+        await load();
+      }
+
+      window.dispatchEvent(new CustomEvent("class-registry-refresh"));
+    } catch (error) {
+      setUploadBeforeUnloadProtection(false);
+      uploadProgressBox.hidden = true;
+      uploadFileInfoBox.hidden = false;
+      alert(error.message || "حدث خطأ أثناء رفع الفيديو.");
     }
   }
 
@@ -379,6 +733,37 @@
   youtubePickerModal?.addEventListener("click", (event) => { if (event.target === youtubePickerModal) closeYoutubePicker(); });
   youtubePickerButton?.addEventListener("click", () => void openYoutubePicker());
   youtubeConnectButton?.addEventListener("click", () => void connectYoutube());
+
+  registryUploadVideoBtn?.addEventListener("click", async () => {
+    if (!youtubeConnected) {
+      await connectYoutube();
+      return;
+    }
+    registryVideoFileInput?.click();
+  });
+
+  classRegistryDirectUploadBtn?.addEventListener("click", async () => {
+    if (!youtubeConnected) {
+      await connectYoutube();
+      return;
+    }
+    registryVideoFileInput?.click();
+  });
+
+  registryVideoFileInput?.addEventListener("change", (e) => {
+    const file = e.target?.files?.[0];
+    if (!file || file.size === 0) return;
+    openUploadModalForFile(file, selectedClass);
+    e.target.value = "";
+  });
+
+  uploadModalClose?.addEventListener("click", closeUploadModal);
+  uploadDoneBtn?.addEventListener("click", closeUploadModal);
+  uploadStartBtn?.addEventListener("click", () => void startDirectUpload());
+  uploadModal?.addEventListener("click", (event) => {
+    if (event.target === uploadModal) closeUploadModal();
+  });
+
   window.addEventListener("message", (event) => {
     if (event.origin !== window.location.origin) return;
     if (event.data?.type === "youtube-connected") {

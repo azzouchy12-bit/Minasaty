@@ -117,11 +117,6 @@ async function attachVideoToNearestScheduledClass({ req, level, subject, videoId
   const targetSubject = canonicalSubject(subject);
   if (!normalizedLevel || !targetSubject || !videoId) return null;
 
-  const recordedDate = new Date(recordedAt || Date.now());
-  const timestamp = Number.isFinite(recordedDate.getTime()) ? recordedDate : new Date();
-  const recordingParts = getAlgiersDateParts(timestamp);
-  if (!recordingParts || !isOfficialRecordingTime(timestamp)) return null;
-
   const displayLevel = Object.entries(LEVEL_ALIASES).find(([, canonical]) => canonical === normalizedLevel)?.[0];
   const levelCandidates = [...new Set([normalizedLevel, displayLevel].filter(Boolean))];
   if (scheduledClassId) {
@@ -135,6 +130,11 @@ async function attachVideoToNearestScheduledClass({ req, level, subject, videoId
       return { id: updated.id, level: updated.level, subject: updated.subject, scheduledAt: updated.scheduledAt };
     }
   }
+
+  const recordedDate = new Date(recordedAt || Date.now());
+  const timestamp = Number.isFinite(recordedDate.getTime()) ? recordedDate : new Date();
+  const recordingParts = getAlgiersDateParts(timestamp);
+  if (!recordingParts || !isOfficialRecordingTime(timestamp)) return null;
 
   const candidates = await prisma.scheduledClass.findMany({
     where: {
