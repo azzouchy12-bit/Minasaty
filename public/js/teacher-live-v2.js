@@ -15,11 +15,11 @@
 // Start explicitly so the studio can wait for a healthy signaling connection
 // before emitting teacher_start_room, while retaining WebSocket/polling fallback.
 // The server uses this token to authorize teacher-only control events.
-const teacherSocketToken = sessionStorage.getItem("teacherToken") || "";
+const teacherSocketToken = sessionStorage.getItem("teacherToken") || localStorage.getItem("teacherToken") || "";
 const socket = io({
   auth: { token: teacherSocketToken },
-  autoConnect: false,
-  transports: ["websocket", "polling"],
+  autoConnect: true,
+  transports: ["polling", "websocket"],
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 500,
@@ -5439,9 +5439,8 @@ async function flushPendingIceCandidates(studentSocketId) {
 }
 
 
-function waitForSocketConnection(timeoutMs = 12_000) {
+function waitForSocketConnection(timeoutMs = 15_000) {
   if (socket.connected) return Promise.resolve(true);
-
 
   return new Promise((resolve) => {
     let settled = false;
@@ -5451,13 +5450,28 @@ function waitForSocketConnection(timeoutMs = 12_000) {
       settled = true;
       window.clearTimeout(timeoutId);
       socket.off("connect", handleConnect);
+      socket.off("connect_error", handleConnectError);
       resolve(connected);
     };
     const handleConnect = () => finish(true);
-
+    const handleConnectError = (err) => {
+      console.warn("[Socket] Connect error while waiting:", err?.message || err);
+      if (socket.io?.opts) {
+        socket.io.opts.transports = ["polling", "websocket"];
+      }
+    };
 
     socket.once("connect", handleConnect);
-    socket.connect();
+    socket.on("connect_error", handleConnectError);
+
+    const token = sessionStorage.getItem("teacherToken") || localStorage.getItem("teacherToken") || "";
+    if (socket.auth && typeof socket.auth === "object") {
+      socket.auth.token = token;
+    }
+
+    if (!socket.active && !socket.connected) {
+      socket.connect();
+    }
   });
 }
 
@@ -6093,8 +6107,8 @@ async function startLiveClass() {
 
 
     if (!socket.connected) {
-      setStudioStatus("تم اختيار الشاشة. جارٍ الاتصال بخادم الحصة…", "neutral");
-      const connected = await waitForSocketConnection(12_000);
+      setStudioStatus("جارٍ الاتصال بخادم الحصة وتجهيز البث…", "neutral");
+      const connected = await waitForSocketConnection(15_000);
       if (!connected || !socket.connected) {
         throw new Error("تعذر الاتصال بالخادم بعد اختيار الشاشة. حاول مرة أخرى.");
       }

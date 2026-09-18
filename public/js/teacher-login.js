@@ -70,6 +70,8 @@ async function handleTeacherLogin(event) {
     clearTeacherSession();
     sessionStorage.setItem("teacherToken", data.token);
     sessionStorage.setItem("userRole", "teacher");
+    localStorage.setItem("teacherToken", data.token);
+    localStorage.setItem("userRole", "teacher");
     const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
                      (window.matchMedia && window.matchMedia("(max-width: 900px)").matches) ||
                      (window.innerWidth <= 900);
