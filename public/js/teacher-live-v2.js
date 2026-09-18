@@ -89,57 +89,94 @@ let teacherSfuAudioPub = null;
 let sfuActiveForClass = false;
 let isSfuMediaSyncing = false;
 let pendingSfuMediaSync = false;
+let isTeacherSfuConnecting = false;
+let currentTeacherSfuRoomName = null;
 
 async function initTeacherSfuSession(roomName) {
   if (typeof window.fetchMinasatySfuToken !== "function" || !window.LivekitClient?.Room) {
     console.info("[SFU] LiveKit client or helper not available, running in P2P mode.");
     return false;
   }
+  if (!roomName) return false;
+
+  // If already connected to this room, just sync media and return
+  if (teacherSfuRoom && teacherSfuRoom.state === "connected" && currentTeacherSfuRoomName === roomName) {
+    sfuActiveForClass = true;
+    await syncTeacherSfuMedia();
+    return true;
+  }
+
+  // If already in the middle of connecting to this room, don't abort it!
+  if (isTeacherSfuConnecting && currentTeacherSfuRoomName === roomName) {
+    return true;
+  }
+
+  isTeacherSfuConnecting = true;
+  currentTeacherSfuRoomName = roomName;
+
   try {
     const sfuData = await window.fetchMinasatySfuToken(roomName, true);
     const sfuUrl = sfuData?.url || sfuData?.serverUrl;
     if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuUrl) {
       console.info("[SFU] SFU not enabled by server, running P2P fallback.");
+      isTeacherSfuConnecting = false;
       return false;
     }
-    closeTeacherSfuSession();
-    const Room = window.LivekitClient.Room;
-    teacherSfuRoom = new Room({
-      adaptiveStream: true,
-      dynacast: true,
-    });
 
-    teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
-      if (track.kind === "audio") {
-        const studentAudio = track.attach();
-        studentAudio.id = `sfu-audio-${participant.identity}`;
-        studentAudio.style.display = "none";
-        document.body.appendChild(studentAudio);
-      }
-    });
+    // Only close previous session if connecting to a DIFFERENT room
+    if (teacherSfuRoom && currentTeacherSfuRoomName !== roomName) {
+      closeTeacherSfuSession();
+    }
 
-    teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-      if (track.kind === "audio") {
-        const el = document.getElementById(`sfu-audio-${participant.identity}`);
-        if (el) el.remove();
-      }
-    });
+    if (!teacherSfuRoom || teacherSfuRoom.state === "disconnected") {
+      const Room = window.LivekitClient.Room;
+      teacherSfuRoom = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+      });
 
-    teacherSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
-      console.warn("[SFU] Teacher disconnected from SFU room.");
-      sfuActiveForClass = false;
-    });
+      teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        if (track.kind === "audio") {
+          const studentAudio = track.attach();
+          studentAudio.id = `sfu-audio-${participant.identity}`;
+          studentAudio.style.display = "none";
+          document.body.appendChild(studentAudio);
+        }
+      });
 
-    await teacherSfuRoom.connect(sfuUrl, sfuData.token);
+      teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+        if (track.kind === "audio") {
+          const el = document.getElementById(`sfu-audio-${participant.identity}`);
+          if (el) el.remove();
+        }
+      });
+
+      teacherSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
+        if (sfuActiveForClass) {
+          console.warn("[SFU] Teacher disconnected from SFU room.");
+          sfuActiveForClass = false;
+        }
+      });
+    }
+
+    if (teacherSfuRoom.state !== "connected") {
+      await teacherSfuRoom.connect(sfuUrl, sfuData.token);
+    }
 
     sfuActiveForClass = true;
     console.info("[SFU] Teacher successfully connected to LiveKit SFU:", roomName);
     await syncTeacherSfuMedia();
     return true;
   } catch (error) {
+    // Suppress warnings from intentional client aborts
+    if (String(error?.message).includes("Client initiated disconnect") || String(error?.message).includes("cancelled")) {
+      return false;
+    }
     console.warn("[SFU] Could not connect to SFU, using P2P fallback:", error);
     sfuActiveForClass = false;
     return false;
+  } finally {
+    isTeacherSfuConnecting = false;
   }
 }
 
@@ -283,13 +320,17 @@ async function executeTeacherSfuMediaSync() {
 
 function closeTeacherSfuSession() {
   sfuActiveForClass = false;
+  isTeacherSfuConnecting = false;
+  currentTeacherSfuRoomName = null;
   isSfuMediaSyncing = false;
   pendingSfuMediaSync = false;
   teacherSfuVideoPub = null;
   teacherSfuAudioPub = null;
   if (teacherSfuRoom) {
     try {
-      teacherSfuRoom.disconnect();
+      if (teacherSfuRoom.state !== "disconnected") {
+        teacherSfuRoom.disconnect();
+      }
     } catch (_) {}
     teacherSfuRoom = null;
   }

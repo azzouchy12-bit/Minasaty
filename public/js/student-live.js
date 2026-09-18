@@ -63,50 +63,75 @@ if (typeof window.getMinasatyRtcConfig === "function") {
 let studentSfuRoom = null;
 let studentSfuMicPub = null;
 let isStudentMicSyncing = false;
+let isStudentSfuConnecting = false;
+let currentStudentSfuRoomName = null;
 
 async function connectStudentSfu(roomName) {
   if (typeof window.fetchMinasatySfuToken !== "function" || !window.LivekitClient?.Room) {
     console.info("[SFU-Student] LiveKit client or helper not available, using P2P.");
     return false;
   }
+  if (!roomName) return false;
+
+  if (studentSfuRoom && studentSfuRoom.state === "connected" && currentStudentSfuRoomName === roomName) {
+    return true;
+  }
+  if (isStudentSfuConnecting && currentStudentSfuRoomName === roomName) {
+    return true;
+  }
+  isStudentSfuConnecting = true;
+  currentStudentSfuRoomName = roomName;
+
   try {
     const sfuData = await window.fetchMinasatySfuToken(roomName, false);
     const sfuUrl = sfuData?.url || sfuData?.serverUrl;
     if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuUrl) {
       console.info("[SFU-Student] SFU not enabled by server, staying on P2P.");
+      isStudentSfuConnecting = false;
       return false;
     }
-    disconnectStudentSfu();
-    const Room = window.LivekitClient.Room;
-    studentSfuRoom = new Room({
-      adaptiveStream: true,
-      dynacast: true,
-    });
+    if (studentSfuRoom && currentStudentSfuRoomName !== roomName) {
+      disconnectStudentSfu();
+    }
+    if (!studentSfuRoom || studentSfuRoom.state === "disconnected") {
+      const Room = window.LivekitClient.Room;
+      studentSfuRoom = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+      });
 
-    studentSfuRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
-      console.info("[SFU-Student] Received teacher track via SFU:", track.kind);
-      if (track.mediaStreamTrack) {
-        attachTeacherTrack({ track: track.mediaStreamTrack });
-      }
-    });
+      studentSfuRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        console.info("[SFU-Student] Received teacher track via SFU:", track.kind);
+        if (track.mediaStreamTrack) {
+          attachTeacherTrack({ track: track.mediaStreamTrack });
+        }
+      });
 
-    studentSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
-      if (track.mediaStreamTrack && remoteMediaStream) {
-        remoteMediaStream.removeTrack(track.mediaStreamTrack);
-        updateRemoteVideoPresentation();
-      }
-    });
+      studentSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
+        if (track.mediaStreamTrack && remoteMediaStream) {
+          remoteMediaStream.removeTrack(track.mediaStreamTrack);
+          updateRemoteVideoPresentation();
+        }
+      });
 
-    studentSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
-      console.warn("[SFU-Student] Disconnected from SFU room.");
-    });
+      studentSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
+        console.warn("[SFU-Student] Disconnected from SFU room.");
+      });
+    }
 
-    await studentSfuRoom.connect(sfuUrl, sfuData.token);
+    if (studentSfuRoom.state !== "connected") {
+      await studentSfuRoom.connect(sfuUrl, sfuData.token);
+    }
     console.info("[SFU-Student] Connected to LiveKit SFU room successfully:", roomName);
     return true;
   } catch (error) {
+    if (String(error?.message).includes("Client initiated disconnect") || String(error?.message).includes("cancelled")) {
+      return false;
+    }
     console.warn("[SFU-Student] SFU connection failed, falling back to P2P:", error);
     return false;
+  } finally {
+    isStudentSfuConnecting = false;
   }
 }
 
@@ -166,10 +191,14 @@ function unpublishStudentSfuMic() {
 }
 
 function disconnectStudentSfu() {
+  isStudentSfuConnecting = false;
+  currentStudentSfuRoomName = null;
   unpublishStudentSfuMic();
   if (studentSfuRoom) {
     try {
-      studentSfuRoom.disconnect();
+      if (studentSfuRoom.state !== "disconnected") {
+        studentSfuRoom.disconnect();
+      }
     } catch (_) {}
     studentSfuRoom = null;
   }
