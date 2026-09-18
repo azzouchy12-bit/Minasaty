@@ -87,6 +87,8 @@ let teacherSfuRoom = null;
 let teacherSfuVideoPub = null;
 let teacherSfuAudioPub = null;
 let sfuActiveForClass = false;
+let isSfuMediaSyncing = false;
+let pendingSfuMediaSync = false;
 
 async function initTeacherSfuSession(roomName) {
   if (typeof window.fetchMinasatySfuToken !== "function" || !window.LivekitClient?.Room) {
@@ -151,23 +153,55 @@ function getActiveTeacherAudioTrack() {
 
 async function syncTeacherSfuMedia() {
   if (!teacherSfuRoom || teacherSfuRoom.state !== "connected") return;
+  if (isSfuMediaSyncing) {
+    pendingSfuMediaSync = true;
+    return;
+  }
+  isSfuMediaSyncing = true;
   try {
+    do {
+      pendingSfuMediaSync = false;
+      await executeTeacherSfuMediaSync();
+    } while (pendingSfuMediaSync && teacherSfuRoom?.state === "connected");
+  } finally {
+    isSfuMediaSyncing = false;
+  }
+}
+
+async function executeTeacherSfuMediaSync() {
+  if (!teacherSfuRoom || teacherSfuRoom.state !== "connected") return;
+  try {
+    const allPubs = Array.from(teacherSfuRoom.localParticipant?.trackPublications?.values() || []);
+
     // 1. Sync Video / Screen track
     const videoTrack = getActiveTeacherVideoTrack();
-    const existingVideoPub = teacherSfuVideoPub || Array.from(teacherSfuRoom.localParticipant.trackPublications.values())
-      .find((pub) => pub.trackName === "teacher-screen" || pub.source === "screen_share" || pub.kind === "video");
+    const existingVideoPub = (teacherSfuVideoPub && allPubs.includes(teacherSfuVideoPub))
+      ? teacherSfuVideoPub
+      : allPubs.find((pub) => pub.kind === "video" || pub.source === "screen_share" || pub.trackName === "teacher-screen");
 
     if (videoTrack && videoTrack.readyState === "live") {
       if (existingVideoPub) {
         teacherSfuVideoPub = existingVideoPub;
         const currentTrack = existingVideoPub.track?.mediaStreamTrack;
-        if (currentTrack !== videoTrack) {
+        if (currentTrack === videoTrack || currentTrack?.id === videoTrack.id) {
+          // Exact same track is already published and live, nothing to do
+        } else {
           if (existingVideoPub.track && typeof existingVideoPub.track.replaceTrack === "function") {
-            await existingVideoPub.track.replaceTrack(videoTrack);
+            try {
+              await existingVideoPub.track.replaceTrack(videoTrack);
+            } catch (_) {
+              try { await teacherSfuRoom.localParticipant.unpublishTrack(existingVideoPub.track); } catch (_) {}
+              teacherSfuVideoPub = await teacherSfuRoom.localParticipant.publishTrack(videoTrack, {
+                name: "teacher-screen",
+                source: window.LivekitClient?.Track?.Source?.ScreenShare || "screen_share",
+                simulcast: true,
+              });
+            }
           } else {
             try { await teacherSfuRoom.localParticipant.unpublishTrack(existingVideoPub.track); } catch (_) {}
             teacherSfuVideoPub = await teacherSfuRoom.localParticipant.publishTrack(videoTrack, {
               name: "teacher-screen",
+              source: window.LivekitClient?.Track?.Source?.ScreenShare || "screen_share",
               simulcast: true,
             });
           }
@@ -175,6 +209,7 @@ async function syncTeacherSfuMedia() {
       } else {
         teacherSfuVideoPub = await teacherSfuRoom.localParticipant.publishTrack(videoTrack, {
           name: "teacher-screen",
+          source: window.LivekitClient?.Track?.Source?.ScreenShare || "screen_share",
           simulcast: true,
         });
       }
@@ -189,20 +224,34 @@ async function syncTeacherSfuMedia() {
 
     // 2. Sync Audio / Mic track
     const audioTrack = getActiveTeacherAudioTrack();
-    const existingAudioPub = teacherSfuAudioPub || Array.from(teacherSfuRoom.localParticipant.trackPublications.values())
-      .find((pub) => pub.trackName === "teacher-audio" || pub.source === "microphone" || pub.kind === "audio");
+    const existingAudioPub = (teacherSfuAudioPub && allPubs.includes(teacherSfuAudioPub))
+      ? teacherSfuAudioPub
+      : allPubs.find((pub) => pub.kind === "audio" || pub.source === "microphone" || pub.trackName === "teacher-audio");
 
     if (audioTrack && audioTrack.readyState === "live") {
       if (existingAudioPub) {
         teacherSfuAudioPub = existingAudioPub;
         const currentTrack = existingAudioPub.track?.mediaStreamTrack;
-        if (currentTrack !== audioTrack) {
+        if (currentTrack === audioTrack || currentTrack?.id === audioTrack.id) {
+          // Exact same track is already published and live, nothing to do
+        } else {
           if (existingAudioPub.track && typeof existingAudioPub.track.replaceTrack === "function") {
-            await existingAudioPub.track.replaceTrack(audioTrack);
+            try {
+              await existingAudioPub.track.replaceTrack(audioTrack);
+            } catch (_) {
+              try { await teacherSfuRoom.localParticipant.unpublishTrack(existingAudioPub.track); } catch (_) {}
+              teacherSfuAudioPub = await teacherSfuRoom.localParticipant.publishTrack(audioTrack, {
+                name: "teacher-audio",
+                source: window.LivekitClient?.Track?.Source?.Microphone || "microphone",
+                dtx: true,
+                red: true,
+              });
+            }
           } else {
             try { await teacherSfuRoom.localParticipant.unpublishTrack(existingAudioPub.track); } catch (_) {}
             teacherSfuAudioPub = await teacherSfuRoom.localParticipant.publishTrack(audioTrack, {
               name: "teacher-audio",
+              source: window.LivekitClient?.Track?.Source?.Microphone || "microphone",
               dtx: true,
               red: true,
             });
@@ -211,6 +260,7 @@ async function syncTeacherSfuMedia() {
       } else {
         teacherSfuAudioPub = await teacherSfuRoom.localParticipant.publishTrack(audioTrack, {
           name: "teacher-audio",
+          source: window.LivekitClient?.Track?.Source?.Microphone || "microphone",
           dtx: true,
           red: true,
         });
@@ -224,12 +274,17 @@ async function syncTeacherSfuMedia() {
       teacherSfuAudioPub = null;
     }
   } catch (err) {
+    if (err?.name === "TrackInvalidError" || String(err?.message).includes("already been published")) {
+      return;
+    }
     console.warn("[SFU] Error syncing media with SFU room:", err);
   }
 }
 
 function closeTeacherSfuSession() {
   sfuActiveForClass = false;
+  isSfuMediaSyncing = false;
+  pendingSfuMediaSync = false;
   teacherSfuVideoPub = null;
   teacherSfuAudioPub = null;
   if (teacherSfuRoom) {

@@ -35,11 +35,11 @@ function createUnavailableStudentSocket() {
 
 // Keep the viewer controls initialized even when a static/local preview does
 // not expose Socket.io. Production still uses the real Socket.io connection.
-const parentSessionToken = sessionStorage.getItem("parentToken") || "";
+const parentSessionToken = sessionStorage.getItem("parentToken") || localStorage.getItem("parentToken") || "";
 const socket = typeof window.io === "function"
   ? window.io({
       auth: parentSessionToken ? { token: parentSessionToken } : {},
-      transports: ["websocket", "polling"],
+      transports: ["polling", "websocket"],
     })
   : createUnavailableStudentSocket();
 
@@ -62,6 +62,7 @@ if (typeof window.getMinasatyRtcConfig === "function") {
 // SFU (LiveKit Media Server) State for zero-lag 70+ student broadcasting
 let studentSfuRoom = null;
 let studentSfuMicPub = null;
+let isStudentMicSyncing = false;
 
 async function connectStudentSfu(roomName) {
   if (typeof window.fetchMinasatySfuToken !== "function" || !window.LivekitClient?.Room) {
@@ -112,19 +113,30 @@ async function connectStudentSfu(roomName) {
 async function publishStudentSfuMic(audioStream) {
   if (!studentSfuRoom || studentSfuRoom.state !== "connected") return;
   const track = audioStream?.getAudioTracks?.()[0];
-  if (!track) return;
+  if (!track || track.readyState !== "live") return;
+  if (isStudentMicSyncing) return;
+  isStudentMicSyncing = true;
   try {
-    const existingPub = studentSfuMicPub || Array.from(studentSfuRoom.localParticipant.trackPublications.values())
-      .find((pub) => pub.trackName === "student-mic" || pub.source === "microphone" || pub.kind === "audio");
+    const allPubs = Array.from(studentSfuRoom.localParticipant?.trackPublications?.values() || []);
+    const existingPub = (studentSfuMicPub && allPubs.includes(studentSfuMicPub))
+      ? studentSfuMicPub
+      : allPubs.find((pub) => pub.trackName === "student-mic" || pub.source === "microphone" || pub.kind === "audio");
     if (existingPub) {
       studentSfuMicPub = existingPub;
-      if (existingPub.track?.mediaStreamTrack !== track) {
-        if (existingPub.track && typeof existingPub.track.replaceTrack === "function") {
+      const currentTrack = existingPub.track?.mediaStreamTrack;
+      if (currentTrack === track || currentTrack?.id === track.id) {
+        return;
+      }
+      if (existingPub.track && typeof existingPub.track.replaceTrack === "function") {
+        try {
           await existingPub.track.replaceTrack(track);
-        } else {
+        } catch (_) {
           try { await studentSfuRoom.localParticipant.unpublishTrack(existingPub.track); } catch (_) {}
           studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, { name: "student-mic" });
         }
+      } else {
+        try { await studentSfuRoom.localParticipant.unpublishTrack(existingPub.track); } catch (_) {}
+        studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, { name: "student-mic" });
       }
     } else {
       studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, {
@@ -132,14 +144,22 @@ async function publishStudentSfuMic(audioStream) {
       });
     }
   } catch (e) {
+    if (e?.name === "TrackInvalidError" || String(e?.message).includes("already been published")) {
+      return;
+    }
     console.warn("[SFU-Student] Could not publish mic to SFU:", e);
+  } finally {
+    isStudentMicSyncing = false;
   }
 }
 
 function unpublishStudentSfuMic() {
+  isStudentMicSyncing = false;
   if (studentSfuRoom && studentSfuMicPub) {
     try {
-      studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track);
+      if (studentSfuMicPub.track) {
+        studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track);
+      }
     } catch (_) {}
     studentSfuMicPub = null;
   }

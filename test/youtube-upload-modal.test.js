@@ -25,7 +25,7 @@ test("teacher-live.html includes YouTube Live Upload HUD modal, success card, an
   assert.ok(content.includes('class="yt-hud-btn view-youtube-btn"'), "view video button must use yt-hud-btn class");
   assert.ok(content.includes('id="youtube-modal-minimize-btn"'), "minimize button must exist");
   assert.ok(content.includes('id="youtube-minimized-badge"'), "floating minimized badge must exist");
-  assert.ok(content.includes('src="./js/teacher-live-v2.js?v=yt-live-hud-6"'), "teacher-live-v2.js must have cache-busting v=yt-live-hud-6");
+  assert.ok(content.includes('src="./js/teacher-live-v2.js?v=yt-live-hud-7"'), "teacher-live-v2.js must have cache-busting v=yt-live-hud-7");
 });
 
 test("studio-modern.css includes rich styling for YouTube Live Upload HUD, success card, and legible buttons", () => {
