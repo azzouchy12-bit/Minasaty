@@ -114,18 +114,22 @@ async function publishStudentSfuMic(audioStream) {
   const track = audioStream?.getAudioTracks?.()[0];
   if (!track) return;
   try {
-    if (studentSfuMicPub) {
-      await studentSfuMicPub.replaceTrack(track);
-    } else {
-      const existingPub = Array.from(studentSfuRoom.localParticipant.trackPublications.values())
-        .find((pub) => pub.track === track || pub.trackName === "student-mic");
-      if (existingPub) {
-        studentSfuMicPub = existingPub;
-      } else {
-        studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, {
-          name: "student-mic",
-        });
+    const existingPub = studentSfuMicPub || Array.from(studentSfuRoom.localParticipant.trackPublications.values())
+      .find((pub) => pub.trackName === "student-mic" || pub.source === "microphone" || pub.kind === "audio");
+    if (existingPub) {
+      studentSfuMicPub = existingPub;
+      if (existingPub.track?.mediaStreamTrack !== track) {
+        if (existingPub.track && typeof existingPub.track.replaceTrack === "function") {
+          await existingPub.track.replaceTrack(track);
+        } else {
+          try { await studentSfuRoom.localParticipant.unpublishTrack(existingPub.track); } catch (_) {}
+          studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, { name: "student-mic" });
+        }
       }
+    } else {
+      studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, {
+        name: "student-mic",
+      });
     }
   } catch (e) {
     console.warn("[SFU-Student] Could not publish mic to SFU:", e);
