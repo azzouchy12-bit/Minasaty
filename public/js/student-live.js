@@ -101,6 +101,10 @@ async function connectStudentSfu(roomName) {
       });
 
       studentSfuRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        // Only accept broadcast tracks from the teacher, never from other students
+        if (participant?.identity && participant.identity.startsWith("student_") && participant.identity !== teacherSocketId) {
+          return;
+        }
         console.info("[SFU-Student] Received teacher track via SFU:", track.kind);
         if (track.mediaStreamTrack) {
           attachTeacherTrack({ track: track.mediaStreamTrack });
@@ -136,46 +140,15 @@ async function connectStudentSfu(roomName) {
 }
 
 async function publishStudentSfuMic(audioStream) {
-  if (!studentSfuRoom || studentSfuRoom.state !== "connected") return;
-  const track = audioStream?.getAudioTracks?.()[0];
-  if (!track || track.readyState !== "live") return;
-  if (isStudentMicSyncing) return;
-  isStudentMicSyncing = true;
-  try {
-    const allPubs = Array.from(studentSfuRoom.localParticipant?.trackPublications?.values() || []);
-    const existingPub = (studentSfuMicPub && allPubs.includes(studentSfuMicPub))
-      ? studentSfuMicPub
-      : allPubs.find((pub) => pub.trackName === "student-mic" || pub.source === "microphone" || pub.kind === "audio");
-    if (existingPub) {
-      studentSfuMicPub = existingPub;
-      const currentTrack = existingPub.track?.mediaStreamTrack;
-      if (currentTrack === track || currentTrack?.id === track.id) {
-        return;
-      }
-      if (existingPub.track && typeof existingPub.track.replaceTrack === "function") {
-        try {
-          await existingPub.track.replaceTrack(track);
-        } catch (_) {
-          try { await studentSfuRoom.localParticipant.unpublishTrack(existingPub.track); } catch (_) {}
-          studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, { name: "student-mic" });
-        }
-      } else {
-        try { await studentSfuRoom.localParticipant.unpublishTrack(existingPub.track); } catch (_) {}
-        studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, { name: "student-mic" });
-      }
-    } else {
-      studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, {
-        name: "student-mic",
-      });
-    }
-  } catch (e) {
-    if (e?.name === "TrackInvalidError" || String(e?.message).includes("already been published")) {
-      return;
-    }
-    console.warn("[SFU-Student] Could not publish mic to SFU:", e);
-  } finally {
-    isStudentMicSyncing = false;
+  // Student microphones are routed exclusively through WebRTC P2P to the teacher's
+  // master mix-minus to prevent double-audio/echo feedback across the classroom.
+  if (studentSfuRoom && studentSfuMicPub) {
+    try {
+      await studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track);
+    } catch (_) {}
+    studentSfuMicPub = null;
   }
+  return;
 }
 
 function unpublishStudentSfuMic() {
@@ -2009,53 +1982,174 @@ function safeSqrt(val) {
 function evaluateScientificExpression(rawExpr, angleMode = "DEG") {
   if (!rawExpr || !rawExpr.trim()) return 0;
 
-  let s = rawExpr.trim();
+  let s = rawExpr.trim()
+    .replace(/×/g, "*")
+    .replace(/÷/g, "/")
+    .replace(/−/g, "-")
+    .replace(/,/g, ".");
 
-  // Replace display symbols with standard arithmetic operators
-  s = s.replace(/×/g, "*").replace(/÷/g, "/").replace(/−/g, "-");
-  s = s.replace(/π/g, `(${Math.PI})`).replace(/\be\b/g, `(${Math.E})`);
+  // Insert implicit multiplication: e.g. 4sin(6), 3(4), 2(3+5), )4
+  s = s.replace(/(\d)(\s*)([\(πe]|sin|cos|tan|sqrt|abs)/g, "$1*$3");
+  s = s.replace(/(\))(\s*)([\d\(πe]|sin|cos|tan|sqrt|abs)/g, "$1*$3");
 
-  // Insert implicit multiplication: e.g. 2(3), )4, 5sin, )sin
-  s = s.replace(/(\d)(\()/g, "$1*$2");
-  s = s.replace(/(\))(\d)/g, "$1*$2");
-  s = s.replace(/(\))(\()/g, "$1*$2");
-  s = s.replace(/(\d)(sin|cos|tan|sqrt|abs)/g, "$1*$2");
-  s = s.replace(/(\))(sin|cos|tan|sqrt|abs)/g, "$1*$2");
+  // Percentage handling: e.g. 50% -> (50*0.01)
+  s = s.replace(/(\d+(\.\d+)?)%/g, "($1*0.01)");
 
-  // Percentage handling: e.g. 50% -> (50/100)
-  s = s.replace(/(\d+(\.\d+)?)%/g, "($1/100)");
-
-  // Powers: a^b -> a**b
-  s = s.replace(/\^/g, "**");
-
-  // Token parser / safe evaluator with functions in scope
-  const mathScope = {
-    sin: (x) => safeSin(x, angleMode),
-    cos: (x) => safeCos(x, angleMode),
-    tan: (x) => safeTan(x, angleMode),
-    sqrt: (x) => safeSqrt(x),
-    abs: (x) => Math.abs(x),
-  };
-
-  // Check for safe characters: only digits, parens, operators, and scope keys
-  const sanitized = s.replace(/[a-zA-Z_]+/g, (id) => {
-    if (Object.prototype.hasOwnProperty.call(mathScope, id)) {
-      return `scope.${id}`;
+  const tokens = [];
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if (/\s/.test(ch)) {
+      i++;
+      continue;
     }
-    throw new Error("رمز غير صالح");
-  });
+    if (/\d|\./.test(ch)) {
+      let numStr = "";
+      while (i < s.length && (/\d|\./.test(s[i]))) {
+        numStr += s[i];
+        i++;
+      }
+      tokens.push({ type: "NUM", val: parseFloat(numStr) });
+      continue;
+    }
+    if (ch === "π") {
+      tokens.push({ type: "NUM", val: Math.PI });
+      i++;
+      continue;
+    }
+    if (/[a-zA-Z]/.test(ch)) {
+      let idStr = "";
+      while (i < s.length && /[a-zA-Z]/.test(s[i])) {
+        idStr += s[i];
+        i++;
+      }
+      const lower = idStr.toLowerCase();
+      if (lower === "e") {
+        tokens.push({ type: "NUM", val: Math.E });
+      } else if (lower === "pi") {
+        tokens.push({ type: "NUM", val: Math.PI });
+      } else if (["sin", "cos", "tan", "sqrt", "abs"].includes(lower)) {
+        tokens.push({ type: "FN", val: lower });
+      } else {
+        throw new Error("رمز غير صالح: " + idStr);
+      }
+      continue;
+    }
+    if ("+-*/^()".includes(ch)) {
+      tokens.push({ type: "OP", val: ch });
+      i++;
+      continue;
+    }
+    throw new Error("رمز غير صالح: " + ch);
+  }
 
-  const fn = new Function("scope", `"use strict"; return (${sanitized});`);
-  const val = fn(mathScope);
+  let pos = 0;
+  function peek() { return tokens[pos]; }
+  function consume(expectedVal) {
+    const tok = tokens[pos];
+    if (expectedVal && (!tok || tok.val !== expectedVal)) {
+      throw new Error("رمز غير متوقع: " + (tok ? tok.val : "نهاية التعبير"));
+    }
+    pos++;
+    return tok;
+  }
 
-  if (typeof val !== "number" || !Number.isFinite(val)) {
-    if (Number.isNaN(val)) throw new Error("قيمة غير معرّفة");
+  function parseExpression() {
+    return parseAddition();
+  }
+
+  function parseAddition() {
+    let left = parseMultiplication();
+    while (peek() && peek().type === "OP" && (peek().val === "+" || peek().val === "-")) {
+      const op = consume().val;
+      const right = parseMultiplication();
+      left = op === "+" ? left + right : left - right;
+    }
+    return left;
+  }
+
+  function parseMultiplication() {
+    let left = parseExponent();
+    while (peek() && peek().type === "OP" && (peek().val === "*" || peek().val === "/")) {
+      const op = consume().val;
+      const right = parseExponent();
+      if (op === "/") {
+        if (Math.abs(right) < 1e-15) throw new Error("قسمة على الصفر");
+        left = left / right;
+      } else {
+        left = left * right;
+      }
+    }
+    return left;
+  }
+
+  function parseExponent() {
+    let base = parseUnary();
+    if (peek() && peek().type === "OP" && peek().val === "^") {
+      consume("^");
+      const exp = parseExponent();
+      return Math.pow(base, exp);
+    }
+    return base;
+  }
+
+  function parseUnary() {
+    if (peek() && peek().type === "OP" && peek().val === "+") {
+      consume("+");
+      return parseUnary();
+    }
+    if (peek() && peek().type === "OP" && peek().val === "-") {
+      consume("-");
+      return -parseUnary();
+    }
+    return parsePrimary();
+  }
+
+  function parsePrimary() {
+    const tok = peek();
+    if (!tok) throw new Error("تعبير ناقص");
+
+    if (tok.type === "NUM") {
+      consume();
+      return tok.val;
+    }
+
+    if (tok.type === "FN") {
+      const fnName = consume().val;
+      if (peek() && peek().val === "(") {
+        consume("(");
+      }
+      const arg = parseExpression();
+      if (peek() && peek().val === ")") {
+        consume(")");
+      }
+      if (fnName === "sin") return safeSin(arg, angleMode);
+      if (fnName === "cos") return safeCos(arg, angleMode);
+      if (fnName === "tan") return safeTan(arg, angleMode);
+      if (fnName === "sqrt") return safeSqrt(arg);
+      if (fnName === "abs") return Math.abs(arg);
+      throw new Error("دالة غير معرّفة: " + fnName);
+    }
+
+    if (tok.type === "OP" && tok.val === "(") {
+      consume("(");
+      const val = parseExpression();
+      if (peek() && peek().val === ")") {
+        consume(")");
+      }
+      return val;
+    }
+
+    throw new Error("رمز غير متوقع: " + tok.val);
+  }
+
+  const result = parseExpression();
+  if (typeof result !== "number" || !Number.isFinite(result)) {
+    if (Number.isNaN(result)) throw new Error("قيمة غير معرّفة");
     throw new Error("خطأ رياضي");
   }
 
-  // Round floating point residue
-  const rounded = Math.round(val * 1e11) / 1e11;
-  return rounded;
+  return Math.round(result * 1e11) / 1e11;
 }
 
 function updateCalculatorDisplay() {
@@ -3210,11 +3304,16 @@ async function prepareStudentMicrophone() {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
+        googEchoCancellation: true,
+        googAutoGainControl: true,
+        googNoiseSuppression: true,
+        googHighpassFilter: true,
         channelCount: 1,
       },
     });
     localAudioStream.getAudioTracks().forEach((track) => {
       track.enabled = false;
+      if ("contentHint" in track) track.contentHint = "speech";
     });
     microphonePrepared = true;
     rememberStudentMicrophonePermission();
@@ -3919,7 +4018,6 @@ async function enableApprovedMicrophone() {
     microphoneOfferSent = false;
     microphoneNegotiated = false;
     await negotiateStudentMicrophone();
-    void publishStudentSfuMic(localAudioStream);
     return;
   }
 
@@ -3940,6 +4038,10 @@ async function enableApprovedMicrophone() {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
+        googEchoCancellation: true,
+        googAutoGainControl: true,
+        googNoiseSuppression: true,
+        googHighpassFilter: true,
         channelCount: 1,
       },
     });
@@ -3954,6 +4056,7 @@ async function enableApprovedMicrophone() {
     const newTrack = localAudioStream.getAudioTracks()[0];
     if (newTrack) {
       newTrack.enabled = true;
+      if ("contentHint" in newTrack) newTrack.contentHint = "speech";
       const audioSender = pc.getSenders().find((s) => s.track?.kind === "audio" || !s.track);
       if (audioSender && typeof audioSender.replaceTrack === "function") {
         try {
@@ -3972,7 +4075,6 @@ async function enableApprovedMicrophone() {
     microphoneOfferSent = false;
     microphoneNegotiated = false;
     await negotiateStudentMicrophone();
-    void publishStudentSfuMic(localAudioStream);
     // All approved student audio arrives through the teacher's master mix.
 
 

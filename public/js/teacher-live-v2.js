@@ -136,19 +136,13 @@ async function initTeacherSfuSession(roomName) {
       });
 
       teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
-        if (track.kind === "audio") {
-          const studentAudio = track.attach();
-          studentAudio.id = `sfu-audio-${participant.identity}`;
-          studentAudio.style.display = "none";
-          document.body.appendChild(studentAudio);
-        }
+        // Approved student microphones arrive through WebRTC P2P into attachStudentAudio
+        // and classroomAudioContext mix-minus. Do not play duplicate audio here.
       });
 
       teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-        if (track.kind === "audio") {
-          const el = document.getElementById(`sfu-audio-${participant.identity}`);
-          if (el) el.remove();
-        }
+        const el = document.getElementById(`sfu-audio-${participant.identity}`);
+        if (el) el.remove();
       });
 
       teacherSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
