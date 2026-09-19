@@ -135,18 +135,54 @@ async function reconcileSofizPayPayments() {
   }
 }
 
+let isRunningJobs = false;
+
 function startBackgroundJobs() {
-  const run = () => Promise.allSettled([
-    sendClassReminders(),
-    sendWeeklyReports(),
-    cleanExpiredSessions(),
-    reconcileSofizPayPayments(),
-    processTeacherAnnouncements(),
-  ]).catch(() => {});
-  void run();
+  let tickCount = 0;
+  const run = async () => {
+    if (isRunningJobs) return;
+    isRunningJobs = true;
+    try {
+      tickCount++;
+      // Reminders checked every 2 minutes
+      if (tickCount % 2 === 0) {
+        await sendClassReminders().catch((err) => console.warn("Background class reminders failed:", err.message));
+      }
+      // Weekly reports checked every 30 minutes
+      if (tickCount % 30 === 0) {
+        await sendWeeklyReports().catch((err) => console.warn("Background weekly reports failed:", err.message));
+      }
+      // Expired sessions cleaned every 15 minutes
+      if (tickCount % 15 === 0) {
+        await cleanExpiredSessions().catch((err) => console.warn("Background clean sessions failed:", err.message));
+      }
+      // Payment reconciliation checked every 5 minutes
+      if (tickCount % 5 === 0) {
+        await reconcileSofizPayPayments().catch((err) => console.warn("Background SofizPay reconciliation failed:", err.message));
+      }
+      // Teacher announcements checked every 2 minutes
+      if (tickCount % 2 === 0) {
+        await processTeacherAnnouncements().catch((err) => console.warn("Background announcements failed:", err.message));
+      }
+    } catch (error) {
+      console.warn("Background job cycle caught error:", error.message);
+    } finally {
+      isRunningJobs = false;
+    }
+  };
+
+  // Initial delayed start after 10 seconds to let server boot smoothly
+  const initialTimer = setTimeout(() => {
+    void run();
+  }, 10_000);
+  initialTimer.unref();
+
   const timer = setInterval(run, 60 * 1000);
   timer.unref();
-  return () => clearInterval(timer);
+  return () => {
+    clearTimeout(initialTimer);
+    clearInterval(timer);
+  };
 }
 
 module.exports = { sendClassReminders, sendWeeklyReports, cleanExpiredSessions, reconcileSofizPayPayments, processTeacherAnnouncements, startBackgroundJobs };

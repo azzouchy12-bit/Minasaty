@@ -20,4 +20,4 @@ ENV UPLOAD_DIR="/data/uploads"
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss --skip-generate && node scripts/seed-class-registry.js && node server.js"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss --skip-generate && node --max-old-space-size=384 scripts/seed-class-registry.js && node --max-old-space-size=384 server.js"]

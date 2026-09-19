@@ -5500,6 +5500,307 @@
           font-weight: 800;
           font-size: 0.85rem;
         }
+
+        /* ===== Scientific Calculator Trigger Button ===== */
+        .student-calculator-btn {
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          gap: 0.28rem !important;
+          min-height: 2.2rem !important;
+          padding: 0.28rem 0.55rem !important;
+          color: #38bdf8 !important;
+          background: rgba(15, 23, 42, 0.88) !important;
+          border: 1.5px solid rgba(56, 189, 248, 0.45) !important;
+          border-radius: 0.65rem !important;
+          cursor: pointer !important;
+          font-size: clamp(0.58rem, 2.4vw, 0.72rem) !important;
+          font-weight: 800 !important;
+          line-height: 1 !important;
+          transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease !important;
+          box-shadow: 0 4px 12px rgba(14, 165, 233, 0.18) !important;
+          white-space: nowrap !important;
+        }
+        .student-calculator-btn:hover {
+          background: rgba(56, 189, 248, 0.22) !important;
+          border-color: #38bdf8 !important;
+          transform: scale(1.04);
+        }
+        .student-calculator-btn:active {
+          transform: scale(0.93);
+        }
+        .student-calculator-btn svg {
+          flex-shrink: 0 !important;
+        }
+
+        /* ===== Scientific Calculator Modal Styles ===== */
+        .student-calculator-modal {
+          position: fixed !important;
+          z-index: 2147483647 !important;
+          inset: 0 !important;
+          display: grid !important;
+          place-items: center !important;
+          padding: 0.75rem !important;
+          box-sizing: border-box !important;
+        }
+        .student-calculator-modal[hidden] {
+          display: none !important;
+        }
+        .student-calc-backdrop {
+          position: absolute !important;
+          inset: 0 !important;
+          z-index: 0 !important;
+          background: rgba(2, 6, 23, 0.82) !important;
+          backdrop-filter: blur(10px) !important;
+          -webkit-backdrop-filter: blur(10px) !important;
+        }
+        .student-calc-dialog {
+          position: relative !important;
+          z-index: 1 !important;
+          width: 100% !important;
+          max-width: 23rem !important;
+          max-height: calc(100dvh - 1.5rem) !important;
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 0.65rem !important;
+          overflow-y: auto !important;
+          padding: 1rem !important;
+          color: #f8fafc !important;
+          background: linear-gradient(165deg, #1e293b 0%, #0f172a 100%) !important;
+          border: 1.5px solid rgba(56, 189, 248, 0.35) !important;
+          border-radius: 1.35rem !important;
+          box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75), 0 0 35px rgba(56, 189, 248, 0.15) !important;
+          box-sizing: border-box !important;
+          animation: modalScaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+          touch-action: manipulation !important;
+        }
+        .student-calc-head {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          padding-bottom: 0.35rem !important;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.15) !important;
+        }
+        .student-calc-title-wrap {
+          display: flex !important;
+          align-items: center !important;
+          gap: 0.5rem !important;
+        }
+        .student-calc-icon {
+          font-size: 1.3rem !important;
+          line-height: 1 !important;
+        }
+        .student-calc-head h2 {
+          margin: 0 !important;
+          font-size: 0.95rem !important;
+          font-weight: 800 !important;
+          color: #f8fafc !important;
+          line-height: 1.2 !important;
+        }
+        .student-calc-subtitle {
+          font-size: 0.68rem !important;
+          color: #94a3b8 !important;
+        }
+        .student-calc-head-actions {
+          display: flex !important;
+          align-items: center !important;
+          gap: 0.4rem !important;
+        }
+        .calc-angle-toggle-btn {
+          background: rgba(56, 189, 248, 0.15) !important;
+          border: 1px solid rgba(56, 189, 248, 0.4) !important;
+          color: #38bdf8 !important;
+          border-radius: 0.5rem !important;
+          font-size: 0.7rem !important;
+          font-weight: 800 !important;
+          padding: 0.22rem 0.5rem !important;
+          cursor: pointer !important;
+          transition: all 0.15s ease !important;
+        }
+        .calc-angle-toggle-btn.is-rad {
+          background: rgba(245, 158, 11, 0.2) !important;
+          border-color: rgba(245, 158, 11, 0.5) !important;
+          color: #f59e0b !important;
+        }
+        .close-calc-modal-btn {
+          width: 1.9rem !important;
+          height: 1.9rem !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          background: rgba(239, 68, 68, 0.18) !important;
+          border: 1px solid rgba(239, 68, 68, 0.4) !important;
+          color: #f87171 !important;
+          border-radius: 0.5rem !important;
+          font-size: 0.9rem !important;
+          font-weight: 800 !important;
+          cursor: pointer !important;
+          transition: all 0.15s ease !important;
+        }
+        .close-calc-modal-btn:hover {
+          background: #ef4444 !important;
+          color: #ffffff !important;
+        }
+
+        /* شاشة الآلة الحاسبة */
+        .student-calc-screen {
+          background: #090d16 !important;
+          border: 1.5px solid rgba(148, 163, 184, 0.25) !important;
+          border-radius: 0.85rem !important;
+          padding: 0.65rem 0.8rem !important;
+          display: flex !important;
+          flex-direction: column !important;
+          justify-content: space-between !important;
+          min-height: 4.6rem !important;
+          box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6) !important;
+          font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace !important;
+          direction: ltr !important;
+          text-align: right !important;
+        }
+        .calc-screen-meta {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          font-size: 0.64rem !important;
+          font-weight: 700 !important;
+          color: #64748b !important;
+          min-height: 1rem !important;
+        }
+        .calc-mode-indicator {
+          color: #38bdf8 !important;
+          background: rgba(56, 189, 248, 0.12) !important;
+          padding: 0.08rem 0.35rem !important;
+          border-radius: 4px !important;
+        }
+        .calc-fraction-badge {
+          color: #10b981 !important;
+          background: rgba(16, 185, 129, 0.15) !important;
+          padding: 0.08rem 0.35rem !important;
+          border-radius: 4px !important;
+        }
+        .calc-history-prev {
+          color: #94a3b8 !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          white-space: nowrap !important;
+          max-width: 60% !important;
+        }
+        .calc-expression {
+          font-size: 0.95rem !important;
+          color: #94a3b8 !important;
+          min-height: 1.25rem !important;
+          word-break: break-all !important;
+          overflow-x: auto !important;
+          white-space: nowrap !important;
+          padding-top: 0.15rem !important;
+        }
+        .calc-result {
+          font-size: 1.65rem !important;
+          font-weight: 800 !important;
+          color: #38bdf8 !important;
+          line-height: 1.2 !important;
+          overflow-x: auto !important;
+          white-space: nowrap !important;
+        }
+        .calc-result.is-error {
+          color: #ef4444 !important;
+          font-size: 1.25rem !important;
+        }
+        .calc-result.is-fraction {
+          color: #34d399 !important;
+        }
+
+        /* لوحة المفاتيح */
+        .student-calc-keypad {
+          display: grid !important;
+          grid-template-columns: repeat(5, 1fr) !important;
+          gap: 0.35rem !important;
+          direction: ltr !important;
+        }
+        .calc-key {
+          border: none !important;
+          border-radius: 0.6rem !important;
+          padding: 0.55rem 0.2rem !important;
+          font-size: 0.92rem !important;
+          font-weight: 700 !important;
+          cursor: pointer !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          user-select: none !important;
+          -webkit-tap-highlight-color: transparent !important;
+          transition: transform 0.08s ease, filter 0.12s ease !important;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+        }
+        .calc-key:active {
+          transform: scale(0.92) !important;
+          filter: brightness(1.2) !important;
+        }
+        .calc-key-num {
+          background: #1e293b !important;
+          color: #f8fafc !important;
+        }
+        .calc-key-num:hover {
+          background: #334155 !important;
+        }
+        .calc-key-fn {
+          background: #0f172a !important;
+          color: #93c5fd !important;
+          border: 1px solid rgba(147, 197, 253, 0.2) !important;
+          font-size: 0.8rem !important;
+        }
+        .calc-key-fn:hover {
+          background: rgba(30, 58, 138, 0.4) !important;
+        }
+        .calc-key-fraction {
+          background: rgba(16, 185, 129, 0.18) !important;
+          color: #34d399 !important;
+          border: 1px solid rgba(52, 211, 153, 0.35) !important;
+          font-size: 0.82rem !important;
+          font-weight: 800 !important;
+        }
+        .calc-key-fraction:hover {
+          background: rgba(16, 185, 129, 0.3) !important;
+        }
+        .calc-key-op {
+          background: rgba(2, 132, 199, 0.25) !important;
+          color: #38bdf8 !important;
+          border: 1px solid rgba(56, 189, 248, 0.35) !important;
+          font-size: 1.05rem !important;
+        }
+        .calc-key-op:hover {
+          background: rgba(2, 132, 199, 0.45) !important;
+        }
+        .calc-key-action {
+          background: rgba(245, 158, 11, 0.18) !important;
+          color: #fbbf24 !important;
+          border: 1px solid rgba(245, 158, 11, 0.35) !important;
+        }
+        .calc-key-action:hover {
+          background: rgba(245, 158, 11, 0.35) !important;
+        }
+        .calc-key-clear {
+          background: rgba(239, 68, 68, 0.22) !important;
+          color: #f87171 !important;
+          border: 1px solid rgba(239, 68, 68, 0.4) !important;
+        }
+        .calc-key-clear:hover {
+          background: rgba(239, 68, 68, 0.4) !important;
+        }
+        .calc-key-equals {
+          grid-column: span 2 !important;
+          background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+          color: #ffffff !important;
+          font-size: 1.2rem !important;
+          font-weight: 900 !important;
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4) !important;
+        }
+        .calc-key-equals:hover {
+          filter: brightness(1.15) !important;
+        }
+        .calc-key-zero {
+          grid-column: span 1 !important;
+        }
       </style>
   </head>
   <body class="student-live-page">
@@ -5574,7 +5875,16 @@
             <span class="quality-arrow" aria-hidden="true">▾</span>
           </button>
         </div>
-        <span id="class-subject-label" class="viewer-subject" dir="rtl" lang="ar">المادة</span>
+        <button id="student-calculator-btn" class="student-calculator-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="الآلة الحاسبة العلمية" aria-label="آلة حاسبة">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="2" width="16" height="20" rx="3"></rect>
+            <line x1="8" y1="6" x2="16" y2="6"></line>
+            <line x1="16" y1="14" x2="16" y2="18"></line>
+            <path d="M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M8 18h.01M12 18h.01"></path>
+          </svg>
+          <span class="calc-btn-label">حاسبة</span>
+        </button>
+        <span id="class-subject-label" class="viewer-subject" dir="rtl" lang="ar" hidden>المادة</span>
         <button id="student-signal-finder-btn" class="student-signal-finder-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="رادار فحص وتقوية الإشارة المنزلية" aria-label="رادار الإشارة">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 14v-4"/>
@@ -5895,6 +6205,88 @@
           <footer style="margin-top: 0.8rem;">
             <button id="dismiss-signal-modal-btn" class="dismiss-quality-modal-btn" type="button" style="width: 100%;">إغلاق الرادار</button>
           </footer>
+        </div>
+      </div>
+
+      <!-- الآلة الحاسبة العلمية الاحترافية المنبثقة -->
+      <div id="student-calculator-modal" class="student-calculator-modal" role="dialog" aria-modal="true" aria-labelledby="student-calculator-title" hidden>
+        <div class="student-calc-backdrop" id="student-calc-backdrop"></div>
+        <div class="student-calc-dialog" dir="ltr">
+          <div class="student-calc-head" dir="rtl">
+            <div class="student-calc-title-wrap">
+              <span class="student-calc-icon" aria-hidden="true">🧮</span>
+              <div>
+                <h2 id="student-calculator-title">الآلة الحاسبة العلمية</h2>
+                <span class="student-calc-subtitle">حساب دقيق ومباشر · الدوال والكسور</span>
+              </div>
+            </div>
+            <div class="student-calc-head-actions">
+              <button id="calc-angle-toggle-btn" class="calc-angle-toggle-btn" type="button" title="تبديل وحدة الزوايا: درجات DEG أو راديان RAD">DEG</button>
+              <button id="close-calculator-modal-btn" class="close-calc-modal-btn" type="button" aria-label="إغلاق الآلة الحاسبة">✕</button>
+            </div>
+          </div>
+
+          <!-- شاشة عرض الآلة الحاسبة -->
+          <div class="student-calc-screen" id="student-calc-screen">
+            <div class="calc-screen-meta">
+              <span id="calc-mode-indicator" class="calc-mode-indicator">DEG</span>
+              <span id="calc-fraction-badge" class="calc-fraction-badge" hidden>FRACT</span>
+              <span id="calc-history-prev" class="calc-history-prev"></span>
+            </div>
+            <div id="calc-expression" class="calc-expression" aria-live="polite"></div>
+            <div id="calc-result" class="calc-result" aria-live="polite">0</div>
+          </div>
+
+          <!-- لوحة المفاتيح العلمية المتطورة -->
+          <div class="student-calc-keypad" id="student-calc-keypad">
+            <!-- صف 1: دوال مثلثية وثوابت -->
+            <button class="calc-key calc-key-fn" data-fn="sin" type="button">sin</button>
+            <button class="calc-key calc-key-fn" data-fn="cos" type="button">cos</button>
+            <button class="calc-key calc-key-fn" data-fn="tan" type="button">tan</button>
+            <button class="calc-key calc-key-fn" data-insert="π" type="button">π</button>
+            <button class="calc-key calc-key-fn" data-insert="e" type="button">e</button>
+
+            <!-- صف 2: الجذور والأسس والأقواس -->
+            <button class="calc-key calc-key-fn" data-fn="sqrt" type="button">√</button>
+            <button class="calc-key calc-key-fn" data-fn="square" type="button">x²</button>
+            <button class="calc-key calc-key-fn" data-fn="pow" type="button">xʸ</button>
+            <button class="calc-key calc-key-fn" data-insert="(" type="button">(</button>
+            <button class="calc-key calc-key-fn" data-insert=")" type="button">)</button>
+
+            <!-- صف 3: وضع الكسور والتحكم الشامل -->
+            <button class="calc-key calc-key-fraction" id="calc-key-frac" data-fn="frac" type="button" title="وضع الكسور الاعتيادية">a/b</button>
+            <button class="calc-key calc-key-fraction" id="calc-key-sd" data-fn="sd" type="button" title="تحويل بين كسر اعتيادي وعشري S⇄D">S⇄D</button>
+            <button class="calc-key calc-key-fn" data-insert="%" type="button">%</button>
+            <button class="calc-key calc-key-action" data-action="backspace" type="button" title="حذف الرمز الأخير">⌫</button>
+            <button class="calc-key calc-key-clear" data-action="clear" type="button" title="مسح الكل">AC</button>
+
+            <!-- صف 4: الأرقام 7 8 9 والقسمة وتغيير الإشارة -->
+            <button class="calc-key calc-key-num" data-insert="7" type="button">7</button>
+            <button class="calc-key calc-key-num" data-insert="8" type="button">8</button>
+            <button class="calc-key calc-key-num" data-insert="9" type="button">9</button>
+            <button class="calc-key calc-key-op" data-op="/" type="button">÷</button>
+            <button class="calc-key calc-key-fn" data-action="negate" type="button">+/-</button>
+
+            <!-- صف 5: الأرقام 4 5 6 والضرب ومقلوب العدد -->
+            <button class="calc-key calc-key-num" data-insert="4" type="button">4</button>
+            <button class="calc-key calc-key-num" data-insert="5" type="button">5</button>
+            <button class="calc-key calc-key-num" data-insert="6" type="button">6</button>
+            <button class="calc-key calc-key-op" data-op="*" type="button">×</button>
+            <button class="calc-key calc-key-fn" data-fn="inv" type="button">1/x</button>
+
+            <!-- صف 6: الأرقام 1 2 3 والطرح والقيمة المطلقة -->
+            <button class="calc-key calc-key-num" data-insert="1" type="button">1</button>
+            <button class="calc-key calc-key-num" data-insert="2" type="button">2</button>
+            <button class="calc-key calc-key-num" data-insert="3" type="button">3</button>
+            <button class="calc-key calc-key-op" data-op="-" type="button">−</button>
+            <button class="calc-key calc-key-fn" data-fn="abs" type="button">|x|</button>
+
+            <!-- صف 7: 0 والفاصلة والجمع والمساواة -->
+            <button class="calc-key calc-key-num calc-key-zero" data-insert="0" type="button">0</button>
+            <button class="calc-key calc-key-num" data-insert="." type="button">.</button>
+            <button class="calc-key calc-key-op" data-op="+" type="button">+</button>
+            <button class="calc-key calc-key-equals" data-action="calculate" type="button">=</button>
+          </div>
         </div>
       </div>
 

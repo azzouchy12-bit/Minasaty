@@ -92,7 +92,7 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
     at.addGrant({
       room: roomName,
       roomJoin: true,
-      canPublish: isTeacher || allowMic,
+      canPublish: true,
       canSubscribe: true,
       canPublishData: true,
     });

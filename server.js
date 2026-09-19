@@ -2149,10 +2149,15 @@ io.on("connection", (socket) => {
         teacherMicActive: isTeacherMicActive(classroomLevel),
       });
       emitClassroomChatHistory(socket, classroomLevel);
-      // When a student joins or rejoins, ensure their mic and whiteboard are strictly closed on entry
-      setStudentMicrophoneOpen(classroomLevel, socket.id, false);
-      setStudentWhiteboardAccess(classroomLevel, socket.id, false);
-      socket.emit("microphone_revoked", { level: student.level, classroomLevel, silent: true });
+      // When a student joins or rejoins, check if their microphone was already approved
+      const wasMicOpen = isStudentMicrophoneOpen(classroomLevel, socket.id);
+      if (wasMicOpen) {
+        // Retain student's approved microphone state during reconnect or stream recovery
+        socket.emit("permission_granted", { level: student.level, classroomLevel });
+      } else {
+        setStudentMicrophoneOpen(classroomLevel, socket.id, false);
+        setStudentWhiteboardAccess(classroomLevel, socket.id, false);
+      }
 
       // Only the active teacher receives the student identity/socket ID.
       // Other students receive no attendee or signaling information.
@@ -2557,84 +2562,98 @@ io.on("connection", (socket) => {
    * Payload: { targetSocketId, enabled }
    */
   socket.on("teacher_set_mic", async (data = {}, acknowledgement) => {
-    const level = socket.data.roomLevel;
-    const targetSocketId = normalizeText(data.targetSocketId);
-    const targetSocket = io.sockets.sockets.get(targetSocketId);
-    const enabled = data.enabled !== false;
+    try {
+      const level = socket.data.roomLevel;
+      const targetSocketId = normalizeText(data.targetSocketId);
+      const targetSocket = io.sockets.sockets.get(targetSocketId);
+      const enabled = data.enabled !== false;
 
-    if (
-      socket.data.role !== "teacher" ||
-      activeTeachersByLevel.get(level) !== socket.id ||
-      !isValidSocketId(targetSocketId) ||
-      !shareSameClassroom(socket, targetSocket, level) ||
-      targetSocket.data.role !== "student"
-    ) {
-      return emitClassroomError(
-        socket,
-        "teacher_set_mic",
-        "تعذر تغيير حالة مايك هذا التلميذ.",
-        acknowledgement
-      );
-    }
+      if (
+        socket.data.role !== "teacher" ||
+        activeTeachersByLevel.get(level) !== socket.id ||
+        !isValidSocketId(targetSocketId) ||
+        !shareSameClassroom(socket, targetSocket, level) ||
+        targetSocket.data.role !== "student"
+      ) {
+        return emitClassroomError(
+          socket,
+          "teacher_set_mic",
+          "تعذر تغيير حالة مايك هذا التلميذ.",
+          acknowledgement
+        );
+      }
 
-    // Persist the teacher decision before notifying the student. This makes the
-    // decision available to the teacher browser during a short reconnection and
-    // prevents a late-arriving audio track from being rebroadcast after closure.
-    const wasOpen = isStudentMicrophoneOpen(level, targetSocketId);
-    setStudentMicrophoneOpen(level, targetSocketId, enabled);
-    setStudentWhiteboardAccess(level, targetSocketId, enabled);
+      // Persist the teacher decision before notifying the student. This makes the
+      // decision available to the teacher browser during a short reconnection and
+      // prevents a late-arriving audio track from being rebroadcast after closure.
+      const wasOpen = isStudentMicrophoneOpen(level, targetSocketId);
+      setStudentMicrophoneOpen(level, targetSocketId, enabled);
+      setStudentWhiteboardAccess(level, targetSocketId, enabled);
 
-    const sessionKey = socket.data.classResumeToken;
-    if (enabled && !wasOpen) {
-      targetSocket.data.micStartedAt = Date.now();
-    } else if (!enabled && wasOpen && targetSocket.data.micStartedAt) {
-      const micDurationSeconds = Math.floor((Date.now() - targetSocket.data.micStartedAt) / 1000);
-      targetSocket.data.micStartedAt = null;
-      if (micDurationSeconds >= 10) {
-        await recordClassParticipation({
-          studentId: targetSocket.data.studentId,
-          level: targetSocket.data.studentAcademicLevel || level,
-          subject: activeSubjectByLevel.get(level),
-          sessionKey,
-        });
-        const participationCount = await getStudent24HourParticipation(targetSocket.data.studentId);
-        targetSocket.data.participationCount = participationCount;
-        io.to(targetSocketId).emit("participation_count_updated", { level, count: participationCount });
-        io.to(socket.id).emit("student_participation_updated", { socketId: targetSocketId, count: participationCount });
-        const companions = activeCompanionsByLevel.get(level);
-        if (companions) {
-          for (const compId of companions) {
-            io.to(compId).emit("student_participation_updated", { socketId: targetSocketId, count: participationCount });
+      const sessionKey = socket.data.classResumeToken;
+      if (enabled && !wasOpen) {
+        targetSocket.data.micStartedAt = Date.now();
+      } else if (!enabled && wasOpen && targetSocket.data.micStartedAt) {
+        const micDurationSeconds = Math.floor((Date.now() - targetSocket.data.micStartedAt) / 1000);
+        targetSocket.data.micStartedAt = null;
+        if (micDurationSeconds >= 10) {
+          try {
+            await recordClassParticipation({
+              studentId: targetSocket.data.studentId,
+              level: targetSocket.data.studentAcademicLevel || level,
+              subject: activeSubjectByLevel.get(level),
+              sessionKey,
+            });
+            const participationCount = await getStudent24HourParticipation(targetSocket.data.studentId);
+            targetSocket.data.participationCount = participationCount;
+            io.to(targetSocketId).emit("participation_count_updated", { level, count: participationCount });
+            io.to(socket.id).emit("student_participation_updated", { socketId: targetSocketId, count: participationCount });
+            const companions = activeCompanionsByLevel.get(level);
+            if (companions) {
+              for (const compId of companions) {
+                io.to(compId).emit("student_participation_updated", { socketId: targetSocketId, count: participationCount });
+              }
+            }
+          } catch (partErr) {
+            console.warn("Recording mic participation failed:", partErr.message);
           }
         }
       }
+
+      io.to(targetSocketId).emit(
+        enabled ? "permission_granted" : "microphone_revoked",
+        { level }
+      );
+      io.to(targetSocketId).emit(
+        enabled ? "whiteboard_access_granted" : "whiteboard_access_revoked",
+        { level }
+      );
+
+      // Tell every page that the room's expected audio tracks changed. The teacher
+      // then adds/removes the matching sender on every existing RTCPeerConnection
+      // and sends a fresh SDP offer to each student without reloading any page.
+      io.to(level).emit("classroom_track_state", {
+        type: "student_audio",
+        speakerSocketId: targetSocketId,
+        enabled,
+      });
+
+      // The teacher uses this authoritative event to update the existing stable
+      // Web Audio mix. No viewer page reload or peer-per-student route is needed.
+      io.to(socket.id).emit("student_mic_state_changed", {
+        socketId: targetSocketId,
+        enabled,
+      });
+      acknowledge(acknowledgement, { ok: true, enabled });
+    } catch (err) {
+      console.error("teacher_set_mic error:", err);
+      emitClassroomError(
+        socket,
+        "teacher_set_mic",
+        "حدث خطأ أثناء تعديل حالة المايك.",
+        acknowledgement
+      );
     }
-
-    io.to(targetSocketId).emit(
-      enabled ? "permission_granted" : "microphone_revoked",
-      { level }
-    );
-    io.to(targetSocketId).emit(
-      enabled ? "whiteboard_access_granted" : "whiteboard_access_revoked",
-      { level }
-    );
-
-    // Tell every page that the room's expected audio tracks changed. The teacher
-    // then adds/removes the matching sender on every existing RTCPeerConnection
-    // and sends a fresh SDP offer to each student without reloading any page.
-    io.to(level).emit("classroom_track_state", {
-      type: "student_audio",
-      speakerSocketId: targetSocketId,
-      enabled,
-    });
-
-    // The teacher uses this authoritative event to update the existing stable
-    // Web Audio mix. No viewer page reload or peer-per-student route is needed.
-    io.to(socket.id).emit("student_mic_state_changed", {
-      socketId: targetSocketId,
-      enabled,
-    });
-    acknowledge(acknowledgement, { ok: true, enabled });
   });
 
   /**
@@ -2715,58 +2734,76 @@ io.on("connection", (socket) => {
   // Kept as a compatibility route for teacher pages that are still open while
   // the new client bundle is being deployed.
   socket.on("teacher_approve_mic", async (data = {}, acknowledgement) => {
-    const level = socket.data.roomLevel;
-    const targetSocketId = normalizeText(data.targetSocketId);
-    const targetSocket = io.sockets.sockets.get(targetSocketId);
+    try {
+      const level = socket.data.roomLevel;
+      const targetSocketId = normalizeText(data.targetSocketId);
+      const targetSocket = io.sockets.sockets.get(targetSocketId);
 
-    if (
-      socket.data.role !== "teacher" ||
-      activeTeachersByLevel.get(level) !== socket.id ||
-      !isValidSocketId(targetSocketId) ||
-      !shareSameClassroom(socket, targetSocket, level) ||
-      targetSocket.data.role !== "student"
-    ) {
-      return emitClassroomError(
+      if (
+        socket.data.role !== "teacher" ||
+        activeTeachersByLevel.get(level) !== socket.id ||
+        !isValidSocketId(targetSocketId) ||
+        !shareSameClassroom(socket, targetSocket, level) ||
+        targetSocket.data.role !== "student"
+      ) {
+        return emitClassroomError(
+          socket,
+          "teacher_approve_mic",
+          "تعذر منح الإذن لهذا التلميذ.",
+          acknowledgement
+        );
+      }
+
+      const wasOpen = isStudentMicrophoneOpen(level, targetSocketId);
+      setStudentMicrophoneOpen(level, targetSocketId, true);
+      setStudentWhiteboardAccess(level, targetSocketId, true);
+      if (!wasOpen) {
+        try {
+          await recordClassParticipation({
+            studentId: targetSocket.data.studentId,
+            level: targetSocket.data.studentAcademicLevel || level,
+            subject: activeSubjectByLevel.get(level),
+            sessionKey: socket.data.classResumeToken,
+          });
+        } catch (partErr) {
+          console.warn("Approve mic record participation error:", partErr.message);
+        }
+      }
+      try {
+        const participationCount = await getStudent24HourParticipation(targetSocket.data.studentId);
+        targetSocket.data.participationCount = participationCount;
+        io.to(targetSocketId).emit("participation_count_updated", { level, count: participationCount });
+        io.to(socket.id).emit("student_participation_updated", { socketId: targetSocketId, count: participationCount });
+        const companions = activeCompanionsByLevel.get(level);
+        if (companions) {
+          for (const compId of companions) {
+            io.to(compId).emit("student_participation_updated", { socketId: targetSocketId, count: participationCount });
+          }
+        }
+      } catch (countErr) {
+        console.warn("Get student participation count error:", countErr.message);
+      }
+      io.to(targetSocketId).emit("permission_granted", { level });
+      io.to(targetSocketId).emit("whiteboard_access_granted", { level });
+      io.to(level).emit("classroom_track_state", {
+        type: "student_audio",
+        speakerSocketId: targetSocketId,
+        enabled: true,
+      });
+      io.to(socket.id).emit("student_mic_state_changed", {
+        socketId: targetSocketId,
+        enabled: true,
+      });
+      acknowledge(acknowledgement, { ok: true, enabled: true });
+    } catch (err) {
+      console.error("teacher_approve_mic error:", err);
+      emitClassroomError(
         socket,
         "teacher_approve_mic",
-        "تعذر منح الإذن لهذا التلميذ.",
+        "حدث خطأ أثناء الموافقة على المايك.",
         acknowledgement
       );
     }
-
-    const wasOpen = isStudentMicrophoneOpen(level, targetSocketId);
-    setStudentMicrophoneOpen(level, targetSocketId, true);
-    setStudentWhiteboardAccess(level, targetSocketId, true);
-    if (!wasOpen) {
-      await recordClassParticipation({
-        studentId: targetSocket.data.studentId,
-        level: targetSocket.data.studentAcademicLevel || level,
-        subject: activeSubjectByLevel.get(level),
-        sessionKey: socket.data.classResumeToken,
-      });
-    }
-    const participationCount = await getStudent24HourParticipation(targetSocket.data.studentId);
-    targetSocket.data.participationCount = participationCount;
-    io.to(targetSocketId).emit("participation_count_updated", { level, count: participationCount });
-    io.to(socket.id).emit("student_participation_updated", { socketId: targetSocketId, count: participationCount });
-    const companions = activeCompanionsByLevel.get(level);
-    if (companions) {
-      for (const compId of companions) {
-        io.to(compId).emit("student_participation_updated", { socketId: targetSocketId, count: participationCount });
-      }
-    }
-    io.to(targetSocketId).emit("permission_granted", { level });
-    io.to(targetSocketId).emit("whiteboard_access_granted", { level });
-    io.to(level).emit("classroom_track_state", {
-      type: "student_audio",
-      speakerSocketId: targetSocketId,
-      enabled: true,
-    });
-    io.to(socket.id).emit("student_mic_state_changed", {
-      socketId: targetSocketId,
-      enabled: true,
-    });
-    acknowledge(acknowledgement, { ok: true, enabled: true });
   });
 
   /**

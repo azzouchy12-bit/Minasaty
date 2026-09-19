@@ -283,6 +283,10 @@ const elements = {
   closeSignalModalBtn: document.getElementById("close-signal-modal-btn"),
   dismissSignalModalBtn: document.getElementById("dismiss-signal-modal-btn"),
   signalBackdrop: document.getElementById("student-signal-backdrop"),
+  calculatorButton: document.getElementById("student-calculator-btn"),
+  calculatorModal: document.getElementById("student-calculator-modal"),
+  closeCalculatorModalBtn: document.getElementById("close-calculator-modal-btn"),
+  calculatorBackdrop: document.getElementById("student-calc-backdrop"),
   joinButton: document.getElementById("join-class-btn"),
   raiseHandButton: document.getElementById("raise-hand-btn"),
   handWaitingActions: document.getElementById("hand-waiting-actions"),
@@ -1909,6 +1913,379 @@ function initializeSignalFinder() {
   });
 }
 
+/* ==========================================================================
+   MINASATY SCIENTIFIC CALCULATOR ENGINE & CONTROLLER
+   الدوال المثلثية (DEG/RAD)، الجذور والأسس، الكسور S⇄D، العمليات الحسابية
+   ========================================================================== */
+
+const calcState = {
+  expression: "",
+  result: "0",
+  numericResult: 0,
+  isFractionDisplay: false,
+  angleMode: "DEG", // "DEG" (default in Algerian middle/high schools) or "RAD"
+  evaluated: false,
+};
+
+function decimalToFraction(x, maxDenominator = 10000) {
+  if (!Number.isFinite(x)) return null;
+  if (Number.isInteger(x)) return { num: x, den: 1, text: String(x) };
+
+  const sign = x < 0 ? -1 : 1;
+  const absX = Math.abs(x);
+
+  let h1 = 1, h2 = 0, k1 = 0, k2 = 1;
+  let b = absX;
+  for (let i = 0; i < 35; i++) {
+    const a = Math.floor(b);
+    const auxH = h1;
+    h1 = a * h1 + h2;
+    h2 = auxH;
+    const auxK = k1;
+    k1 = a * k1 + k2;
+    k2 = auxK;
+
+    if (k1 > maxDenominator) break;
+    if (Math.abs(absX - h1 / k1) <= Math.max(1e-8, absX * 1e-7)) {
+      const num = sign * h1;
+      const den = k1;
+      return { num, den, text: `${num}/${den}` };
+    }
+    const diff = b - a;
+    if (Math.abs(diff) < 1e-10) break;
+    b = 1 / diff;
+  }
+  return null;
+}
+
+function safeSin(val, mode) {
+  if (mode === "DEG") {
+    const norm = ((val % 360) + 360) % 360;
+    if (norm === 0 || norm === 180) return 0;
+    if (norm === 90) return 1;
+    if (norm === 270) return -1;
+    if (norm === 30 || norm === 150) return 0.5;
+    if (norm === 210 || norm === 330) return -0.5;
+  }
+  const rad = mode === "DEG" ? (val * Math.PI) / 180 : val;
+  const res = Math.sin(rad);
+  return Math.abs(res) < 1e-12 ? 0 : res;
+}
+
+function safeCos(val, mode) {
+  if (mode === "DEG") {
+    const norm = ((val % 360) + 360) % 360;
+    if (norm === 90 || norm === 270) return 0;
+    if (norm === 0) return 1;
+    if (norm === 180) return -1;
+    if (norm === 60 || norm === 300) return 0.5;
+    if (norm === 120 || norm === 240) return -0.5;
+  }
+  const rad = mode === "DEG" ? (val * Math.PI) / 180 : val;
+  const res = Math.cos(rad);
+  return Math.abs(res) < 1e-12 ? 0 : res;
+}
+
+function safeTan(val, mode) {
+  if (mode === "DEG") {
+    const norm = ((val % 180) + 180) % 180;
+    if (norm === 0) return 0;
+    if (norm === 45) return 1;
+    if (norm === 135) return -1;
+    if (norm === 90) throw new Error("غير معرّف (Math Error)");
+  }
+  const cosV = safeCos(val, mode);
+  if (Math.abs(cosV) < 1e-12) throw new Error("غير معرّف (Math Error)");
+  const rad = mode === "DEG" ? (val * Math.PI) / 180 : val;
+  const res = Math.tan(rad);
+  return Math.abs(res) < 1e-12 ? 0 : res;
+}
+
+function safeSqrt(val) {
+  if (val < 0) throw new Error("جذر سالب (Math Error)");
+  return Math.sqrt(val);
+}
+
+function evaluateScientificExpression(rawExpr, angleMode = "DEG") {
+  if (!rawExpr || !rawExpr.trim()) return 0;
+
+  let s = rawExpr.trim();
+
+  // Replace display symbols with standard arithmetic operators
+  s = s.replace(/×/g, "*").replace(/÷/g, "/").replace(/−/g, "-");
+  s = s.replace(/π/g, `(${Math.PI})`).replace(/\be\b/g, `(${Math.E})`);
+
+  // Insert implicit multiplication: e.g. 2(3), )4, 5sin, )sin
+  s = s.replace(/(\d)(\()/g, "$1*$2");
+  s = s.replace(/(\))(\d)/g, "$1*$2");
+  s = s.replace(/(\))(\()/g, "$1*$2");
+  s = s.replace(/(\d)(sin|cos|tan|sqrt|abs)/g, "$1*$2");
+  s = s.replace(/(\))(sin|cos|tan|sqrt|abs)/g, "$1*$2");
+
+  // Percentage handling: e.g. 50% -> (50/100)
+  s = s.replace(/(\d+(\.\d+)?)%/g, "($1/100)");
+
+  // Powers: a^b -> a**b
+  s = s.replace(/\^/g, "**");
+
+  // Token parser / safe evaluator with functions in scope
+  const mathScope = {
+    sin: (x) => safeSin(x, angleMode),
+    cos: (x) => safeCos(x, angleMode),
+    tan: (x) => safeTan(x, angleMode),
+    sqrt: (x) => safeSqrt(x),
+    abs: (x) => Math.abs(x),
+  };
+
+  // Check for safe characters: only digits, parens, operators, and scope keys
+  const sanitized = s.replace(/[a-zA-Z_]+/g, (id) => {
+    if (Object.prototype.hasOwnProperty.call(mathScope, id)) {
+      return `scope.${id}`;
+    }
+    throw new Error("رمز غير صالح");
+  });
+
+  const fn = new Function("scope", `"use strict"; return (${sanitized});`);
+  const val = fn(mathScope);
+
+  if (typeof val !== "number" || !Number.isFinite(val)) {
+    if (Number.isNaN(val)) throw new Error("قيمة غير معرّفة");
+    throw new Error("خطأ رياضي");
+  }
+
+  // Round floating point residue
+  const rounded = Math.round(val * 1e11) / 1e11;
+  return rounded;
+}
+
+function updateCalculatorDisplay() {
+  const exprEl = document.getElementById("calc-expression");
+  const resEl = document.getElementById("calc-result");
+  const modeInd = document.getElementById("calc-mode-indicator");
+  const angleBtn = document.getElementById("calc-angle-toggle-btn");
+  const fracBadge = document.getElementById("calc-fraction-badge");
+
+  if (modeInd) modeInd.textContent = calcState.angleMode;
+  if (angleBtn) {
+    angleBtn.textContent = calcState.angleMode;
+    angleBtn.classList.toggle("is-rad", calcState.angleMode === "RAD");
+  }
+
+  if (exprEl) {
+    exprEl.textContent = calcState.expression || "0";
+    exprEl.scrollLeft = exprEl.scrollWidth;
+  }
+
+  if (resEl) {
+    resEl.classList.remove("is-error", "is-fraction");
+    if (calcState.isFractionDisplay) {
+      resEl.classList.add("is-fraction");
+      if (fracBadge) fracBadge.hidden = false;
+    } else {
+      if (fracBadge) fracBadge.hidden = true;
+    }
+    resEl.textContent = calcState.result;
+  }
+}
+
+function calculateCalculatorResult(silent = false) {
+  if (!calcState.expression || !calcState.expression.trim()) {
+    calcState.result = "0";
+    calcState.numericResult = 0;
+    calcState.isFractionDisplay = false;
+    updateCalculatorDisplay();
+    return;
+  }
+
+  try {
+    const val = evaluateScientificExpression(calcState.expression, calcState.angleMode);
+    calcState.numericResult = val;
+    calcState.result = String(val);
+    calcState.isFractionDisplay = false;
+    calcState.evaluated = true;
+  } catch (err) {
+    if (!silent) {
+      calcState.result = err.message || "Math Error";
+      const resEl = document.getElementById("calc-result");
+      if (resEl) resEl.classList.add("is-error");
+    }
+  }
+  updateCalculatorDisplay();
+}
+
+function toggleFractionDisplay() {
+  if (!Number.isFinite(calcState.numericResult)) return;
+
+  if (!calcState.isFractionDisplay) {
+    const frac = decimalToFraction(calcState.numericResult);
+    if (frac && frac.den !== 1) {
+      calcState.result = `${frac.num}/${frac.den}`;
+      calcState.isFractionDisplay = true;
+    } else {
+      calcState.result = String(calcState.numericResult);
+    }
+  } else {
+    calcState.result = String(calcState.numericResult);
+    calcState.isFractionDisplay = false;
+  }
+  updateCalculatorDisplay();
+}
+
+function openStudentCalculatorModal() {
+  const modal = document.getElementById("student-calculator-modal");
+  if (!modal) return;
+  modal.hidden = false;
+  document.body.classList.add("calc-modal-open");
+  updateCalculatorDisplay();
+}
+
+function closeStudentCalculatorModal() {
+  const modal = document.getElementById("student-calculator-modal");
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.classList.remove("calc-modal-open");
+}
+
+function toggleStudentCalculatorModal() {
+  const modal = document.getElementById("student-calculator-modal");
+  if (!modal) return;
+  if (modal.hidden) {
+    openStudentCalculatorModal();
+  } else {
+    closeStudentCalculatorModal();
+  }
+}
+
+function initializeStudentCalculator() {
+  const btn = document.getElementById("student-calculator-btn");
+  const modal = document.getElementById("student-calculator-modal");
+  const closeBtn = document.getElementById("close-calculator-modal-btn");
+  const backdrop = document.getElementById("student-calc-backdrop");
+  const angleBtn = document.getElementById("calc-angle-toggle-btn");
+  const keypad = document.getElementById("student-calc-keypad");
+
+  if (!btn || !modal) return;
+
+  btn.addEventListener("click", toggleStudentCalculatorModal);
+  closeBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeStudentCalculatorModal();
+  });
+  backdrop?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeStudentCalculatorModal();
+  });
+
+  angleBtn?.addEventListener("click", () => {
+    calcState.angleMode = calcState.angleMode === "DEG" ? "RAD" : "DEG";
+    calculateCalculatorResult(true);
+    updateCalculatorDisplay();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && modal && !modal.hidden) {
+      closeStudentCalculatorModal();
+    }
+  });
+
+  if (keypad) {
+    keypad.addEventListener("click", (e) => {
+      const button = e.target.closest("button");
+      if (!button) return;
+
+      const insert = button.dataset.insert;
+      const op = button.dataset.op;
+      const fn = button.dataset.fn;
+      const action = button.dataset.action;
+
+      if (insert !== undefined) {
+        if (calcState.evaluated && /\d/.test(insert) && !calcState.expression.endsWith("(")) {
+          calcState.expression = "";
+        }
+        calcState.evaluated = false;
+        calcState.expression += insert;
+        calculateCalculatorResult(true);
+      } else if (op !== undefined) {
+        calcState.evaluated = false;
+        const visualOp = op === "*" ? "×" : op === "/" ? "÷" : op === "-" ? "−" : "+";
+        calcState.expression += visualOp;
+        updateCalculatorDisplay();
+      } else if (fn !== undefined) {
+        if (fn === "frac") {
+          // Fraction insertion: inserts division symbol or fraction template
+          calcState.evaluated = false;
+          calcState.expression += "÷";
+          updateCalculatorDisplay();
+        } else if (fn === "sd") {
+          // S⇄D Fraction <-> Decimal toggle
+          toggleFractionDisplay();
+        } else if (fn === "sin" || fn === "cos" || fn === "tan" || fn === "sqrt" || fn === "abs") {
+          if (calcState.evaluated) calcState.expression = "";
+          calcState.evaluated = false;
+          calcState.expression += `${fn}(`;
+          updateCalculatorDisplay();
+        } else if (fn === "square") {
+          calcState.evaluated = false;
+          calcState.expression += "^2";
+          calculateCalculatorResult(true);
+        } else if (fn === "pow") {
+          calcState.evaluated = false;
+          calcState.expression += "^";
+          updateCalculatorDisplay();
+        } else if (fn === "inv") {
+          if (calcState.numericResult !== 0) {
+            calcState.expression = `1/(${calcState.result})`;
+            calculateCalculatorResult(false);
+          }
+        }
+      } else if (action !== undefined) {
+        if (action === "clear") {
+          calcState.expression = "";
+          calcState.result = "0";
+          calcState.numericResult = 0;
+          calcState.isFractionDisplay = false;
+          calcState.evaluated = false;
+          updateCalculatorDisplay();
+        } else if (action === "backspace") {
+          calcState.evaluated = false;
+          calcState.expression = calcState.expression.slice(0, -1);
+          calculateCalculatorResult(true);
+        } else if (action === "negate") {
+          if (calcState.expression) {
+            if (calcState.expression.startsWith("-")) {
+              calcState.expression = calcState.expression.slice(1);
+            } else {
+              calcState.expression = "-" + calcState.expression;
+            }
+          } else if (calcState.result !== "0") {
+            calcState.numericResult = -calcState.numericResult;
+            calcState.result = String(calcState.numericResult);
+          }
+          calculateCalculatorResult(true);
+        } else if (action === "calculate") {
+          calculateCalculatorResult(false);
+          const historyPrev = document.getElementById("calc-history-prev");
+          if (historyPrev) historyPrev.textContent = calcState.expression;
+        }
+      }
+    });
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.MinasatyCalculator = {
+    evaluate: evaluateScientificExpression,
+    toFraction: decimalToFraction,
+    safeSin,
+    safeCos,
+    safeTan,
+    open: openStudentCalculatorModal,
+    close: closeStudentCalculatorModal,
+    toggle: toggleStudentCalculatorModal,
+    getState: () => ({ ...calcState }),
+  };
+}
+
 
 const LEVEL_WELCOME_IMAGES = {
   "السنة الأولى": "/assets/level-welcome/year-1.webp",
@@ -2805,6 +3182,9 @@ function stopLocalAudio() {
   microphonePrepared = false;
   isPreparingMicrophone = false;
   isRequestingMicrophone = false;
+  isMakingRenegotiationOffer = false;
+  microphoneOfferSent = false;
+  microphoneNegotiated = false;
   updateMicControl();
 }
 
@@ -3520,17 +3900,35 @@ async function enableApprovedMicrophone() {
   }
 
   const existingTrack = localAudioStream?.getAudioTracks()[0];
-  if (existingTrack) {
+  if (existingTrack && existingTrack.readyState === "live") {
     existingTrack.enabled = true;
     const isAlreadyAttached = pc.getSenders().some((sender) => sender.track?.id === existingTrack.id);
     if (!isAlreadyAttached) {
-      pc.addTrack(existingTrack, localAudioStream);
+      const audioSender = pc.getSenders().find((s) => s.track?.kind === "audio" || !s.track);
+      if (audioSender && typeof audioSender.replaceTrack === "function") {
+        try {
+          await audioSender.replaceTrack(existingTrack);
+        } catch (_) {
+          pc.addTrack(existingTrack, localAudioStream);
+        }
+      } else {
+        pc.addTrack(existingTrack, localAudioStream);
+      }
     }
     updateMicControl();
+    microphoneOfferSent = false;
+    microphoneNegotiated = false;
     await negotiateStudentMicrophone();
     void publishStudentSfuMic(localAudioStream);
     return;
+  }
 
+  // If track doesn't exist or is ended/stopped, clean it up and get a fresh one
+  if (localAudioStream) {
+    try {
+      localAudioStream.getTracks().forEach((track) => track.stop());
+    } catch (_) {}
+    localAudioStream = undefined;
   }
 
   isRequestingMicrophone = true;
@@ -3553,13 +3951,26 @@ async function enableApprovedMicrophone() {
       return;
     }
 
-    localAudioStream.getAudioTracks().forEach((track) => {
-      pc.addTrack(track, localAudioStream);
-    });
+    const newTrack = localAudioStream.getAudioTracks()[0];
+    if (newTrack) {
+      newTrack.enabled = true;
+      const audioSender = pc.getSenders().find((s) => s.track?.kind === "audio" || !s.track);
+      if (audioSender && typeof audioSender.replaceTrack === "function") {
+        try {
+          await audioSender.replaceTrack(newTrack);
+        } catch (_) {
+          pc.addTrack(newTrack, localAudioStream);
+        }
+      } else {
+        pc.addTrack(newTrack, localAudioStream);
+      }
+    }
 
     updateMicControl();
     // Do not depend only on negotiationneeded: explicitly create the offer so
     // the approved microphone works consistently across browsers.
+    microphoneOfferSent = false;
+    microphoneNegotiated = false;
     await negotiateStudentMicrophone();
     void publishStudentSfuMic(localAudioStream);
     // All approved student audio arrives through the teacher's master mix.
@@ -4142,6 +4553,9 @@ socket.on("permission_granted", async () => {
 socket.on("microphone_revoked", () => {
   clearHandResetTimer();
   microphonePermissionGranted = false;
+  isMakingRenegotiationOffer = false;
+  microphoneOfferSent = false;
+  microphoneNegotiated = false;
   unpublishStudentSfuMic();
 
   const audioTrack = localAudioStream?.getAudioTracks()[0];
@@ -4157,6 +4571,9 @@ socket.on("microphone_revoked", () => {
 socket.on("classroom_all_mics_muted", () => {
   clearHandResetTimer();
   microphonePermissionGranted = false;
+  isMakingRenegotiationOffer = false;
+  microphoneOfferSent = false;
+  microphoneNegotiated = false;
   unpublishStudentSfuMic();
 
   if (localAudioStream) {
@@ -4325,6 +4742,7 @@ elements.subscriptionDeclineButton?.addEventListener("click", () => {
   initializeStudentKeyboardLayout();
   initializeQualitySelector();
   initializeSignalFinder();
+  initializeStudentCalculator();
 
 window.addEventListener("pagehide", () => {
   enableNativeSwipeRefresh();
@@ -4333,6 +4751,7 @@ window.addEventListener("pagehide", () => {
   clearSelectedQuestionImage();
   closeSubscriptionUpgradeModal();
   closeSignalFinderModal();
+  closeStudentCalculatorModal();
   closePeerConnection();
   stopLocalAudio();
 });

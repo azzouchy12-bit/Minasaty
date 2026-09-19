@@ -4507,6 +4507,10 @@ function getClassroomAudioContextConstructor() {
 
 
 function rebuildClassroomAudioGraph() {
+  if (classroomAudioContext && classroomAudioContext.state === "suspended" && classActive) {
+    classroomAudioContext.resume().catch(() => {});
+  }
+
   classroomAudioSources.forEach(({ node, gainNode }) => {
     try {
       if (gainNode) gainNode.disconnect();
@@ -4523,7 +4527,9 @@ function rebuildClassroomAudioGraph() {
     [teacherSource, screenSource].forEach((source) => {
       if (source?.enabled) {
         const outNode = source.gainNode || source.node;
-        outNode.connect(destination);
+        try {
+          outNode.connect(destination);
+        } catch (_) {}
       }
     });
 
@@ -4536,7 +4542,9 @@ function rebuildClassroomAudioGraph() {
         source.enabled
       ) {
         const outNode = source.gainNode || source.node;
-        outNode.connect(destination);
+        try {
+          outNode.connect(destination);
+        } catch (_) {}
       }
     });
   });
@@ -4779,6 +4787,26 @@ function addClassroomAudioSource(sourceKey, stream, { enabled = true } = {}) {
       gainNode.gain.value = teacherMicGainLevel;
       teacherMicGainNode = gainNode;
       setupLiveMicMeter(gainNode);
+
+      const micTrack = stream.getAudioTracks()[0];
+      if (micTrack) {
+        micTrack.onended = () => {
+          console.warn("[Teacher Audio] Microphone track ended unexpectedly. Attempting recovery...");
+          if (classActive) {
+            setStudioStatus("تنبيه: انقطع اتصال المايكروفون. جارٍ استعادته تلقائياً…", "warning");
+            void ensureTeacherMicrophoneActive();
+          }
+        };
+        micTrack.onmute = () => {
+          console.warn("[Teacher Audio] Microphone track muted by hardware/OS.");
+        };
+        micTrack.onunmute = () => {
+          console.info("[Teacher Audio] Microphone track unmuted.");
+          if (classActive && classroomAudioContext?.state === "suspended") {
+            classroomAudioContext.resume().catch(() => {});
+          }
+        };
+      }
     } else {
       gainNode.gain.value = 1.0;
     }
@@ -6552,7 +6580,16 @@ socket.on("webrtc_renegotiation_offer", async (data = {}) => {
 
 
   try {
+    if (peerConnection.signalingState === "have-local-offer") {
+      try {
+        await peerConnection.setLocalDescription({ type: "rollback" });
+      } catch (rollbackErr) {
+        console.warn("Rollback failed on student renegotiation offer:", rollbackErr);
+      }
+    }
+
     if (peerConnection.signalingState !== "stable") {
+      console.warn("Renegotiation offer received while signalingState is:", peerConnection.signalingState);
       return;
     }
 

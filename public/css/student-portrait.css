@@ -117,6 +117,7 @@ body.student-live-page {
   }
 
   body.student-live-page .viewer-level,
+  body.student-live-page .student-calculator-btn,
   body.student-live-page .viewer-subject,
   body.student-live-page .student-participation-count,
   body.student-live-page .student-quality-wrapper,
@@ -149,6 +150,32 @@ body.student-live-page {
   body.student-live-page #class-level-label,
   body.student-live-page #class-subject-label {
     display: block !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  body.student-live-page .student-calculator-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.25rem !important;
+    max-width: 22% !important;
+    min-height: 2.2rem !important;
+    padding: .28rem .5rem !important;
+    color: #38bdf8 !important;
+    background: rgba(15, 23, 42, .88) !important;
+    border: 1px solid rgba(56, 189, 248, .45) !important;
+    border-radius: .65rem !important;
+    font-size: clamp(.58rem, 2.4vw, .72rem) !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, .15) !important;
+    white-space: nowrap !important;
+  }
+
+  body.student-live-page .student-calculator-btn .calc-btn-label {
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
