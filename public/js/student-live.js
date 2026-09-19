@@ -107,6 +107,7 @@ async function connectStudentSfu(roomName) {
         }
         console.info("[SFU-Student] Received teacher track via SFU:", track.kind);
         if (track.mediaStreamTrack) {
+          track.mediaStreamTrack.__fromSfu = true;
           attachTeacherTrack({ track: track.mediaStreamTrack });
         }
       });
@@ -1995,6 +1996,16 @@ function evaluateScientificExpression(rawExpr, angleMode = "DEG") {
   // Percentage handling: e.g. 50% -> (50*0.01)
   s = s.replace(/(\d+(\.\d+)?)%/g, "($1*0.01)");
 
+  // Auto-close missing unclosed parentheses e.g. sin(45 -> sin(45)
+  let openCount = 0;
+  for (let idx = 0; idx < s.length; idx++) {
+    if (s[idx] === "(") openCount++;
+    else if (s[idx] === ")") openCount--;
+  }
+  if (openCount > 0) {
+    s = s + ")".repeat(openCount);
+  }
+
   const tokens = [];
   let i = 0;
   while (i < s.length) {
@@ -2196,12 +2207,15 @@ function calculateCalculatorResult(silent = false) {
     calcState.numericResult = val;
     calcState.result = String(val);
     calcState.isFractionDisplay = false;
-    calcState.evaluated = true;
+    if (!silent) {
+      calcState.evaluated = true;
+    }
   } catch (err) {
     if (!silent) {
       calcState.result = err.message || "Math Error";
       const resEl = document.getElementById("calc-result");
       if (resEl) resEl.classList.add("is-error");
+      calcState.evaluated = false;
     }
   }
   updateCalculatorDisplay();
@@ -2293,43 +2307,106 @@ function initializeStudentCalculator() {
       const action = button.dataset.action;
 
       if (insert !== undefined) {
-        if (calcState.evaluated && /\d/.test(insert) && !calcState.expression.endsWith("(")) {
-          calcState.expression = "";
+        // If calculation was just evaluated (user pressed =):
+        if (calcState.evaluated) {
+          // If inserting a number, constant, or open parenthesis, start a new calculation
+          if (/\d|\.|π|e|\(/.test(insert)) {
+            calcState.expression = "";
+          }
+          calcState.evaluated = false;
         }
-        calcState.evaluated = false;
+
+        // Avoid multiple dots in the same number token:
+        if (insert === ".") {
+          const parts = calcState.expression.split(/[\+\−\×\÷\(\)\^\*\/\-]/);
+          const currentToken = parts[parts.length - 1] || "";
+          if (currentToken.includes(".")) {
+            return;
+          }
+          if (!currentToken || currentToken === "") {
+            calcState.expression += "0";
+          }
+        }
+
         calcState.expression += insert;
         calculateCalculatorResult(true);
       } else if (op !== undefined) {
-        calcState.evaluated = false;
         const visualOp = op === "*" ? "×" : op === "/" ? "÷" : op === "-" ? "−" : "+";
-        calcState.expression += visualOp;
+
+        // If user just pressed = and now presses an operator, continue with Ans
+        if (calcState.evaluated) {
+          calcState.expression = (calcState.result && !calcState.result.includes("Error"))
+            ? calcState.result
+            : "0";
+          calcState.evaluated = false;
+        }
+
+        if (!calcState.expression) {
+          if (visualOp === "−") {
+            calcState.expression = "−";
+            updateCalculatorDisplay();
+            return;
+          } else {
+            calcState.expression = "0" + visualOp;
+            updateCalculatorDisplay();
+            return;
+          }
+        }
+
+        // Prevent double operators: if last char is an operator, replace it!
+        const lastChar = calcState.expression.slice(-1);
+        if (["+", "−", "×", "÷"].includes(lastChar)) {
+          calcState.expression = calcState.expression.slice(0, -1) + visualOp;
+        } else {
+          calcState.expression += visualOp;
+        }
         updateCalculatorDisplay();
       } else if (fn !== undefined) {
         if (fn === "frac") {
-          // Fraction insertion: inserts division symbol or fraction template
-          calcState.evaluated = false;
+          if (calcState.evaluated) {
+            calcState.expression = (calcState.result && !calcState.result.includes("Error")) ? calcState.result : "";
+            calcState.evaluated = false;
+          }
           calcState.expression += "÷";
           updateCalculatorDisplay();
         } else if (fn === "sd") {
-          // S⇄D Fraction <-> Decimal toggle
           toggleFractionDisplay();
         } else if (fn === "sin" || fn === "cos" || fn === "tan" || fn === "sqrt" || fn === "abs") {
-          if (calcState.evaluated) calcState.expression = "";
-          calcState.evaluated = false;
+          if (calcState.evaluated) {
+            calcState.expression = "";
+            calcState.evaluated = false;
+          }
+          if (/\d|\)|π|e$/.test(calcState.expression)) {
+            calcState.expression += "×";
+          }
           calcState.expression += `${fn}(`;
           updateCalculatorDisplay();
         } else if (fn === "square") {
-          calcState.evaluated = false;
-          calcState.expression += "^2";
-          calculateCalculatorResult(true);
+          if (calcState.evaluated) {
+            calcState.expression = (calcState.result && !calcState.result.includes("Error")) ? calcState.result : "";
+            calcState.evaluated = false;
+          }
+          if (calcState.expression) {
+            calcState.expression += "^2";
+            calculateCalculatorResult(true);
+          }
         } else if (fn === "pow") {
-          calcState.evaluated = false;
-          calcState.expression += "^";
-          updateCalculatorDisplay();
+          if (calcState.evaluated) {
+            calcState.expression = (calcState.result && !calcState.result.includes("Error")) ? calcState.result : "";
+            calcState.evaluated = false;
+          }
+          if (calcState.expression) {
+            calcState.expression += "^";
+            updateCalculatorDisplay();
+          }
         } else if (fn === "inv") {
-          if (calcState.numericResult !== 0) {
+          if (calcState.evaluated && calcState.numericResult !== 0) {
             calcState.expression = `1/(${calcState.result})`;
-            calculateCalculatorResult(false);
+            calcState.evaluated = false;
+            calculateCalculatorResult(true);
+          } else if (calcState.expression) {
+            calcState.expression = `1/(${calcState.expression})`;
+            calculateCalculatorResult(true);
           }
         }
       } else if (action !== undefined) {
@@ -2339,27 +2416,51 @@ function initializeStudentCalculator() {
           calcState.numericResult = 0;
           calcState.isFractionDisplay = false;
           calcState.evaluated = false;
+          const historyPrev = document.getElementById("calc-history-prev");
+          if (historyPrev) historyPrev.textContent = "";
           updateCalculatorDisplay();
         } else if (action === "backspace") {
-          calcState.evaluated = false;
-          calcState.expression = calcState.expression.slice(0, -1);
+          if (calcState.evaluated) {
+            calcState.expression = "";
+            calcState.result = "0";
+            calcState.numericResult = 0;
+            calcState.evaluated = false;
+            updateCalculatorDisplay();
+            return;
+          }
+          const fnMatch = calcState.expression.match(/(sin|cos|tan|sqrt|abs)\($/);
+          if (fnMatch) {
+            calcState.expression = calcState.expression.slice(0, -fnMatch[0].length);
+          } else if (calcState.expression.endsWith("^2")) {
+            calcState.expression = calcState.expression.slice(0, -2);
+          } else {
+            calcState.expression = calcState.expression.slice(0, -1);
+          }
           calculateCalculatorResult(true);
         } else if (action === "negate") {
+          if (calcState.evaluated) {
+            calcState.numericResult = -calcState.numericResult;
+            calcState.result = String(calcState.numericResult);
+            calcState.expression = calcState.result;
+            updateCalculatorDisplay();
+            return;
+          }
           if (calcState.expression) {
             if (calcState.expression.startsWith("-")) {
               calcState.expression = calcState.expression.slice(1);
             } else {
               calcState.expression = "-" + calcState.expression;
             }
-          } else if (calcState.result !== "0") {
-            calcState.numericResult = -calcState.numericResult;
-            calcState.result = String(calcState.numericResult);
           }
           calculateCalculatorResult(true);
         } else if (action === "calculate") {
+          if (!calcState.expression || !calcState.expression.trim()) return;
+          const historyExpr = calcState.expression;
           calculateCalculatorResult(false);
           const historyPrev = document.getElementById("calc-history-prev");
-          if (historyPrev) historyPrev.textContent = calcState.expression;
+          if (historyPrev && !calcState.result.includes("Error")) {
+            historyPrev.textContent = historyExpr + " =";
+          }
         }
       }
     });
@@ -3601,6 +3702,23 @@ function resetRemoteMedia() {
 }
 
 function addUniqueTrack(stream, track) {
+  if (track.kind === "audio") {
+    // Strictly prevent double-audio / echo feedback across classroom playback.
+    // Ensure that exactly one audio track plays at any time.
+    const existingAudio = stream.getAudioTracks();
+    if (existingAudio.some((currentTrack) => currentTrack.id === track.id)) {
+      return;
+    }
+    existingAudio.forEach((oldTrack) => {
+      try {
+        stream.removeTrack(oldTrack);
+        oldTrack.enabled = false;
+      } catch (_) {}
+    });
+    stream.addTrack(track);
+    return;
+  }
+
   const alreadyAdded = stream.getTracks().some((currentTrack) => currentTrack.id === track.id);
   if (!alreadyAdded) {
     stream.addTrack(track);
@@ -3910,7 +4028,18 @@ function createViewerPeerConnection() {
    * always gets the display and all available audio tracks, independent of the
    * browser's ontrack event ordering.
    */
-  pc.ontrack = attachTeacherTrack;
+  pc.ontrack = (event) => {
+    // If LiveKit SFU is connected and already delivering live audio, keep P2P audio on standby
+    // to strictly prevent double-audio / echo feedback across the student's playback.
+    if (event.track?.kind === "audio" && studentSfuRoom && studentSfuRoom.state === "connected") {
+      const hasLiveSfuAudio = remoteMediaStream?.getAudioTracks().some((t) => t.readyState === "live" && t.__fromSfu === true);
+      if (hasLiveSfuAudio) {
+        console.info("[WebRTC-Student] LiveKit SFU audio active; keeping P2P audio on standby to prevent echo.");
+        return;
+      }
+    }
+    attachTeacherTrack(event);
+  };
 
   // Browsers may coalesce or delay negotiationneeded. The track-addition path
   // calls negotiateStudentMicrophone directly as the reliable primary route;
