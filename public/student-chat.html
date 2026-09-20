@@ -6,6 +6,7 @@
   <title>مراسلتي مع الأستاذ | أكاديمية التفوق</title>
   <link rel="stylesheet" href="./css/style.css" />
   <link rel="stylesheet" href="./css/private-messages.css?v=messenger-ui-2" />
+  <link rel="stylesheet" href="./css/plane-button-animation.css" />
 </head>
 <body class="private-messages-page student-chat-page">
   <header class="private-chat-topbar">
@@ -31,7 +32,12 @@
             <button type="button" role="menuitem" data-attach="file">اختيار ملف</button>
           </div>
           <textarea id="student-chat-input" rows="1" maxlength="4000" placeholder="اكتب رسالتك للأستاذ…" autocomplete="off"></textarea>
-          <button class="chat-send-button" type="submit" aria-label="إرسال الرسالة">إرسال</button>
+          <button class="chat-send-button btn-plane-interactive" type="submit" aria-label="إرسال الرسالة">
+            <span class="btn-plane-content">إرسال</span>
+            <span class="btn-plane-success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg><span>تم</span></span>
+            <span class="plane-flying-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></span>
+            <span class="plane-trail" aria-hidden="true"></span>
+          </button>
         </div>
         <input id="student-chat-camera-input" class="chat-attach-input" type="file" accept="image/*" capture="environment" hidden>
         <input id="student-chat-file-input" class="chat-attach-input" type="file" accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
@@ -43,6 +49,7 @@
   <script src="./js/session-storage.js?v=single-session-1"></script>
   <script src="./js/message-notifications.js"></script>
   <script src="./js/chat-attachments.js?v=messenger-ui-2"></script>
+  <script src="./js/plane-button-animation.js"></script>
   <script src="./js/student-chat.js?v=messenger-ui-2"></script>
   <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
 </body>

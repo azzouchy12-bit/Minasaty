@@ -106,7 +106,12 @@ async function sendStudentMessage(event) {
   const file = studentChatAttachments?.getFile?.() || null;
   if (!content && !file) return;
   const button = studentChatElements.sendButton;
-  if (button) button.disabled = true;
+  if (button) {
+    button.disabled = true;
+    if (window.PlaneButtonAnim) {
+      window.PlaneButtonAnim.trigger(button, { successText: "تم", fastMode: true });
+    }
+  }
   try {
     const request = window.ChatAttachments?.buildChatMessageRequest(content, file);
     const response = await studentChatFetch(`/api/messages/${encodeURIComponent(studentChatId)}`, {

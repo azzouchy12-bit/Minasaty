@@ -54,6 +54,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/plane-button-animation.css" />
 
     <style>
       :root {
@@ -5981,8 +5982,11 @@
             <button id="capture-question-btn" class="student-chat-capture" type="button" disabled aria-label="تصوير">
               <span aria-hidden="true">▣</span><span>تصوير</span>
             </button>
-            <button id="open-chat-compose-btn" class="student-chat-message-button" type="button" disabled aria-label="إرسال رسالة">
-              <span aria-hidden="true">✉</span><span>إرسال</span>
+            <button id="open-chat-compose-btn" class="student-chat-message-button btn-plane-interactive" type="button" disabled aria-label="إرسال رسالة">
+              <span class="btn-plane-content"><span aria-hidden="true">✉</span><span>إرسال</span></span>
+              <span class="btn-plane-success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg><span>تم</span></span>
+              <span class="plane-flying-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></span>
+              <span class="plane-trail" aria-hidden="true"></span>
             </button>
           </div>
           <div id="chat-compose-modal" class="chat-compose-modal" role="dialog" aria-modal="true" aria-labelledby="chat-compose-title">
@@ -5997,8 +6001,11 @@
               <form id="chat-form" class="student-chat-form" novalidate>
                 <label class="chat-compose-label" for="chat-input">رسالتك</label>
                 <textarea id="chat-input" rows="5" maxlength="800" placeholder="اكتب رسالتك هنا..." autocomplete="off" aria-label="رسالتك للأستاذ" disabled></textarea>
-                <button id="chat-send-btn" class="student-chat-send" type="submit" disabled>
-                  <span aria-hidden="true">➤</span><span>إرسال</span>
+                <button id="chat-send-btn" class="student-chat-send btn-plane-interactive" type="submit" disabled>
+                  <span class="btn-plane-content"><span aria-hidden="true">➤</span><span>إرسال</span></span>
+                  <span class="btn-plane-success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg><span>تم الإرسال</span></span>
+                  <span class="plane-flying-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></span>
+                  <span class="plane-trail" aria-hidden="true"></span>
                 </button>
               </form>
             </section>
@@ -6326,6 +6333,7 @@
     <script src="./js/student-desktop.js?v=desktop-css-only-1"></script>
     <script src="./js/webrtc-ice.js?v=coturn-1"></script>
     <script src="./js/vendor/livekit-client.umd.js"></script>
+    <script src="./js/plane-button-animation.js"></script>
     <script src="./js/student-live.js?v=mic-alert-ring-1"></script>
     <script src="./js/browser-notifications.js?v=session-takeover-1"></script>
     <script src="./js/alert-sound-player.js?v=alert-disabled-1" defer></script>

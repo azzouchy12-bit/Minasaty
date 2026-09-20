@@ -177,7 +177,12 @@ async function sendTeacherMessage(event) {
   const file = teacherChatAttachments?.getFile?.() || null;
   if (!activeConversation || (!content && !file)) return;
   const button = teacherChatElements.sendButton;
-  if (button) button.disabled = true;
+  if (button) {
+    button.disabled = true;
+    if (window.PlaneButtonAnim) {
+      window.PlaneButtonAnim.trigger(button, { successText: "تم", fastMode: true });
+    }
+  }
   try {
     const request = window.ChatAttachments?.buildChatMessageRequest(content, file);
     const response = await teacherChatFetch(`/api/messages/${encodeURIComponent(activeConversation.id)}`, {

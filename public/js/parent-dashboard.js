@@ -2275,6 +2275,9 @@ function refreshAccessAfterReturningFromCall() {
 }
 
 function openUniversityPaymentTransfer() {
+  if (window.PlaneButtonAnim && elements.universityUpgradeButton) {
+    window.PlaneButtonAnim.trigger(elements.universityUpgradeButton, { successText: "جارٍ الفتح…", fastMode: true });
+  }
   universityPaymentTransferRequested = true;
   if (elements.universityPaymentTransfer) {
     elements.universityPaymentTransfer.hidden = false;
@@ -2283,6 +2286,9 @@ function openUniversityPaymentTransfer() {
 }
 
 function openSecondaryPaymentTransfer() {
+  if (window.PlaneButtonAnim && elements.secondaryUpgradeButton) {
+    window.PlaneButtonAnim.trigger(elements.secondaryUpgradeButton, { successText: "جارٍ الفتح…", fastMode: true });
+  }
   secondaryPaymentTransferRequested = true;
   if (elements.secondaryPaymentTransfer) {
     elements.secondaryPaymentTransfer.hidden = false;
@@ -2355,7 +2361,14 @@ async function submitSecondaryPaymentReceipt() {
   const originalLabel = elements.secondaryPaymentSubmit?.textContent;
   if (elements.secondaryPaymentSubmit) {
     elements.secondaryPaymentSubmit.disabled = true;
-    elements.secondaryPaymentSubmit.textContent = "جارٍ إرسال الوصل…";
+    if (window.PlaneButtonAnim) {
+      window.PlaneButtonAnim.trigger(elements.secondaryPaymentSubmit, {
+        successText: "تم إرسال الوصل بنجاح",
+        successDuration: 2200
+      });
+    } else {
+      elements.secondaryPaymentSubmit.textContent = "جارٍ إرسال الوصل…";
+    }
   }
 
   try {
@@ -2402,7 +2415,14 @@ async function submitUniversityPaymentReceipt() {
   const originalLabel = elements.parentPaymentSubmit?.textContent;
   if (elements.parentPaymentSubmit) {
     elements.parentPaymentSubmit.disabled = true;
-    elements.parentPaymentSubmit.textContent = "جارٍ إرسال الوصل…";
+    if (window.PlaneButtonAnim) {
+      window.PlaneButtonAnim.trigger(elements.parentPaymentSubmit, {
+        successText: "تم إرسال الوصل بنجاح",
+        successDuration: 2200
+      });
+    } else {
+      elements.parentPaymentSubmit.textContent = "جارٍ إرسال الوصل…";
+    }
   }
 
   try {

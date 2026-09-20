@@ -3116,6 +3116,12 @@ async function sendStudentChatMessage(event) {
 
   elements.chatSendButton.disabled = true;
   elements.captureQuestionButton.disabled = true;
+  if (window.PlaneButtonAnim) {
+    window.PlaneButtonAnim.trigger(elements.chatSendButton, { fastMode: true, successText: "تم الإرسال" });
+    if (elements.openChatComposeButton) {
+      window.PlaneButtonAnim.trigger(elements.openChatComposeButton, { fastMode: true, successText: "تم" });
+    }
+  }
 
   try {
     let imageId = null;

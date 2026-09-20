@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="./css/parent-dashboard-refactor.css?v=receipt-decision-2" />
     <link rel="stylesheet" href="./css/private-messages.css" />
     <link rel="stylesheet" href="./css/payment-feedback.css" />
+    <link rel="stylesheet" href="./css/plane-button-animation.css" />
     <link rel="stylesheet" href="./css/parent-messenger-required.css?v=messenger-banner-4" />
 
     <style>
@@ -1745,7 +1746,12 @@
          <div id="secondary-payment-waiting" class="payment-upgrade-waiting" hidden role="status">جاري تأكيد الدفع من إدارة المنصة</div>
          <h2>ترقية حسابي</h2>
         <p>اختر المواد التي تريد الاشتراك فيها، ثم ارفع وصل الدفع للتمتع بالحصص المباشرة ومقاطع الدروس المسجلة.</p>
-        <button id="secondary-upgrade-button" class="university-upgrade-button" type="button">ترقية حسابي والتمتع بالحصص المسجلة والمباشرة</button>
+        <button id="secondary-upgrade-button" class="university-upgrade-button btn-plane-interactive" type="button">
+          <span class="btn-plane-content">ترقية حسابي والتمتع بالحصص المسجلة والمباشرة</span>
+          <span class="btn-plane-success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg><span>جارٍ الفتح…</span></span>
+          <span class="plane-flying-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></span>
+          <span class="plane-trail" aria-hidden="true"></span>
+        </button>
 
         <div id="secondary-payment-transfer" class="university-payment-transfer" hidden>
           <h3>اختر نوع الاشتراك</h3>
@@ -1777,7 +1783,12 @@
           </div>
           <button id="secondary-card-payment-button" class="card-payment-button" type="button">الدفع بالبطاقة الإلكترونية</button>
           <p class="sofizpay-payment-help">الدفع الإلكتروني: المادتان معًا 2030 دج — مادة واحدة 1030 دج.</p>
-          <button id="secondary-payment-submit" class="parent-payment-submit" type="button">إرسال وصل الدفع للأستاذ</button>
+          <button id="secondary-payment-submit" class="parent-payment-submit btn-plane-interactive" type="button">
+            <span class="btn-plane-content">إرسال وصل الدفع للأستاذ</span>
+            <span class="btn-plane-success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg><span>تم إرسال الوصل بنجاح</span></span>
+            <span class="plane-flying-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></span>
+            <span class="plane-trail" aria-hidden="true"></span>
+          </button>
           <p id="secondary-payment-pending" class="parent-payment-pending" hidden></p>
           <div id="secondary-sofizpay-reconcile" class="parent-sofizpay-reconcile" hidden>
             <label for="secondary-sofizpay-order-number">تصحيح رقم معاملة SofizPay</label>
@@ -1973,7 +1984,12 @@
            <div id="university-payment-waiting" class="payment-upgrade-waiting" hidden role="status">جاري تأكيد الدفع من إدارة المنصة</div>
            <h2>ترقية الاشتراك</h2>
           <p>ارتقِ إلى الحساب المدفوع للتمتع بجميع الحصص المدفوعة والمجانية خلال السداسي.</p>
-          <button id="university-upgrade-button" class="university-upgrade-button" type="button">ترقية حسابي إلى حساب مدفوع والتمتع بالحصص المدفوعة</button>
+          <button id="university-upgrade-button" class="university-upgrade-button btn-plane-interactive" type="button">
+            <span class="btn-plane-content">ترقية حسابي إلى حساب مدفوع والتمتع بالحصص المدفوعة</span>
+            <span class="btn-plane-success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg><span>جارٍ الفتح…</span></span>
+            <span class="plane-flying-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></span>
+            <span class="plane-trail" aria-hidden="true"></span>
+          </button>
 
           <div id="university-payment-transfer" class="university-payment-transfer" hidden>
             <h3>معلومات التحويل البريدي</h3>
@@ -1996,7 +2012,12 @@
               <span id="parent-payment-file-name" class="payment-receipt-file-name" aria-live="polite">لم يتم اختيار وصل الدفع</span>
             </div>
             <button id="university-card-payment-button" class="card-payment-button" type="button">الدفع بالبطاقة الذهبية أو البنكية</button>
-            <button id="parent-payment-submit" class="parent-payment-submit" type="button">إرسال وصل الدفع للأستاذ</button>
+            <button id="parent-payment-submit" class="parent-payment-submit btn-plane-interactive" type="button">
+              <span class="btn-plane-content">إرسال وصل الدفع للأستاذ</span>
+              <span class="btn-plane-success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg><span>تم إرسال الوصل بنجاح</span></span>
+              <span class="plane-flying-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></span>
+              <span class="plane-trail" aria-hidden="true"></span>
+            </button>
             <p id="parent-payment-pending" class="parent-payment-pending" hidden></p>
           </div>
         </section>
@@ -2207,6 +2228,7 @@
     <script src="./js/session-storage.js?v=single-session-1"></script>
     <script src="./js/message-notifications.js"></script>
     <script src="./js/parent-referral.js?v=referral-ui-1"></script>
+    <script src="./js/plane-button-animation.js"></script>
     <script src="./js/parent-dashboard.js?v=payment-review-frame-1"></script>
     <script src="./js/parent-push-prompt.js?v=parent-push-prompt-1"></script>
     <script src="./js/browser-notifications.js?v=session-takeover-1"></script>
