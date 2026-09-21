@@ -111,8 +111,58 @@
   }
 
   // --------------------------------------------------------------------------
-  // Level Switching
+  // Level Switching & Subject Options Sync
   // --------------------------------------------------------------------------
+  function scheduleTypeOptions(level) {
+    return level === "طالب جامعي"
+      ? [
+          { value: "PAID", label: "اشتراك مدفوع" },
+          { value: "FREE", label: "اشتراك مجاني" },
+        ]
+      : [
+          { value: "MATH", label: "الرياضيات" },
+          { value: "PHYSICS", label: "الفيزياء" },
+        ];
+  }
+
+  function scheduleTypeLabel(level, subject) {
+    return (
+      scheduleTypeOptions(level).find((item) => item.value === subject)?.label ||
+      subject ||
+      "نوع غير معروف"
+    );
+  }
+
+  function syncScheduleSubjectOptions(selectedValue) {
+    const select = document.getElementById("tdm-sched-subject");
+    if (!select) return;
+    const previousValue = selectedValue || select.value;
+    select.replaceChildren();
+    scheduleTypeOptions(currentLevel).forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.value;
+      option.textContent = item.label;
+      select.append(option);
+    });
+    const values = scheduleTypeOptions(currentLevel).map((item) => item.value);
+    select.value = values.includes(previousValue) ? previousValue : values[0];
+  }
+
+  function syncLessonTypeOptions(selectedValue) {
+    const select = document.getElementById("tdm-lesson-type");
+    if (!select) return;
+    const previousValue = selectedValue || select.value;
+    select.replaceChildren();
+    scheduleTypeOptions(currentLevel).forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.value;
+      option.textContent = item.label;
+      select.append(option);
+    });
+    const values = scheduleTypeOptions(currentLevel).map((item) => item.value);
+    select.value = values.includes(previousValue) ? previousValue : values[0];
+  }
+
   function setLevel(level) {
     if (!level) return;
     currentLevel = level;
@@ -128,6 +178,9 @@
     const statsLevel = document.getElementById("tdm-stats-level-label");
     if (statsLevel) statsLevel.textContent = label;
 
+    syncScheduleSubjectOptions();
+    syncLessonTypeOptions();
+
     fetchLevelStudents(level);
 
     if (activeView === "schedule") loadSchedule();
@@ -135,6 +188,9 @@
     else if (activeView === "assignments") loadAssignments();
     else if (activeView === "lessons") loadLessons();
     else if (activeView === "payments") loadPayments();
+    else if (activeView === "registry") {
+      window.dispatchEvent(new CustomEvent("class-registry-refresh", { detail: { level } }));
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -168,6 +224,9 @@
     else if (activeView === "payments") loadPayments();
     else if (activeView === "assignments") loadAssignments();
     else if (activeView === "lessons") loadLessons();
+    else if (activeView === "registry") {
+      window.dispatchEvent(new CustomEvent("class-registry-refresh", { detail: { level: currentLevel } }));
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -808,7 +867,7 @@
   }
 
   // --------------------------------------------------------------------------
-  // Top Grid Actions: Online Users, Absence, Public Invite
+  // Top Grid Actions: Online Users, Absence, Public Invite, Unread Messages
   // --------------------------------------------------------------------------
   async function fetchOnlineUsersCount() {
     try {
@@ -821,10 +880,105 @@
     } catch (_) {}
   }
 
+  async function openOnlineUsersModal() {
+    const modal = document.getElementById("online-users-modal");
+    const list = document.getElementById("online-users-list");
+    if (!modal || !list) return;
+
+    list.innerHTML = `
+      <div class="tdm-loading-state" style="padding:16px;">
+        <div class="tdm-spinner"></div>
+        <p>جارٍ تحميل المتصلين…</p>
+      </div>`;
+    modal.hidden = false;
+
+    try {
+      const response = await teacherFetch("/api/teacher/online-users");
+      if (!response.ok) throw new Error("تعذر تحميل قائمة المتصلين.");
+      const data = await response.json().catch(() => ({}));
+      const users = Array.isArray(data.users) ? data.users : [];
+
+      const countEl = document.getElementById("tdm-online-count");
+      if (countEl && typeof data.onlineCount === "number") {
+        countEl.textContent = data.onlineCount;
+      }
+
+      if (!users.length) {
+        list.innerHTML = `<p class="tdm-empty-msg">لا يوجد مستخدمون متصلون حالياً في المنصة.</p>`;
+        return;
+      }
+
+      list.innerHTML = users
+        .map((u) => {
+          const roleLabel =
+            u.role === "student"
+              ? "تلميذ"
+              : u.role === "teacher"
+              ? "أستاذ"
+              : "ولي أمر";
+          const badgeClass =
+            u.role === "teacher"
+              ? "pill-paid"
+              : u.role === "student"
+              ? "pill-subject"
+              : "pill-promised";
+          return `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; margin-bottom:8px;">
+            <div>
+              <strong style="display:block; font-size:0.88rem; color:#0f172a;">🟢 ${escapeHtml(
+                u.name || "مستخدم"
+              )}</strong>
+              <small style="color:#64748b; font-size:0.75rem;">${escapeHtml(
+                u.level || ""
+              )}${u.studentPin ? ` · PIN: ${escapeHtml(u.studentPin)}` : ""}</small>
+            </div>
+            <span class="tdm-gmail-pill ${badgeClass}" style="font-size:0.72rem;">${roleLabel}</span>
+          </div>`;
+        })
+        .join("");
+    } catch (err) {
+      list.innerHTML = `<p class="tdm-empty-msg">${escapeHtml(
+        err.message || "تعذر تحميل قائمة المتصلين."
+      )}</p>`;
+    }
+  }
+
+  function initSocketPresence() {
+    if (typeof io !== "function") return;
+    try {
+      const socket = io({
+        auth: { token: getTeacherToken() },
+        transports: ["websocket", "polling"],
+      });
+      socket.on("presence_update", (data) => {
+        if (data && typeof data.onlineCount === "number") {
+          const countEl = document.getElementById("tdm-online-count");
+          if (countEl) countEl.textContent = data.onlineCount;
+        }
+      });
+      socket.on("teacher_absence_updated", (data) => {
+        if (data && typeof data.isAbsent === "boolean") {
+          isAbsent = data.isAbsent;
+          updateAbsenceUI();
+        }
+      });
+    } catch (_) {}
+  }
+
+  async function fetchGlobalAbsence() {
+    try {
+      const response = await teacherFetch("/api/schedules/absence/global");
+      if (!response.ok) return;
+      const data = await response.json().catch(() => ({}));
+      isAbsent = Boolean(data?.data?.isAbsent);
+      updateAbsenceUI();
+    } catch (_) {}
+  }
+
   async function toggleAbsence() {
     const nextState = !isAbsent;
     try {
-      const response = await teacherFetch("/api/teacher/absence", {
+      const response = await teacherFetch("/api/schedules/absence/global", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -832,16 +986,36 @@
         },
         body: JSON.stringify({ isAbsent: nextState }),
       });
-      if (!response.ok) throw new Error();
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "تعذر تحديث حالة التواجد.");
 
       isAbsent = nextState;
       updateAbsenceUI();
       showToast(
-        isAbsent ? "تم الإعلان عن الغياب 📢" : "تم إلغاء الغياب (حاضر) ✓"
+        isAbsent
+          ? "تم الإعلان عن الغياب لجميع المستويات 📢"
+          : "تم إلغاء الغياب (الأستاذ حاضر) ✓"
       );
-    } catch (_) {
-      showToast("تعذر تحديث حالة التواجد.");
+    } catch (err) {
+      showToast(err.message || "تعذر تحديث حالة التواجد.");
     }
+  }
+
+  async function fetchUnreadMessagesCount() {
+    const badge = document.getElementById("tdm-unread-msg-badge");
+    if (!badge) return;
+    try {
+      const response = await teacherFetch("/api/messages/unread-count");
+      if (!response.ok) return;
+      const payload = await response.json().catch(() => ({}));
+      const count = Number(payload.count) || 0;
+      if (count > 0) {
+        badge.textContent = count > 99 ? "99+" : String(count);
+        badge.hidden = false;
+      } else {
+        badge.hidden = true;
+      }
+    } catch (_) {}
   }
 
   function updateAbsenceUI() {
@@ -889,38 +1063,40 @@
   }
 
   // --------------------------------------------------------------------------
-  // View 2: Notifications
+  // View 2: Notifications (Teacher Announcements)
   // --------------------------------------------------------------------------
   async function loadNotifications() {
     const historyList = document.getElementById("tdm-notif-history");
     if (!historyList) return;
 
     try {
-      const response = await teacherFetch(
-        `/api/teacher/notifications?level=${encodeURIComponent(currentLevel)}`
-      );
+      const response = await teacherFetch("/api/academic/teacher-announcements");
       if (!response.ok) return;
       const data = await response.json().catch(() => ({}));
-      const list = Array.isArray(data.notifications) ? data.notifications : [];
+      const list = Array.isArray(data.data) ? data.data : [];
 
       if (!list.length) {
-        historyList.innerHTML = `<p class="tdm-empty-msg">لا توجد تنبيهات سابقة لهذا المستوى.</p>`;
+        historyList.innerHTML = `<p class="tdm-empty-msg">لا توجد تنبيهات سابقة.</p>`;
         return;
       }
 
       historyList.innerHTML = list
         .map(
           (n) => `
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px;">
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; margin-bottom:8px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-              <strong style="font-size:0.9rem;">${escapeHtml(n.title)}</strong>
+              <strong style="font-size:0.9rem; color:#0f172a;">${escapeHtml(n.title)}</strong>
               <span style="font-size:0.7rem; color:#64748b;">${new Date(
                 n.createdAt
               ).toLocaleDateString("ar-DZ")}</span>
             </div>
-            <p style="font-size:0.8rem; color:#475569;">${escapeHtml(
+            <p style="font-size:0.8rem; color:#475569; margin:4px 0;">${escapeHtml(
               n.body
             )}</p>
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.72rem; color:#64748b;">
+              <span>المستوى: ${escapeHtml(n.targetLevel || "الكل")}</span>
+              <span>تم الإرسال: ${n.sentCount || 0}</span>
+            </div>
           </div>`
         )
         .join("");
@@ -938,23 +1114,27 @@
       "IMMEDIATE";
 
     try {
-      const response = await teacherFetch("/api/teacher/notifications", {
+      const response = await teacherFetch("/api/academic/teacher-announcements", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
         body: JSON.stringify({
-          level: currentLevel,
-          paymentStage: target,
-          subject,
+          targetLevel: currentLevel,
+          paymentFilter: target,
+          subjectFilter: subject,
+          targetMode: "ALL_LEVEL",
+          recipientType: "PARENTS",
+          deliveryMode: timing,
+          deliveryChannel: "BROWSER",
           title,
           body,
-          delivery: timing,
         }),
       });
 
-      if (!response.ok) throw new Error("تعذر إرسال التنبيه.");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "تعذر إرسال التنبيه.");
       showToast("تم إرسال التنبيه بنجاح 🚀");
       e.target.reset();
       loadNotifications();
@@ -997,12 +1177,11 @@
             hour: "2-digit",
             minute: "2-digit",
           });
+          const subjectLabel = scheduleTypeLabel(currentLevel, sc.subject);
           return `
-            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px;">
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px; margin-bottom:8px;">
               <div style="display:flex; justify-content:space-between; align-items:center;">
-                <strong>${
-                  sc.subject === "MATH" ? "📐 حصة الرياضيات" : "⚡ حصة الفيزياء"
-                }</strong>
+                <strong>${escapeHtml(subjectLabel)}</strong>
                 <button type="button" class="tdm-btn-del-student" style="height:30px; font-size:0.75rem;" data-del-sched="${
                   sc.id
                 }">إلغاء</button>
@@ -1070,7 +1249,6 @@
     );
 
     if (manualBadge) manualBadge.textContent = receipts.length;
-    if (elecBadge) elecBadge.textContent = paidStudents.length;
 
     if (kind === "manual") {
       if (!receipts.length) {
@@ -1112,31 +1290,74 @@
         )
         .join("");
     } else {
-      if (!paidStudents.length) {
-        panel.innerHTML = `<p class="tdm-empty-msg">لا يوجد تلاميذ مؤكدو الدفع في ${LEVEL_LABELS[currentLevel] || currentLevel}.</p>`;
-        return;
-      }
+      panel.innerHTML = `
+        <div class="tdm-loading-state" style="padding:16px;">
+          <div class="tdm-spinner"></div>
+          <p>جارٍ تحميل الدفعات الإلكترونية…</p>
+        </div>`;
 
-      panel.innerHTML = paidStudents
-        .map(
-          (s) => `
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-            <div>
-              <strong style="display:block; font-size:0.9rem; color:#0f172a;">${escapeHtml(
-                s.studentName
-              )}</strong>
-              <span style="font-size:0.75rem; color:#64748b;">📞 ${escapeHtml(
-                s.parentPhone || "—"
-              )}</span>
+      try {
+        const response = await teacherFetch(
+          `/api/payments/teacher/electronic?level=${encodeURIComponent(currentLevel)}`,
+          { headers: { Accept: "application/json" } }
+        );
+        const data = await response.json().catch(() => ({}));
+        const elecPayments = Array.isArray(data?.data) ? data.data : [];
+        if (elecBadge) elecBadge.textContent = elecPayments.length || paidStudents.length;
+
+        if (!elecPayments.length) {
+          if (paidStudents.length) {
+            panel.innerHTML = paidStudents
+              .map(
+                (s) => `
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                  <div>
+                    <strong style="display:block; font-size:0.9rem; color:#0f172a;">${escapeHtml(
+                      s.studentName
+                    )}</strong>
+                    <span style="font-size:0.75rem; color:#64748b;">📞 ${escapeHtml(
+                      s.parentPhone || "—"
+                    )}</span>
+                  </div>
+                  <div style="text-align:left;">
+                    <span class="tdm-gmail-pill pill-paid" style="display:block; margin-bottom:2px;">تم الدفع ✓</span>
+                    <small style="color:#059669; font-weight:800; font-size:0.75rem;">${s.amountDue || 0} دج</small>
+                  </div>
+                </div>
+              `
+              )
+              .join("");
+            return;
+          }
+          panel.innerHTML = `<p class="tdm-empty-msg">لا توجد دفعات إلكترونية مسجلة في ${LEVEL_LABELS[currentLevel] || currentLevel}.</p>`;
+          return;
+        }
+
+        panel.innerHTML = elecPayments
+          .map(
+            (p) => `
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <strong style="display:block; font-size:0.9rem; color:#0f172a;">${escapeHtml(
+                  p.student?.studentName || "تلميذ"
+                )}</strong>
+                <span style="font-size:0.75rem; color:#64748b;">${escapeHtml(p.provider || "SofizPay")} · ${new Date(
+                  p.createdAt || Date.now()
+                ).toLocaleDateString("ar-DZ")}</span>
+              </div>
+              <div style="text-align:left;">
+                <span class="tdm-gmail-pill ${p.status === "COMPLETED" ? "pill-paid" : "pill-promised"}" style="display:block; margin-bottom:2px;">
+                  ${p.status === "COMPLETED" ? "مكتمل ✓" : escapeHtml(p.status || "قيد المعالجة")}
+                </span>
+                <small style="color:#059669; font-weight:800; font-size:0.75rem;">${p.amount || 0} دج</small>
+              </div>
             </div>
-            <div style="text-align:left;">
-              <span class="tdm-gmail-pill pill-paid" style="display:block; margin-bottom:2px;">تم الدفع ✓</span>
-              <small style="color:#059669; font-weight:800; font-size:0.75rem;">${s.amountDue || 0} دج</small>
-            </div>
-          </div>
-        `
-        )
-        .join("");
+          `
+          )
+          .join("");
+      } catch (_) {
+        panel.innerHTML = `<p class="tdm-empty-msg">تعذر تحميل الدفعات الإلكترونية حالياً.</p>`;
+      }
     }
   }
 
@@ -1585,6 +1806,15 @@
 
     // 10. Top Grid Buttons
     document
+      .getElementById("tdm-btn-online-users")
+      ?.addEventListener("click", openOnlineUsersModal);
+    document
+      .getElementById("online-users-modal-close")
+      ?.addEventListener("click", () => {
+        const m = document.getElementById("online-users-modal");
+        if (m) m.hidden = true;
+      });
+    document
       .getElementById("tdm-btn-absence-toggle")
       ?.addEventListener("click", toggleAbsence);
     document
@@ -1710,8 +1940,14 @@
 
     // Initial Execution
     setLevel(currentLevel);
+    syncScheduleSubjectOptions();
+    syncLessonTypeOptions();
+    fetchGlobalAbsence();
     fetchOnlineUsersCount();
+    fetchUnreadMessagesCount();
+    initSocketPresence();
     window.setInterval(fetchOnlineUsersCount, 25000);
+    window.setInterval(fetchUnreadMessagesCount, 30000);
   }
 
   if (document.readyState === "loading") {

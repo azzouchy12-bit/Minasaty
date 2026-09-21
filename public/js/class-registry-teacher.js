@@ -52,7 +52,7 @@
   const uploadCopyBtn = $("registry-upload-copy-btn");
   const uploadDoneBtn = $("registry-upload-done-btn");
 
-  let currentLevel = document.querySelector(".level-btn.is-active")?.dataset.level || "السنة الأولى";
+  let currentLevel = document.querySelector(".level-btn.is-active, .tdm-level-chip.is-active")?.dataset.level || "السنة الأولى";
   let selectedTerm = "";
   let selectedMonth = "";
   let selectedSubject = "";
@@ -62,7 +62,7 @@
   let activeUploadXhr = null;
   let isUploadingToYoutube = false;
   let youtubeConnected = false;
-  let registryOpen = false;
+  let registryOpen = !registryToggle;
 
   function setRegistryOpen(nextOpen) {
     registryOpen = Boolean(nextOpen);
@@ -130,7 +130,7 @@
   }
 
   function showError(message) {
-    const error = document.querySelector("#dashboard-error, #message-box");
+    const error = document.querySelector("#dashboard-error, #message-box, #tdm-alert");
     if (error) {
       error.textContent = message;
       error.hidden = false;
@@ -140,6 +140,18 @@
 
   function getSelectedTerm() {
     return TERMS[selectedTerm] || null;
+  }
+
+  function getRegistrySubjectOptions(level = currentLevel) {
+    return level === "طالب جامعي"
+      ? [
+          { value: "PAID", label: "اشتراك مدفوع" },
+          { value: "FREE", label: "اشتراك مجاني" },
+        ]
+      : [
+          { value: "MATH", label: "الرياضيات" },
+          { value: "PHYSICS", label: "الفيزياء" },
+        ];
   }
 
   function fillSelect(select, placeholder, options, selectedValue, disabled) {
@@ -174,13 +186,15 @@
       selectedMonth,
       !selectedTerm
     );
+    const subjectOpts = getRegistrySubjectOptions(currentLevel);
+    const validSubjectValues = new Set(subjectOpts.map((o) => o.value));
+    if (selectedSubject && !validSubjectValues.has(selectedSubject)) {
+      selectedSubject = "";
+    }
     fillSelect(
       subject,
-      selectedMonth ? "اختر المادة" : "اختر الشهر أولًا",
-      [
-        { value: "MATH", label: "الرياضيات" },
-        { value: "PHYSICS", label: "الفيزياء" },
-      ],
+      selectedMonth ? (currentLevel === "طالب جامعي" ? "اختر نوع الاشتراك" : "اختر المادة") : "اختر الشهر أولًا",
+      subjectOpts,
       selectedSubject,
       !selectedMonth
     );
@@ -918,16 +932,29 @@
     renderFilters();
     void load();
   });
-  document.querySelectorAll(".level-btn[data-level]").forEach((button) => button.addEventListener("click", () => {
+  document.querySelectorAll(".level-btn[data-level], .tdm-level-chip[data-level]").forEach((button) => button.addEventListener("click", () => {
     currentLevel = button.dataset.level;
     selectedTerm = "";
     selectedMonth = "";
     selectedSubject = "";
     renderFilters();
+    showSelectionPrompt();
     window.setTimeout(() => void load(), 0);
   }));
-  window.addEventListener("class-registry-refresh", () => void load());
+  window.addEventListener("class-registry-refresh", (e) => {
+    const nextLevel = e?.detail?.level || document.querySelector(".level-btn.is-active, .tdm-level-chip.is-active")?.dataset.level;
+    if (nextLevel && nextLevel !== currentLevel) {
+      currentLevel = nextLevel;
+      selectedTerm = "";
+      selectedMonth = "";
+      selectedSubject = "";
+      renderFilters();
+      showSelectionPrompt();
+    }
+    void load();
+  });
   renderFilters();
+  showSelectionPrompt();
   void loadYoutubeStatus();
   void load();
 })();

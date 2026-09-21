@@ -338,23 +338,53 @@
       </section>
 
       <!-- ===================================================================
-           VIEW 4: CLASS REGISTRY
+           VIEW 4: CLASS REGISTRY (إدارة سجل الحصص والدروس المسجلة)
            =================================================================== -->
       <section id="view-registry" class="tdm-sub-view" hidden>
         <div class="tdm-gmail-card">
-          <h2 class="tdm-card-title">📜 سجل الحصص المنعقدة</h2>
-          <p class="tdm-card-desc">أرشيف الحصص السابقة ومراجعة روابط التسجيل والغياب.</p>
-          <div class="tdm-form-field">
-            <label>الفصل الدراسي</label>
-            <select id="tdm-reg-term" class="tdm-form-input">
-              <option value="">اختر الفصل الدراسي</option>
-              <option value="TERM_1">الفصل الأول</option>
-              <option value="TERM_2">الفصل الثاني</option>
-              <option value="TERM_3">الفصل الثالث</option>
-            </select>
+          <h2 class="tdm-card-title">📜 إدارة سجل الحصص والدروس المسجلة</h2>
+          <p class="tdm-card-desc">حدّد الفصل الدراسي أولًا، ثم الشهر والمادة، وبعدها سجّل إنجاز الحصة واختر فيديو YouTube أو استخدم رابط Google Drive.</p>
+
+          <!-- YouTube connection & upload toolbar -->
+          <div class="tdm-registry-toolbar" style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="youtube-connection-actions" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+              <button class="youtube-connect-button tdm-submit-btn" id="youtube-connect-button" type="button" style="width: auto; padding: 6px 14px; font-size: 0.78rem;">ربط قناة YouTube</button>
+              <button class="youtube-upload-button tdm-submit-btn" id="registry-upload-video-btn" type="button" style="width: auto; padding: 6px 14px; font-size: 0.78rem; background: #b91c1c;">
+                <span aria-hidden="true">📤</span> <span>رفع فيديو (.webm)</span>
+              </button>
+              <input type="file" id="registry-video-file-input" accept="video/webm,video/mp4,video/*" hidden />
+              <span aria-live="polite" class="youtube-connection-status" id="youtube-connection-status" style="font-size: 0.75rem; color: #64748b;">جارٍ التحقق من الاتصال…</span>
+            </div>
           </div>
-          <div id="tdm-reg-list" class="tdm-history-list">
-            <p class="tdm-empty-msg">اختر الفصل لعرض سجل الحصص المنعقدة.</p>
+
+          <!-- Triple Filter Bar: Term -> Month -> Subject -->
+          <div class="class-registry-filters" style="display: grid; gap: 10px; margin-bottom: 14px;">
+            <div class="tdm-form-field">
+              <label for="class-registry-term">الفصل الدراسي</label>
+              <select id="class-registry-term" class="tdm-form-input">
+                <option value="">اختر الفصل الدراسي</option>
+                <option value="TERM_1">الفصل الأول</option>
+                <option value="TERM_2">الفصل الثاني</option>
+                <option value="TERM_3">الفصل الثالث</option>
+              </select>
+            </div>
+            <div class="tdm-form-field">
+              <label for="class-registry-month">الشهر</label>
+              <select id="class-registry-month" class="tdm-form-input" disabled>
+                <option value="">اختر الفصل أولًا</option>
+              </select>
+            </div>
+            <div class="tdm-form-field">
+              <label for="class-registry-subject">المادة</label>
+              <select id="class-registry-subject" class="tdm-form-input" disabled>
+                <option value="">اختر الشهر أولًا</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Registry Class List -->
+          <div aria-live="polite" class="class-registry-list" id="class-registry-list">
+            <p class="class-registry-empty">اختر الفصل الدراسي أولًا.</p>
           </div>
         </div>
       </section>
@@ -677,6 +707,124 @@
       </div>
     </div>
 
+    <!-- Modal: Class Registry Action (Update Class / Drive / YouTube / Notes) -->
+    <div class="modal class-registry-action-modal tdm-sheet-overlay" hidden id="class-registry-action-modal" role="dialog" aria-modal="true" aria-labelledby="class-registry-action-title">
+      <div class="tdm-sheet-card class-registry-modal-card" style="max-height:85vh; overflow-y:auto;">
+        <div class="tdm-modal-head">
+          <h3 id="class-registry-action-title">تحديث الحصة</h3>
+          <button aria-label="إغلاق" class="tdm-sheet-close-btn" id="class-registry-action-close" type="button">✕</button>
+        </div>
+        <form class="tdm-form" id="class-registry-action-form">
+          <div class="class-registry-youtube-field" id="class-registry-youtube-field" style="margin-bottom:12px;">
+            <div class="class-registry-youtube-actions" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+              <button class="youtube-picker-button tdm-submit-btn" id="class-registry-youtube-picker" type="button" style="flex:1; font-size:0.78rem;">اختيار فيديو من قناتي على YouTube</button>
+              <button class="youtube-upload-button is-secondary tdm-submit-btn" id="class-registry-direct-upload-btn" type="button" style="flex:1; font-size:0.78rem; background:#475569;">
+                <span aria-hidden="true">📤</span> <span>رفع فيديو من جهازي (.webm)</span>
+              </button>
+            </div>
+            <span aria-live="polite" class="youtube-selected-video" id="class-registry-youtube-selected" style="display:block; font-size:0.75rem; color:#64748b;">لم يتم اختيار فيديو YouTube</span>
+            <input id="class-registry-youtube-video-id" type="hidden" />
+          </div>
+          <div class="tdm-form-field" id="class-registry-drive-field">
+            <label for="class-registry-drive-link">رابط تسجيل Google Drive</label>
+            <input id="class-registry-drive-link" class="tdm-form-input" inputmode="url" placeholder="https://drive.google.com/file/d/.../view" type="url" />
+          </div>
+          <div class="tdm-form-field" id="class-registry-notes-field">
+            <label for="class-registry-notes">ملاحظة أو سبب الغياب</label>
+            <textarea id="class-registry-notes" class="tdm-form-textarea" maxlength="2000" placeholder="اكتب ملاحظة قصيرة…" rows="3"></textarea>
+          </div>
+          <button class="tdm-submit-btn" type="submit">حفظ التحديث ✓</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: YouTube Video Picker -->
+    <div class="modal tdm-sheet-overlay" hidden id="youtube-video-picker-modal" role="dialog" aria-modal="true" aria-labelledby="youtube-video-picker-title">
+      <div class="tdm-sheet-card youtube-video-picker-card" style="max-height:85vh; overflow-y:auto;">
+        <div class="tdm-modal-head">
+          <h3 id="youtube-video-picker-title">📺 اختر فيديو الحصة</h3>
+          <button aria-label="إغلاق" class="tdm-sheet-close-btn" id="youtube-video-picker-close" type="button">✕</button>
+        </div>
+        <p class="youtube-picker-note" style="font-size:0.8rem; color:#64748b; margin-bottom:10px;">ستُحفظ الحصة كرابط غير مدرج ويشاهدها التلاميذ المؤهلون داخل الأكاديمية.</p>
+        <div aria-live="polite" class="youtube-video-picker-list" id="youtube-video-picker-list"></div>
+      </div>
+    </div>
+
+    <!-- Modal: YouTube Direct Video Upload with Live Progress -->
+    <div class="modal registry-youtube-upload-modal tdm-sheet-overlay" hidden id="registry-youtube-upload-modal" role="dialog" aria-modal="true" aria-labelledby="registry-upload-modal-title">
+      <div class="tdm-sheet-card registry-upload-modal-card" style="max-height:90vh; overflow-y:auto;">
+        <div class="tdm-modal-head">
+          <h3 id="registry-upload-modal-title">📤 رفع فيديو مباشر إلى YouTube</h3>
+          <button aria-label="إغلاق نافذة الرفع" class="tdm-sheet-close-btn" id="registry-upload-modal-close" type="button">✕</button>
+        </div>
+        <div class="registry-upload-file-info" id="registry-upload-file-info">
+          <div class="registry-upload-info-row" style="margin-bottom:8px;">
+            <span class="info-label" style="font-size:0.8rem; color:#64748b;">ملف الفيديو: </span>
+            <strong id="registry-upload-file-name" class="info-value text-truncate" style="font-size:0.85rem;">لم يتم تحديد ملف</strong>
+          </div>
+          <div class="registry-upload-info-row" style="margin-bottom:10px;">
+            <span class="info-label" style="font-size:0.8rem; color:#64748b;">الحجم: </span>
+            <strong id="registry-upload-file-size" class="info-value" dir="ltr" style="font-size:0.85rem;">0 MB</strong>
+          </div>
+          <div class="tdm-form-field">
+            <label for="registry-upload-video-title">عنوان الفيديو على YouTube</label>
+            <input type="text" id="registry-upload-video-title" class="tdm-form-input" maxlength="100" placeholder="اكتب عنوان الحصة أو موضوع الدرس..." />
+          </div>
+          <div class="tdm-form-field" id="registry-upload-class-select-row" hidden>
+            <label for="registry-upload-target-class">ربط الفيديو بحصة من السجل (اختياري)</label>
+            <select id="registry-upload-target-class" class="tdm-form-input">
+              <option value="">رفع إلى القناة فقط (دون ربط بحصة محددة)</option>
+            </select>
+          </div>
+          <div class="registry-upload-start-actions" style="margin-top:12px;">
+            <button class="tdm-submit-btn registry-upload-start-btn" id="registry-upload-start-btn" type="button">🚀 بدء الرفع المباشر إلى YouTube</button>
+          </div>
+        </div>
+        <div class="registry-upload-progress-box" id="registry-upload-progress-box" hidden style="margin-top:14px;">
+          <div class="registry-upload-progress-track" style="height:10px; background:#e2e8f0; border-radius:5px; overflow:hidden;">
+            <div class="registry-upload-progress-fill" id="registry-upload-progressbar" style="width: 0%; height:100%; background:linear-gradient(90deg, #2563eb, #38bdf8); transition:width 0.2s;"></div>
+          </div>
+          <div class="registry-upload-metrics" style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.75rem; color:#64748b;">
+            <span class="registry-upload-percent" id="registry-upload-percent">0%</span>
+            <span class="registry-upload-bytes" id="registry-upload-bytes" dir="ltr">0 MB / 0 MB</span>
+          </div>
+          <div class="registry-upload-stats-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;">
+            <div class="registry-stat-card" style="background:#f8fafc; padding:8px; border-radius:8px; border:1px solid #e2e8f0;">
+              <span class="stat-label" style="display:block; font-size:0.7rem; color:#64748b;">السرعة الحية</span>
+              <strong id="registry-upload-speed" dir="ltr" style="font-size:0.8rem;">0 KB/s</strong>
+            </div>
+            <div class="registry-stat-card" style="background:#f8fafc; padding:8px; border-radius:8px; border:1px solid #e2e8f0;">
+              <span class="stat-label" style="display:block; font-size:0.7rem; color:#64748b;">الوقت المتبقي</span>
+              <strong id="registry-upload-eta" style="font-size:0.8rem;">جارٍ الحساب…</strong>
+            </div>
+          </div>
+          <p class="registry-upload-status-text" id="registry-upload-status-text" aria-live="polite" style="font-size:0.78rem; color:#475569; margin-top:8px;">جارٍ تجهيز ملف الفيديو…</p>
+        </div>
+        <div class="registry-upload-success-card" id="registry-upload-success-card" hidden style="text-align:center; padding:16px 0;">
+          <div class="registry-success-badge" style="font-size:2rem; color:#059669; margin-bottom:8px;">✓</div>
+          <h4 style="color:#0f172a; margin-bottom:6px;">تم رفع الفيديو بنجاح إلى قناتك على YouTube!</h4>
+          <p style="font-size:0.8rem; color:#64748b; margin-bottom:12px;">الفيديو محفوظ بحالة <strong style="color:#059669;">غير مدرج (Unlisted)</strong> ومتاح للمشاهدة.</p>
+          <div class="registry-success-links" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+            <a class="tdm-submit-btn" id="registry-upload-watch-btn" href="#" target="_blank" rel="noopener" style="text-decoration:none;">مشاهدة الفيديو على YouTube ↗</a>
+            <button class="tdm-submit-btn" style="background:#475569;" id="registry-upload-copy-btn" type="button">نسخ رابط الفيديو</button>
+          </div>
+          <button class="tdm-cancel-btn" id="registry-upload-done-btn" type="button">تم، إغلاق</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Online Users List -->
+    <div id="online-users-modal" class="modal online-users-modal tdm-sheet-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="online-users-title">
+      <div class="tdm-sheet-card" style="max-height:80vh; overflow-y:auto;">
+        <div class="tdm-modal-head">
+          <h3 id="online-users-title">👥 المتصلون الآن</h3>
+          <button aria-label="إغلاق" class="tdm-sheet-close-btn" id="online-users-modal-close" type="button">✕</button>
+        </div>
+        <p class="online-users-summary" id="online-users-summary" aria-live="polite" style="font-size:0.82rem; color:#64748b; margin-bottom:12px;">جارٍ تحميل القائمة…</p>
+        <div aria-live="polite" class="online-users-list" id="online-users-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="tdm-toast" class="tdm-toast" hidden></div>
 
@@ -707,6 +855,8 @@
     </script>
 
     <!-- Scripts -->
-    <script src="./js/teacher-dashboard-mobile.js?v=tdm-gmail-3"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="./js/teacher-dashboard-mobile.js?v=tdm-gmail-4"></script>
+    <script defer src="./js/class-registry-teacher.js?v=registry-upload-3"></script>
   </body>
 </html>

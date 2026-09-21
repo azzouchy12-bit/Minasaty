@@ -1086,3 +1086,304 @@ body.tdm-gmail-body {
   from { opacity: 0; transform: translate(-50%, 8px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
+
+/* --------------------------------------------------------------------------
+   9. Modal Dialogs & Overlays (Online Users, Class Registry, YouTube)
+   -------------------------------------------------------------------------- */
+.tdm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: tdm-sheetBackdrop 0.2s ease;
+}
+
+.tdm-modal-overlay[hidden] {
+  display: none !important;
+}
+
+.tdm-modal-dialog {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  background: #ffffff;
+  border-radius: var(--gmail-radius-card);
+  border: 1px solid var(--gmail-border);
+  box-shadow: var(--gmail-shadow-sheet);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: tdm-toastPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tdm-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--gmail-border);
+  background: var(--gmail-surface);
+}
+
+.tdm-modal-title {
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--gmail-text-primary);
+}
+
+.tdm-modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.tdm-modal-close:active {
+  background: #e2e8f0;
+}
+
+.tdm-modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   10. Class Registry Mobile Cards & Actions
+   -------------------------------------------------------------------------- */
+.class-registry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.class-registry-item {
+  background: #ffffff;
+  border: 1px solid var(--gmail-border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.class-registry-item.status-completed {
+  border-right: 4px solid #10b981;
+}
+
+.class-registry-item.status-teacher_absent {
+  border-right: 4px solid #ef4444;
+}
+
+.class-registry-item.status-pending {
+  border-right: 4px solid #f59e0b;
+}
+
+.class-registry-item-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.class-registry-item-copy strong {
+  font-size: 0.92rem;
+  color: #0f172a;
+}
+
+.class-registry-item-copy span {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.class-registry-item-copy em {
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 800;
+  display: inline-block;
+  margin-top: 2px;
+}
+
+.status-completed .class-registry-item-copy em {
+  color: #047857;
+}
+
+.status-teacher_absent .class-registry-item-copy em {
+  color: #b91c1c;
+}
+
+.status-pending .class-registry-item-copy em {
+  color: #b45309;
+}
+
+.class-registry-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.registry-action {
+  flex: 1;
+  min-width: 85px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--gmail-radius-pill);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s;
+}
+
+.registry-action:active {
+  opacity: 0.85;
+}
+
+.registry-complete {
+  background: #059669;
+  color: #ffffff;
+}
+
+.registry-absent {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.registry-pending {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid var(--gmail-border);
+}
+
+.class-registry-note {
+  font-size: 0.78rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: #334155;
+  margin-top: 2px;
+}
+
+.class-registry-empty {
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--gmail-text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: #f8fafc;
+  border: 1px dashed var(--gmail-border);
+  border-radius: 12px;
+}
+
+.class-registry-loading {
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--gmail-blue);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+/* YouTube Video Picker Items */
+.youtube-video-picker-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--gmail-border);
+  background: #ffffff;
+  width: 100%;
+  text-align: right;
+  cursor: pointer;
+  font-family: inherit;
+  margin-bottom: 6px;
+}
+
+.youtube-video-picker-item:active {
+  background: #f1f5f9;
+}
+
+.youtube-video-picker-item img {
+  width: 72px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #e2e8f0;
+}
+
+.youtube-video-picker-item span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.youtube-video-picker-item strong {
+  font-size: 0.82rem;
+  color: var(--gmail-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.youtube-video-picker-item small {
+  font-size: 0.7rem;
+  color: var(--gmail-text-muted);
+}
+
+.youtube-connect-button.is-connected {
+  background: #059669 !important;
+}
+
+/* Upload Progress & Success Box */
+.registry-upload-progressbar-track {
+  width: 100%;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: var(--gmail-radius-pill);
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.registry-upload-progressbar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  border-radius: var(--gmail-radius-pill);
+  transition: width 0.2s linear;
+}
+
+.upload-stats-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+

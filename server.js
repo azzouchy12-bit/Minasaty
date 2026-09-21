@@ -500,6 +500,11 @@ function broadcastOnlinePresence() {
   const users = onlinePresenceSnapshot();
   io.to("online_presence_viewers").emit("online_users_updated", { count: users.length, users });
 }
+
+app.get("/api/teacher/online-users", verifyToken, isTeacher, (_req, res) => {
+  const users = onlinePresenceSnapshot();
+  return res.json({ onlineCount: users.length, users });
+});
 // Independent public invite rooms. They have no student registration, level,
 // payment, or subject information and exist only while the host is connected.
 const publicInviteRooms = new Map();
