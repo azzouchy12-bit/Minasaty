@@ -16,8 +16,9 @@
   --gmail-blue-dark: #001d35;
   --gmail-green: #0d652d;
   --gmail-green-light: #c4eed0;
-  --gmail-red: #b3261e;
-  --gmail-red-light: #f9dedc;
+  /* موحّد على قيمة واحدة للأحمر عبر النظام (كان يخلط b3261e مع dc2626) */
+  --gmail-red: #dc2626;
+  --gmail-red-light: #fef2f2;
   --gmail-amber: #b06000;
   --gmail-amber-light: #ffdf99;
   --gmail-radius-card: 16px;
@@ -26,6 +27,29 @@
   --gmail-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
   --gmail-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
   --gmail-shadow-sheet: 0 -8px 30px rgba(0, 0, 0, 0.2);
+
+  /* ---- سلّم المسافات الموحّد (أساس 4px) ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+
+  /* ---- tokens الطباعة (أحجام مقروءة + أوزان بهرمية واضحة) ---- */
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.82rem;
+  --fs-md: 0.9rem;
+  --fs-lg: 1.05rem;
+  --fs-xl: 1.25rem;
+  --fw-regular: 400;
+  --fw-medium: 600;
+  --fw-semibold: 700;
+  --fw-bold: 800;
+  --fw-black: 900;
+
+  /* الحد الأدنى الموصى به لهدف اللمس */
+  --tap-min: 44px;
 }
 
 * {
@@ -81,8 +105,8 @@ body.tdm-gmail-body {
 
 .tdm-brand-sub {
   display: block;
-  font-size: 0.65rem;
-  font-weight: 700;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
   color: var(--gmail-text-muted);
 }
 
@@ -126,13 +150,13 @@ body.tdm-gmail-body {
 .tdm-action-grid {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin-bottom: 8px;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
 }
 
 .tdm-grid-row {
   display: grid;
-  gap: 5px;
+  gap: var(--sp-2);
   width: 100%;
 }
 
@@ -149,15 +173,15 @@ body.tdm-gmail-body {
 }
 
 .tdm-grid-btn {
-  height: 38px;
+  height: var(--tap-min);
   border-radius: var(--gmail-radius-pill);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   font-family: inherit;
-  font-size: 0.76rem;
-  font-weight: 800;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
   text-decoration: none;
   cursor: pointer;
   border: 1px solid var(--gmail-border);
@@ -206,9 +230,9 @@ body.tdm-gmail-body {
 .tdm-counter-pill {
   background: #dbeafe;
   color: #1d4ed8;
-  font-size: 0.68rem;
-  font-weight: 900;
-  padding: 1px 6px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-black);
+  padding: 2px 8px;
   border-radius: var(--gmail-radius-pill);
 }
 
@@ -264,7 +288,7 @@ body.tdm-gmail-body {
 .tdm-level-strip {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--sp-2);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -277,10 +301,12 @@ body.tdm-gmail-body {
 
 .tdm-level-chip {
   flex: 0 0 auto;
-  height: 32px;
-  padding: 0 12px;
-  font-size: 0.76rem;
-  font-weight: 800;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   color: #475569;
   background: #ffffff;
   border: 1px solid var(--gmail-border);
@@ -317,10 +343,12 @@ body.tdm-gmail-body {
 
 .tdm-sec-pill {
   flex: 0 0 auto;
-  height: 30px;
-  padding: 0 11px;
-  font-size: 0.74rem;
-  font-weight: 800;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   color: #64748b;
   background: transparent;
   border: 1px solid transparent;
@@ -425,7 +453,7 @@ body.tdm-gmail-body {
 .tdm-gmail-filter-chips {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--sp-2);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -438,14 +466,16 @@ body.tdm-gmail-body {
 
 .tdm-gmail-filter-chip {
   flex: 0 0 auto;
-  height: 28px;
-  padding: 0 10px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
   border-radius: var(--gmail-radius-pill);
   border: 1px solid var(--gmail-border);
   background: #ffffff;
   color: var(--gmail-text-secondary);
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -551,8 +581,8 @@ body.tdm-gmail-body {
 }
 
 .tdm-row-date {
-  font-size: 0.68rem;
-  font-weight: 700;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
   color: var(--gmail-text-muted);
   flex-shrink: 0;
 }
@@ -574,9 +604,9 @@ body.tdm-gmail-body {
 }
 
 .tdm-gmail-pill {
-  font-size: 0.65rem;
-  font-weight: 800;
-  padding: 1px 6px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  padding: 2px 8px;
   border-radius: var(--gmail-radius-pill);
 }
 
