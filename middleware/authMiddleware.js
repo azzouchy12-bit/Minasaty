@@ -60,22 +60,34 @@ async function requireParentMessengerLink(req, res, next) {
   }
 }
 
+const parentCredentialStatusCache = new Map();
+const CREDENTIAL_CACHE_TTL_MS = 60_000;
+
 async function requireParentPinChangeComplete(req, res, next) {
   if (req.user?.role !== "parent") return next();
 
-  // The forced PIN-change endpoint must remain reachable with the temporary-login session.
+  // The forced PIN-change and session status endpoints must not perform redundant DB checks.
   const requestPath = req.originalUrl || req.url || "";
   const isPinChangeRoute = req.method === "PUT" && /\/api\/auth\/parent\/pin(?:\/?(?:\?.*)?)$/.test(requestPath);
   const isLogoutRoute = req.method === "POST" && /\/api\/auth\/logout(?:\/?(?:\?.*)?)$/.test(requestPath);
-  if (isPinChangeRoute || isLogoutRoute) return next();
+  const isSessionStatusRoute = req.method === "GET" && /\/api\/auth\/session-status(?:\/?(?:\?.*)?)$/.test(requestPath);
+  if (isPinChangeRoute || isLogoutRoute || isSessionStatusRoute) return next();
+
+  const phone = req.user.phone;
+  const cached = parentCredentialStatusCache.get(phone);
+  const now = Date.now();
+  if (cached && now - cached.cachedAt < CREDENTIAL_CACHE_TTL_MS && !cached.mustChangePin) {
+    return next();
+  }
 
   try {
     const credential = await prisma.parentCredential.findUnique({
-      where: { parentPhone: req.user.phone },
+      where: { parentPhone: phone },
       select: { mustChangePin: true, temporaryPinExpiresAt: true },
     });
 
     if (credential?.mustChangePin) {
+      parentCredentialStatusCache.set(phone, { mustChangePin: true, cachedAt: now });
       if (credential.temporaryPinExpiresAt && credential.temporaryPinExpiresAt <= new Date()) {
         return res.status(401).json({
           error: "انتهت صلاحية كلمة المرور المؤقتة. اطلب كلمة مرور مؤقتة جديدة من الأستاذ.",
@@ -90,6 +102,7 @@ async function requireParentPinChangeComplete(req, res, next) {
       });
     }
 
+    parentCredentialStatusCache.set(phone, { mustChangePin: false, cachedAt: now });
     return next();
   } catch (error) {
     console.error("Parent temporary PIN guard failed:", error);

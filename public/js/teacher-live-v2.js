@@ -3621,7 +3621,7 @@ function refreshAbsenteesBadge() {
         updateAbsenteesModalView(currentAbsenteesData);
       }
     } catch (_) {}
-  }, 250);
+  }, 4000);
 }
 
 function formatAlgerianPhone(rawPhone) {
@@ -5704,6 +5704,10 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false } = {}) 
 
   ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate: false });
 
+  const now = Date.now();
+  if (peerConnection.lastOfferSentAt && now - peerConnection.lastOfferSentAt < 2500) {
+    return;
+  }
 
   if (
     peerConnection.makingOffer ||
@@ -5713,15 +5717,13 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false } = {}) 
     return;
   }
 
-
   peerConnection.makingOffer = true;
-
+  peerConnection.lastOfferSentAt = now;
 
   try {
     const offer = await peerConnection.createOffer({ iceRestart });
     const optimizedSdp = optimizeOpusSdp(offer.sdp);
     await peerConnection.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: optimizedSdp }));
-
 
     await emitWithAcknowledgement("webrtc_offer", {
       targetSocketId: studentSocketId,
@@ -6700,7 +6702,6 @@ socket.on("student_message_received", async (data = {}) => {
     } catch (error) {
       console.warn("Unable to load student question image:", error);
       fallbackMessage = fallbackMessage || "أرسل صورة سؤال، لكن تعذر تحميلها.";
-      setStudioStatus(error.message || "تعذر تحميل صورة سؤال التلميذ.", "error");
     }
   }
 

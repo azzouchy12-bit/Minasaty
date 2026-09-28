@@ -937,6 +937,9 @@ async function getTeacherLiveAlertAudience(req, res) {
   });
 }
 
+const liveAbsenteesRosterCache = new Map();
+const ABSENTEES_ROSTER_TTL_MS = 20_000;
+
 async function getLiveClassAbsentees(req, res) {
   if (!requireTeacher(req, res)) return;
   const level = text(req.query?.level, 100);
@@ -972,58 +975,69 @@ async function getLiveClassAbsentees(req, res) {
   const isUniversityClass = level === "طالب جامعي";
   const isGlobalFree = level === "FREE" || subject === "FREE";
 
-  const where = { accountActive: true };
+  const cacheKey = `${level}__${subject}`;
+  const cachedRoster = liveAbsenteesRosterCache.get(cacheKey);
+  const now = Date.now();
+  let students;
 
-  if (level !== "FREE") {
-    const candidates = academicLevelCandidates(level);
-    if (candidates.length > 0) {
-      where.level = { in: candidates };
-    } else {
-      where.level = level;
+  if (cachedRoster && now - cachedRoster.cachedAt < ABSENTEES_ROSTER_TTL_MS) {
+    students = cachedRoster.students;
+  } else {
+    const where = { accountActive: true };
+
+    if (level !== "FREE") {
+      const candidates = academicLevelCandidates(level);
+      if (candidates.length > 0) {
+        where.level = { in: candidates };
+      } else {
+        where.level = level;
+      }
     }
-  }
 
-  if (!isGlobalFree) {
-    if (isUniversityClass) {
-      if (subject === "PAID") {
+    if (!isGlobalFree) {
+      if (isUniversityClass) {
+        if (subject === "PAID") {
+          where.OR = [
+            { liveAccessEnabled: true },
+            { paymentStage: "PAID" },
+            { paymentStatus: true },
+          ];
+        }
+      } else {
+        // Secondary: must have live access or paid/promised status
         where.OR = [
           { liveAccessEnabled: true },
-          { paymentStage: "PAID" },
+          { paymentStage: { in: ["PAID", "PROMISED"] } },
           { paymentStatus: true },
         ];
-      }
-    } else {
-      // Secondary: must have live access or paid/promised status
-      where.OR = [
-        { liveAccessEnabled: true },
-        { paymentStage: { in: ["PAID", "PROMISED"] } },
-        { paymentStatus: true },
-      ];
 
-      if (subject === "MATH") {
-        where.mathEnrollment = true;
-      } else if (subject === "PHYSICS") {
-        where.physicsEnrollment = true;
+        if (subject === "MATH") {
+          where.mathEnrollment = true;
+        } else if (subject === "PHYSICS") {
+          where.physicsEnrollment = true;
+        }
       }
     }
-  }
 
-  const students = await prisma.student.findMany({
-    where,
-    orderBy: [{ studentName: "asc" }],
-    take: 2000,
-    select: {
-      id: true,
-      studentName: true,
-      parentPhone: true,
-      level: true,
-      paymentStage: true,
-      paymentStatus: true,
-      mathEnrollment: true,
-      physicsEnrollment: true,
-      liveAccessEnabled: true,
-    },
-  });
+    students = await prisma.student.findMany({
+      where,
+      orderBy: [{ studentName: "asc" }],
+      take: 2000,
+      select: {
+        id: true,
+        studentName: true,
+        parentPhone: true,
+        level: true,
+        paymentStage: true,
+        paymentStatus: true,
+        mathEnrollment: true,
+        physicsEnrollment: true,
+        liveAccessEnabled: true,
+      },
+    });
+
+    liveAbsenteesRosterCache.set(cacheKey, { students, cachedAt: now });
+  }
 
   const absentees = [];
   const present = [];

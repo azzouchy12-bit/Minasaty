@@ -2911,7 +2911,6 @@ socket.on("student_message_received", async (data = {}) => {
     } catch (error) {
       console.warn("Unable to load student question image:", error);
       fallbackMessage = fallbackMessage || "أرسل صورة سؤال، لكن تعذر تحميلها.";
-      setStudioStatus(error.message || "تعذر تحميل صورة سؤال التلميذ.", "error");
     }
   }
 

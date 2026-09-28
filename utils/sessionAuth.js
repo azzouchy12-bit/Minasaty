@@ -74,6 +74,7 @@ async function issueSession(payload, req) {
     // One active session per account for parents and students.
     // For teacher, do not revoke existing sessions so PC and phone remain active together.
     if (!isTeacher) {
+      invalidateSessionCache();
       await tx.session.updateMany({
         where: {
           role,
@@ -100,6 +101,17 @@ async function issueSession(payload, req) {
   return { token, tokenId, expiresAt, expiresIn: JWT_EXPIRES_IN };
 }
 
+const sessionVerificationCache = new Map();
+const SESSION_CACHE_TTL_MS = 20_000;
+
+function invalidateSessionCache(tokenId) {
+  if (tokenId) {
+    sessionVerificationCache.delete(tokenId);
+  } else {
+    sessionVerificationCache.clear();
+  }
+}
+
 async function verifySessionToken(token) {
   const decoded = jwt.verify(token, getJwtSecret(), {
     algorithms: ["HS256"],
@@ -112,12 +124,21 @@ async function verifySessionToken(token) {
     return decoded;
   }
 
+  const cached = sessionVerificationCache.get(decoded.sessionId);
+  const now = Date.now();
+  if (cached && now - cached.cachedAt < SESSION_CACHE_TTL_MS) {
+    return decoded;
+  }
+
   const session = await prisma.session.findUnique({ where: { tokenId: decoded.sessionId } });
   if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+    sessionVerificationCache.delete(decoded.sessionId);
     throw new Error("SESSION_REVOKED");
   }
 
-  if (session.lastSeenAt.getTime() < Date.now() - 5 * 60 * 1000) {
+  sessionVerificationCache.set(decoded.sessionId, { cachedAt: now });
+
+  if (session.lastSeenAt.getTime() < now - 5 * 60 * 1000) {
     void prisma.session.update({
       where: { id: session.id },
       data: { lastSeenAt: new Date() },
@@ -129,6 +150,7 @@ async function verifySessionToken(token) {
 
 async function revokeSessionByTokenId(tokenId) {
   if (!tokenId) return false;
+  invalidateSessionCache(tokenId);
   const result = await prisma.session.updateMany({
     where: { tokenId, revokedAt: null },
     data: { revokedAt: new Date() },
@@ -144,4 +166,5 @@ module.exports = {
   setSessionTakeoverNotifier,
   verifySessionToken,
   revokeSessionByTokenId,
+  invalidateSessionCache,
 };

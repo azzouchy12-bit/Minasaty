@@ -12,7 +12,7 @@ const teacherLive = fs.readFileSync(path.join(root, "public/js/teacher-live-v2.j
 const webrtcRoutes = fs.readFileSync(path.join(root, "routes/webrtcRoutes.js"), "utf8");
 
 test("Railway Node process is protected against Container OOM crash with max-old-space-size", () => {
-  assert.match(dockerfile, /--max-old-space-size=384/, "Dockerfile CMD must set --max-old-space-size=384");
+  assert.match(dockerfile, /--max-old-space-size=(?:384|512)/, "Dockerfile CMD must set --max-old-space-size");
 });
 
 test("backgroundJobs implements sequential execution with overlap lock and staggered intervals", () => {

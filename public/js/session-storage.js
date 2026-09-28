@@ -193,7 +193,8 @@
     }).catch(() => {});
   };
 
-  const sessionCheckIntervalMs = 3000;
+  const isLivePage = /-(live|public)\.html/i.test(window.location.pathname);
+  const sessionCheckIntervalMs = isLivePage ? 120_000 : 60_000;
   let sessionRedirecting = false;
 
   function clearLocalAuthState() {
@@ -255,7 +256,7 @@
   }
 
   if (sessionStorage.getItem("teacherToken") || sessionStorage.getItem("parentToken")) {
-    window.setTimeout(checkActiveSession, 1500);
+    window.setTimeout(checkActiveSession, isLivePage ? 10_000 : 1500);
     window.setInterval(checkActiveSession, sessionCheckIntervalMs);
   }
 })();
