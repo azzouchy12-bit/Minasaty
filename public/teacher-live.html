@@ -613,6 +613,32 @@
         border-color: rgba(245, 158, 11, 0.6);
       }
 
+      .studio-button.resync-stream {
+        color: #93c5fd;
+        background: rgba(30, 58, 138, 0.55);
+        border-color: rgba(59, 130, 246, 0.45);
+      }
+
+      .studio-button.resync-stream:hover:not(:disabled) {
+        color: #ffffff;
+        background: rgba(37, 99, 235, 0.75);
+        border-color: rgba(96, 165, 250, 0.75);
+        box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+      }
+
+      .studio-button.fix-echo {
+        color: #fed7aa;
+        background: rgba(154, 52, 18, 0.5);
+        border-color: rgba(249, 115, 22, 0.45);
+      }
+
+      .studio-button.fix-echo:hover:not(:disabled) {
+        color: #ffffff;
+        background: rgba(194, 65, 12, 0.75);
+        border-color: rgba(251, 146, 60, 0.75);
+        box-shadow: 0 0 12px rgba(249, 115, 22, 0.4);
+      }
+
       .sidebar-action-btn.mute-all-btn {
         display: inline-flex;
         align-items: center;
@@ -1378,6 +1404,33 @@
         cursor: wait;
       }
 
+      .attendee-resync-btn {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.38rem 0.52rem;
+        color: #93c5fd;
+        background: rgba(30, 58, 138, 0.28);
+        border: 1px solid rgba(59, 130, 246, 0.35);
+        border-radius: 0.55rem;
+        font-size: 0.65rem;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.25s ease;
+      }
+
+      .attendee-resync-btn:hover:not(:disabled) {
+        color: #ffffff;
+        background: rgba(37, 99, 235, 0.6);
+        border-color: rgba(96, 165, 250, 0.65);
+      }
+
+      .attendee-resync-btn:disabled {
+        opacity: 0.6;
+        cursor: wait;
+      }
+
       @keyframes studio-pulse {
         0%,
         100% {
@@ -1605,6 +1658,22 @@
             <button id="mute-all-mics-btn" class="studio-button mute-all" type="button" title="كتم ميكروفونات جميع التلاميذ" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 0 0 3.5-3.5V6.5a3.5 3.5 0 0 0-7 0V12a3.5 3.5 0 0 0 3.5 3.5ZM5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7M3 3l18 18" /></svg>
               <span>كتم ميكروفون الجميع</span>
+            </button>
+
+            <button id="resync-stream-btn" class="studio-button resync-stream" type="button" title="تحديث الصوت والبث وإعادة مزامنة الاتصال مع جميع التلاميذ فوراً" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              </svg>
+              <span>تحديث البث والصوت</span>
+            </button>
+
+            <button id="fix-echo-btn" class="studio-button fix-echo" type="button" title="إلغاء الصدى والتشويش الصوتي فوراً وضبط عزل الصوت" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+                <path d="M23 9l-6 6"/>
+                <path d="M17 9l6 6"/>
+              </svg>
+              <span>إلغاء الصدى</span>
             </button>
 
             <button id="record-local-btn" class="studio-button record" type="button" title="بدء أو إيقاف التسجيل المحلي" disabled>

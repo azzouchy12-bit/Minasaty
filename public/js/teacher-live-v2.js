@@ -520,6 +520,8 @@ const elements = {
   resetAudioSettingsButton: document.getElementById("reset-audio-settings-btn"),
   muteAllMicsButton: document.getElementById("mute-all-mics-btn"),
   sidebarMuteAllButton: document.getElementById("sidebar-mute-all-btn"),
+  resyncStreamButton: document.getElementById("resync-stream-btn"),
+  fixEchoButton: document.getElementById("fix-echo-btn"),
   recordLocalButton: document.getElementById("record-local-btn"),
   localRecordingState: document.getElementById("local-recording-state"),
   saveDriveButton: document.getElementById("save-drive-btn"),
@@ -4207,6 +4209,8 @@ function updateControls() {
   if (elements.toggleMicButton) elements.toggleMicButton.disabled = !classActive || !hasAudio || isEnding;
   if (elements.muteAllMicsButton) elements.muteAllMicsButton.disabled = !classActive || isEnding;
   if (elements.sidebarMuteAllButton) elements.sidebarMuteAllButton.disabled = !classActive || isEnding;
+  if (elements.resyncStreamButton) elements.resyncStreamButton.disabled = !classActive || isEnding;
+  if (elements.fixEchoButton) elements.fixEchoButton.disabled = !classActive || isEnding;
   if (elements.recordLocalButton) elements.recordLocalButton.disabled = (!canRecordLocalClass() && !isLocalRecording()) || isEnding;
   if (elements.saveDriveButton) elements.saveDriveButton.disabled = !lastLocalRecording || googleDriveUploadInProgress;
 
@@ -4391,6 +4395,7 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
     item.querySelector(".attendee-avatar").textContent = displayInitials(studentName);
     const participation = item.querySelector(".attendee-participation");
     if (participation && Number.isFinite(Number(participationCount))) participation.textContent = `المشاركات: ${Math.max(0, Number(participationCount))}`;
+    syncStudentResyncButton(item, socketId);
     return item;
   }
 
@@ -4447,7 +4452,7 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
     refreshChatStudentSocketTarget(stableStudentId, socketId);
   }
   updateAttendeeCount();
-
+  syncStudentResyncButton(item, socketId);
 
   return item;
 }
@@ -5680,7 +5685,7 @@ function optimizeOpusSdp(sdp) {
 }
 
 
-async function createAndSendOffer(studentSocketId, { iceRestart = false } = {}) {
+async function createAndSendOffer(studentSocketId, { iceRestart = false, force = false } = {}) {
   if (!classActive || !getActiveTeacherVideoTrack()) {
     return;
   }
@@ -5705,11 +5710,21 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false } = {}) 
   ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate: false });
 
   const now = Date.now();
-  if (peerConnection.lastOfferSentAt && now - peerConnection.lastOfferSentAt < 2500) {
+  if (!force && peerConnection.lastOfferSentAt && now - peerConnection.lastOfferSentAt < 2500) {
     return;
   }
 
-  if (
+  if (force && (peerConnection.signalingState !== "stable" || peerConnection.connectionState === "closed")) {
+    closePeerConnection(studentSocketId);
+    peerConnection = createPeerConnection(studentSocketId);
+    const freshVideoTrack = getActiveTeacherVideoTrack();
+    if (freshVideoTrack && screenStream) {
+      const vs = peerConnection.addTrack(freshVideoTrack, screenStream);
+      vs.__classroomVideoTrack = true;
+      void tuneOutboundSender(vs, "video");
+    }
+    ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate: false });
+  } else if (
     peerConnection.makingOffer ||
     peerConnection.signalingState !== "stable" ||
     peerConnection.connectionState === "closed"
@@ -6305,6 +6320,31 @@ function toggleMicrophone() {
 }
 
 
+function syncStudentResyncButton(attendee, socketId) {
+  let button = attendee.querySelector(".attendee-resync-btn");
+
+  if (!button) {
+    button = document.createElement("button");
+    button.type = "button";
+    button.className = "attendee-resync-btn";
+    button.title = "إعادة مزامنة البث والصوت لهذا التلميذ";
+    button.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+      </svg>
+      <span>تحديث</span>
+    `;
+    button.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void resyncSingleStudent(socketId, button);
+    });
+    attendee.append(button);
+  }
+
+  return button;
+}
+
+
 function syncStudentMicButton(attendee, socketId, enabled = false) {
   let button = attendee.querySelector(".attendee-mic-button");
 
@@ -6398,6 +6438,158 @@ async function muteAllStudentsMicrophones() {
   } catch (err) {
     console.error("Failed to mute all mics:", err);
     setStudioStatus(err.message || "تعذر كتم ميكروفونات جميع التلاميذ.", "error");
+  }
+}
+
+
+async function resyncClassroomAudioAndStream() {
+  if (!classActive || isEnding) return;
+  const btn = elements.resyncStreamButton;
+  if (btn) btn.disabled = true;
+
+  try {
+    setStudioStatus("جارٍ تحديث الصوت والبث وإعادة المزامنة مع كافة التلاميذ…", "neutral");
+
+    // 1. Re-activate/verify teacher microphone
+    await ensureTeacherMicrophoneActive();
+
+    // 2. Re-verify video track
+    const videoTrack = getActiveTeacherVideoTrack();
+    if (videoTrack) {
+      await syncTeacherVideoTrackToAllPeers();
+    }
+
+    // 3. Rebuild classroom audio graph and mix-minus
+    rebuildClassroomAudioGraph();
+    syncMixMinusAudioToAllPeers();
+
+    // 4. Broadcast resync signal to students in room to resume/recover playback
+    try {
+      await emitWithAcknowledgement("teacher_force_resync", { level: activeLevel }, 5000);
+    } catch (e) {
+      console.warn("teacher_force_resync broadcast warning:", e);
+    }
+
+    // 5. Trigger forced ICE restart offers to all connected student peer connections
+    const studentSocketIds = Object.keys(peerConnections);
+    for (const sid of studentSocketIds) {
+      const pc = peerConnections[sid];
+      if (pc) {
+        ensureStudentAudioSender(pc, sid, { renegotiate: false });
+        void createAndSendOffer(sid, { iceRestart: true, force: true });
+      }
+    }
+
+    // Also offer to any attendees without an active peer connection
+    attendeeElements.forEach((_, sid) => {
+      if (!peerConnections[sid] && sid !== socket.id) {
+        void createAndSendOffer(sid, { iceRestart: true, force: true });
+      }
+    });
+
+    setStudioStatus("تم تحديث الصوت والبث وإعادة مزامنة الاتصال مع كافة التلاميذ بنجاح.", "live");
+  } catch (err) {
+    console.error("Error in resyncClassroomAudioAndStream:", err);
+    setStudioStatus("تعذر إتمام تحديث البث: " + (err.message || "خطأ غير متوقع"), "error");
+  } finally {
+    if (btn) btn.disabled = !classActive || isEnding;
+  }
+}
+
+
+async function fixClassroomEcho() {
+  if (!classActive || isEnding) return;
+  const btn = elements.fixEchoButton;
+  if (btn) btn.disabled = true;
+
+  try {
+    setStudioStatus("جارٍ إلغاء الصدى وكتم الميكروفونات المشوشة وإعادة ضبط عزل الصوت…", "neutral");
+
+    // 1. Immediately mute all students' microphones to break the acoustic feedback loop
+    await muteAllStudentsMicrophones();
+
+    // 2. Disconnect and remove any extraneous audio sources
+    classroomAudioSources.forEach((source, key) => {
+      if (key !== "__teacher_microphone__" && key !== "__screen_audio__") {
+        try {
+          if (source.gainNode) source.gainNode.disconnect();
+          source.node?.disconnect();
+        } catch (_) {}
+        classroomAudioSources.delete(key);
+      }
+    });
+
+    // 3. Clear and pause student audio playback elements
+    studentAudioElements.forEach((audioEl) => {
+      try {
+        audioEl.pause();
+        audioEl.srcObject = null;
+      } catch (_) {}
+    });
+    studentAudioElements.clear();
+
+    // 4. Force echo cancellation constraints on teacher's microphone
+    const micTrack = cameraStream?.getAudioTracks?.().find((t) => t.readyState === "live");
+    if (micTrack && typeof micTrack.applyConstraints === "function") {
+      try {
+        await micTrack.applyConstraints({
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        });
+      } catch (e) {
+        console.warn("Could not re-apply echo cancellation constraints:", e);
+      }
+    }
+
+    // 5. Rebuild audio graph and mix-minus
+    if (classroomAudioContext && classroomAudioContext.state === "suspended") {
+      await classroomAudioContext.resume().catch(() => {});
+    }
+    rebuildClassroomAudioGraph();
+    syncMixMinusAudioToAllPeers();
+
+    setStudioStatus("تم إلغاء الصدى وتأمين عزل الصوت بنجاح.", "live");
+  } catch (err) {
+    console.error("Error in fixClassroomEcho:", err);
+    setStudioStatus("تعذر إتمام إلغاء الصدى: " + (err.message || "خطأ غير متوقع"), "error");
+  } finally {
+    if (btn) btn.disabled = !classActive || isEnding;
+  }
+}
+
+
+async function resyncSingleStudent(socketId, button) {
+  if (!classActive || isEnding || !socketId) return;
+  if (button) button.disabled = true;
+
+  try {
+    setStudioStatus("جارٍ إعادة مزامنة التلميذ…", "neutral");
+
+    try {
+      await emitWithAcknowledgement("teacher_force_resync_student", {
+        level: activeLevel,
+        targetSocketId: socketId,
+      }, 5000);
+    } catch (e) {
+      console.warn("teacher_force_resync_student warning:", e);
+    }
+
+    let pc = peerConnections[socketId];
+    if (!pc || pc.connectionState === "closed" || pc.signalingState !== "stable") {
+      closePeerConnection(socketId);
+      pc = createPeerConnection(socketId);
+    }
+
+    ensureStudentAudioSender(pc, socketId, { renegotiate: false });
+    await createAndSendOffer(socketId, { iceRestart: true, force: true });
+
+    setStudioStatus("تم إرسال تحديث المزامنة للتلميذ بنجاح.", "live");
+  } catch (err) {
+    console.error(`Error resyncing student ${socketId}:`, err);
+    setStudioStatus("تعذر إعادة مزامنة التلميذ.", "error");
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -6847,6 +7039,8 @@ document.querySelectorAll(".gain-preset-pill").forEach((btn) => {
 });
 elements.muteAllMicsButton?.addEventListener("click", () => void muteAllStudentsMicrophones());
 elements.sidebarMuteAllButton?.addEventListener("click", () => void muteAllStudentsMicrophones());
+elements.resyncStreamButton?.addEventListener("click", () => void resyncClassroomAudioAndStream());
+elements.fixEchoButton?.addEventListener("click", () => void fixClassroomEcho());
 elements.recordLocalButton.addEventListener("click", toggleLocalRecording);
 elements.downloadRecordingButton?.addEventListener("click", handleDownloadRecordingClick);
 elements.forceUploadYoutubeButton?.addEventListener("click", handleForceUploadYoutubeClick);

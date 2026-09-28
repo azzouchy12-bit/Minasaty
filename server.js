@@ -2736,6 +2736,75 @@ io.on("connection", (socket) => {
     }
   });
 
+  /**
+   * Teacher triggers force resynchronization of audio and video stream for all students in the room.
+   */
+  socket.on("teacher_force_resync", async (data = {}, acknowledgement) => {
+    try {
+      const level = socket.data.roomLevel || normalizeText(data.level);
+      const isTeacher =
+        socket.data.role === "teacher" ||
+        socket.data.role === "teacher_companion" ||
+        activeTeachersByLevel.get(level) === socket.id ||
+        users.get(socket.id)?.role === "teacher";
+
+      if (!isTeacher || !level) {
+        return emitClassroomError(
+          socket,
+          "teacher_force_resync",
+          "لا تملك صلاحية إعادة مزامنة البث لهذه الحصة.",
+          acknowledgement
+        );
+      }
+
+      // Broadcast to all students in room to reset/re-play streams
+      socket.to(level).emit("classroom_force_resync", {
+        level,
+        timestamp: Date.now(),
+      });
+
+      acknowledge(acknowledgement, { ok: true });
+    } catch (err) {
+      console.error("teacher_force_resync error:", err);
+      acknowledge(acknowledgement, { ok: false, error: err.message });
+    }
+  });
+
+  /**
+   * Teacher triggers force resynchronization for a specific student.
+   */
+  socket.on("teacher_force_resync_student", async (data = {}, acknowledgement) => {
+    try {
+      const level = socket.data.roomLevel || normalizeText(data.level);
+      const targetSocketId = normalizeText(data.targetSocketId);
+      const isTeacher =
+        socket.data.role === "teacher" ||
+        socket.data.role === "teacher_companion" ||
+        activeTeachersByLevel.get(level) === socket.id ||
+        users.get(socket.id)?.role === "teacher";
+
+      if (!isTeacher || !level || !targetSocketId) {
+        return emitClassroomError(
+          socket,
+          "teacher_force_resync_student",
+          "لا تملك صلاحية إعادة مزامنة هذا التلميذ.",
+          acknowledgement
+        );
+      }
+
+      io.to(targetSocketId).emit("classroom_force_resync", {
+        level,
+        targetSocketId,
+        timestamp: Date.now(),
+      });
+
+      acknowledge(acknowledgement, { ok: true });
+    } catch (err) {
+      console.error("teacher_force_resync_student error:", err);
+      acknowledge(acknowledgement, { ok: false, error: err.message });
+    }
+  });
+
   // Kept as a compatibility route for teacher pages that are still open while
   // the new client bundle is being deployed.
   socket.on("teacher_approve_mic", async (data = {}, acknowledgement) => {

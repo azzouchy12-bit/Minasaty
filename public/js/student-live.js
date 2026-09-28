@@ -4825,6 +4825,25 @@ socket.on("classroom_all_mics_muted", () => {
   setViewerStatus("أغلق الأستاذ ميكروفونات جميع التلاميذ.", "neutral");
 });
 
+socket.on("classroom_force_resync", async () => {
+  try {
+    if (elements.remoteVideo) {
+      if (remoteStream && elements.remoteVideo.srcObject !== remoteStream) {
+        elements.remoteVideo.srcObject = remoteStream;
+      }
+      void elements.remoteVideo.play().catch(() => {});
+    }
+
+    if (!pc || pc.connectionState === "failed" || pc.connectionState === "closed") {
+      beginStreamRecovery("طلب الأستاذ تحديث ومزامنة البث والصوت…");
+    } else {
+      setViewerStatus("تم تحديث ومزامنة البث والصوت بنجاح.", "live");
+    }
+  } catch (err) {
+    console.warn("classroom_force_resync handler warning:", err);
+  }
+});
+
 socket.on("teacher_reconnecting", () => {
   beginStreamRecovery("غادر الأستاذ الاستوديو أو انقطع اتصاله. الحصة محفوظة وجارٍ انتظار عودته تلقائياً…");
 });

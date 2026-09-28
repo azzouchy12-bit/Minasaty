@@ -69,6 +69,10 @@
 .studio-button.download-device:hover:not(:disabled) { color: #fff; background: #0284c7; border-color: #38bdf8; }
 .studio-button.force-youtube { color: #fce7f3; border-color: rgba(244,63,94,.45); background: rgba(159,18,57,.45); }
 .studio-button.force-youtube:hover:not(:disabled) { color: #fff; background: #be123c; border-color: #fb7185; }
+.studio-button.resync-stream { color: #93c5fd; border-color: rgba(59,130,246,.45); background: rgba(30,58,138,.55); }
+.studio-button.resync-stream:hover:not(:disabled) { color: #fff; background: rgba(37,99,235,.75); border-color: rgba(96,165,250,.75); box-shadow: 0 0 12px rgba(59,130,246,.4); }
+.studio-button.fix-echo { color: #fed7aa; border-color: rgba(249,115,22,.45); background: rgba(154,52,18,.5); }
+.studio-button.fix-echo:hover:not(:disabled) { color: #fff; background: rgba(194,65,12,.75); border-color: rgba(251,146,60,.75); box-shadow: 0 0 12px rgba(249,115,22,.4); }
 .studio-button.danger { width: auto; min-width: 118px; padding: 0 16px; color: #fff; border: 0; border-radius: 8px; background: var(--danger-red); font-size: .7rem; font-weight: 800; }
 .studio-button.danger svg { width: 17px; height: 17px; }
 .studio-button:disabled { opacity: .42; cursor: not-allowed; transform: none; }
@@ -104,6 +108,9 @@
 .attendee-mic-button { flex: 0 0 auto; min-height: 1.9rem; padding: .25rem .55rem; color: var(--text-secondary); border: 1px solid var(--border-dark); border-radius: 6px; background: transparent; font-size: .59rem; font-weight: 800; cursor: pointer; }
 .attendee-mic-button:hover { color: var(--text-primary); border-color: var(--accent-blue); background: rgba(59,130,246,.14); }
 .attendee-mic-button.is-open { color: #bfdbfe; border-color: var(--accent-blue); box-shadow: 0 0 0 1px rgba(59,130,246,.3); }
+.attendee-resync-btn { flex: 0 0 auto; display: inline-flex; align-items: center; gap: .25rem; min-height: 1.9rem; padding: .25rem .5rem; color: #93c5fd; border: 1px solid rgba(59,130,246,.35); border-radius: 6px; background: rgba(30,58,138,.28); font-size: .59rem; font-weight: 800; cursor: pointer; transition: all .2s ease; }
+.attendee-resync-btn:hover:not(:disabled) { color: #fff; background: rgba(37,99,235,.6); border-color: rgba(96,165,250,.65); }
+.attendee-resync-btn:disabled { opacity: .6; cursor: wait; }
 .attendee-item.is-hand-raised { background: rgba(245,158,11,.08); }
 .teacher-chat-panel { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .chat-panel-head { flex: 0 0 auto; padding: .85rem 1rem; border-bottom: 1px solid var(--border-dark); }
