@@ -225,7 +225,12 @@
     try {
       const payload = await api("/api/youtube/status");
       youtubeConnected = Boolean(payload.data?.connected);
-      setYoutubeStatus(youtubeConnected ? "قناة YouTube مرتبطة" : "لم تُربط قناة YouTube بعد");
+      if (payload.data?.tokenExpired) {
+        youtubeConnected = false;
+        setYoutubeStatus("انتهت صلاحية الربط - اضغط هنا لإعادة الربط", false);
+      } else {
+        setYoutubeStatus(youtubeConnected ? "قناة YouTube مرتبطة" : "لم تُربط قناة YouTube بعد");
+      }
     } catch (error) {
       youtubeConnected = false;
       setYoutubeStatus("تعذر التحقق من قناة YouTube", false);

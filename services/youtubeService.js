@@ -143,68 +143,137 @@ async function getYouTubeApi() {
   return google.youtube({ version: "v3", auth });
 }
 
+function isInvalidGrantError(error) {
+  if (!error) return false;
+  const msg = String(error.message || "").toLowerCase();
+  const errDesc = String(error.response?.data?.error_description || "").toLowerCase();
+  const errType = String(error.response?.data?.error || "").toLowerCase();
+  return (
+    msg.includes("invalid_grant") ||
+    errType === "invalid_grant" ||
+    errDesc.includes("expired or revoked") ||
+    errDesc.includes("token has been expired") ||
+    msg.includes("token has been expired or revoked")
+  );
+}
+
 async function getConnectionStatus() {
   const credential = await getStoredCredential();
+  if (!credential) {
+    return {
+      configured: Boolean(getClientId() && getClientSecret()),
+      connected: false,
+      tokenExpired: false,
+      redirectUri: getRedirectUri(),
+    };
+  }
+
+  let connected = true;
+  let tokenExpired = false;
+
+  try {
+    if (Date.now() >= Number(credential.expiryDate) - 60_000) {
+      const oauth2Client = createOAuthClient();
+      oauth2Client.setCredentials({
+        access_token: decrypt(credential.accessToken),
+        refresh_token: decrypt(credential.refreshToken),
+        expiry_date: Number(credential.expiryDate),
+      });
+      const res = await oauth2Client.getAccessToken();
+      if (!res?.token) {
+        connected = false;
+      }
+    }
+  } catch (err) {
+    if (isInvalidGrantError(err)) {
+      connected = false;
+      tokenExpired = true;
+      await prisma.youTubeCredential.deleteMany().catch(() => {});
+    }
+  }
+
   return {
     configured: Boolean(getClientId() && getClientSecret()),
-    connected: Boolean(credential),
+    connected,
+    tokenExpired,
     redirectUri: getRedirectUri(),
   };
 }
 
 async function listRecentVideos(limit = 10) {
-  const youtube = await getYouTubeApi();
-  const channelResponse = await youtube.channels.list({ part: "contentDetails,snippet", mine: true });
-  const channel = channelResponse.data.items?.[0];
-  const uploadsPlaylistId = channel?.contentDetails?.relatedPlaylists?.uploads;
-  if (!uploadsPlaylistId) throw new Error("لم نتمكن من العثور على قائمة فيديوهات القناة.");
+  try {
+    const youtube = await getYouTubeApi();
+    const channelResponse = await youtube.channels.list({ part: "contentDetails,snippet", mine: true });
+    const channel = channelResponse.data.items?.[0];
+    const uploadsPlaylistId = channel?.contentDetails?.relatedPlaylists?.uploads;
+    if (!uploadsPlaylistId) throw new Error("لم نتمكن من العثور على قائمة فيديوهات القناة.");
 
-  const playlistResponse = await youtube.playlistItems.list({
-    part: "snippet,contentDetails,status",
-    playlistId: uploadsPlaylistId,
-    maxResults: Math.min(Math.max(Number(limit) || 10, 1), 50),
-  });
-  return (playlistResponse.data.items || [])
-    .filter((item) => item.contentDetails?.videoId)
-    .map((item) => ({
-      id: item.contentDetails.videoId,
-      title: item.snippet?.title || "فيديو بدون عنوان",
-      description: item.snippet?.description || "",
-      publishedAt: item.snippet?.publishedAt || null,
-      thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || null,
-      privacyStatus: item.status?.privacyStatus || "unknown",
-      embedUrl: `https://www.youtube.com/embed/${item.contentDetails.videoId}?controls=1&fs=1&rel=0&playsinline=1&enablejsapi=1&origin=https://dr.africacold.fr`,
-    }));
+    const playlistResponse = await youtube.playlistItems.list({
+      part: "snippet,contentDetails,status",
+      playlistId: uploadsPlaylistId,
+      maxResults: Math.min(Math.max(Number(limit) || 10, 1), 50),
+    });
+    return (playlistResponse.data.items || [])
+      .filter((item) => item.contentDetails?.videoId)
+      .map((item) => ({
+        id: item.contentDetails.videoId,
+        title: item.snippet?.title || "فيديو بدون عنوان",
+        description: item.snippet?.description || "",
+        publishedAt: item.snippet?.publishedAt || null,
+        thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || null,
+        privacyStatus: item.status?.privacyStatus || "unknown",
+        embedUrl: `https://www.youtube.com/embed/${item.contentDetails.videoId}?controls=1&fs=1&rel=0&playsinline=1&enablejsapi=1&origin=https://dr.africacold.fr`,
+      }));
+  } catch (error) {
+    if (isInvalidGrantError(error)) {
+      await prisma.youTubeCredential.deleteMany().catch(() => {});
+      const expError = new Error("انتهت صلاحية رمز ربط قناة YouTube مع Google (invalid_grant: Token has been expired or revoked). يرجى إعادة ربط القناة.");
+      expError.code = "YOUTUBE_TOKEN_EXPIRED";
+      throw expError;
+    }
+    throw error;
+  }
 }
 
 async function uploadVideo({ stream, mimeType = "video/webm", title, description = "" }) {
-  const youtube = await getYouTubeApi();
-  const response = await youtube.videos.insert({
-    part: "snippet,status",
-    requestBody: {
-      snippet: {
-        title: String(title || "حصة مسجلة").slice(0, 100),
-        description: String(description || "").slice(0, 5000),
-        categoryId: "27",
+  try {
+    const youtube = await getYouTubeApi();
+    const response = await youtube.videos.insert({
+      part: "snippet,status",
+      requestBody: {
+        snippet: {
+          title: String(title || "حصة مسجلة").slice(0, 100),
+          description: String(description || "").slice(0, 5000),
+          categoryId: "27",
+        },
+        status: {
+          privacyStatus: "unlisted",
+          embeddable: true,
+          selfDeclaredMadeForKids: false,
+        },
       },
-      status: {
-        privacyStatus: "unlisted",
-        embeddable: true,
-        selfDeclaredMadeForKids: false,
+      media: {
+        mimeType,
+        body: stream,
       },
-    },
-    media: {
-      mimeType,
-      body: stream,
-    },
-  });
-  const id = response.data.id;
-  if (!id) throw new Error("لم تُرجع YouTube معرّف الفيديو بعد الرفع.");
-  return {
-    id,
-    embedUrl: `https://www.youtube.com/embed/${id}?controls=1&fs=1&rel=0&playsinline=1&enablejsapi=1&origin=https://dr.africacold.fr`,
-    privacyStatus: "unlisted",
-  };
+    });
+    const id = response.data.id;
+    if (!id) throw new Error("لم تُرجع YouTube معرّف الفيديو بعد الرفع.");
+    return {
+      id,
+      embedUrl: `https://www.youtube.com/embed/${id}?controls=1&fs=1&rel=0&playsinline=1&enablejsapi=1&origin=https://dr.africacold.fr`,
+      privacyStatus: "unlisted",
+    };
+  } catch (error) {
+    if (isInvalidGrantError(error)) {
+      await prisma.youTubeCredential.deleteMany().catch(() => {});
+      const expError = new Error("انتهت صلاحية رمز ربط قناة YouTube مع Google (invalid_grant: Token has been expired or revoked). يرجى إعادة ربط قناة YouTube.");
+      expError.code = "YOUTUBE_TOKEN_EXPIRED";
+      expError.originalError = error;
+      throw expError;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -212,9 +281,32 @@ async function uploadVideo({ stream, mimeType = "video/webm", title, description
  * تتيح رفع الفيديوهات الطويلة (ساعتان فأكثر) مباشرة إلى خوادم Google دون قيود البروكسي
  */
 async function createResumableUploadSession({ title, description = "", mimeType = "video/webm", fileSize, origin }) {
-  const auth = await getAuthorizedClient();
-  const tokenResponse = await auth.getAccessToken();
-  const accessToken = typeof tokenResponse === "string" ? tokenResponse : tokenResponse?.token;
+  let auth;
+  try {
+    auth = await getAuthorizedClient();
+  } catch (err) {
+    if (isInvalidGrantError(err)) {
+      await prisma.youTubeCredential.deleteMany().catch(() => {});
+      const expError = new Error("انتهت صلاحية رمز ربط قناة YouTube مع Google (invalid_grant). يرجى إعادة ربط القناة.");
+      expError.code = "YOUTUBE_TOKEN_EXPIRED";
+      throw expError;
+    }
+    throw err;
+  }
+
+  let accessToken;
+  try {
+    const tokenResponse = await auth.getAccessToken();
+    accessToken = typeof tokenResponse === "string" ? tokenResponse : tokenResponse?.token;
+  } catch (err) {
+    if (isInvalidGrantError(err)) {
+      await prisma.youTubeCredential.deleteMany().catch(() => {});
+      const expError = new Error("انتهت صلاحية رمز ربط قناة YouTube مع Google (invalid_grant: Token expired). يرجى إعادة ربط القناة.");
+      expError.code = "YOUTUBE_TOKEN_EXPIRED";
+      throw expError;
+    }
+    throw err;
+  }
 
   if (!accessToken) {
     throw new Error("تعذر الحصول على رمز الوصول الصالح لـ YouTube.");
@@ -276,6 +368,7 @@ module.exports = {
   uploadVideo,
   createResumableUploadSession,
   getYouTubeApi,
+  isInvalidGrantError,
 };
 
 module.exports._private = { encrypt, decrypt, getClientId, getClientSecret };

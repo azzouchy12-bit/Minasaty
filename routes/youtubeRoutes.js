@@ -16,6 +16,7 @@ const {
   listRecentVideos,
   uploadVideo,
   createResumableUploadSession,
+  isInvalidGrantError,
 } = require("../services/youtubeService");
 
 const router = express.Router();
@@ -217,6 +218,15 @@ router.get("/callback", async (req, res) => {
   }
 });
 
+router.post("/disconnect", verifyToken, isTeacher, async (_req, res) => {
+  try {
+    await prisma.youTubeCredential.deleteMany();
+    return res.status(200).json({ status: "success", message: "تم إلغاء ربط قناة YouTube بنجاح." });
+  } catch (error) {
+    return res.status(500).json({ error: "تعذر إلغاء الربط." });
+  }
+});
+
 router.get("/videos", verifyToken, isTeacher, async (req, res) => {
   try {
     return res.status(200).json({ status: "success", data: await listRecentVideos(req.query.limit) });
@@ -403,11 +413,20 @@ async function processServerYoutubeUpload({
       }
     }
   } catch (err) {
-    console.error(`[Server YouTube Upload] Background upload failed for ${uploadId}:`, err);
+    const isTokenExpired = isInvalidGrantError(err) || err.code === "YOUTUBE_TOKEN_EXPIRED";
+    if (isTokenExpired) {
+      await prisma.youTubeCredential.deleteMany().catch(() => {});
+    }
+    const friendlyError = isTokenExpired
+      ? "انتهت صلاحية إذن ربط قناة YouTube مع Google (invalid_grant: Token expired). يرجى إعادة ربط القناة لتجديد الإذن ثم إعادة الرفع."
+      : (err.message || "تعذر رفع الفيديو إلى YouTube من السيرفر.");
+
+    console.error(`[Server YouTube Upload] Background upload failed for ${uploadId}:`, friendlyError);
     if (io) {
       io.emit("youtube_server_upload_failed", {
         uploadId,
-        error: err.message || "تعذر رفع الفيديو إلى YouTube من السيرفر.",
+        error: friendlyError,
+        isTokenExpired,
       });
     }
   } finally {

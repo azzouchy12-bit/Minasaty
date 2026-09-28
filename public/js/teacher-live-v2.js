@@ -549,6 +549,7 @@ const elements = {
   youtubeSuccessCard: document.getElementById("youtube-success-card"),
   youtubeTagFilesize: document.getElementById("youtube-tag-filesize"),
   youtubeModalMinimizeButton: document.getElementById("youtube-modal-minimize-btn"),
+  youtubeModalReconnectBtn: document.getElementById("youtube-modal-reconnect-btn"),
   youtubeViewVideoButton: document.getElementById("youtube-view-video-btn"),
   youtubeMinimizedBadge: document.getElementById("youtube-minimized-badge"),
   youtubeMinimizedText: document.getElementById("youtube-minimized-text"),
@@ -6723,8 +6724,18 @@ socket.on("youtube_server_upload_completed", (data = {}) => {
 socket.on("youtube_server_upload_failed", (data = {}) => {
   if (data && (!currentServerUploadId || data.uploadId === currentServerUploadId)) {
     console.warn("Server background YouTube upload failed:", data);
+    const isExpired = Boolean(data.isTokenExpired || data.error?.includes("invalid_grant") || data.error?.includes("صلاحية"));
     if (elements.youtubeModalAlertText) {
-      elements.youtubeModalAlertText.textContent = `⚠️ تنبيه: تعذر رفع الفيديو إلى YouTube (${data.error || "خطأ غير متوقع"}). الملف محفوظ في جهازك (مجلد التنزيلات).`;
+      elements.youtubeModalAlertText.textContent = isExpired
+        ? `⚠️ تنبيه: انتهت صلاحية إذن ربط YouTube مع Google (invalid_grant). انقر على زر "تجديد ربط قناة YouTube" أدناه لتجديد الإذن، ثم أعد المحاولة.`
+        : `⚠️ تنبيه: تعذر رفع الفيديو إلى YouTube (${data.error || "خطأ غير متوقع"}). الملف محفوظ في جهازك (مجلد التنزيلات).`;
+    }
+    if (elements.youtubeModalReconnectBtn) {
+      elements.youtubeModalReconnectBtn.hidden = !isExpired;
+    }
+    if (elements.uploadYoutubeAfterEndButton) {
+      elements.uploadYoutubeAfterEndButton.hidden = false;
+      setButtonLabel(elements.uploadYoutubeAfterEndButton, "🔄 إعادة محاولة الرفع الآن");
     }
     setStudioStatus(`تعذر رفع الحصة إلى YouTube: ${data.error || "خطأ"}. التسجيل محفوظ في جهازك.`, "error");
   }
@@ -7049,6 +7060,35 @@ elements.uploadFromDeviceInput?.addEventListener("change", handleDeviceFileSelec
 elements.modalDownloadRecordingButton?.addEventListener("click", handleDownloadRecordingClick);
 elements.saveDriveButton.addEventListener("click", handleGoogleDriveButton);
 elements.uploadYoutubeAfterEndButton?.addEventListener("click", handleForceUploadYoutubeClick);
+elements.youtubeModalReconnectBtn?.addEventListener("click", async () => {
+  try {
+    const res = await fetch("/api/youtube/connect");
+    const payload = await res.json();
+    if (payload.authorizationUrl) {
+      const popup = window.open(payload.authorizationUrl, "youtube-oauth", "popup,width=560,height=760");
+      if (!popup) {
+        alert("يرجى السماح بالنوافذ المنبثقة (Popups) لإكمال ربط قناة YouTube.");
+      }
+    }
+  } catch (err) {
+    console.error("Failed to start youtube connect:", err);
+  }
+});
+
+window.addEventListener("message", (event) => {
+  if (event.data?.type === "youtube-connected") {
+    if (elements.youtubeModalAlertText) {
+      elements.youtubeModalAlertText.textContent = "✅ تم تجديد ربط قناة YouTube بنجاح! يمكنك الآن النقر على 'إعادة محاولة الرفع الآن'.";
+    }
+    if (elements.youtubeModalReconnectBtn) {
+      elements.youtubeModalReconnectBtn.hidden = true;
+    }
+    if (elements.uploadYoutubeAfterEndButton) {
+      elements.uploadYoutubeAfterEndButton.hidden = false;
+    }
+    setStudioStatus("تم تجديد ربط قناة YouTube بنجاح.", "live");
+  }
+});
 elements.closeRecordingReadyButton?.addEventListener("click", () => closeRecordingReadyModal());
 elements.youtubeModalMinimizeButton?.addEventListener("click", () => minimizeYoutubeUploadModal());
 elements.youtubeMinimizedBadge?.addEventListener("click", () => expandYoutubeUploadModal());
