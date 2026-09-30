@@ -3719,9 +3719,16 @@ function addUniqueTrack(stream, track) {
       try {
         stream.removeTrack(oldTrack);
         oldTrack.enabled = false;
+        if (typeof oldTrack.stop === "function") {
+          oldTrack.stop();
+        }
       } catch (_) {}
     });
     stream.addTrack(track);
+    // Force the browser to recognize the track change to prevent lingering ghost audio bugs
+    if (elements.remoteVideo && elements.remoteVideo.srcObject === stream) {
+      elements.remoteVideo.srcObject = new MediaStream(stream.getTracks());
+    }
     return;
   }
 
@@ -3812,6 +3819,7 @@ function beginStreamRecovery(message) {
   }
 
   clearHandResetTimer();
+  disconnectStudentSfu();
   closePeerConnection();
   resetRemoteMedia();
   microphonePermissionGranted = false;
