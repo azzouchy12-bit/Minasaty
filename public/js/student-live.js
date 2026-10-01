@@ -3712,6 +3712,17 @@ function addUniqueTrack(stream, track) {
     // Strictly prevent double-audio / echo feedback across classroom playback.
     // Ensure that exactly one audio track plays at any time.
     const existingAudio = stream.getAudioTracks();
+    
+    if (track.__fromSfu) {
+      // If we are trying to add an SFU track, but we already have a live P2P mix-minus track, ignore the SFU track.
+      // P2P mix-minus is preferred because it contains both the teacher and all other students.
+      const hasLiveP2P = existingAudio.some((currentTrack) => currentTrack.readyState === "live" && !currentTrack.__fromSfu);
+      if (hasLiveP2P) {
+        console.info("[WebRTC-Student] Ignoring SFU audio because P2P mix-minus audio is already active.");
+        return;
+      }
+    }
+
     if (existingAudio.some((currentTrack) => currentTrack.id === track.id)) {
       return;
     }
@@ -4046,15 +4057,6 @@ function createViewerPeerConnection() {
    * browser's ontrack event ordering.
    */
   pc.ontrack = (event) => {
-    // If LiveKit SFU is connected and already delivering live audio, keep P2P audio on standby
-    // to strictly prevent double-audio / echo feedback across the student's playback.
-    if (event.track?.kind === "audio" && studentSfuRoom && studentSfuRoom.state === "connected") {
-      const hasLiveSfuAudio = remoteMediaStream?.getAudioTracks().some((t) => t.readyState === "live" && t.__fromSfu === true);
-      if (hasLiveSfuAudio) {
-        console.info("[WebRTC-Student] LiveKit SFU audio active; keeping P2P audio on standby to prevent echo.");
-        return;
-      }
-    }
     attachTeacherTrack(event);
   };
 
