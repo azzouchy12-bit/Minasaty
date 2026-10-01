@@ -15,7 +15,7 @@ try {
   if (navigator.serviceWorker?.controller) {
     navigator.serviceWorker.controller.postMessage({ type: "STOP_ALERT_SOUND" });
   }
-} catch (_) {}
+} catch (_) { }
 
 function createUnavailableStudentSocket() {
   return {
@@ -38,9 +38,9 @@ function createUnavailableStudentSocket() {
 const parentSessionToken = sessionStorage.getItem("parentToken") || localStorage.getItem("parentToken") || "";
 const socket = typeof window.io === "function"
   ? window.io({
-      auth: parentSessionToken ? { token: parentSessionToken } : {},
-      transports: ["polling", "websocket"],
-    })
+    auth: parentSessionToken ? { token: parentSessionToken } : {},
+    transports: ["polling", "websocket"],
+  })
   : createUnavailableStudentSocket();
 
 const rtcConfig = {
@@ -146,7 +146,7 @@ async function publishStudentSfuMic(audioStream) {
   if (studentSfuRoom && studentSfuMicPub) {
     try {
       await studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track);
-    } catch (_) {}
+    } catch (_) { }
     studentSfuMicPub = null;
   }
   return;
@@ -159,7 +159,7 @@ function unpublishStudentSfuMic() {
       if (studentSfuMicPub.track) {
         studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track);
       }
-    } catch (_) {}
+    } catch (_) { }
     studentSfuMicPub = null;
   }
 }
@@ -173,7 +173,7 @@ function disconnectStudentSfu() {
       if (studentSfuRoom.state !== "disconnected") {
         studentSfuRoom.disconnect();
       }
-    } catch (_) {}
+    } catch (_) { }
     studentSfuRoom = null;
   }
 }
@@ -440,7 +440,7 @@ function markPermanentStudentPrejoinCompleted() {
   }
   try {
     sessionStorage.setItem(STUDENT_PREJOIN_COMPLETED_KEY, "true");
-  } catch (ignored) {}
+  } catch (ignored) { }
   document.documentElement.classList.add("student-prejoin-completed-user");
 }
 
@@ -453,23 +453,23 @@ function hasPermanentStudentPrejoinCompleted() {
     ) {
       return true;
     }
-  } catch (error) {}
+  } catch (error) { }
 
   try {
     if (
       document.cookie &&
       (document.cookie.includes("studentLivePrejoinCompleted=true") ||
-       (studentId && document.cookie.includes(`studentLivePrejoin_${encodeURIComponent(studentId)}=true`)))
+        (studentId && document.cookie.includes(`studentLivePrejoin_${encodeURIComponent(studentId)}=true`)))
     ) {
       return true;
     }
-  } catch (error) {}
+  } catch (error) { }
 
   try {
     if (sessionStorage.getItem(STUDENT_PREJOIN_COMPLETED_KEY) === "true") {
       return true;
     }
-  } catch (error) {}
+  } catch (error) { }
 
   return document.documentElement.classList.contains("student-prejoin-completed-user");
 }
@@ -1164,7 +1164,7 @@ function enableNativeSwipeRefresh() {
       if (typeof bridge.setRefreshEnabled === "function") bridge.setRefreshEnabled(true);
       if (typeof bridge.setPullToRefreshEnabled === "function") bridge.setPullToRefreshEnabled(true);
       if (typeof bridge.setEnabled === "function") bridge.setEnabled(true);
-    } catch (_) {}
+    } catch (_) { }
   }
 }
 
@@ -1180,7 +1180,7 @@ function installPullToRefreshBlocker() {
       document.body.style.setProperty("overscroll-behavior-y", "none", "important");
       document.body.style.setProperty("overscroll-behavior-x", "none", "important");
     }
-  } catch (_) {}
+  } catch (_) { }
 
   let touchStartY = 0;
   let touchStartX = 0;
@@ -1483,7 +1483,7 @@ let currentVideoQuality = (() => {
     if (saved && ["auto", "high", "medium", "low"].includes(saved)) {
       return saved;
     }
-  } catch {}
+  } catch { }
   return "auto";
 })();
 
@@ -1511,7 +1511,7 @@ function setStudentVideoQuality(quality, { notifyServer = true, showToast = fals
   currentVideoQuality = normalized;
   try {
     localStorage.setItem(STUDENT_VIDEO_QUALITY_KEY, normalized);
-  } catch {}
+  } catch { }
 
   updateQualityUI(normalized);
 
@@ -1525,14 +1525,14 @@ function setStudentVideoQuality(quality, { notifyServer = true, showToast = fals
     const videoTrack = remoteStream?.getVideoTracks?.()[0];
     if (videoTrack && typeof videoTrack.applyConstraints === "function") {
       if (normalized === "low") {
-        videoTrack.applyConstraints({ frameRate: { max: 15 } }).catch(() => {});
+        videoTrack.applyConstraints({ frameRate: { max: 15 } }).catch(() => { });
       } else if (normalized === "medium") {
-        videoTrack.applyConstraints({ frameRate: { max: 30 } }).catch(() => {});
+        videoTrack.applyConstraints({ frameRate: { max: 30 } }).catch(() => { });
       } else {
-        videoTrack.applyConstraints({ frameRate: { max: 60 } }).catch(() => {});
+        videoTrack.applyConstraints({ frameRate: { max: 60 } }).catch(() => { });
       }
     }
-  } catch {}
+  } catch { }
 
   if (showToast) {
     const label = VIDEO_QUALITY_LABELS[normalized] || normalized;
@@ -1635,7 +1635,7 @@ function openSignalFinderModal() {
   modal.hidden = false;
   document.body.classList.add("signal-modal-open");
   if (document.activeElement && typeof document.activeElement.blur === "function") {
-    try { document.activeElement.blur(); } catch (e) {}
+    try { document.activeElement.blur(); } catch (e) { }
   }
   const btn = elements.signalFinderButton || document.getElementById("student-signal-finder-btn");
   if (btn) btn.setAttribute("aria-expanded", "true");
@@ -1735,7 +1735,7 @@ async function sampleConnectionHealth() {
           }
         }
       });
-    } catch (_) {}
+    } catch (_) { }
   } else {
     // Lightweight latency check fallback
     const t0 = performance.now();
@@ -1745,7 +1745,7 @@ async function sampleConnectionHealth() {
       if (diff > 0 && diff < 1500) {
         rttMs = diff;
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // 3. Map Health to 0-100 Score
@@ -2769,7 +2769,7 @@ function appendStudentChatMessage({ id, sender, message = "", kind, imageUrl = n
     image.src = imageUrl;
     image.alt = "صورة سؤال أو واجب مرفقة";
     image.loading = "lazy";
-    image.addEventListener("click", () => openChatLinkInSeparateView({ preventDefault() {} }, imageUrl));
+    image.addEventListener("click", () => openChatLinkInSeparateView({ preventDefault() { } }, imageUrl));
     bubble.append(image);
   }
 
@@ -3161,9 +3161,9 @@ async function sendStudentChatMessage(event) {
 
 function setButtonLabel(button, label) {
   // Target the specific label span if it exists, otherwise fallback to the first non-icon span.
-  const labelElement = button.querySelector(".button-label") || 
-                       button.querySelector("span:not([aria-hidden])") || 
-                       button.querySelector("span");
+  const labelElement = button.querySelector(".button-label") ||
+    button.querySelector("span:not([aria-hidden])") ||
+    button.querySelector("span");
   if (labelElement) {
     labelElement.textContent = label;
   }
@@ -3240,7 +3240,7 @@ function getMicAlertAudioContext() {
       micAlertAudioContext = new AudioContextClass();
     }
     if (micAlertAudioContext.state === "suspended") {
-      micAlertAudioContext.resume().catch(() => {});
+      micAlertAudioContext.resume().catch(() => { });
     }
     return micAlertAudioContext;
   } catch (err) {
@@ -3251,7 +3251,7 @@ function getMicAlertAudioContext() {
 function unlockMicAlertAudio() {
   const ctx = getMicAlertAudioContext();
   if (ctx && ctx.state === "suspended") {
-    ctx.resume().catch(() => {});
+    ctx.resume().catch(() => { });
   }
 }
 
@@ -3272,7 +3272,7 @@ function playMicOpenedAlert() {
     const ctx = getMicAlertAudioContext();
     if (ctx) {
       if (ctx.state === "suspended") {
-        ctx.resume().catch(() => {});
+        ctx.resume().catch(() => { });
       }
 
       const now = ctx.currentTime;
@@ -3340,7 +3340,7 @@ function playMicOpenedAlert() {
     try {
       const audioFallback = new Audio("./sounds/mic-alert.wav");
       audioFallback.volume = 1.0;
-      audioFallback.play().catch(() => {});
+      audioFallback.play().catch(() => { });
     } catch (fallbackErr) {
       console.warn("Audio element fallback error:", fallbackErr);
     }
@@ -3351,7 +3351,7 @@ function playMicOpenedAlert() {
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       navigator.vibrate([200, 50, 250]);
     }
-  } catch (ignored) {}
+  } catch (ignored) { }
 
   // Prominent visual toast notification for the student
   showMobileControlToast("فتح الأستاذ المايك لك! يمكنك التحدث الآن 🎙️");
@@ -3598,7 +3598,7 @@ async function initializeStudentPrejoin() {
           if (browserPermission === "granted") {
             await prepareStudentMicrophone();
           }
-        } catch (ignored) {}
+        } catch (ignored) { }
       })();
     }
 
@@ -3687,7 +3687,7 @@ function updateRemoteVideoPresentation() {
 
   if (shouldShowRemoteVideo) {
     hideConnectionOverlay();
-    void elements.remoteVideo.play().catch(() => {});
+    void elements.remoteVideo.play().catch(() => { });
   }
   // Do not pause the media element while waiting: the same element carries
   // the teacher's audio, which must remain audible before screen sharing.
@@ -3722,11 +3722,11 @@ function addUniqueTrack(stream, track) {
         if (typeof oldTrack.stop === "function") {
           oldTrack.stop();
         }
-      } catch (_) {}
+      } catch (_) { }
     });
     stream.addTrack(track);
     // Force the browser to recognize the track change to prevent lingering ghost audio bugs
-    if (elements.remoteVideo && elements.remoteVideo.srcObject === stream) {
+    if (elements.remoteVideo) {
       elements.remoteVideo.srcObject = new MediaStream(stream.getTracks());
     }
     return;
@@ -3735,6 +3735,9 @@ function addUniqueTrack(stream, track) {
   const alreadyAdded = stream.getTracks().some((currentTrack) => currentTrack.id === track.id);
   if (!alreadyAdded) {
     stream.addTrack(track);
+    if (elements.remoteVideo) {
+      elements.remoteVideo.srcObject = new MediaStream(stream.getTracks());
+    }
   }
 }
 
@@ -3749,7 +3752,7 @@ function attachTeacherTrack(event) {
       } else if ("playoutDelayHint" in event.receiver) {
         event.receiver.playoutDelayHint = 0.08;
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   if (!remoteMediaStream) {
@@ -3786,7 +3789,7 @@ function attachTeacherTrack(event) {
   track.addEventListener("unmute", () => {
     updateRemoteAudioControl();
     updateRemoteVideoPresentation();
-    if (track.kind === "video") void elements.remoteVideo.play().catch(() => {});
+    if (track.kind === "video") void elements.remoteVideo.play().catch(() => { });
   });
 
   updateRemoteAudioControl();
@@ -4168,7 +4171,7 @@ async function enableApprovedMicrophone() {
   if (localAudioStream) {
     try {
       localAudioStream.getTracks().forEach((track) => track.stop());
-    } catch (_) {}
+    } catch (_) { }
     localAudioStream = undefined;
   }
 
@@ -4421,7 +4424,7 @@ function lowerHand() {
 
   clearHandResetTimer();
   setRaisedHandState({ waiting: false });
-  socket.emit("student_lower_hand", { level }, () => {});
+  socket.emit("student_lower_hand", { level }, () => { });
   setViewerStatus("تم تنزيل اليد. يمكنك رفعها من جديد عند الحاجة.", "neutral");
 }
 
@@ -4568,7 +4571,7 @@ socket.on("screen_share_state", (data = {}) => {
   updateRemoteVideoPresentation();
   if (screenShareActive) {
     setViewerStatus("جارٍ عرض شاشة الأستاذ…", "live");
-    void elements.remoteVideo.play().catch(() => {});
+    void elements.remoteVideo.play().catch(() => { });
     if (!wasScreenShareActive) {
       showScreenShareNotice(revision);
       scheduleScreenSharePageRefresh();
@@ -4634,10 +4637,10 @@ socket.on("teacher_reacted_to_message", (data = {}) => {
   if (!joinedClass) return;
   const emojiMap = {
     love: "❤️",
-    like: "👍",
-    cry: "😭",
-    dislike: "👎",
-    fire: "🔥",
+    like: "🔥",
+    cry: "🤨",
+    dislike: "👍",
+    fire: "👎",
   };
   const emoji = emojiMap[data.reaction] || "❤️";
 
@@ -4839,7 +4842,7 @@ socket.on("classroom_force_resync", async () => {
       if (remoteStream && elements.remoteVideo.srcObject !== remoteStream) {
         elements.remoteVideo.srcObject = remoteStream;
       }
-      void elements.remoteVideo.play().catch(() => {});
+      void elements.remoteVideo.play().catch(() => { });
     }
 
     if (!pc || pc.connectionState === "failed" || pc.connectionState === "closed") {
@@ -4984,7 +4987,7 @@ elements.questionImageInput?.addEventListener("change", () => {
   // confirmation. Send the image immediately in every view; text messages
   // continue to use their existing send button/modal flow.
   if (selectedQuestionImageFile === file) {
-    window.setTimeout(() => sendStudentChatMessage({ preventDefault() {} }), 0);
+    window.setTimeout(() => sendStudentChatMessage({ preventDefault() { } }), 0);
   }
 });
 elements.removeQuestionImageButton?.addEventListener("click", clearSelectedQuestionImage);
@@ -5001,12 +5004,12 @@ elements.subscriptionDeclineButton?.addEventListener("click", () => {
   closeSubscriptionUpgradeModal();
   window.location.assign("./index.html");
 });
-  initializeMobileControls();
-  initializeDesktopFullscreen();
-  initializeStudentKeyboardLayout();
-  initializeQualitySelector();
-  initializeSignalFinder();
-  initializeStudentCalculator();
+initializeMobileControls();
+initializeDesktopFullscreen();
+initializeStudentKeyboardLayout();
+initializeQualitySelector();
+initializeSignalFinder();
+initializeStudentCalculator();
 
 window.addEventListener("pagehide", () => {
   enableNativeSwipeRefresh();
