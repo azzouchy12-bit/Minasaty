@@ -1481,6 +1481,8 @@ function upsertAttendee(socketId, student = {}, participationCount = 0) {
     item.querySelector(".attendee-avatar").textContent = stableAvatarText;
     const participation = item.querySelector(".attendee-participation");
     if (participation && Number.isFinite(Number(participationCount))) participation.textContent = `المشاركات: ${Math.max(0, Number(participationCount))}`;
+    const participationInline = item.querySelector(".attendee-participation-inline");
+    if (participationInline && Number.isFinite(Number(participationCount))) participationInline.textContent = `مشاركات: ${Math.max(0, Number(participationCount))}`;
     return item;
   }
 
@@ -1489,35 +1491,63 @@ function upsertAttendee(socketId, student = {}, participationCount = 0) {
   item.dataset.socketId = socketId;
   item.dataset.studentName = stableDisplayName;
   item.dataset.avatarText = stableAvatarText;
+
+  // ── Row 1: avatar + name/status + action buttons ──
+  const rowTop = document.createElement("div");
+  rowTop.className = "attendee-row-top";
+
   const avatar = document.createElement("span");
   avatar.className = "attendee-avatar";
   avatar.setAttribute("aria-hidden", "true");
   avatar.textContent = stableAvatarText;
+
   const details = document.createElement("div");
   details.className = "attendee-details";
+
   const name = document.createElement("strong");
   name.className = "attendee-name";
   name.textContent = stableDisplayName;
 
   const state = document.createElement("span");
   state.className = "attendee-state";
-
   const stateDot = document.createElement("span");
   stateDot.className = "attendee-state-dot";
   stateDot.setAttribute("aria-hidden", "true");
-
   const stateLabel = document.createElement("span");
   stateLabel.textContent = "متصل الآن";
-
   state.append(stateDot, stateLabel);
+
+  // keep hidden legacy elements so existing query selectors still work
   const qos = document.createElement("small");
   qos.className = "attendee-qos";
-  qos.textContent = "جودة الاتصال: جارٍ القياس…";
+  qos.textContent = "جارٍ القياس…";
   const participation = document.createElement("small");
   participation.className = "attendee-participation";
   participation.textContent = `المشاركات: ${Math.max(0, Number(participationCount) || 0)}`;
+
   details.append(name, state, qos, participation);
-  item.append(avatar, details);
+
+  // actions wrapper — buttons will be appended here by syncStudentMicButton / resync
+  const actions = document.createElement("div");
+  actions.className = "attendee-actions";
+
+  rowTop.append(avatar, details, actions);
+
+  // ── Row 2: compact QoS + participation strip ──
+  const rowBottom = document.createElement("div");
+  rowBottom.className = "attendee-row-bottom";
+
+  const participationInline = document.createElement("span");
+  participationInline.className = "attendee-participation-inline";
+  participationInline.textContent = `مشاركات: ${Math.max(0, Number(participationCount) || 0)}`;
+
+  const qosInline = document.createElement("span");
+  qosInline.className = "attendee-qos-inline";
+  qosInline.textContent = "جارٍ القياس…";
+
+  rowBottom.append(participationInline, qosInline);
+
+  item.append(rowTop, rowBottom);
 
   elements.attendeesList.append(item);
   attendeeElements.set(socketId, item);
@@ -2005,9 +2035,15 @@ async function refreshTeacherQos() {
       if ((rtt && rtt > 300) || loss > 5) { state = "متوسطة"; stateClass = "warn"; }
       if ((rtt && rtt > 700) || loss > 12) { state = "ضعيفة"; stateClass = "bad"; }
       const qos = attendee.querySelector(".attendee-qos");
+      const qosInline = attendee.querySelector(".attendee-qos-inline");
+      const qosText = `${state} · ${rtt == null ? "—" : `${rtt}ms`} · ${bitrate == null ? "—" : `${bitrate}kbps`} · إسقاط ${framesDropped}`;
       if (qos) {
         qos.className = `attendee-qos ${stateClass}`;
-        qos.textContent = `${state} · ${rtt == null ? "—" : `${rtt}ms`} · ${bitrate == null ? "—" : `${bitrate}kbps`} · إسقاط ${framesDropped}`;
+        qos.textContent = qosText;
+      }
+      if (qosInline) {
+        qosInline.className = `attendee-qos-inline ${stateClass}`;
+        qosInline.textContent = qosText;
       }
       teacherQosLast.set(studentSocketId, { at: now, bytesSent: outboundVideo?.bytesSent || 0 });
     } catch (error) {
@@ -2611,7 +2647,9 @@ function toggleMicrophone() {
 }
 
 function syncStudentMicButton(attendee, socketId, enabled = false) {
-  let button = attendee.querySelector(".attendee-mic-button");
+  // Look for the button inside .attendee-actions first, fall back to direct child
+  const actions = attendee.querySelector(".attendee-actions") || attendee;
+  let button = actions.querySelector(".attendee-mic-button");
 
   if (!button) {
     button = document.createElement("button");
@@ -2621,7 +2659,7 @@ function syncStudentMicButton(attendee, socketId, enabled = false) {
       const currentlyEnabled = button.dataset.enabled === "true";
       void setStudentMicrophone(socketId, !currentlyEnabled, button);
     });
-    attendee.append(button);
+    actions.append(button);
   }
 
   button.dataset.enabled = String(enabled);
