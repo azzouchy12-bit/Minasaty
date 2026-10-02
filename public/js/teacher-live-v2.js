@@ -4382,9 +4382,7 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
     removeStudentConnection(previousSocketId);
   }
 
-
   let item = attendeeElements.get(socketId);
-
 
   if (item) {
     if (stableStudentId) {
@@ -4392,59 +4390,74 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
       attendeeSocketByStudentId.set(stableStudentId, socketId);
       refreshChatStudentSocketTarget(stableStudentId, socketId);
     }
-    item.querySelector(".attendee-name").textContent = studentName;
-    item.querySelector(".attendee-avatar").textContent = displayInitials(studentName);
+    const nameEl = item.querySelector(".attendee-name");
+    if (nameEl) nameEl.textContent = studentName;
+    const avatarEl = item.querySelector(".attendee-avatar");
+    if (avatarEl) avatarEl.textContent = displayInitials(studentName);
     const participation = item.querySelector(".attendee-participation");
     if (participation && Number.isFinite(Number(participationCount))) participation.textContent = `المشاركات: ${Math.max(0, Number(participationCount))}`;
     syncStudentResyncButton(item, socketId);
     return item;
   }
 
-
   item = document.createElement("li");
   item.className = "attendee-item";
   item.dataset.socketId = socketId;
   if (stableStudentId) item.dataset.studentId = stableStudentId;
 
+  // Row Top: Avatar + Details + Net Percentage (at the teacher's left)
+  const rowTop = document.createElement("div");
+  rowTop.className = "attendee-row-top";
 
   const avatar = document.createElement("span");
   avatar.className = "attendee-avatar";
   avatar.setAttribute("aria-hidden", "true");
   avatar.textContent = displayInitials(studentName);
 
-
   const details = document.createElement("div");
   details.className = "attendee-details";
-
 
   const name = document.createElement("strong");
   name.className = "attendee-name";
   name.textContent = studentName;
 
-
   const state = document.createElement("span");
   state.className = "attendee-state";
-
 
   const stateDot = document.createElement("span");
   stateDot.className = "attendee-state-dot";
   stateDot.setAttribute("aria-hidden", "true");
 
-
   const stateLabel = document.createElement("span");
   stateLabel.textContent = "متصل الآن";
-
-
   state.append(stateDot, stateLabel);
+
+  details.append(name, state);
+
+  // Internet strength badge at top left (shows only percentage, e.g. 100%, 85%)
+  const netPercentBadge = document.createElement("span");
+  netPercentBadge.className = "attendee-net-percent good";
+  netPercentBadge.textContent = "100%";
+  netPercentBadge.title = "نسبة قوة الإنترنت عند التلميذ";
+
+  rowTop.append(avatar, details, netPercentBadge);
+
+  // Actions row for buttons: Refresh and Mic
+  const actionsRow = document.createElement("div");
+  actionsRow.className = "attendee-actions-row";
+
+  // Legacy elements kept hidden for compatibility with existing queries/tests
   const qos = document.createElement("small");
   qos.className = "attendee-qos";
-  qos.textContent = "جودة الاتصال: جارٍ القياس…";
+  qos.style.display = "none";
+  qos.textContent = "جودة الاتصال: 100%";
+
   const participation = document.createElement("small");
   participation.className = "attendee-participation";
+  participation.style.display = "none";
   participation.textContent = `المشاركات: ${Math.max(0, Number(participationCount) || 0)}`;
-  details.append(name, state, qos, participation);
-  item.append(avatar, details);
 
+  item.append(rowTop, actionsRow, qos, participation);
 
   elements.attendeesList.append(item);
   attendeeElements.set(socketId, item);
@@ -4454,6 +4467,7 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
   }
   updateAttendeeCount();
   syncStudentResyncButton(item, socketId);
+  syncStudentMicButton(item, socketId, false);
 
   return item;
 }
@@ -5400,6 +5414,32 @@ async function refreshTeacherQos() {
       let stateClass = "good";
       if ((rtt && rtt > 300) || loss > 5) { state = "متوسطة"; stateClass = "warn"; }
       if ((rtt && rtt > 700) || loss > 12) { state = "ضعيفة"; stateClass = "bad"; }
+
+      // Compute student internet strength score out of 100
+      let netScore = 100;
+      if (rtt != null) {
+        if (rtt > 40) netScore -= Math.min(55, (rtt - 40) * 0.12);
+      }
+      if (loss > 0) {
+        netScore -= Math.min(40, loss * 4.5);
+      }
+      if (framesDropped > 0) {
+        netScore -= Math.min(15, framesDropped * 1.5);
+      }
+      const netPercent = Math.max(15, Math.min(100, Math.round(netScore)));
+      let netClass = "good";
+      if (netPercent < 50) {
+        netClass = "bad";
+      } else if (netPercent < 75) {
+        netClass = "warn";
+      }
+
+      const netBadge = attendee.querySelector(".attendee-net-percent");
+      if (netBadge) {
+        netBadge.className = `attendee-net-percent ${netClass}`;
+        netBadge.textContent = `${netPercent}%`;
+      }
+
       const qos = attendee.querySelector(".attendee-qos");
       if (qos) {
         qos.className = `attendee-qos ${stateClass}`;
@@ -6322,13 +6362,14 @@ function toggleMicrophone() {
 
 
 function syncStudentResyncButton(attendee, socketId) {
+  const container = attendee.querySelector(".attendee-actions-row") || attendee;
   let button = attendee.querySelector(".attendee-resync-btn");
 
   if (!button) {
     button = document.createElement("button");
     button.type = "button";
     button.className = "attendee-resync-btn";
-    button.title = "إعادة مزامنة البث والصوت لهذا التلميذ";
+    button.title = "تحديث صفحة هذا التلميذ كلياً";
     button.innerHTML = `
       <svg viewBox="0 0 24 24" aria-hidden="true" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
@@ -6339,7 +6380,7 @@ function syncStudentResyncButton(attendee, socketId) {
       e.stopPropagation();
       void resyncSingleStudent(socketId, button);
     });
-    attendee.append(button);
+    container.append(button);
   }
 
   return button;
@@ -6347,6 +6388,7 @@ function syncStudentResyncButton(attendee, socketId) {
 
 
 function syncStudentMicButton(attendee, socketId, enabled = false) {
+  const container = attendee.querySelector(".attendee-actions-row") || attendee;
   let button = attendee.querySelector(".attendee-mic-button");
 
 
@@ -6354,11 +6396,12 @@ function syncStudentMicButton(attendee, socketId, enabled = false) {
     button = document.createElement("button");
     button.type = "button";
     button.className = "attendee-mic-button";
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (e) => {
+      e.stopPropagation();
       const currentlyEnabled = button.dataset.enabled === "true";
       void setStudentMicrophone(socketId, !currentlyEnabled, button);
     });
-    attendee.append(button);
+    container.append(button);
   }
 
 
@@ -6504,12 +6547,9 @@ async function fixClassroomEcho() {
   if (btn) btn.disabled = true;
 
   try {
-    setStudioStatus("جارٍ إلغاء الصدى وكتم الميكروفونات المشوشة وإعادة ضبط عزل الصوت…", "neutral");
+    setStudioStatus("جارٍ تصفية وضبط عزل الصوت…", "neutral");
 
-    // 1. Immediately mute all students' microphones to break the acoustic feedback loop
-    await muteAllStudentsMicrophones();
-
-    // 2. Disconnect and remove any extraneous audio sources
+    // Reconnect and isolate any extraneous audio sources without muting students
     classroomAudioSources.forEach((source, key) => {
       if (key !== "__teacher_microphone__" && key !== "__screen_audio__") {
         try {
@@ -6520,7 +6560,7 @@ async function fixClassroomEcho() {
       }
     });
 
-    // 3. Clear and pause student audio playback elements
+    // Clear and pause extraneous student audio playback elements
     studentAudioElements.forEach((audioEl) => {
       try {
         audioEl.pause();
@@ -6529,7 +6569,7 @@ async function fixClassroomEcho() {
     });
     studentAudioElements.clear();
 
-    // 4. Force echo cancellation constraints on teacher's microphone
+    // Force echo cancellation constraints on teacher's microphone
     const micTrack = cameraStream?.getAudioTracks?.().find((t) => t.readyState === "live");
     if (micTrack && typeof micTrack.applyConstraints === "function") {
       try {
@@ -6543,17 +6583,17 @@ async function fixClassroomEcho() {
       }
     }
 
-    // 5. Rebuild audio graph and mix-minus
+    // Rebuild audio graph and mix-minus
     if (classroomAudioContext && classroomAudioContext.state === "suspended") {
       await classroomAudioContext.resume().catch(() => {});
     }
     rebuildClassroomAudioGraph();
     syncMixMinusAudioToAllPeers();
 
-    setStudioStatus("تم إلغاء الصدى وتأمين عزل الصوت بنجاح.", "live");
+    setStudioStatus("تم تأمين عزل الصوت بنجاح.", "live");
   } catch (err) {
     console.error("Error in fixClassroomEcho:", err);
-    setStudioStatus("تعذر إتمام إلغاء الصدى: " + (err.message || "خطأ غير متوقع"), "error");
+    setStudioStatus("تعذر إتمام ضبط الصوت: " + (err.message || "خطأ غير متوقع"), "error");
   } finally {
     if (btn) btn.disabled = !classActive || isEnding;
   }
@@ -6565,12 +6605,14 @@ async function resyncSingleStudent(socketId, button) {
   if (button) button.disabled = true;
 
   try {
-    setStudioStatus("جارٍ إعادة مزامنة التلميذ…", "neutral");
+    setStudioStatus("جارٍ تحديث صفحة التلميذ كلياً…", "neutral");
 
     try {
       await emitWithAcknowledgement("teacher_force_resync_student", {
         level: activeLevel,
         targetSocketId: socketId,
+        reload: true,
+        hardReload: true,
       }, 5000);
     } catch (e) {
       console.warn("teacher_force_resync_student warning:", e);
@@ -6585,12 +6627,16 @@ async function resyncSingleStudent(socketId, button) {
     ensureStudentAudioSender(pc, socketId, { renegotiate: false });
     await createAndSendOffer(socketId, { iceRestart: true, force: true });
 
-    setStudioStatus("تم إرسال تحديث المزامنة للتلميذ بنجاح.", "live");
+    setStudioStatus("تم تحديث صفحة التلميذ بنجاح.", "live");
   } catch (err) {
     console.error(`Error resyncing student ${socketId}:`, err);
-    setStudioStatus("تعذر إعادة مزامنة التلميذ.", "error");
+    setStudioStatus("تعذر تحديث صفحة التلميذ.", "error");
   } finally {
-    if (button) button.disabled = false;
+    if (button) {
+      window.setTimeout(() => {
+        if (button) button.disabled = false;
+      }, 1500);
+    }
   }
 }
 

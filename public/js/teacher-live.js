@@ -1527,11 +1527,17 @@ function upsertAttendee(socketId, student = {}, participationCount = 0) {
 
   details.append(name, state, qos, participation);
 
+  // Internet strength badge at top left (shows only percentage, e.g. 100%, 85%)
+  const netPercentBadge = document.createElement("span");
+  netPercentBadge.className = "attendee-net-percent good";
+  netPercentBadge.textContent = "100%";
+  netPercentBadge.title = "نسبة قوة الإنترنت عند التلميذ";
+
   // actions wrapper — buttons will be appended here by syncStudentMicButton / resync
   const actions = document.createElement("div");
   actions.className = "attendee-actions";
 
-  rowTop.append(avatar, details, actions);
+  rowTop.append(avatar, details, netPercentBadge, actions);
 
   // ── Row 2: compact QoS + participation strip ──
   const rowBottom = document.createElement("div");
@@ -2034,6 +2040,32 @@ async function refreshTeacherQos() {
       let stateClass = "good";
       if ((rtt && rtt > 300) || loss > 5) { state = "متوسطة"; stateClass = "warn"; }
       if ((rtt && rtt > 700) || loss > 12) { state = "ضعيفة"; stateClass = "bad"; }
+
+      // Compute student internet strength score out of 100
+      let netScore = 100;
+      if (rtt != null) {
+        if (rtt > 40) netScore -= Math.min(55, (rtt - 40) * 0.12);
+      }
+      if (loss > 0) {
+        netScore -= Math.min(40, loss * 4.5);
+      }
+      if (framesDropped > 0) {
+        netScore -= Math.min(15, framesDropped * 1.5);
+      }
+      const netPercent = Math.max(15, Math.min(100, Math.round(netScore)));
+      let netClass = "good";
+      if (netPercent < 50) {
+        netClass = "bad";
+      } else if (netPercent < 75) {
+        netClass = "warn";
+      }
+
+      const netBadge = attendee.querySelector(".attendee-net-percent");
+      if (netBadge) {
+        netBadge.className = `attendee-net-percent ${netClass}`;
+        netBadge.textContent = `${netPercent}%`;
+      }
+
       const qos = attendee.querySelector(".attendee-qos");
       const qosInline = attendee.querySelector(".attendee-qos-inline");
       const qosText = `${state} · ${rtt == null ? "—" : `${rtt}ms`} · ${bitrate == null ? "—" : `${bitrate}kbps`} · إسقاط ${framesDropped}`;

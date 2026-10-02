@@ -94,29 +94,28 @@
 .attendee-search-wrap input::placeholder { color: #71717a; }
 .attendees-empty { flex: 0 0 auto; margin: .7rem .85rem; padding: 1rem .7rem; color: var(--text-secondary); border: 1px dashed var(--border-dark); border-radius: 8px; background: rgba(39,39,42,.4); font-size: .68rem; text-align: center; }
 #attendees-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0; }
-.attendee-item { display: flex; flex-direction: column; gap: .42rem; padding: .6rem .7rem; border-bottom: 1px solid var(--border-dark); background: transparent; }
+.attendee-item { display: flex; flex-direction: column; gap: .45rem; padding: .65rem .75rem; border-bottom: 1px solid var(--border-dark); background: transparent; transition: background .15s ease; }
 .attendee-item:hover { background: var(--bg-hover); }
-.attendee-row-top { display: flex; align-items: center; gap: .5rem; }
-.attendee-avatar { display: grid; width: 2rem; height: 2rem; flex: 0 0 auto; place-items: center; color: #dbeafe; border: 1px solid rgba(59,130,246,.45); border-radius: 50%; background: rgba(37,99,235,.25); font-size: .7rem; font-weight: 900; }
-.attendee-details { display: grid; min-width: 0; flex: 1; gap: .1rem; }
-.attendee-name { overflow: hidden; color: var(--text-primary); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
-.attendee-state { display: inline-flex; align-items: center; gap: .25rem; color: var(--text-secondary); font-size: .58rem; }
+.attendee-row-top { display: flex; align-items: center; gap: .55rem; width: 100%; }
+.attendee-avatar { display: grid; width: 2.1rem; height: 2.1rem; flex: 0 0 auto; place-items: center; color: #dbeafe; border: 1px solid rgba(59,130,246,.45); border-radius: 50%; background: rgba(37,99,235,.25); font-size: .7rem; font-weight: 900; }
+.attendee-details { display: grid; min-width: 0; flex: 1; gap: .12rem; }
+.attendee-name { overflow: hidden; color: var(--text-primary); font-size: .76rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.attendee-state { display: inline-flex; align-items: center; gap: .25rem; color: var(--text-secondary); font-size: .6rem; }
 .attendee-state-dot { width: .35rem; height: .35rem; border-radius: 50%; background: var(--success-green); flex-shrink: 0; }
-.attendee-qos { display: none; color: var(--text-secondary); font-size: .56rem; }
+.attendee-qos { display: none; }
 .attendee-participation { display: none; }
-.attendee-actions { display: flex; align-items: center; gap: .28rem; flex-shrink: 0; margin-right: auto; }
-.attendee-row-bottom { display: flex; align-items: center; gap: .45rem; padding: .2rem .38rem; background: rgba(0,0,0,.18); border-radius: .4rem; overflow: hidden; }
-.attendee-participation-inline { flex-shrink: 0; color: #475569; font-size: .57rem; font-weight: 700; white-space: nowrap; border-right: 1px solid rgba(148,163,184,.15); padding-right: .42rem; }
-.attendee-qos-inline { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #64748b; font-size: .57rem; font-weight: 600; direction: ltr; text-align: right; }
-.attendee-qos-inline.good { color: var(--success-green); }
-.attendee-qos-inline.warn { color: var(--warning-yellow); }
-.attendee-qos-inline.bad { color: var(--danger-red); }
-.attendee-mic-button { flex: 0 0 auto; padding: .28rem .45rem; color: var(--text-secondary); border: 1px solid var(--border-dark); border-radius: 6px; background: transparent; font-size: .57rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
-.attendee-mic-button:hover { color: var(--text-primary); border-color: var(--accent-blue); background: rgba(59,130,246,.14); }
-.attendee-mic-button.is-open { color: #bfdbfe; border-color: var(--accent-blue); box-shadow: 0 0 0 1px rgba(59,130,246,.3); }
-.attendee-resync-btn { flex: 0 0 auto; display: inline-flex; align-items: center; gap: .2rem; padding: .28rem .42rem; color: #93c5fd; border: 1px solid rgba(59,130,246,.35); border-radius: 6px; background: rgba(30,58,138,.28); font-size: .57rem; font-weight: 800; cursor: pointer; transition: all .2s ease; white-space: nowrap; }
-.attendee-resync-btn:hover:not(:disabled) { color: #fff; background: rgba(37,99,235,.6); border-color: rgba(96,165,250,.65); }
+.attendee-net-percent { margin-right: auto; flex-shrink: 0; font-size: .72rem; font-weight: 900; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; padding: .15rem .45rem; border-radius: 6px; letter-spacing: 0.02em; line-height: 1.2; }
+.attendee-net-percent.good { color: #34d399; background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.28); }
+.attendee-net-percent.warn { color: #fbbf24; background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.28); }
+.attendee-net-percent.bad { color: #f87171; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.28); }
+.attendee-actions-row, .attendee-actions { display: flex; align-items: center; gap: .35rem; width: 100%; margin-top: .15rem; }
+.attendee-resync-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: .25rem; min-height: 1.95rem; padding: .35rem .5rem; color: #93c5fd; border: 1px solid rgba(59,130,246,.38); border-radius: 6px; background: rgba(30,58,138,.3); font-size: .62rem; font-weight: 800; cursor: pointer; transition: all .2s ease; white-space: nowrap; }
+.attendee-resync-btn:hover:not(:disabled) { color: #fff; background: rgba(37,99,235,.65); border-color: rgba(96,165,250,.7); }
 .attendee-resync-btn:disabled { opacity: .6; cursor: wait; }
+.attendee-mic-button { flex: 1.2; display: inline-flex; align-items: center; justify-content: center; min-height: 1.95rem; padding: .35rem .5rem; color: var(--text-secondary); border: 1px solid var(--border-dark); border-radius: 6px; background: rgba(39,39,42,.5); font-size: .62rem; font-weight: 800; cursor: pointer; white-space: nowrap; transition: all .2s ease; }
+.attendee-mic-button:hover { color: var(--text-primary); border-color: var(--accent-blue); background: rgba(59,130,246,.18); }
+.attendee-mic-button.is-open { color: #fca5a5; border-color: rgba(239,68,68,.5); background: rgba(239,68,68,.2); box-shadow: 0 0 0 1px rgba(239,68,68,.3); }
+.attendee-mic-button:disabled { opacity: .55; cursor: wait; }
 .attendee-item.is-hand-raised { background: rgba(245,158,11,.08); border-color: rgba(245,158,11,.3); }
 .teacher-chat-panel { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .chat-panel-head { flex: 0 0 auto; padding: .85rem 1rem; border-bottom: 1px solid var(--border-dark); }

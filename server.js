@@ -184,6 +184,7 @@ function captureMessengerRawBody(req, _res, buffer) {
 }
 
 app.use(express.json({ limit: "100kb", verify: captureMessengerRawBody }));
+app.use(express.urlencoded({ extended: true, limit: "100kb" }));
 app.use(requestMetrics);
 
 // Never log request bodies: registration and payment payloads contain secrets and identity data.
@@ -283,6 +284,17 @@ app.get(["/teacher-live.html", "/teacher-live"], (req, res, next) => {
 app.get(["/teacher-live-mobile.html", "/teacher-live-mobile"], (req, res, next) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   next();
+});
+
+// Accept POST callbacks from SATIM (Algérie Poste) and redirect them to the frontend via GET.
+app.post("/parent-dashboard.html", (req, res) => {
+  const query = new URLSearchParams(req.query);
+  if (req.body && typeof req.body === "object") {
+    for (const [key, value] of Object.entries(req.body)) {
+      query.set(key, String(value));
+    }
+  }
+  res.redirect(303, `/parent-dashboard.html?${query.toString()}`);
 });
 
 // Serve index.html, the registration flow, and the portal pages from /public.
@@ -836,24 +848,41 @@ function setTeacherMicActive(level, active) {
   }
 }
 
-function isStudentMicrophoneOpen(level, socketId) {
-  return openStudentMicsByLevel.get(level)?.has(socketId) || false;
+const openStudentMicsByStudentIdByLevel = new Map();
+
+function isStudentMicrophoneOpen(level, socketId, studentId = null) {
+  if (openStudentMicsByLevel.get(level)?.has(socketId)) return true;
+  if (studentId && openStudentMicsByStudentIdByLevel.get(level)?.has(String(studentId))) return true;
+  return false;
 }
 
-function setStudentMicrophoneOpen(level, socketId, enabled) {
+function setStudentMicrophoneOpen(level, socketId, enabled, studentId = null) {
   if (enabled) {
     const openMics = openStudentMicsByLevel.get(level) || new Set();
     openMics.add(socketId);
     openStudentMicsByLevel.set(level, openMics);
+    if (studentId) {
+      const openStudentIds = openStudentMicsByStudentIdByLevel.get(level) || new Set();
+      openStudentIds.add(String(studentId));
+      openStudentMicsByStudentIdByLevel.set(level, openStudentIds);
+    }
     return;
   }
   const openMics = openStudentMicsByLevel.get(level);
-  if (!openMics) {
-    return;
+  if (openMics) {
+    openMics.delete(socketId);
+    if (openMics.size === 0) {
+      openStudentMicsByLevel.delete(level);
+    }
   }
-  openMics.delete(socketId);
-  if (openMics.size === 0) {
-    openStudentMicsByLevel.delete(level);
+  if (studentId) {
+    const openStudentIds = openStudentMicsByStudentIdByLevel.get(level);
+    if (openStudentIds) {
+      openStudentIds.delete(String(studentId));
+      if (openStudentIds.size === 0) {
+        openStudentMicsByStudentIdByLevel.delete(level);
+      }
+    }
   }
 }
 
@@ -2155,12 +2184,13 @@ io.on("connection", (socket) => {
       });
       emitClassroomChatHistory(socket, classroomLevel);
       // When a student joins or rejoins, check if their microphone was already approved
-      const wasMicOpen = isStudentMicrophoneOpen(classroomLevel, socket.id);
+      const wasMicOpen = isStudentMicrophoneOpen(classroomLevel, socket.id) || (student?.id && isStudentMicrophoneOpen(classroomLevel, null, student.id));
       if (wasMicOpen) {
         // Retain student's approved microphone state during reconnect or stream recovery
+        setStudentMicrophoneOpen(classroomLevel, socket.id, true, student.id);
         socket.emit("permission_granted", { level: student.level, classroomLevel });
       } else {
-        setStudentMicrophoneOpen(classroomLevel, socket.id, false);
+        setStudentMicrophoneOpen(classroomLevel, socket.id, false, student.id);
         setStudentWhiteboardAccess(classroomLevel, socket.id, false);
       }
 
@@ -2590,9 +2620,9 @@ io.on("connection", (socket) => {
 
       // Persist the teacher decision before notifying the student. This makes the
       // decision available to the teacher browser during a short reconnection and
-      // prevents a late-arriving audio track from being rebroadcast after closure.
-      const wasOpen = isStudentMicrophoneOpen(level, targetSocketId);
-      setStudentMicrophoneOpen(level, targetSocketId, enabled);
+      const targetStudentId = targetSocket.data.studentId || null;
+      const wasOpen = isStudentMicrophoneOpen(level, targetSocketId, targetStudentId);
+      setStudentMicrophoneOpen(level, targetSocketId, enabled, targetStudentId);
       setStudentWhiteboardAccess(level, targetSocketId, enabled);
 
       const sessionKey = socket.data.classResumeToken;
@@ -2793,6 +2823,13 @@ io.on("connection", (socket) => {
       }
 
       io.to(targetSocketId).emit("classroom_force_resync", {
+        level,
+        targetSocketId,
+        reload: true,
+        hardReload: true,
+        timestamp: Date.now(),
+      });
+      io.to(targetSocketId).emit("classroom_force_reload", {
         level,
         targetSocketId,
         timestamp: Date.now(),

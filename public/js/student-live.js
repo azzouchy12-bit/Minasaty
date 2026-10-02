@@ -3836,13 +3836,14 @@ function beginStreamRecovery(message) {
   disconnectStudentSfu();
   closePeerConnection();
   resetRemoteMedia();
-  microphonePermissionGranted = false;
-  if (localAudioStream) {
-    localAudioStream.getAudioTracks().forEach((track) => {
-      track.enabled = false;
-    });
+  if (!microphonePermissionGranted) {
+    if (localAudioStream) {
+      localAudioStream.getAudioTracks().forEach((track) => {
+        track.enabled = false;
+      });
+    }
+    updateMicControl();
   }
-  updateMicControl();
   isJoining = false;
   joinedClass = true;
   isRecoveringStream = true;
@@ -4466,13 +4467,14 @@ socket.on("connect_error", () => {
 
 socket.on("room_joined", (data = {}) => {
   if (data.role === "student") {
-    microphonePermissionGranted = false;
-    if (localAudioStream) {
-      localAudioStream.getAudioTracks().forEach((track) => {
-        track.enabled = false;
-      });
+    if (!microphonePermissionGranted) {
+      if (localAudioStream) {
+        localAudioStream.getAudioTracks().forEach((track) => {
+          track.enabled = false;
+        });
+      }
+      updateMicControl();
     }
-    updateMicControl();
     globalFreeClass = Boolean(data.globalFree);
     waitingForNextClass = false;
     teacherSocketId = data.teacherSocketId || teacherSocketId;
@@ -4838,7 +4840,17 @@ socket.on("classroom_all_mics_muted", () => {
   setViewerStatus("أغلق الأستاذ ميكروفونات جميع التلاميذ.", "neutral");
 });
 
-socket.on("classroom_force_resync", async () => {
+socket.on("classroom_force_reload", () => {
+  console.info("Teacher requested full page reload.");
+  window.location.reload();
+});
+
+socket.on("classroom_force_resync", async (data = {}) => {
+  if (data && (data.reload || data.hardReload)) {
+    console.info("Teacher requested hard resync/reload of student page.");
+    window.location.reload();
+    return;
+  }
   try {
     if (elements.remoteVideo) {
       if (remoteStream && elements.remoteVideo.srcObject !== remoteStream) {

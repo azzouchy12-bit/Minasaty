@@ -75,3 +75,37 @@ test("student-live.js handles classroom_force_resync without crash", () => {
   assert.match(studentJs, /socket\.on\("classroom_force_resync",/);
   assert.match(studentJs, /elements\.remoteVideo\.play\(\)/);
 });
+
+test("student-live.js reloads page completely when teacher triggers resync/reload", () => {
+  const studentPath = path.join(__dirname, "..", "public", "js", "student-live.js");
+  const studentJs = fs.readFileSync(studentPath, "utf8");
+
+  assert.match(studentJs, /socket\.on\("classroom_force_reload",/);
+  assert.match(studentJs, /window\.location\.reload\(\)/);
+});
+
+test("teacher UI displays student internet strength percentage and actions row", () => {
+  const v2Path = path.join(__dirname, "..", "public", "js", "teacher-live-v2.js");
+  const v2Js = fs.readFileSync(v2Path, "utf8");
+  const cssPath = path.join(__dirname, "..", "public", "css", "studio-modern.css");
+  const css = fs.readFileSync(cssPath, "utf8");
+
+  // Percent badge and actions row
+  assert.match(v2Js, /attendee-net-percent/);
+  assert.match(v2Js, /netBadge\.textContent = `\$\{netPercent\}%`;/);
+  assert.match(v2Js, /attendee-actions-row/);
+
+  // CSS exists
+  assert.match(css, /\.attendee-net-percent/);
+  assert.match(css, /\.attendee-actions-row/);
+});
+
+test("fixClassroomEcho does not mute student microphones automatically", () => {
+  const v2Path = path.join(__dirname, "..", "public", "js", "teacher-live-v2.js");
+  const v2Js = fs.readFileSync(v2Path, "utf8");
+
+  const echoFnMatch = v2Js.match(/async function fixClassroomEcho\(\)[\s\S]*?finally/);
+  assert.ok(echoFnMatch, "fixClassroomEcho body must exist");
+  assert.doesNotMatch(echoFnMatch[0], /muteAllStudentsMicrophones/, "fixClassroomEcho must never mute student microphones");
+});
+

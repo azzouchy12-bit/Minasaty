@@ -1440,50 +1440,57 @@
         display: none;
       }
 
-      .attendee-mic-button {
-        flex: 0 0 auto;
-        padding: 0.32rem 0.5rem;
-        color: #fef3c7;
-        background: rgba(245, 158, 11, 0.16);
+      /* Internet strength percentage at top left */
+      .attendee-net-percent {
+        margin-right: auto;
+        flex-shrink: 0;
+        font-size: 0.72rem;
+        font-weight: 900;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        padding: 0.16rem 0.45rem;
+        border-radius: 0.4rem;
+        letter-spacing: 0.02em;
+        line-height: 1.2;
+      }
+      .attendee-net-percent.good {
+        color: #34d399;
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.28);
+      }
+      .attendee-net-percent.warn {
+        color: #fbbf24;
+        background: rgba(245, 158, 11, 0.12);
         border: 1px solid rgba(245, 158, 11, 0.28);
-        border-radius: 0.45rem;
-        font-size: 0.6rem;
-        font-weight: 800;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        white-space: nowrap;
+      }
+      .attendee-net-percent.bad {
+        color: #f87171;
+        background: rgba(239, 68, 68, 0.12);
+        border: 1px solid rgba(239, 68, 68, 0.28);
       }
 
-      .attendee-mic-button:hover:not(:disabled) {
-        background: rgba(245, 158, 11, 0.28);
-      }
-
-      .attendee-mic-button.is-open {
-        color: #dcfce7;
-        background: rgba(22, 163, 74, 0.22);
-        border-color: rgba(74, 222, 128, 0.45);
-      }
-
-      .attendee-mic-button.is-open:hover:not(:disabled) {
-        background: rgba(22, 163, 74, 0.32);
-      }
-
-      .attendee-mic-button:disabled {
-        opacity: 0.55;
-        cursor: wait;
+      /* Buttons row: actions placed side-by-side */
+      .attendee-actions-row,
+      .attendee-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        width: 100%;
+        margin-top: 0.2rem;
       }
 
       .attendee-resync-btn {
-        flex: 0 0 auto;
+        flex: 1;
         display: inline-flex;
         align-items: center;
-        gap: 0.2rem;
-        padding: 0.32rem 0.45rem;
+        justify-content: center;
+        gap: 0.25rem;
+        padding: 0.35rem 0.5rem;
+        min-height: 1.95rem;
         color: #93c5fd;
-        background: rgba(30, 58, 138, 0.28);
-        border: 1px solid rgba(59, 130, 246, 0.3);
+        background: rgba(30, 58, 138, 0.3);
+        border: 1px solid rgba(59, 130, 246, 0.38);
         border-radius: 0.45rem;
-        font-size: 0.6rem;
+        font-size: 0.62rem;
         font-weight: 800;
         cursor: pointer;
         transition: all 0.2s ease;
@@ -1492,12 +1499,48 @@
 
       .attendee-resync-btn:hover:not(:disabled) {
         color: #ffffff;
-        background: rgba(37, 99, 235, 0.55);
-        border-color: rgba(96, 165, 250, 0.6);
+        background: rgba(37, 99, 235, 0.6);
+        border-color: rgba(96, 165, 250, 0.7);
       }
 
       .attendee-resync-btn:disabled {
         opacity: 0.5;
+        cursor: wait;
+      }
+
+      .attendee-mic-button {
+        flex: 1.2;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.35rem 0.5rem;
+        min-height: 1.95rem;
+        color: var(--text-secondary);
+        background: rgba(39, 39, 42, 0.5);
+        border: 1px solid var(--border-dark);
+        border-radius: 0.45rem;
+        font-size: 0.62rem;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+      }
+
+      .attendee-mic-button:hover:not(:disabled) {
+        color: var(--text-primary);
+        border-color: var(--accent-blue);
+        background: rgba(59, 130, 246, 0.16);
+      }
+
+      .attendee-mic-button.is-open {
+        color: #fca5a5;
+        background: rgba(239, 68, 68, 0.2);
+        border-color: rgba(239, 68, 68, 0.5);
+        box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3);
+      }
+
+      .attendee-mic-button:disabled {
+        opacity: 0.55;
         cursor: wait;
       }
 
