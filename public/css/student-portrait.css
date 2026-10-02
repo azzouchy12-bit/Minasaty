@@ -332,11 +332,9 @@ body.student-live-page {
   }
 
   body.student-live-page .remote-audio-toggle {
-    z-index: 14 !important;
-    max-width: calc(100% - 1rem) !important;
-    min-height: 2.8rem !important;
-    padding: .62rem .85rem !important;
-    font-size: .75rem !important;
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
   }
 
   /* Communication card: only messages, image preview and two contact actions. */

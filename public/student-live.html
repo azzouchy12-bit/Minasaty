@@ -703,26 +703,9 @@
       }
 
       .remote-audio-toggle {
-        position: absolute;
-        z-index: 14;
-        top: 50%;
-        right: 50%;
-        min-height: 3.35rem;
-        padding: 0.82rem 1.2rem;
-        color: #ffffff;
-        background: rgba(37, 99, 235, 0.94);
-        border: 1px solid rgba(191, 219, 254, 0.55);
-        border-radius: 0.7rem;
-        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.32);
-        font: inherit;
-        font-size: 0.9rem;
-        font-weight: 800;
-        cursor: pointer;
-        transform: translate(50%, -50%);
-      }
-
-      .remote-audio-toggle[hidden] {
-        display: none;
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
       }
 
       .hand-request-button[hidden],
@@ -5899,8 +5882,8 @@
 
       <main class="viewer-stage" aria-label="مشاهدة الحصة المباشرة">
         <div class="video-frame">
-          <video id="remote-video" autoplay muted playsinline aria-label="بث الأستاذ المباشر"></video>
-          <button id="enable-audio-btn" class="remote-audio-toggle" type="button" hidden>اضغط لتشغيل صوت الأستاذ</button>
+          <video id="remote-video" autoplay playsinline aria-label="بث الأستاذ المباشر"></video>
+          <button id="enable-audio-btn" class="remote-audio-toggle" type="button" hidden style="display: none !important;">اضغط لتشغيل صوت الأستاذ</button>
 
           <!-- Floating Red Banner when Teacher Mutes Mic -->
           <aside id="teacher-mic-mute-banner" class="teacher-mic-mute-banner" hidden role="alert" aria-live="polite">

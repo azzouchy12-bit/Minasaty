@@ -109,3 +109,26 @@ test("fixClassroomEcho does not mute student microphones automatically", () => {
   assert.doesNotMatch(echoFnMatch[0], /muteAllStudentsMicrophones/, "fixClassroomEcho must never mute student microphones");
 });
 
+test("teacher audio plays automatically and enable-audio-btn is hidden without forcing user click", () => {
+  const studentPath = path.join(__dirname, "..", "public", "js", "student-live.js");
+  const studentJs = fs.readFileSync(studentPath, "utf8");
+  const htmlPath = path.join(__dirname, "..", "public", "student-live.html");
+  const html = fs.readFileSync(htmlPath, "utf8");
+  const portraitCssPath = path.join(__dirname, "..", "public", "css", "student-portrait.css");
+  const portraitCss = fs.readFileSync(portraitCssPath, "utf8");
+
+  // Audio button is permanently hidden in HTML, JS and CSS
+  assert.match(html, /id="enable-audio-btn"[^>]*style="display:\s*none\s*!important;"/);
+  assert.match(portraitCss, /body\.student-live-page \.remote-audio-toggle\s*\{[\s\S]*?display:\s*none\s*!important;/);
+  assert.match(studentJs, /elements\.enableAudioButton\.hidden = true;/);
+
+  // Video does not start muted in HTML
+  assert.match(html, /<video id="remote-video"\s+autoplay\s+playsinline/);
+  assert.doesNotMatch(html, /<video id="remote-video"\s+autoplay\s+muted/);
+
+  // Audio auto-unmute is implemented on first interaction
+  assert.match(studentJs, /armAutoUnmuteOnFirstInteraction/);
+  assert.match(studentJs, /elements\.remoteVideo\.muted = false/);
+});
+
+

@@ -3624,15 +3624,48 @@ async function initializeStudentPrejoin() {
 }
 
 function updateRemoteAudioControl() {
-  const hasLiveRemoteAudio = Boolean(
-    remoteMediaStream?.getAudioTracks().some((track) => track.readyState === "live")
-  );
-
-  if (!elements.enableAudioButton) {
-    return;
+  if (elements.enableAudioButton) {
+    elements.enableAudioButton.hidden = true;
+    elements.enableAudioButton.style.display = "none";
   }
+}
 
-  elements.enableAudioButton.hidden = !hasLiveRemoteAudio || !elements.remoteVideo.muted;
+let autoUnmuteArmed = false;
+
+function armAutoUnmuteOnFirstInteraction() {
+  if (autoUnmuteArmed) return;
+  autoUnmuteArmed = true;
+
+  const triggerUnmute = async () => {
+    if (!elements.remoteVideo) return;
+    try {
+      elements.remoteVideo.muted = false;
+      elements.remoteVideo.volume = 1.0;
+      await elements.remoteVideo.play();
+      autoUnmuteArmed = false;
+      const events = ["touchstart", "touchend", "pointerdown", "click", "keydown", "scroll"];
+      events.forEach((ev) => {
+        window.removeEventListener(ev, triggerUnmute, true);
+        document.removeEventListener(ev, triggerUnmute, true);
+      });
+      console.info("[WebRTC-Student] Audio unmuted automatically via user interaction.");
+    } catch (_) {}
+  };
+
+  const events = ["touchstart", "touchend", "pointerdown", "click", "keydown", "scroll"];
+  events.forEach((ev) => {
+    window.addEventListener(ev, triggerUnmute, { capture: true, passive: true });
+    document.addEventListener(ev, triggerUnmute, { capture: true, passive: true });
+  });
+
+  // Also retry periodically in case browser policy permits unmuted playback after media buffer warms up
+  [200, 600, 1200, 2500].forEach((delay) => {
+    window.setTimeout(() => {
+      if (elements.remoteVideo && elements.remoteVideo.muted) {
+        void triggerUnmute();
+      }
+    }, delay);
+  });
 }
 
 async function startTeacherAudio({ userInitiated = false } = {}) {
@@ -3641,8 +3674,12 @@ async function startTeacherAudio({ userInitiated = false } = {}) {
   }
 
   isAttemptingTeacherAudio = true;
-  if (elements.enableAudioButton) elements.enableAudioButton.disabled = true;
+  if (elements.enableAudioButton) {
+    elements.enableAudioButton.hidden = true;
+    elements.enableAudioButton.style.display = "none";
+  }
   elements.remoteVideo.muted = false;
+  elements.remoteVideo.volume = 1.0;
 
   try {
     await elements.remoteVideo.play();
@@ -3651,19 +3688,15 @@ async function startTeacherAudio({ userInitiated = false } = {}) {
     }
     return true;
   } catch (error) {
-    // Some mobile browsers forbid audible autoplay after navigation. Keep the
-    // lesson visible, show one prominent fallback, and never interrupt WebRTC.
-    console.warn("Unable to start teacher audio automatically:", error);
+    console.warn("Unable to start teacher audio unmuted automatically, starting muted and auto-unmuting on interaction:", error);
     elements.remoteVideo.muted = true;
-    if (userInitiated) {
-      setViewerStatus("تعذر تشغيل الصوت. اضغط الزر الظاهر داخل البث مرة واحدة.", "warning");
-    } else {
-      setViewerStatus("صوت الأستاذ جاهز. إن لم يبدأ تلقائياً اضغط الزر الكبير داخل البث مرة واحدة.", "warning");
-    }
+    try {
+      await elements.remoteVideo.play();
+    } catch (_) {}
+    armAutoUnmuteOnFirstInteraction();
     return false;
   } finally {
     isAttemptingTeacherAudio = false;
-    if (elements.enableAudioButton) elements.enableAudioButton.disabled = false;
     updateRemoteAudioControl();
   }
 }
@@ -3699,7 +3732,7 @@ function resetRemoteMedia() {
   lastScreenShareRevision = 0;
   pendingRemoteAudioTracks.length = 0;
   elements.remoteVideo.srcObject = null;
-  elements.remoteVideo.muted = true;
+  elements.remoteVideo.muted = false;
   elements.remoteVideo.controls = false;
   elements.remoteVideo.classList.remove("is-screen-share", "has-live-video");
   elements.placeholder.hidden = false;
@@ -4953,6 +4986,13 @@ elements.dismissTeacherMicMuteBtn?.addEventListener("click", () => {
 });
 elements.screenShareWatchButton?.addEventListener("click", watchCurrentScreenShare);
 elements.remoteVideo?.addEventListener("volumechange", updateRemoteAudioControl);
+elements.remoteVideo?.addEventListener("click", () => {
+  if (elements.remoteVideo.muted) {
+    elements.remoteVideo.muted = false;
+    elements.remoteVideo.volume = 1.0;
+    void elements.remoteVideo.play().catch(() => {});
+  }
+});
 elements.raiseHandButton.addEventListener("click", toggleRaisedHand);
 elements.lowerHandButton?.addEventListener("click", lowerHand);
 elements.chatForm.addEventListener("submit", sendStudentChatMessage);
