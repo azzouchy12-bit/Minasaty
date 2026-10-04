@@ -74,9 +74,13 @@
   }
 
   function getSubjectChoices() {
-    return activeStudent?.level === "طالب جامعي"
-      ? [{ value: "PAID", label: "اشتراك مدفوع" }, { value: "FREE", label: "اشتراك مجاني" }]
-      : [{ value: "MATH", label: "الرياضيات" }, { value: "PHYSICS", label: "الفيزياء" }];
+    if (activeStudent?.level === "طالب جامعي") {
+      return [{ value: "PAID", label: "اشتراك مدفوع" }, { value: "FREE", label: "اشتراك مجاني" }];
+    }
+    const choices = [];
+    if (activeStudent?.mathEnrollment) choices.push({ value: "MATH", label: "الرياضيات" });
+    if (activeStudent?.physicsEnrollment) choices.push({ value: "PHYSICS", label: "الفيزياء" });
+    return choices.length ? choices : [{ value: "MATH", label: "الرياضيات" }, { value: "PHYSICS", label: "الفيزياء" }];
   }
 
   function getSelectedTerm() {

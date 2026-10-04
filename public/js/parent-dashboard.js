@@ -1129,21 +1129,48 @@ function formatParentScheduleDate(value) {
   }).format(date);
 }
 
+function isStudentEnrolledInClass(student, scheduledClass) {
+  if (!student || !scheduledClass) return true;
+  if (student.level === "طالب جامعي") return true;
+  const hasSpecificEnrollment = Boolean(student.mathEnrollment || student.physicsEnrollment);
+  if (!hasSpecificEnrollment) return true;
+  if (scheduledClass.subject === "MATH") return Boolean(student.mathEnrollment);
+  if (scheduledClass.subject === "PHYSICS") return Boolean(student.physicsEnrollment);
+  return true;
+}
+
+function isLiveClassActiveForStudent(student, liveSubject) {
+  if (!liveSubject) return false;
+  if (!student) return true;
+  if (student.level === "طالب جامعي") return true;
+  if (liveSubject === "FREE") return true;
+  const hasSpecificEnrollment = Boolean(student.mathEnrollment || student.physicsEnrollment);
+  if (!hasSpecificEnrollment) return true;
+  if (liveSubject === "MATH") return Boolean(student.mathEnrollment);
+  if (liveSubject === "PHYSICS") return Boolean(student.physicsEnrollment);
+  return true;
+}
+
 function getNextParentScheduledClass() {
   const now = Date.now();
-  if (activeLiveClassType) {
+  const effectiveLiveClassType = isLiveClassActiveForStudent(currentStudent, activeLiveClassType)
+    ? activeLiveClassType
+    : null;
+
+  if (effectiveLiveClassType) {
     const liveScheduledClass = parentScheduledClasses
-      .filter((scheduledClass) => scheduledClass?.subject === activeLiveClassType)
+      .filter((scheduledClass) => scheduledClass?.subject === effectiveLiveClassType)
       .map((scheduledClass) => ({ scheduledClass, timestamp: new Date(scheduledClass.scheduledAt).getTime() }))
       .filter(({ timestamp }) => Number.isFinite(timestamp) && Math.abs(timestamp - now) <= 3 * 60 * 60 * 1000)
       .sort((left, right) => Math.abs(left.timestamp - now) - Math.abs(right.timestamp - now))[0]?.scheduledClass;
     return liveScheduledClass
       ? { ...liveScheduledClass, isLiveNow: true }
-      : { id: `live-${currentStudent?.level || "level"}-${activeLiveClassType}`, subject: activeLiveClassType, scheduledAt: null, isLiveNow: true };
+      : { id: `live-${currentStudent?.level || "level"}-${effectiveLiveClassType}`, subject: effectiveLiveClassType, scheduledAt: null, isLiveNow: true };
   }
 
   return parentScheduledClasses
     .filter((scheduledClass) => {
+      if (!isStudentEnrolledInClass(currentStudent, scheduledClass)) return false;
       const timestamp = new Date(scheduledClass?.scheduledAt).getTime();
       return Number.isFinite(timestamp) && timestamp > now;
     })
@@ -1188,7 +1215,7 @@ function openLiveClassesEntryPage() {
 function renderLiveClassesEntry(nextClass) {
   if (!elements.liveClassesEntryCard) return;
   const hasStudent = Boolean(currentStudent);
-  const isLiveNow = Boolean(activeLiveClassType || globalFreeClassActive);
+  const isLiveNow = Boolean(isLiveClassActiveForStudent(currentStudent, activeLiveClassType) || globalFreeClassActive);
   elements.liveClassesEntryCard.hidden = !hasStudent || isLiveNow;
   if (elements.liveClassesWaitingPanel) elements.liveClassesWaitingPanel.hidden = true;
   if (!hasStudent || isLiveNow) return;
@@ -1211,7 +1238,7 @@ function renderParentSchedule() {
     elements.parentScheduleCard.hidden = true;
     elements.parentScheduleCard.setAttribute("aria-hidden", "true");
   }
-  const isLiveNow = Boolean(activeLiveClassType);
+  const isLiveNow = Boolean(isLiveClassActiveForStudent(currentStudent, activeLiveClassType));
   if (elements.parentNextClassStatus) {
     elements.parentNextClassStatus.textContent = isLiveNow
       ? "الحصة مفتوحة الآن"
