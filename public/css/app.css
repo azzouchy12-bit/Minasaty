@@ -3881,14 +3881,17 @@ body.teacher-modal-open {
 }
 
 
-/* Register page — fixed, centered mobile layout */
+/* Register page — dynamic, smoothly scrollable layout */
 html:has(body.register-page),
 body.register-page {
   width: 100%;
-  height: 100%;
   min-height: 100%;
-  overflow: hidden;
-  overscroll-behavior: none;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
+  scroll-behavior: smooth;
 }
 
 body.register-page {
@@ -3899,29 +3902,31 @@ body.register-page {
 }
 
 .register-page .auth-layout {
-  position: fixed;
-  inset: 0;
-  display: grid;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   width: 100%;
-  height: 100dvh;
-  min-height: 100svh;
-  place-items: center;
-  padding: clamp(.5rem, 2.2vh, 1.25rem) clamp(.5rem, 3vw, 1.5rem);
-  overflow: hidden;
-  overscroll-behavior: none;
+  min-height: 100dvh;
+  min-height: 100vh;
+  padding: clamp(1.2rem, 3.5vh, 2.5rem) clamp(.75rem, 3vw, 1.5rem);
+  box-sizing: border-box;
+  overflow-y: visible;
 }
 
 .register-page .auth-card {
   display: flex;
   flex-direction: column;
   width: min(100%, 620px);
-  max-height: calc(100dvh - 1rem);
-  min-height: 0;
-  padding: clamp(.75rem, 2.4vh, 1.45rem) clamp(.8rem, 3vw, 2rem);
-  overflow: hidden;
+  min-height: auto;
+  max-height: none;
+  padding: clamp(1.25rem, 3.2vh, 2.2rem) clamp(1rem, 3.5vw, 2.2rem);
+  margin: auto;
+  overflow: visible;
   border-color: #dbeafe;
   border-radius: clamp(1rem, 3vw, 1.5rem);
   box-shadow: 0 16px 36px rgba(30, 64, 175, .12);
+  background: #ffffff;
 }
 
 .register-page .brand-link,
@@ -3933,145 +3938,209 @@ body.register-page {
 
 .register-page .brand-link {
   align-self: center;
-  font-size: clamp(.86rem, 2.6vw, 1rem);
+  font-size: clamp(.88rem, 2.6vw, 1.05rem);
+  font-weight: 800;
+  color: #1d4ed8;
+  text-decoration: none;
 }
 
 .register-page .eyebrow {
-  margin: .35rem 0 .1rem;
-  font-size: clamp(.82rem, 2.45vw, 1rem);
+  margin: .4rem 0 .15rem;
+  font-size: clamp(.84rem, 2.45vw, 1rem);
+  color: #2563eb;
+  font-weight: 700;
 }
 
 .register-page h1 {
-  margin: .2rem 0 .15rem;
+  margin: .25rem 0 .2rem;
   color: #0f172a;
-  font-size: clamp(1.5rem, 5.8vw, 2.2rem);
-  line-height: 1.2;
+  font-size: clamp(1.5rem, 5.5vw, 2.2rem);
+  line-height: 1.25;
 }
 
 .register-page .register-intro {
-  margin: .15rem 0 .45rem;
-  font-size: clamp(.72rem, 2.4vw, .9rem);
+  margin: .2rem 0 .75rem;
+  font-size: clamp(.78rem, 2.4vw, .92rem);
+  color: #475569;
   line-height: 1.45;
 }
 
 .register-page .stack-form {
-  gap: clamp(.28rem, 1vh, .62rem);
-  min-height: 0;
-  margin-top: .35rem;
-  overflow: hidden;
+  display: grid;
+  gap: clamp(.55rem, 1.6vh, .9rem);
+  margin-top: .4rem;
+  overflow: visible;
 }
 
 .register-page .stack-form label {
-  gap: .2rem;
-  font-size: clamp(.72rem, 2.35vw, .86rem);
-  line-height: 1.25;
+  display: grid;
+  gap: .3rem;
+  font-size: clamp(.78rem, 2.35vw, .88rem);
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .register-page .stack-form input,
 .register-page .stack-form select {
-  min-height: clamp(2rem, 5.2vh, 2.55rem);
-  padding: .38rem .62rem;
-  border-radius: .62rem;
-  font-size: clamp(.78rem, 2.5vw, .92rem);
+  min-height: clamp(2.35rem, 5.2vh, 2.75rem);
+  padding: .5rem .75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: .68rem;
+  font-size: clamp(.82rem, 2.5vw, .95rem);
+  box-sizing: border-box;
 }
 
 .register-page .field-hint {
-  font-size: .72em;
+  font-size: .75em;
+  font-weight: 400;
+  color: #64748b;
 }
 
 .register-page .stack-form > label > .field-hint {
-  margin-top: .05rem;
-  font-size: clamp(.61rem, 1.9vw, .72rem);
-  line-height: 1.2;
+  margin-top: .1rem;
+  font-size: clamp(.65rem, 1.9vw, .76rem);
+  line-height: 1.3;
 }
 
 .register-page .pin-fields {
-  gap: clamp(.45rem, 2vw, .8rem);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(.5rem, 2vw, .9rem);
 }
 
 .register-page .registration-details {
-  gap: clamp(.35rem, 1.1vh, .62rem);
-  padding: clamp(.55rem, 1.5vh, .9rem);
-  border-radius: .95rem;
+  display: grid;
+  gap: clamp(.45rem, 1.3vh, .75rem);
+  padding: clamp(.75rem, 2vh, 1.1rem);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
 }
 
 .register-page .verification-heading {
-  gap: .5rem;
+  display: flex;
+  align-items: center;
+  gap: .65rem;
 }
 
 .register-page .verification-heading h2 {
   margin: 0;
-  font-size: clamp(.9rem, 3vw, 1.08rem);
-  line-height: 1.2;
+  font-size: clamp(.95rem, 3vw, 1.12rem);
+  line-height: 1.25;
 }
 
 .register-page .verification-heading p {
-  margin: .1rem 0 0;
-  font-size: clamp(.62rem, 1.9vw, .74rem);
+  margin: .15rem 0 0;
+  font-size: clamp(.68rem, 2vw, .8rem);
+  color: #64748b;
   line-height: 1.35;
 }
 
 .register-page .verification-step {
   display: grid;
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.75rem;
+  height: 1.75rem;
   flex: 0 0 auto;
   place-items: center;
+  background: #1d4ed8;
+  color: #ffffff;
+  font-weight: 700;
   border-radius: 50%;
-  font-size: .75rem;
+  font-size: .8rem;
 }
 
 .register-page .registration-details > label {
-  font-size: clamp(.72rem, 2.35vw, .84rem);
+  font-size: clamp(.78rem, 2.35vw, .88rem);
+}
+
+.register-page .university-card-field {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.95rem;
+  background: #eff6ff;
+  border: 1.5px solid #93c5fd;
+  border-radius: 0.85rem;
+  animation: registerSlideFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes registerSlideFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.register-page .university-card-field label {
+  font-size: clamp(.78rem, 2.35vw, .88rem);
+  color: #1e3a8a;
+}
+
+.register-page .university-card-field input[type="file"] {
+  background: #ffffff;
+  min-height: auto;
+  padding: .5rem;
+  border-style: dashed;
+  border-color: #93c5fd;
+}
+
+.register-page .university-card-field small {
+  color: #475569;
+  font-size: 0.74rem;
 }
 
 .register-page #submit-btn {
-  min-height: clamp(2rem, 5.4vh, 2.55rem);
-  margin-top: .1rem;
-  padding-block: .35rem;
-  border-radius: .62rem;
-  font-size: clamp(.75rem, 2.5vw, .9rem);
+  min-height: clamp(2.5rem, 5.5vh, 2.95rem);
+  margin-top: .4rem;
+  padding: .65rem 1.25rem;
+  border: none;
+  border-radius: .72rem;
+  background: #1d4ed8;
+  color: #ffffff;
+  font-size: clamp(.84rem, 2.5vw, .98rem);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(29, 78, 216, .25);
+  transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.register-page #submit-btn:hover {
+  background: #1e40af;
+  box-shadow: 0 6px 18px rgba(29, 78, 216, .35);
+  transform: translateY(-1px);
+}
+
+.register-page #submit-btn:active {
+  transform: translateY(0);
 }
 
 .register-page #register-message:not([hidden]) {
-  margin: .05rem 0;
-  padding: .42rem .58rem;
-  font-size: clamp(.66rem, 2vw, .78rem);
-  line-height: 1.3;
+  margin: .1rem 0;
+  padding: .55rem .75rem;
+  font-size: clamp(.72rem, 2vw, .84rem);
+  line-height: 1.35;
+  border-radius: .6rem;
 }
 
 @media (max-width: 560px) {
   .register-page .auth-layout {
-    padding: .5rem;
+    padding: .85rem .6rem 1.75rem;
+    align-items: flex-start;
   }
 
   .register-page .auth-card {
-    max-height: calc(100dvh - 1rem);
-    padding: .7rem .72rem;
+    max-height: none;
+    padding: 1.15rem .85rem 1.4rem;
+    margin-block: .25rem 1rem;
+    border-radius: 1.15rem;
   }
 
   .register-page .pin-fields {
-    gap: .45rem;
+    gap: .5rem;
   }
-}
-
-@media (max-height: 620px) {
-  .register-page .auth-card {
-    padding-block: .48rem;
-  }
-
-  .register-page .brand-link { font-size: .8rem; }
-  .register-page .eyebrow { margin-top: .15rem; font-size: .76rem; }
-  .register-page h1 { margin-block: .08rem; font-size: 1.35rem; }
-  .register-page .register-intro { margin-block: .05rem .2rem; font-size: .65rem; }
-  .register-page .stack-form { gap: .22rem; margin-top: .15rem; }
-  .register-page .stack-form label { gap: .12rem; font-size: .68rem; }
-  .register-page .stack-form input,
-  .register-page .stack-form select { min-height: 1.78rem; padding-block: .22rem; }
-  .register-page .registration-details { gap: .25rem; padding: .45rem; }
-  .register-page .verification-heading h2 { font-size: .84rem; }
-  .register-page .verification-heading p { font-size: .57rem; }
-  .register-page #submit-btn { min-height: 1.8rem; }
 }
 
 

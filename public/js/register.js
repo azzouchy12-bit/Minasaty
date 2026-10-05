@@ -58,6 +58,12 @@ function syncUniversityCardField() {
     cardPhotoInput.disabled = !isUniversityStudent;
     if (!isUniversityStudent) cardPhotoInput.value = "";
   }
+
+  if (isUniversityStudent) {
+    requestAnimationFrame(() => {
+      submitBtn?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
 }
 
 function resetRegistrationForm({ keepPhone = false } = {}) {
