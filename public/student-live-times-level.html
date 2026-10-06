@@ -87,17 +87,39 @@
 
       .student-prejoin-overlay {
         position: fixed;
-        z-index: 30;
+        z-index: 2147483647 !important;
         inset: 0;
         display: grid;
         place-items: center;
         padding: 1rem;
-        background: rgba(2, 6, 23, 0.82);
+        background: rgba(2, 6, 23, 0.88);
         backdrop-filter: blur(12px);
       }
 
-      .student-prejoin-overlay[hidden] {
-        display: none;
+      .student-prejoin-overlay[hidden],
+      .student-prejoin-overlay[aria-hidden="true"] {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+
+      /* While prejoin check is active, suppress fixed composer and actions */
+      html.student-prejoin-pending #chat-compose-modal,
+      html.student-prejoin-pending .chat-compose-modal,
+      html.student-prejoin-active #chat-compose-modal,
+      html.student-prejoin-active .chat-compose-modal,
+      body.student-prejoin-active #chat-compose-modal,
+      body.student-prejoin-active .chat-compose-modal,
+      body.student-prejoin-active .student-chat-actions,
+      body.student-prejoin-active .student-mobile-controls,
+      body:has(#student-prejoin-overlay:not([hidden])) #chat-compose-modal,
+      body:has(#student-prejoin-overlay:not([hidden])) .chat-compose-modal,
+      body:has(#student-prejoin-overlay:not([hidden])) .student-chat-actions,
+      body:has(#student-prejoin-overlay:not([hidden])) .student-mobile-controls {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        opacity: 0 !important;
       }
 
       .student-prejoin-card {

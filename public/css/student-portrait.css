@@ -714,8 +714,9 @@ body.student-live-page {
   }
 
   /* Pre-join must cover the fixed action bar until the student enters the class. */
-  body.student-live-page .student-prejoin-overlay {
-    z-index: 1000 !important;
+  body.student-live-page .student-prejoin-overlay,
+  body.student-live-page #student-prejoin-overlay {
+    z-index: 2147483647 !important;
   }
 
   body.student-live-page .student-prejoin-overlay[hidden],
@@ -724,6 +725,25 @@ body.student-live-page {
     display: none !important;
     visibility: hidden !important;
     pointer-events: none !important;
+  }
+
+  /* While prejoin check is active in portrait view, suppress fixed chat composer and controls */
+  html.student-prejoin-pending #chat-compose-modal,
+  html.student-prejoin-pending .chat-compose-modal,
+  html.student-prejoin-active #chat-compose-modal,
+  html.student-prejoin-active .chat-compose-modal,
+  body.student-prejoin-active #chat-compose-modal,
+  body.student-prejoin-active .chat-compose-modal,
+  body.student-prejoin-active .student-chat-actions,
+  body.student-prejoin-active .student-mobile-controls,
+  body:has(#student-prejoin-overlay:not([hidden])) #chat-compose-modal,
+  body:has(#student-prejoin-overlay:not([hidden])) .chat-compose-modal,
+  body:has(#student-prejoin-overlay:not([hidden])) .student-chat-actions,
+  body:has(#student-prejoin-overlay:not([hidden])) .student-mobile-controls {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
   }
 
   /* Pre-join and access dialogs retain their purpose but match the app shell. */

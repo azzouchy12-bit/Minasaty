@@ -2979,6 +2979,13 @@ function relocateStudentChatComposer() {
   }
 }
 
+function relocateStudentPrejoinOverlay() {
+  const overlay = elements.prejoinOverlay || document.getElementById("student-prejoin-overlay");
+  if (overlay && overlay.parentElement !== document.body) {
+    document.body.appendChild(overlay);
+  }
+}
+
 function syncStudentKeyboardOffset() {
   const viewport = window.visualViewport;
   if (!viewport) {
@@ -3536,7 +3543,7 @@ async function testOptionalStudentCamera() {
 }
 
 function setStudentPrejoinHidden(hidden) {
-  const overlay = elements.prejoinOverlay;
+  const overlay = elements.prejoinOverlay || document.getElementById("student-prejoin-overlay");
   if (!overlay) return;
   overlay.hidden = hidden;
   overlay.style.display = hidden ? "none" : "grid";
@@ -3545,6 +3552,17 @@ function setStudentPrejoinHidden(hidden) {
   overlay.setAttribute("aria-hidden", hidden ? "true" : "false");
   if (hidden) {
     document.documentElement.classList.add("student-prejoin-completed-user");
+    document.documentElement.classList.remove("student-prejoin-pending", "student-prejoin-active");
+    document.body.classList.remove("student-prejoin-active");
+  } else {
+    document.documentElement.classList.remove("student-prejoin-completed-user");
+    document.documentElement.classList.add("student-prejoin-pending", "student-prejoin-active");
+    document.body.classList.add("student-prejoin-active");
+    const modal = elements.chatComposeModal || document.getElementById("chat-compose-modal");
+    if (modal) {
+      modal.hidden = true;
+      modal.style.setProperty("display", "none", "important");
+    }
   }
 }
 
@@ -3572,6 +3590,11 @@ async function completeStudentPrejoinAndJoin() {
   initialAutoJoinPending = true;
   setStudentPrejoinHidden(true);
   setStudentSessionActive(true);
+  document.documentElement.classList.remove("student-prejoin-pending", "student-prejoin-active");
+  document.body.classList.remove("student-prejoin-active");
+  if (!isDesktopStudentView()) {
+    openStudentChatComposer({ focus: false });
+  }
   setPlaceholder("جاري الدخول إلى الحصة", "سيظهر بث الأستاذ تلقائياً عند توفر الحصة.");
   setViewerStatus("جارٍ الدخول إلى الحصة…", "warning");
   if (socket.connected) {
@@ -3588,6 +3611,9 @@ async function initializeStudentPrejoin() {
     setStudentPrejoinHidden(true);
     setStudentSessionActive(true);
     markPermanentStudentPrejoinCompleted();
+    if (!isDesktopStudentView()) {
+      openStudentChatComposer({ focus: false });
+    }
 
     // Silently attempt background microphone preparation if browser already permitted it,
     // but never block entry or show the prejoin modal.
@@ -4975,8 +5001,9 @@ socket.on("disconnect", () => {
 
 // No manual join action is exposed in the viewer. The element is retained only
 // for compatibility with existing page markup and remains hidden at all times.
+relocateStudentPrejoinOverlay();
 relocateStudentChatComposer();
-if (!isDesktopStudentView()) openStudentChatComposer({ focus: false });
+if (!isDesktopStudentView() && prejoinCompleted) openStudentChatComposer({ focus: false });
 elements.enableAudioButton?.addEventListener("click", enableTeacherAudio);
 elements.dismissTeacherMicMuteBtn?.addEventListener("click", () => {
   teacherMicMutedNoticeDismissed = true;
