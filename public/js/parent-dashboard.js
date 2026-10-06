@@ -43,6 +43,13 @@ const elements = {
   replacementCardButton: document.getElementById("replacement-card-button"),
   paymentStatus: document.getElementById("payment-status"),
   secondaryPaymentState: document.getElementById("secondary-payment-state"),
+  subscriptionCountdownBadge: document.getElementById("subscription-countdown-badge"),
+  subscriptionPeriodItem: document.getElementById("subscription-period-item"),
+  subscriptionPeriodDates: document.getElementById("subscription-period-dates"),
+  subscriptionPeriodBadge: document.getElementById("subscription-period-badge"),
+  subscriptionExpiryAlert: document.getElementById("subscription-expiry-alert"),
+  subscriptionExpiryAlertTitle: document.getElementById("subscription-expiry-alert-title"),
+  subscriptionExpiryAlertMessage: document.getElementById("subscription-expiry-alert-message"),
   universityPaymentUpgrade: document.getElementById("university-payment-upgrade"),
   universityUpgradeButton: document.getElementById("university-upgrade-button"),
   universityPaymentTransfer: document.getElementById("university-payment-transfer"),
@@ -1096,6 +1103,21 @@ function renderStudentSwitcher(students) {
     const level = document.createElement("small");
     level.textContent = displayLevelLabel(student.level);
     copy.append(name, level);
+    if (student.subscriptionEndDate) {
+      const validity = getSubscriptionDaysRemaining(student.subscriptionEndDate);
+      if (validity) {
+        const subPill = document.createElement("span");
+        subPill.className = "student-switcher-sub-pill";
+        subPill.textContent = validity.isExpired
+          ? "منتهي"
+          : validity.isToday
+            ? "ينتهي اليوم"
+            : `${validity.days} يوم للدفع`;
+        subPill.classList.toggle("is-warning", validity.isUrgent);
+        subPill.classList.toggle("is-expired", validity.isExpired);
+        copy.append(subPill);
+      }
+    }
 
     const check = document.createElement("span");
     check.className = "student-switcher-check";
@@ -1681,6 +1703,148 @@ function renderStudent(student) {
   }
   renderUniversityPaymentUpgrade(student, isPaid);
   renderSecondaryPaymentUpgrade(student);
+  renderStudentSubscriptionDates(student);
+}
+
+function parseSubscriptionDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const str = String(value).trim();
+  if (!str) return null;
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const y = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10) - 1;
+    const d = parseInt(match[3], 10);
+    const date = new Date(y, m, d, 23, 59, 59);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  const parsed = new Date(str);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getSubscriptionDaysRemaining(endDateValue) {
+  if (!endDateValue) return null;
+  const end = parseSubscriptionDate(endDateValue);
+  if (!end) return null;
+
+  const now = new Date();
+  const endCalendar = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  const nowCalendar = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const diffMs = endCalendar.getTime() - nowCalendar.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  return {
+    days: diffDays,
+    isExpired: diffDays < 0,
+    isToday: diffDays === 0,
+    isUrgent: diffDays >= 0 && diffDays <= 5,
+    end,
+    formattedDate: `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`,
+  };
+}
+
+function formatRemainingDaysArabic(days) {
+  if (days === 0) return "ينتهي اليوم! موعد الدفع";
+  if (days === 1) return "متبقي يوم واحد للدفع";
+  if (days === 2) return "متبقي يومان للدفع";
+  if (days >= 3 && days <= 10) return `متبقي ${days} أيام للدفع`;
+  if (days > 10) return `متبقي ${days} يوماً للدفع`;
+  const absDays = Math.abs(days);
+  if (absDays === 1) return "انتهى الاشتراك أمس - يرجى الدفع";
+  if (absDays === 2) return "انتهى الاشتراك منذ يومين - يرجى الدفع";
+  if (absDays >= 3 && absDays <= 10) return `انتهى الاشتراك منذ ${absDays} أيام - يرجى الدفع`;
+  return `انتهى الاشتراك منذ ${absDays} يوماً - يرجى الدفع`;
+}
+
+function formatSubscriptionArabicDate(dateValue) {
+  if (!dateValue) return "";
+  const d = parseSubscriptionDate(dateValue);
+  if (!d) return "";
+  try {
+    return new Intl.DateTimeFormat("ar-DZ", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "Africa/Algiers",
+    }).format(d);
+  } catch {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+}
+
+function renderStudentSubscriptionDates(student) {
+  const endDate = student?.subscriptionEndDate;
+  const startDate = student?.subscriptionStartDate;
+  const validity = getSubscriptionDaysRemaining(endDate);
+
+  if (!validity) {
+    if (elements.subscriptionCountdownBadge) elements.subscriptionCountdownBadge.hidden = true;
+    if (elements.subscriptionPeriodItem) elements.subscriptionPeriodItem.hidden = true;
+    if (elements.subscriptionExpiryAlert) elements.subscriptionExpiryAlert.hidden = true;
+    return;
+  }
+
+  const badgeText = formatRemainingDaysArabic(validity.days);
+  const formattedEnd = formatSubscriptionArabicDate(validity.end);
+  const dateRangeText = startDate
+    ? `من ${formatSubscriptionArabicDate(startDate)} إلى ${formattedEnd}`
+    : `ينتهي في: ${formattedEnd}`;
+
+  // 1. Quick countdown badge next to student name / account status
+  if (elements.subscriptionCountdownBadge) {
+    elements.subscriptionCountdownBadge.hidden = false;
+    elements.subscriptionCountdownBadge.textContent = validity.isExpired
+      ? `منتهي (${Math.abs(validity.days)} يوم)`
+      : validity.isToday
+        ? "ينتهي اليوم!"
+        : `متبقي ${validity.days} يوم للدفع`;
+
+    elements.subscriptionCountdownBadge.classList.toggle("is-active", validity.days > 5);
+    elements.subscriptionCountdownBadge.classList.toggle("is-warning", validity.isUrgent);
+    elements.subscriptionCountdownBadge.classList.toggle("is-expired", validity.isExpired);
+  }
+
+  // 2. Subscription period item in summary card
+  if (elements.subscriptionPeriodItem) {
+    elements.subscriptionPeriodItem.hidden = false;
+    if (elements.subscriptionPeriodDates) {
+      elements.subscriptionPeriodDates.textContent = dateRangeText;
+    }
+    if (elements.subscriptionPeriodBadge) {
+      elements.subscriptionPeriodBadge.textContent = badgeText;
+      elements.subscriptionPeriodBadge.classList.toggle("is-active", validity.days > 5);
+      elements.subscriptionPeriodBadge.classList.toggle("is-warning", validity.isUrgent);
+      elements.subscriptionPeriodBadge.classList.toggle("is-expired", validity.isExpired);
+    }
+  }
+
+  // 3. Expiry alert banner (if expired or 5 days or less remaining)
+  if (elements.subscriptionExpiryAlert) {
+    if (validity.isUrgent || validity.isExpired) {
+      elements.subscriptionExpiryAlert.hidden = false;
+      elements.subscriptionExpiryAlert.classList.toggle("is-alert-warning", validity.isUrgent);
+      elements.subscriptionExpiryAlert.classList.toggle("is-alert-expired", validity.isExpired);
+
+      if (elements.subscriptionExpiryAlertTitle) {
+        elements.subscriptionExpiryAlertTitle.textContent = validity.isExpired
+          ? "انتهت فترة اشتراك التلميذ"
+          : validity.isToday
+            ? "اليوم هو آخر يوم في الاشتراك!"
+            : `اقترب موعد تجديد الاشتراك (${badgeText})`;
+      }
+      if (elements.subscriptionExpiryAlertMessage) {
+        elements.subscriptionExpiryAlertMessage.textContent = validity.isExpired
+          ? `انتهى الاشتراك بتاريخ ${formattedEnd}. يرجى دفع الاشتراك وتجديده للاستمرار في متابعة الحصص والواجبات.`
+          : `ينتهي الاشتراك بتاريخ ${formattedEnd}. يرجى تسديد الاشتراك لضمان عدم انقطاع التلميذ عن المنصة.`;
+      }
+    } else {
+      elements.subscriptionExpiryAlert.hidden = true;
+    }
+  }
 }
 
 /**

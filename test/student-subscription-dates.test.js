@@ -62,3 +62,44 @@ test("app.css includes styling for subscription dates modal and status pills", (
   assert.match(css, /\.subscription-dates-presets/);
   assert.match(css, /\.teacher-subscription-pill/);
 });
+
+test("parent-dashboard.html includes subscription countdown badge, period summary item, and expiry alert", () => {
+  const html = fs.readFileSync(path.join(root, "public/parent-dashboard.html"), "utf8");
+  assert.match(html, /id="subscription-countdown-badge"/);
+  assert.match(html, /id="subscription-period-item"/);
+  assert.match(html, /id="subscription-period-dates"/);
+  assert.match(html, /id="subscription-period-badge"/);
+  assert.match(html, /id="subscription-expiry-alert"/);
+  assert.match(html, /id="subscription-expiry-alert-title"/);
+  assert.match(html, /id="subscription-expiry-alert-message"/);
+});
+
+test("parent-dashboard-refactor.css styles subscription countdown badges, period item, and expiry alert", () => {
+  const css = fs.readFileSync(path.join(root, "public/css/parent-dashboard-refactor.css"), "utf8");
+  assert.match(css, /\.subscription-countdown-badge/);
+  assert.match(css, /\.subscription-countdown-badge\.is-active/);
+  assert.match(css, /\.subscription-countdown-badge\.is-warning/);
+  assert.match(css, /\.subscription-countdown-badge\.is-expired/);
+  assert.match(css, /\.subscription-period-item/);
+  assert.match(css, /\.subscription-days-badge/);
+  assert.match(css, /\.subscription-expiry-alert/);
+  assert.match(css, /\.student-switcher-sub-pill/);
+});
+
+test("parent-dashboard.js implements subscription remaining days calculator, Arabic formatting, and live rendering", () => {
+  const js = fs.readFileSync(path.join(root, "public/js/parent-dashboard.js"), "utf8");
+  assert.match(js, /subscriptionCountdownBadge:\s*document\.getElementById\("subscription-countdown-badge"\)/);
+  assert.match(js, /subscriptionPeriodItem:\s*document\.getElementById\("subscription-period-item"\)/);
+  assert.match(js, /function getSubscriptionDaysRemaining\s*\(/);
+  assert.match(js, /function formatRemainingDaysArabic\s*\(/);
+  assert.match(js, /function renderStudentSubscriptionDates\s*\(/);
+  assert.match(js, /renderStudentSubscriptionDates\(student\)/);
+  assert.match(js, /student-switcher-sub-pill/);
+  assert.match(js, /متبقي.*للدفع/);
+});
+
+test("studentController notifies account status so parent dashboard reloads on subscription date change", () => {
+  const controller = fs.readFileSync(path.join(root, "controllers/studentController.js"), "utf8");
+  assert.match(controller, /notifyAccountStatus\(req,\s*updatedStudent\)/);
+});
+

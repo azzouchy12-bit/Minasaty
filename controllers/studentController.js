@@ -1521,6 +1521,7 @@ async function updateStudentSubscriptionDates(req, res) {
     });
 
     notifyTeacherRosterChanged(req, currentStudent.level, "status-updated");
+    notifyAccountStatus(req, updatedStudent);
 
     return res.status(200).json({
       status: "success",

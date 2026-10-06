@@ -1858,7 +1858,7 @@
             <span id="student-avatar" class="student-avatar" aria-hidden="true">ت</span>
             <div class="unified-student-copy">
               <div class="unified-student-heading">
-                <h2><span id="student-name">—</span><span id="account-status" class="account-status-chip">—</span></h2>
+                <h2><span id="student-name">—</span><span id="account-status" class="account-status-chip">—</span><span id="subscription-countdown-badge" class="subscription-countdown-badge" hidden>—</span></h2>
                 <span class="unified-student-kicker">بطاقة التلميذ والاشتراك</span>
               </div>
               <p class="unified-student-level">المستوى الدراسي: <span id="student-level">—</span></p>
@@ -1871,9 +1871,24 @@
                   <span>حالة الدفع</span>
                   <strong>—</strong>
                 </div>
+                <div id="subscription-period-item" class="unified-subscription-item subscription-period-item" hidden>
+                  <span>صلاحية الاشتراك وموعد الدفع</span>
+                  <div class="subscription-period-content">
+                    <strong id="subscription-period-dates">—</strong>
+                    <span id="subscription-period-badge" class="subscription-days-badge">—</span>
+                  </div>
+                </div>
               </div>
             </div>
           </article>
+          <div id="subscription-expiry-alert" class="subscription-expiry-alert" hidden role="alert">
+            <div class="subscription-expiry-alert-icon" aria-hidden="true">⏳</div>
+            <div class="subscription-expiry-alert-copy">
+              <strong id="subscription-expiry-alert-title">اقتراب موعد تجديد الاشتراك</strong>
+              <p id="subscription-expiry-alert-message">يرجى تسديد الاشتراك قبل انتهاء الفترة لضمان استمرار حضور الحصص والواجبات دون انقطاع.</p>
+            </div>
+            <a href="#secondary-payment-upgrade" class="subscription-expiry-alert-action" id="subscription-expiry-alert-btn">تسديد الاشتراك الآن ←</a>
+          </div>
         </div>
         <section class="parent-kpi-grid activity-kpi-grid" aria-label="مؤشرات التلميذ الحالي">
           <article class="parent-kpi-card"><span class="parent-kpi-icon">✓</span><div><small>الحضور</small><strong id="attendance-count">—</strong><em>حصص (> 1 ساعة)</em></div></article>

@@ -316,6 +316,46 @@
 .unified-subscription-item > strong.is-free, .unified-subscription-item > strong.is-unpaid { color: #b45309; }
 .unified-payment-state > strong { color: #334155; }
 .unified-payment-state > strong.is-paid { color: #047857; }
+
+/* Subscription Countdown and Expiry Styles */
+.subscription-countdown-badge { display: inline-flex; align-items: center; gap: .25rem; min-height: 1.55rem; padding: .2rem .55rem; border-radius: 999px; font-size: .65rem; font-weight: 800; white-space: nowrap; transition: all .2s ease; }
+.subscription-countdown-badge.is-active { color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; }
+.subscription-countdown-badge.is-warning { color: #b45309; background: #fffbeb; border: 1px solid #fde68a; animation: pulse-countdown 2s infinite ease-in-out; }
+.subscription-countdown-badge.is-expired { color: #b91c1c; background: #fef2f2; border: 1px solid #fca5a5; }
+
+@keyframes pulse-countdown {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+.subscription-period-item { border-color: #bfdbfe; background: linear-gradient(135deg, rgba(255, 255, 255, .95), rgba(240, 249, 255, .85)); }
+.subscription-period-content { display: flex; align-items: center; justify-content: space-between; gap: .4rem; flex-wrap: wrap; margin-top: .15rem; }
+.subscription-period-item strong { overflow: hidden; color: #1e293b; font-size: .84rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.subscription-days-badge { display: inline-flex; align-items: center; gap: .2rem; padding: .2rem .5rem; border-radius: 999px; font-size: .7rem; font-weight: 800; white-space: nowrap; }
+.subscription-days-badge.is-active { color: #065f46; background: #d1fae5; border: 1px solid #a7f3d0; }
+.subscription-days-badge.is-warning { color: #92400e; background: #fef3c7; border: 1px solid #fcd34d; }
+.subscription-days-badge.is-expired { color: #991b1b; background: #fee2e2; border: 1px solid #f87171; }
+
+.subscription-expiry-alert { display: flex; align-items: center; gap: .85rem; margin-top: .75rem; padding: .85rem 1.1rem; border-radius: .9rem; border: 1px solid #fde68a; background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); color: #92400e; box-shadow: 0 4px 14px rgba(217, 119, 6, .1); transition: all .25s ease; }
+.subscription-expiry-alert.is-alert-expired { border-color: #fca5a5; background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); color: #991b1b; box-shadow: 0 4px 14px rgba(220, 38, 38, .1); }
+.subscription-expiry-alert-icon { font-size: 1.35rem; flex-shrink: 0; line-height: 1; }
+.subscription-expiry-alert-copy { display: grid; gap: .12rem; flex: 1; min-width: 0; }
+.subscription-expiry-alert-copy strong { font-size: .86rem; font-weight: 800; }
+.subscription-expiry-alert-copy p { margin: 0; font-size: .75rem; line-height: 1.45; color: inherit; opacity: .92; }
+.subscription-expiry-alert-action { flex-shrink: 0; display: inline-flex; align-items: center; padding: .42rem .85rem; border-radius: 999px; background: #1e3a8a; color: #ffffff; font-size: .76rem; font-weight: 800; text-decoration: none; transition: background .2s ease, transform .15s ease; white-space: nowrap; }
+.subscription-expiry-alert-action:hover, .subscription-expiry-alert-action:focus-visible { background: #1d4ed8; transform: translateY(-1px); }
+.subscription-expiry-alert.is-alert-expired .subscription-expiry-alert-action { background: #dc2626; }
+.subscription-expiry-alert.is-alert-expired .subscription-expiry-alert-action:hover { background: #b91c1c; }
+
+.student-switcher-sub-pill { display: inline-flex; align-items: center; margin-top: .2rem; padding: .12rem .42rem; border-radius: 999px; font-size: .62rem; font-weight: 800; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; width: fit-content; }
+.student-switcher-sub-pill.is-warning { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+.student-switcher-sub-pill.is-expired { color: #b91c1c; background: #fef2f2; border-color: #fca5a5; }
+
+@media (max-width: 640px) {
+  .subscription-expiry-alert { flex-direction: column; align-items: flex-start; gap: .65rem; }
+  .subscription-expiry-alert-action { width: 100%; justify-content: center; }
+}
+
 @media (max-width: 560px) {
   .unified-student-card { gap: .75rem; padding: 1rem; }
   .unified-student-heading { align-items: flex-start; flex-direction: column; gap: .4rem; }
