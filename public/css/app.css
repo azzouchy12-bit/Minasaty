@@ -3815,6 +3815,193 @@ body.teacher-modal-open {
   }
 }
 
+/* Subscription Dates Modal & Badges */
+.teacher-dashboard-page .subscription-dates-card {
+  width: min(94vw, 32rem);
+  max-height: min(88vh, 46rem);
+  overflow-y: auto;
+}
+
+.teacher-dashboard-page .subscription-dates-card h2 {
+  margin: .2rem 0 .15rem;
+  color: #0f172a;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.subscription-dates-status-box {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  padding: .75rem 1rem;
+  margin: .6rem 0 1rem;
+  border-radius: .85rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  transition: all .2s ease;
+}
+
+.subscription-dates-status-box.is-active {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.subscription-dates-status-box.is-expired {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.subscription-dates-status-box.is-upcoming {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.subscription-dates-status-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.subscription-dates-status-info strong {
+  display: block;
+  font-size: .88rem;
+  font-weight: 800;
+}
+
+.subscription-dates-status-info p {
+  margin: .15rem 0 0;
+  font-size: .78rem;
+  font-weight: 600;
+  opacity: .9;
+}
+
+.subscription-dates-inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.subscription-dates-inputs-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  font-size: .82rem;
+  font-weight: 800;
+  color: #334155;
+}
+
+.subscription-dates-inputs-grid input[type="date"] {
+  width: 100%;
+  padding: .55rem .75rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: .6rem;
+  font: inherit;
+  font-size: .85rem;
+  color: #0f172a;
+  background: #ffffff;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.subscription-dates-inputs-grid input[type="date"]:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
+  outline: none;
+}
+
+.subscription-dates-presets {
+  margin-top: .85rem;
+  padding: .75rem;
+  background: #f8fafc;
+  border-radius: .75rem;
+  border: 1px dashed #cbd5e1;
+}
+
+.subscription-dates-presets .presets-label {
+  display: block;
+  font-size: .75rem;
+  font-weight: 800;
+  color: #64748b;
+  margin-bottom: .5rem;
+}
+
+.subscription-dates-presets .presets-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+
+.subscription-dates-presets .preset-btn {
+  padding: .35rem .65rem;
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 800;
+  border: 1px solid #cbd5e1;
+  border-radius: .5rem;
+  background: #ffffff;
+  color: #1e293b;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.subscription-dates-presets .preset-btn:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
+.subscription-dates-presets .preset-btn.is-clear {
+  color: #dc2626;
+  border-color: #fecaca;
+  background: #fff;
+  margin-inline-start: auto;
+}
+
+.subscription-dates-presets .preset-btn.is-clear:hover {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+.subscription-dates-actions {
+  margin-top: 1rem;
+}
+
+.teacher-subscription-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-top: .2rem;
+  padding: .15rem .45rem;
+  font-size: .66rem;
+  font-weight: 800;
+  border-radius: .45rem;
+  line-height: 1.2;
+}
+
+.teacher-subscription-pill.is-active {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.teacher-subscription-pill.is-expired {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.teacher-subscription-pill.is-upcoming {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+@media (max-width: 640px) {
+  .subscription-dates-inputs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 
 /* Global teacher absence toggle */
 .teacher-global-absence-control {

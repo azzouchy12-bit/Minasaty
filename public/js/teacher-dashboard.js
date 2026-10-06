@@ -64,7 +64,26 @@ const elements = {
   subscriptionPaymentStage: document.getElementById("subscription-payment-stage"),
   subscriptionTypeLabel: document.getElementById("subscription-type-label"),
   subscriptionLiveAccess: document.getElementById("subscription-live-access"),
+  subscriptionModalStartDate: document.getElementById("subscription-modal-start-date"),
+  subscriptionModalEndDate: document.getElementById("subscription-modal-end-date"),
   closeSubscriptionButton: document.getElementById("close-subscription-modal"),
+  subscriptionDatesModal: document.getElementById("subscription-dates-modal"),
+  subscriptionDatesModalClose: document.getElementById("subscription-dates-modal-close"),
+  subscriptionDatesTitle: document.getElementById("subscription-dates-title"),
+  subscriptionDatesStudentInfo: document.getElementById("subscription-dates-student-info"),
+  subscriptionDatesStatusBox: document.getElementById("subscription-dates-status-box"),
+  subscriptionDatesStatusIcon: document.getElementById("subscription-dates-status-icon"),
+  subscriptionDatesStatusTitle: document.getElementById("subscription-dates-status-title"),
+  subscriptionDatesStatusDesc: document.getElementById("subscription-dates-status-desc"),
+  subscriptionDatesForm: document.getElementById("subscription-dates-form"),
+  subscriptionStartDate: document.getElementById("subscription-start-date"),
+  subscriptionEndDate: document.getElementById("subscription-end-date"),
+  subscriptionDatesMessage: document.getElementById("subscription-dates-message"),
+  subscriptionDatesSubmit: document.getElementById("subscription-dates-submit"),
+  subscriptionDatesClearBtn: document.getElementById("subscription-dates-clear-btn"),
+  preset1Month: document.getElementById("preset-1-month"),
+  preset3Months: document.getElementById("preset-3-months"),
+  presetSchoolYear: document.getElementById("preset-school-year"),
   dashboardDate: document.getElementById("dashboard-date"),
   overviewSelectedLevel: document.getElementById("overview-selected-level"),
   overviewClassState: document.getElementById("overview-class-state"),
@@ -1482,11 +1501,253 @@ async function saveStudentContact(event) {
   }
 }
 
+let subscriptionDatesStudentId = null;
+
+function formatDateForInput(dateVal) {
+  if (!dateVal) return "";
+  const d = new Date(dateVal);
+  if (Number.isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateArabic(dateVal) {
+  if (!dateVal) return "";
+  const d = new Date(dateVal);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("ar-DZ", { year: "numeric", month: "long", day: "numeric" });
+}
+
+function formatShortDate(dateVal) {
+  if (!dateVal) return "";
+  const d = new Date(dateVal);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function getSubscriptionValidity(startDateVal, endDateVal) {
+  if (!endDateVal) {
+    return {
+      status: "none",
+      label: "غير محدد",
+      desc: "لم يتم تحديد فترة الاشتراك بعد",
+    };
+  }
+  const now = new Date();
+  const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const endDate = new Date(endDateVal);
+  const endMs = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()).getTime();
+  
+  const diffDays = Math.round((endMs - todayMs) / (1000 * 60 * 60 * 24));
+  
+  if (diffDays < 0) {
+    const expiredAgo = Math.abs(diffDays);
+    return {
+      status: "expired",
+      label: "منتهي الصلاحية",
+      desc: expiredAgo === 0
+        ? "انتهى الاشتراك اليوم"
+        : `انتهى الاشتراك منذ ${expiredAgo} يوم (${formatShortDate(endDateVal)})`,
+    };
+  }
+
+  if (startDateVal) {
+    const startDate = new Date(startDateVal);
+    const startMs = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()).getTime();
+    if (todayMs < startMs) {
+      const startsInDays = Math.round((startMs - todayMs) / (1000 * 60 * 60 * 24));
+      return {
+        status: "upcoming",
+        label: "يبدأ قريباً",
+        desc: `يبدأ الاشتراك بعد ${startsInDays} يوم (${formatShortDate(startDateVal)})`,
+      };
+    }
+  }
+
+  return {
+    status: "active",
+    label: "اشتراك نشط",
+    desc: diffDays === 0
+      ? "الاشتراك نشط وينتهي اليوم"
+      : `الاشتراك نشط — متبقي ${diffDays} يوم (ينتهي في ${formatShortDate(endDateVal)})`,
+  };
+}
+
+function updateSubscriptionDatesStatusBox(startDateVal, endDateVal) {
+  if (!elements.subscriptionDatesStatusBox) return;
+  const validity = getSubscriptionValidity(startDateVal, endDateVal);
+  
+  elements.subscriptionDatesStatusBox.className = `subscription-dates-status-box is-${validity.status}`;
+  if (elements.subscriptionDatesStatusIcon) {
+    elements.subscriptionDatesStatusIcon.textContent =
+      validity.status === "active" ? "✓" :
+      validity.status === "expired" ? "⚠️" :
+      validity.status === "upcoming" ? "⏳" : "📅";
+  }
+  if (elements.subscriptionDatesStatusTitle) {
+    elements.subscriptionDatesStatusTitle.textContent = validity.label;
+  }
+  if (elements.subscriptionDatesStatusDesc) {
+    elements.subscriptionDatesStatusDesc.textContent = validity.desc;
+  }
+}
+
+function openSubscriptionDatesModal(student) {
+  if (!student || !elements.subscriptionDatesModal) return;
+  subscriptionDatesStudentId = student.id;
+
+  if (elements.subscriptionDatesTitle) {
+    elements.subscriptionDatesTitle.textContent = `فترة اشتراك ${student.studentName || "التلميذ"}`;
+  }
+  if (elements.subscriptionDatesStudentInfo) {
+    elements.subscriptionDatesStudentInfo.textContent = displayLevelLabel(student.level);
+  }
+
+  const startDateStr = formatDateForInput(student.subscriptionStartDate);
+  const endDateStr = formatDateForInput(student.subscriptionEndDate);
+
+  if (elements.subscriptionStartDate) {
+    elements.subscriptionStartDate.value = startDateStr;
+  }
+  if (elements.subscriptionEndDate) {
+    elements.subscriptionEndDate.value = endDateStr;
+  }
+
+  updateSubscriptionDatesStatusBox(startDateStr, endDateStr);
+  showSubscriptionDatesMessage("", false);
+
+  elements.subscriptionDatesModal.hidden = false;
+  elements.subscriptionDatesModal.classList.add("is-open");
+  elements.subscriptionStartDate?.focus();
+}
+
+function closeSubscriptionDatesModal() {
+  subscriptionDatesStudentId = null;
+  elements.subscriptionDatesModal?.classList.remove("is-open");
+  if (elements.subscriptionDatesModal) {
+    elements.subscriptionDatesModal.hidden = true;
+  }
+  showSubscriptionDatesMessage("", false);
+}
+
+function showSubscriptionDatesMessage(message, isError) {
+  if (!elements.subscriptionDatesMessage) return;
+  if (!message) {
+    elements.subscriptionDatesMessage.hidden = true;
+    elements.subscriptionDatesMessage.textContent = "";
+    elements.subscriptionDatesMessage.className = "form-message";
+    return;
+  }
+  elements.subscriptionDatesMessage.hidden = false;
+  elements.subscriptionDatesMessage.textContent = message;
+  elements.subscriptionDatesMessage.className = `form-message ${isError ? "is-error" : "is-success"}`;
+}
+
+async function saveSubscriptionDates(event) {
+  event?.preventDefault();
+  if (!subscriptionDatesStudentId) return;
+
+  const startDateVal = elements.subscriptionStartDate?.value ? elements.subscriptionStartDate.value.trim() : null;
+  const endDateVal = elements.subscriptionEndDate?.value ? elements.subscriptionEndDate.value.trim() : null;
+
+  if (startDateVal && endDateVal && endDateVal < startDateVal) {
+    showSubscriptionDatesMessage("تاريخ انتهاء الاشتراك يجب أن يكون بعد تاريخ بدء الاشتراك.", true);
+    return;
+  }
+
+  const submitButton = elements.subscriptionDatesSubmit;
+  if (submitButton) submitButton.disabled = true;
+
+  try {
+    const response = await teacherFetch(`/api/students/${encodeURIComponent(subscriptionDatesStudentId)}/subscription-dates`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        subscriptionStartDate: startDateVal,
+        subscriptionEndDate: endDateVal,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.error || "تعذر حفظ فترة اشتراك التلميذ.");
+    }
+
+    const student = currentStudents.find((s) => s.id === subscriptionDatesStudentId);
+    if (student) {
+      student.subscriptionStartDate = startDateVal ? new Date(startDateVal).toISOString() : null;
+      student.subscriptionEndDate = endDateVal ? new Date(endDateVal).toISOString() : null;
+    }
+
+    showToast("تم حفظ فترة اشتراك التلميذ بنجاح.");
+    closeSubscriptionDatesModal();
+    renderTable(currentStudents);
+    await fetchStudents(currentLevel);
+  } catch (error) {
+    console.error("Unable to save subscription dates:", error);
+    showSubscriptionDatesMessage(error.message || "تعذر حفظ فترة اشتراك التلميذ.", true);
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
+}
+
+function applySubscriptionPreset(presetType) {
+  const now = new Date();
+
+  if (presetType === "clear") {
+    if (elements.subscriptionStartDate) elements.subscriptionStartDate.value = "";
+    if (elements.subscriptionEndDate) elements.subscriptionEndDate.value = "";
+    updateSubscriptionDatesStatusBox(null, null);
+    return;
+  }
+
+  let baseStart = elements.subscriptionStartDate?.value ? new Date(elements.subscriptionStartDate.value) : now;
+  if (Number.isNaN(baseStart.getTime())) baseStart = now;
+
+  let end = new Date(baseStart.getTime());
+
+  if (presetType === "1month") {
+    end.setMonth(end.getMonth() + 1);
+  } else if (presetType === "3months") {
+    end.setMonth(end.getMonth() + 3);
+  } else if (presetType === "school_year") {
+    const currentYear = now.getMonth() >= 8 ? now.getFullYear() + 1 : now.getFullYear();
+    end = new Date(currentYear, 5, 30);
+  }
+
+  const startVal = formatDateForInput(baseStart);
+  const endVal = formatDateForInput(end);
+
+  if (elements.subscriptionStartDate) elements.subscriptionStartDate.value = startVal;
+  if (elements.subscriptionEndDate) elements.subscriptionEndDate.value = endVal;
+
+  updateSubscriptionDatesStatusBox(startVal, endVal);
+}
+
 function openStudentActionsModal(student) {
   if (!student || !elements.studentActionsModal || !elements.studentActionsList) return;
   elements.studentActionsTitle.textContent = student.studentName || "التلميذ";
   elements.studentActionsLevel.textContent = displayLevelLabel(student.level);
   elements.studentActionsList.replaceChildren();
+
+  const datesButton = createButton("تحديد فترة الاشتراك", "student-action-modal-button", () => {
+    closeStudentActionsModal();
+    openSubscriptionDatesModal(student);
+  });
+  if (student.subscriptionEndDate) {
+    datesButton.title = `ينتهي الاشتراك: ${formatShortDate(student.subscriptionEndDate)}`;
+  } else {
+    datesButton.title = "تحديد تاريخ بدء وتاريخ انتهاء اشتراك هذا التلميذ";
+  }
 
   const actions = [
     createButton("تعديل الاسم ورقم الهاتف", "student-action-modal-button", () => {
@@ -1497,6 +1758,7 @@ function openStudentActionsModal(student) {
       closeStudentActionsModal();
       openSubscriptionModal(student.id);
     }),
+    datesButton,
     createButton(student.liveAccessEnabled ? "منع دخول الحصة" : "السماح بدخول الحصة", "student-action-modal-button", () => {
       closeStudentActionsModal();
       void toggleLiveAccess(student.id);
@@ -1640,6 +1902,17 @@ function renderTable(studentsArray) {
     accountStatus.className = `teacher-account-status ${accountMeta.className}`;
     accountStatus.textContent = accountMeta.label;
     identity.append(studentName, accountStatus);
+
+    if (student.subscriptionEndDate) {
+      const subVal = getSubscriptionValidity(student.subscriptionStartDate, student.subscriptionEndDate);
+      const subBadge = document.createElement("span");
+      subBadge.className = `teacher-subscription-pill is-${subVal.status}`;
+      subBadge.textContent = subVal.status === "expired"
+        ? `انتهى: ${formatShortDate(student.subscriptionEndDate)}`
+        : `ينتهي: ${formatShortDate(student.subscriptionEndDate)}`;
+      subBadge.title = subVal.desc;
+      identity.append(subBadge);
+    }
 
     if (student.level === "طالب جامعي") {
       const reuploadButton = createButton(
@@ -2701,6 +2974,14 @@ async function updateStudent(studentId, updates) {
       typeof updates.liveAccessEnabled === "boolean"
         ? updates.liveAccessEnabled
         : Boolean(student.liveAccessEnabled),
+    subscriptionStartDate:
+      Object.prototype.hasOwnProperty.call(updates, "subscriptionStartDate")
+        ? updates.subscriptionStartDate
+        : student.subscriptionStartDate ?? null,
+    subscriptionEndDate:
+      Object.prototype.hasOwnProperty.call(updates, "subscriptionEndDate")
+        ? updates.subscriptionEndDate
+        : student.subscriptionEndDate ?? null,
     ...(typeof updates.accountActive === "boolean" ? { accountActive: updates.accountActive } : {}),
     physicsNote: "",
     mathNote: "",
@@ -2889,6 +3170,12 @@ function openSubscriptionModal(studentId) {
   elements.subscriptionStudentName.textContent = student.studentName;
   configureSubscriptionTypeOptions(student);
   elements.subscriptionLiveAccess.checked = Boolean(student.liveAccessEnabled);
+  if (elements.subscriptionModalStartDate) {
+    elements.subscriptionModalStartDate.value = formatDateForInput(student.subscriptionStartDate);
+  }
+  if (elements.subscriptionModalEndDate) {
+    elements.subscriptionModalEndDate.value = formatDateForInput(student.subscriptionEndDate);
+  }
   elements.subscriptionModal.hidden = false;
   elements.subscriptionModal.classList.add("is-open");
 }
@@ -2922,6 +3209,14 @@ async function saveSubscription(event) {
     ? selectedMode
     : student.paymentStage || (student.paymentStatus ? "PAID" : "UNPAID");
 
+  const startDateVal = elements.subscriptionModalStartDate?.value ? elements.subscriptionModalStartDate.value.trim() : null;
+  const endDateVal = elements.subscriptionModalEndDate?.value ? elements.subscriptionModalEndDate.value.trim() : null;
+
+  if (startDateVal && endDateVal && endDateVal < startDateVal) {
+    showDashboardError("تاريخ انتهاء الاشتراك يجب أن يكون بعد تاريخ بدء الاشتراك.");
+    return;
+  }
+
   const submitButton = elements.subscriptionForm?.querySelector("button[type='submit']");
   if (submitButton) submitButton.disabled = true;
 
@@ -2930,9 +3225,11 @@ async function saveSubscription(event) {
       paymentStage,
       ...enrollment,
       liveAccessEnabled: Boolean(elements.subscriptionLiveAccess?.checked),
+      subscriptionStartDate: startDateVal,
+      subscriptionEndDate: endDateVal,
     });
     closeSubscriptionModal();
-    showToast("تم حفظ نوع اشتراك التلميذ.");
+    showToast("تم حفظ نوع وتاريخ اشتراك التلميذ.");
     await fetchStudents(currentLevel);
   } catch (error) {
     if (!/انتهت الجلسة/.test(error.message)) {
@@ -4039,6 +4336,21 @@ if (!getTeacherToken()) {
       closeSubscriptionModal();
     }
   });
+  elements.subscriptionDatesModalClose?.addEventListener("click", closeSubscriptionDatesModal);
+  elements.subscriptionDatesForm?.addEventListener("submit", saveSubscriptionDates);
+  elements.subscriptionDatesModal?.addEventListener("click", (event) => {
+    if (event.target === elements.subscriptionDatesModal) closeSubscriptionDatesModal();
+  });
+  elements.subscriptionStartDate?.addEventListener("input", () => {
+    updateSubscriptionDatesStatusBox(elements.subscriptionStartDate.value, elements.subscriptionEndDate.value);
+  });
+  elements.subscriptionEndDate?.addEventListener("input", () => {
+    updateSubscriptionDatesStatusBox(elements.subscriptionStartDate.value, elements.subscriptionEndDate.value);
+  });
+  elements.preset1Month?.addEventListener("click", () => applySubscriptionPreset("1month"));
+  elements.preset3Months?.addEventListener("click", () => applySubscriptionPreset("3months"));
+  elements.presetSchoolYear?.addEventListener("click", () => applySubscriptionPreset("school_year"));
+  elements.subscriptionDatesClearBtn?.addEventListener("click", () => applySubscriptionPreset("clear"));
   elements.closeAttendanceButton?.addEventListener("click", closeAttendanceModal);
   elements.closeCardPreviewButton?.addEventListener("click", closeStudentCardPreview);
   elements.cardPreviewSaveDriveButton?.addEventListener("click", (event) => {

@@ -1340,6 +1340,8 @@ async function updateStudentStatusAndNotes(req, res) {
       accountActive,
       mathNote,
       physicsNote,
+      subscriptionStartDate,
+      subscriptionEndDate,
     } = req.body || {};
     const normalizedAmount = amountDue === null || amountDue === "" ? null : Number(amountDue);
 
@@ -1362,6 +1364,36 @@ async function updateStudentStatusAndNotes(req, res) {
       });
     }
 
+    let parsedStartDate = undefined;
+    if (subscriptionStartDate !== undefined) {
+      if (subscriptionStartDate === null || subscriptionStartDate === "") {
+        parsedStartDate = null;
+      } else {
+        const d = new Date(subscriptionStartDate);
+        if (Number.isNaN(d.getTime())) {
+          return res.status(400).json({ error: "تاريخ بدء الاشتراك غير صالح." });
+        }
+        parsedStartDate = d;
+      }
+    }
+
+    let parsedEndDate = undefined;
+    if (subscriptionEndDate !== undefined) {
+      if (subscriptionEndDate === null || subscriptionEndDate === "") {
+        parsedEndDate = null;
+      } else {
+        const d = new Date(subscriptionEndDate);
+        if (Number.isNaN(d.getTime())) {
+          return res.status(400).json({ error: "تاريخ انتهاء الاشتراك غير صالح." });
+        }
+        parsedEndDate = d;
+      }
+    }
+
+    if (parsedStartDate && parsedEndDate && parsedEndDate < parsedStartDate) {
+      return res.status(400).json({ error: "تاريخ انتهاء الاشتراك يجب أن يكون بعد تاريخ بدء الاشتراك." });
+    }
+
     const student = await prisma.student.update({
       where: { id },
       data: {
@@ -1375,6 +1407,8 @@ async function updateStudentStatusAndNotes(req, res) {
         ...(accountActive !== undefined ? { accountActive } : {}),
         mathNote: mathNote.trim(),
         physicsNote: physicsNote.trim(),
+        ...(parsedStartDate !== undefined ? { subscriptionStartDate: parsedStartDate } : {}),
+        ...(parsedEndDate !== undefined ? { subscriptionEndDate: parsedEndDate } : {}),
       },
     });
 
@@ -1403,6 +1437,8 @@ async function updateStudentStatusAndNotes(req, res) {
         physicsEnrollment,
         liveAccessEnabled,
         ...(accountActive !== undefined ? { accountActive } : {}),
+        ...(parsedStartDate !== undefined ? { subscriptionStartDate: parsedStartDate } : {}),
+        ...(parsedEndDate !== undefined ? { subscriptionEndDate: parsedEndDate } : {}),
       },
     });
 
@@ -1428,6 +1464,79 @@ async function updateStudentStatusAndNotes(req, res) {
   }
 }
 
+/** PUT /api/students/:id/subscription-dates — teacher-only update of subscription period. */
+async function updateStudentSubscriptionDates(req, res) {
+  try {
+    const { id } = req.params;
+    const { subscriptionStartDate, subscriptionEndDate } = req.body || {};
+
+    let parsedStartDate = null;
+    if (subscriptionStartDate !== null && subscriptionStartDate !== undefined && subscriptionStartDate !== "") {
+      const d = new Date(subscriptionStartDate);
+      if (Number.isNaN(d.getTime())) {
+        return res.status(400).json({ error: "تاريخ بدء الاشتراك غير صالح." });
+      }
+      parsedStartDate = d;
+    }
+
+    let parsedEndDate = null;
+    if (subscriptionEndDate !== null && subscriptionEndDate !== undefined && subscriptionEndDate !== "") {
+      const d = new Date(subscriptionEndDate);
+      if (Number.isNaN(d.getTime())) {
+        return res.status(400).json({ error: "تاريخ انتهاء الاشتراك غير صالح." });
+      }
+      parsedEndDate = d;
+    }
+
+    if (parsedStartDate && parsedEndDate && parsedEndDate < parsedStartDate) {
+      return res.status(400).json({ error: "تاريخ انتهاء الاشتراك يجب أن يكون بعد تاريخ بدء الاشتراك." });
+    }
+
+    const currentStudent = await prisma.student.findUnique({
+      where: { id },
+      select: { id: true, level: true, studentName: true },
+    });
+
+    if (!currentStudent) {
+      return res.status(404).json({ error: "التلميذ غير موجود." });
+    }
+
+    const updatedStudent = await prisma.student.update({
+      where: { id },
+      data: {
+        subscriptionStartDate: parsedStartDate,
+        subscriptionEndDate: parsedEndDate,
+      },
+    });
+
+    void logAudit(req, {
+      action: "STUDENT_SUBSCRIPTION_DATES_UPDATED",
+      entityType: "Student",
+      entityId: id,
+      studentId: id,
+      metadata: {
+        subscriptionStartDate: parsedStartDate,
+        subscriptionEndDate: parsedEndDate,
+      },
+    });
+
+    notifyTeacherRosterChanged(req, currentStudent.level, "status-updated");
+
+    return res.status(200).json({
+      status: "success",
+      message: "تم تحديث فترة اشتراك التلميذ بنجاح.",
+      data: updatedStudent,
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return res.status(404).json({ error: "التلميذ غير موجود." });
+    }
+
+    console.error("Subscription dates update failed:", error);
+    return res.status(500).json({ error: "تعذر تحديث فترة اشتراك التلميذ حالياً." });
+  }
+}
+
 module.exports = {
   registerStudent,
   getStudentForParent,
@@ -1435,6 +1544,7 @@ module.exports = {
   getStudentsByLevel,
   updateStudentContact,
   updateStudentStatusAndNotes,
+  updateStudentSubscriptionDates,
   requestStudentCardReupload,
   confirmStudentCardIdentity,
   replaceStudentCard,

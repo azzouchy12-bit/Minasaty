@@ -17,6 +17,7 @@ const {
   submitPaymentReceipt,
   getStudentPaymentReceipt,
   updateStudentContact,
+  updateStudentSubscriptionDates,
   confirmStudentPaymentReceipt,
   rejectStudentPaymentReceipt,
   deleteStudent,
@@ -120,6 +121,9 @@ router.post("/:id/payment-receipt", verifyToken, receiptUpload.single("paymentRe
 
 // Teacher-only: contact edits keep the parent account and sibling records consistent.
 router.put("/:id/contact", verifyToken, isTeacher, updateStudentContact);
+
+// Teacher-only: subscription date updates
+router.put("/:id/subscription-dates", verifyToken, isTeacher, updateStudentSubscriptionDates);
 
 // Teacher-only: payment and teacher-note updates are administrative actions.
 router.put("/:id", verifyToken, isTeacher, updateStudentStatusAndNotes);

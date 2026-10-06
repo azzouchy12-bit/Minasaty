@@ -30,6 +30,8 @@ model Student {
   paymentReceiptDecisionReason String?
   paymentReceiptDecidedAt DateTime?
   pendingSubscriptionType String?
+  subscriptionStartDate DateTime?
+  subscriptionEndDate   DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

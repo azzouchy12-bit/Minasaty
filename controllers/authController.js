@@ -208,6 +208,8 @@ async function parentLogin(req, res) {
         paymentReceiptDecidedAt: s.paymentReceiptDecidedAt,
         accountActive: s.accountActive,
         cardReuploadRequested: s.cardReuploadRequested,
+        subscriptionStartDate: s.subscriptionStartDate,
+        subscriptionEndDate: s.subscriptionEndDate,
       })),
     });
   } catch (error) {
