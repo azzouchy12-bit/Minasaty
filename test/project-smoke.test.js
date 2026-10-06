@@ -432,3 +432,16 @@ test("Messenger linking and webhooks are dormant without credentials and follow 
   assert.match(envExample, /META_PAGE_ID=/);
   assert.match(envExample, /META_APP_SECRET=/);
 });
+
+test("SofizPay fixed payment links are configured with acadimia domain and exact user link", () => {
+  const { SOFIZPAY_FIXED_LINKS } = require(path.join(root, "controllers/paymentController.js"));
+  assert.ok(SOFIZPAY_FIXED_LINKS);
+  assert.equal(
+    SOFIZPAY_FIXED_LINKS.BOTH,
+    "https://sofizpay.com/create-payment-link/?account=GBYAJX2VUMCKQQMTQRKIHFL7GWKPXQGAQNNCJOIV232S3Q73NNYK6JF4&amount=2030&memo=2030&return_url=https%3A%2F%2Facadimia.africacold.fr%2Fparent-dashboard.html%3Fpayment%3Dsofizpay%26subscription%3DBOTH"
+  );
+  assert.match(SOFIZPAY_FIXED_LINKS.MATH, /amount=1030/);
+  assert.match(SOFIZPAY_FIXED_LINKS.MATH, /acadimia\.africacold\.fr/);
+  assert.match(SOFIZPAY_FIXED_LINKS.PHYSICS, /amount=1030/);
+  assert.match(SOFIZPAY_FIXED_LINKS.PHYSICS, /acadimia\.africacold\.fr/);
+});

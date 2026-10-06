@@ -853,13 +853,23 @@ async function checkSofizPayReturn() {
     pending = null;
   }
   const internalOrderId = returnedInternalOrderId || pending?.internalOrderId || "";
-  if (!internalOrderId || (pending?.subscriptionType && pending.subscriptionType !== subscriptionType) || (currentStudent?.id && pending?.studentId && pending.studentId !== currentStudent.id)) {
+  if ((pending?.subscriptionType && pending.subscriptionType !== subscriptionType) || (currentStudent?.id && pending?.studentId && pending.studentId !== currentStudent.id)) {
+    openDocumentFeedback("تعذر ربط العودة بطلب الدفع الخاص بهذا الحساب. أعد اختيار الاشتراك من بوابة الولي.", "تعذر مطابقة الدفع");
+    return;
+  }
+  if (!internalOrderId && (!currentStudent?.id || !subscriptionType)) {
     openDocumentFeedback("تعذر ربط العودة بطلب الدفع الخاص بهذا الحساب. أعد اختيار الاشتراك من بوابة الولي.", "تعذر مطابقة الدفع");
     return;
   }
 
   const providerOrderNumber = params.get("order_number") || params.get("cib_transaction_id") || params.get("orderNumber") || params.get("order") || "";
-  const query = new URLSearchParams({ internal_order_id: internalOrderId });
+  const query = new URLSearchParams();
+  if (internalOrderId) {
+    query.set("internal_order_id", internalOrderId);
+  } else if (currentStudent?.id && subscriptionType) {
+    query.set("student_id", currentStudent.id);
+    query.set("subscription", subscriptionType);
+  }
   if (providerOrderNumber) query.set("order_number", providerOrderNumber);
 
   let result = null;

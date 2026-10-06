@@ -11,8 +11,14 @@ const SOFIZPAY_CHECK_URL = `${SOFIZPAY_BASE_URL}/cib-transaction-check/`;
 const SOFIZPAY_OPERATION_DETAILS_URL = `${SOFIZPAY_BASE_URL}/operation-details/`;
 const SOFIZPAY_ENCRYPTED_SECRET_KEY = String(process.env.SOFIZPAY_ENCRYPTED_SECRET_KEY || "").trim();
 const SOFIZPAY_WEBHOOK_SECRET = String(process.env.SOFIZPAY_WEBHOOK_SECRET || "").trim();
-const PUBLIC_SITE_URL = String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://dr.africacold.fr").replace(/\/$/, "");
+const PUBLIC_SITE_URL = String(process.env.APP_BASE_URL || process.env.PUBLIC_SITE_URL || "https://acadimia.africacold.fr").replace(/\/$/, "");
 const SOFIZPAY_WEBHOOK_URL = `${PUBLIC_SITE_URL}/api/payments/sofizpay/webhook?secret=${encodeURIComponent(SOFIZPAY_WEBHOOK_SECRET)}`;
+
+const SOFIZPAY_FIXED_LINKS = Object.freeze({
+  BOTH: process.env.SOFIZPAY_LINK_BOTH || "https://sofizpay.com/create-payment-link/?account=GBYAJX2VUMCKQQMTQRKIHFL7GWKPXQGAQNNCJOIV232S3Q73NNYK6JF4&amount=2030&memo=2030&return_url=https%3A%2F%2Facadimia.africacold.fr%2Fparent-dashboard.html%3Fpayment%3Dsofizpay%26subscription%3DBOTH",
+  MATH: process.env.SOFIZPAY_LINK_MATH || "https://sofizpay.com/create-payment-link/?account=GBYAJX2VUMCKQQMTQRKIHFL7GWKPXQGAQNNCJOIV232S3Q73NNYK6JF4&amount=1030&memo=MATH-1030&return_url=https%3A%2F%2Facadimia.africacold.fr%2Fparent-dashboard.html%3Fpayment%3Dsofizpay%26subscription%3DMATH",
+  PHYSICS: process.env.SOFIZPAY_LINK_PHYSICS || "https://sofizpay.com/create-payment-link/?account=GBYAJX2VUMCKQQMTQRKIHFL7GWKPXQGAQNNCJOIV232S3Q73NNYK6JF4&amount=1030&memo=PHYSICS-1030&return_url=https%3A%2F%2Facadimia.africacold.fr%2Fparent-dashboard.html%3Fpayment%3Dsofizpay%26subscription%3DPHYSICS",
+});
 
 if (!SOFIZPAY_WEBHOOK_SECRET) {
   console.warn("SofizPay configuration warning: SOFIZPAY_WEBHOOK_SECRET is not configured.");
@@ -90,7 +96,7 @@ function findNestedField(payload, fieldNames, depth = 0) {
 
 async function createSofizPayPayment({ student, subscriptionType, amount, internalOrderId }) {
   const phone = text(student.parentPhone, 40);
-  const email = `${phone.replace(/[^0-9]/g, "") || "parent"}@dr.africacold.fr`;
+  const email = `${phone.replace(/[^0-9]/g, "") || "parent"}@acadimia.africacold.fr`;
   const params = new URLSearchParams({
     account: SOFIZPAY_ACCOUNT,
     amount: String(amount),
@@ -455,18 +461,37 @@ async function startSofizPayPayment(req, res) {
     });
 
     let providerPayment;
-    try {
-      providerPayment = await createSofizPayPayment({
-        student,
-        subscriptionType,
-        amount: subscription.amount,
-        internalOrderId,
-      });
-    } catch (error) {
-      // Never send the parent to an untracked fixed link: it cannot guarantee
-      // invoice_id/webhook correlation and would break automatic activation.
-      await prisma.paymentTransaction.delete({ where: { id: transaction.id } }).catch(() => {});
-      throw error;
+    if (process.env.SOFIZPAY_FORCE_FIXED_LINKS === "true") {
+      const fixedUrl = SOFIZPAY_FIXED_LINKS[subscriptionType];
+      providerPayment = {
+        paymentUrl: fixedUrl,
+        providerOrderNumber: null,
+        providerTransactionId: null,
+        providerPayload: { mode: "fixed_link", paymentUrl: fixedUrl },
+      };
+    } else {
+      try {
+        providerPayment = await createSofizPayPayment({
+          student,
+          subscriptionType,
+          amount: subscription.amount,
+          internalOrderId,
+        });
+      } catch (error) {
+        const fallbackUrl = SOFIZPAY_FIXED_LINKS[subscriptionType];
+        if (fallbackUrl) {
+          console.warn(`Dynamic SofizPay failed (${error.message}); falling back to configured payment link for ${subscriptionType}`);
+          providerPayment = {
+            paymentUrl: fallbackUrl,
+            providerOrderNumber: null,
+            providerTransactionId: null,
+            providerPayload: { mode: "fixed_link_fallback", fallbackUrl, error: error.message },
+          };
+        } else {
+          await prisma.paymentTransaction.delete({ where: { id: transaction.id } }).catch(() => {});
+          throw error;
+        }
+      }
     }
 
     const updatedTransaction = await prisma.paymentTransaction.update({
@@ -491,9 +516,22 @@ async function getSofizPayPaymentStatus(req, res) {
     if (!isParent(req)) return res.status(403).json({ error: "هذه العملية متاحة للولي فقط." });
     const internalOrderId = text(req.query?.internal_order_id || req.query?.order_id, 120);
     const providerOrderNumber = normalizeProviderOrderNumber(extractProviderOrderNumber(req.query || {}));
-    if (!internalOrderId) return res.status(400).json({ error: "رقم طلب الموقع غير موجود." });
+    if (!internalOrderId && (!req.query?.student_id || !req.query?.subscription)) {
+      return res.status(400).json({ error: "رقم طلب الموقع غير موجود." });
+    }
 
-    let transaction = await prisma.paymentTransaction.findUnique({ where: { internalOrderId } });
+    let transaction = null;
+    if (internalOrderId) {
+      transaction = await prisma.paymentTransaction.findUnique({ where: { internalOrderId } });
+    } else if (req.query?.student_id && req.query?.subscription) {
+      const student = await getOwnedStudent(req, req.query.student_id);
+      if (student) {
+        transaction = await prisma.paymentTransaction.findFirst({
+          where: { studentId: student.id, subscriptionType: String(req.query.subscription).toUpperCase(), status: "PENDING" },
+          orderBy: { createdAt: "desc" },
+        });
+      }
+    }
     if (!transaction) return res.status(404).json({ error: "طلب الدفع غير موجود." });
     const student = await getOwnedStudent(req, transaction.studentId);
     if (!student) return res.status(403).json({ error: "لا تملك صلاحية هذا الطلب." });
@@ -782,4 +820,5 @@ module.exports = {
   dismissTeacherElectronicPayment,
   reconcileTeacherElectronicPayment,
   receiveSofizPayWebhook,
+  SOFIZPAY_FIXED_LINKS,
 };
