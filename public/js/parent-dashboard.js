@@ -50,6 +50,7 @@ const elements = {
   subscriptionExpiryAlert: document.getElementById("subscription-expiry-alert"),
   subscriptionExpiryAlertTitle: document.getElementById("subscription-expiry-alert-title"),
   subscriptionExpiryAlertMessage: document.getElementById("subscription-expiry-alert-message"),
+  subscriptionExpiryAlertBtn: document.getElementById("subscription-expiry-alert-btn"),
   universityPaymentUpgrade: document.getElementById("university-payment-upgrade"),
   universityUpgradeButton: document.getElementById("university-upgrade-button"),
   universityPaymentTransfer: document.getElementById("university-payment-transfer"),
@@ -1049,14 +1050,31 @@ function setLiveClassVisible(isVisible, liveData = {}) {
   const visible = Boolean(isVisible);
   elements.liveBanner?.classList.toggle("is-visible", visible);
 
+  const isExpired = isStudentSubscriptionExpired(currentStudent);
   if (visible && elements.liveBannerDetails) {
-    const levelLabel = liveData.globalFree ? "جميع المستويات" : displayLevelLabel(liveData.level || currentStudent?.level);
-    const subjectLabel = liveData.globalFree ? "حصة مجانية مفتوحة للجميع" : homeworkSubjectLabel(
-      liveData.subject || activeLiveClassType || ""
-    );
-    elements.liveBannerDetails.textContent = `${levelLabel} — ${subjectLabel} — يمكنك الدخول الآن`;
+    if (isExpired) {
+      elements.liveBannerDetails.textContent = "انتهت فترة اشتراك التلميذ — يرجى تسديد الاشتراك للدخول إلى الحصة";
+      if (elements.joinLiveClassButton) {
+        elements.joinLiveClassButton.classList.add("is-subscription-expired-btn");
+        elements.joinLiveClassButton.textContent = "تسديد الاشتراك للدخول";
+      }
+    } else {
+      const levelLabel = liveData.globalFree ? "جميع المستويات" : displayLevelLabel(liveData.level || currentStudent?.level);
+      const subjectLabel = liveData.globalFree ? "حصة مجانية مفتوحة للجميع" : homeworkSubjectLabel(
+        liveData.subject || activeLiveClassType || ""
+      );
+      elements.liveBannerDetails.textContent = `${levelLabel} — ${subjectLabel} — يمكنك الدخول الآن`;
+      if (elements.joinLiveClassButton) {
+        elements.joinLiveClassButton.classList.remove("is-subscription-expired-btn");
+        elements.joinLiveClassButton.textContent = "الدخول للحصة";
+      }
+    }
   } else if (!visible && elements.liveBannerDetails) {
     elements.liveBannerDetails.textContent = "يمكن لابنك الانضمام إلى البث الخاص بمستواه الدراسي.";
+    if (elements.joinLiveClassButton) {
+      elements.joinLiveClassButton.classList.remove("is-subscription-expired-btn");
+      elements.joinLiveClassButton.textContent = "الدخول للحصة";
+    }
   }
 
   renderParentSchedule();
@@ -1232,6 +1250,11 @@ function getLiveClassesEntrySubject(student, nextClass) {
 
 function openLiveClassesEntryPage() {
   if (!currentStudent) return;
+  if (isStudentSubscriptionExpired(currentStudent)) {
+    showError("انتهت فترة اشتراك التلميذ. لا يمكن الدخول للحصص حتى يتم تسديد وتجديد الاشتراك.");
+    triggerUpgradeAccount();
+    return;
+  }
   const nextClass = getNextParentScheduledClass();
   const params = new URLSearchParams({
     studentId: currentStudent.id || "",
@@ -1569,9 +1592,10 @@ function renderPaymentReceiptDecision(student) {
 
 function renderUniversityPaymentUpgrade(student, isPaidSubscription) {
   renderPaymentReceiptDecision(student);
-  const isUniversityStudent = student.level === "طالب جامعي";
-  const receiptPending = Boolean(student.paymentReceiptPending);
-  const showUpgrade = isUniversityStudent && !isPaidSubscription;
+  const isUniversityStudent = student?.level === "طالب جامعي";
+  const receiptPending = Boolean(student?.paymentReceiptPending);
+  const isExpired = isStudentSubscriptionExpired(student);
+  const showUpgrade = isUniversityStudent && (!isPaidSubscription || isExpired || receiptPending);
 
   if (elements.universityPaymentUpgrade) {
     elements.universityPaymentUpgrade.hidden = !showUpgrade;
@@ -1615,8 +1639,9 @@ function renderSecondaryPaymentUpgrade(student) {
   renderPaymentReceiptDecision(student);
   const isSecondaryStudent = Boolean(student) && student.level !== "طالب جامعي";
   const paymentStage = student?.paymentStage || (student?.paymentStatus ? "PAID" : "UNPAID");
-  const showUpgrade = isSecondaryStudent && paymentStage === "UNPAID";
+  const isExpired = isStudentSubscriptionExpired(student);
   const receiptPending = Boolean(student?.paymentReceiptPending);
+  const showUpgrade = isSecondaryStudent && (paymentStage === "UNPAID" || isExpired || receiptPending);
 
   document.body.classList.toggle("has-payment-upgrade", showUpgrade);
   if (elements.secondaryPaymentUpgrade) {
@@ -1757,6 +1782,20 @@ function getSubscriptionDaysRemaining(endDateValue) {
   };
 }
 
+function isStudentSubscriptionExpired(student) {
+  if (!student) return false;
+  if (student.subscriptionEndDate) {
+    const validity = getSubscriptionDaysRemaining(student.subscriptionEndDate);
+    if (validity && validity.isExpired) {
+      return true;
+    }
+  }
+  if (student.paymentStage === "EXPIRED") {
+    return true;
+  }
+  return false;
+}
+
 function formatRemainingDaysArabic(days) {
   if (days === 0) return "ينتهي اليوم! موعد الدفع";
   if (days === 1) return "متبقي يوم واحد للدفع";
@@ -1853,6 +1892,22 @@ function renderStudentSubscriptionDates(student) {
       }
     } else {
       elements.subscriptionExpiryAlert.hidden = true;
+    }
+  }
+
+  // 4. Keep live banner button updated with expired status
+  if (elements.joinLiveClassButton) {
+    if (validity.isExpired) {
+      elements.joinLiveClassButton.classList.add("is-subscription-expired-btn");
+      elements.joinLiveClassButton.textContent = "تسديد الاشتراك للدخول";
+      if (elements.liveBannerDetails && elements.liveBanner?.classList.contains("is-visible")) {
+        elements.liveBannerDetails.textContent = "انتهت فترة اشتراك التلميذ — يرجى تسديد الاشتراك للدخول إلى الحصة";
+      }
+    } else {
+      elements.joinLiveClassButton.classList.remove("is-subscription-expired-btn");
+      if (elements.joinLiveClassButton.textContent === "تسديد الاشتراك للدخول") {
+        elements.joinLiveClassButton.textContent = "الدخول للحصة";
+      }
     }
   }
 }
@@ -2400,6 +2455,12 @@ async function enterLiveClass() {
     return;
   }
 
+  if (isStudentSubscriptionExpired(currentStudent)) {
+    showError("انتهت فترة اشتراك التلميذ. لا يمكن الدخول للحصص حتى يتم تسديد وتجديد الاشتراك.");
+    triggerUpgradeAccount();
+    return;
+  }
+
   const isUniversityStudent = currentStudent.level === "طالب جامعي";
   const isPaidSubscription =
     currentStudent.paymentStage === "PAID" || currentStudent.paymentStatus === true;
@@ -2476,6 +2537,9 @@ function refreshAccessAfterReturningFromCall() {
 }
 
 function openUniversityPaymentTransfer() {
+  if (elements.universityPaymentUpgrade) {
+    elements.universityPaymentUpgrade.hidden = false;
+  }
   if (window.PlaneButtonAnim && elements.universityUpgradeButton) {
     window.PlaneButtonAnim.trigger(elements.universityUpgradeButton, { successText: "جارٍ الفتح…", fastMode: true });
   }
@@ -2487,6 +2551,9 @@ function openUniversityPaymentTransfer() {
 }
 
 function openSecondaryPaymentTransfer() {
+  if (elements.secondaryPaymentUpgrade) {
+    elements.secondaryPaymentUpgrade.hidden = false;
+  }
   if (window.PlaneButtonAnim && elements.secondaryUpgradeButton) {
     window.PlaneButtonAnim.trigger(elements.secondaryUpgradeButton, { successText: "جارٍ الفتح…", fastMode: true });
   }
@@ -2495,6 +2562,15 @@ function openSecondaryPaymentTransfer() {
     elements.secondaryPaymentTransfer.hidden = false;
     elements.secondarySofizPayReconcile?.removeAttribute("hidden");
     elements.secondaryPaymentTransfer.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function triggerUpgradeAccount() {
+  const isUniversity = currentStudent?.level === "طالب جامعي";
+  if (isUniversity) {
+    openUniversityPaymentTransfer();
+  } else {
+    openSecondaryPaymentTransfer();
   }
 }
 
@@ -2822,6 +2898,10 @@ if (!getParentToken()) {
 } else {
   elements.joinLiveClassButton?.addEventListener("click", () => {
     void enterLiveClass();
+  });
+  elements.subscriptionExpiryAlertBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    triggerUpgradeAccount();
   });
   elements.liveClassesEntryButton?.addEventListener("click", openLiveClassesEntryPage);
   elements.liveClassesWaitingExit?.addEventListener("click", () => {

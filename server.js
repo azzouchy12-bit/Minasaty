@@ -2016,6 +2016,7 @@ io.on("connection", (socket) => {
           liveAccessEnabled: true,
           paymentStatus: true,
           paymentStage: true,
+          subscriptionEndDate: true,
           accountActive: true,
           cardReuploadRequested: true,
           mathEnrollment: true,
@@ -2030,6 +2031,21 @@ io.on("connection", (socket) => {
           "تعذر التحقق من بيانات التلميذ لهذا المستوى.",
           acknowledgement
         );
+      }
+
+      if (student.subscriptionEndDate) {
+        const endDate = new Date(student.subscriptionEndDate);
+        const now = new Date();
+        const endCalendar = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+        const nowCalendar = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (endCalendar.getTime() - nowCalendar.getTime() < 0) {
+          return emitClassroomError(
+            socket,
+            "student_join_room",
+            "انتهت فترة اشتراك التلميذ. يرجى تسديد الاشتراك وتجديده للدخول إلى الحصص.",
+            acknowledgement
+          );
+        }
       }
 
       const globalTeacherSocketId = activeTeachersByLevel.get(GLOBAL_FREE_LEVEL);

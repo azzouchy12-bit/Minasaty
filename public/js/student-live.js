@@ -313,28 +313,37 @@ function openSubscriptionUpgradeModal(reason = "university") {
     return;
   }
 
+  const isExpired = reason === "EXPIRED";
   const isSubjectUpgrade = reason === "PHYSICS" || reason === "MATH";
   const requiredSubject = reason === "PHYSICS" ? "الفيزياء" : "الرياضيات";
   const currentSubject = reason === "PHYSICS" ? "الرياضيات" : "الفيزياء";
   if (elements.subscriptionUpgradeTitle) {
-    elements.subscriptionUpgradeTitle.textContent = isSubjectUpgrade
-      ? `حصة اليوم ${requiredSubject}`
-      : "هذه الحصة مخصصة للاشتراك المدفوع";
+    elements.subscriptionUpgradeTitle.textContent = isExpired
+      ? "انتهت فترة الاشتراك"
+      : isSubjectUpgrade
+        ? `حصة اليوم ${requiredSubject}`
+        : "هذه الحصة مخصصة للاشتراك المدفوع";
   }
   if (elements.subscriptionUpgradeHeadMessage) {
-    elements.subscriptionUpgradeHeadMessage.textContent = isSubjectUpgrade
-      ? `حصة اليوم ${requiredSubject} وأنت مشترك في ${currentSubject} فقط.`
-      : "أنت مشترك في المجاني فقط وهذه الحصة المدفوعة الآن للطلبة ذوي الاشتراك المدفوع.";
+    elements.subscriptionUpgradeHeadMessage.textContent = isExpired
+      ? "انتهت فترة اشتراكك في المنصة ولا يمكنك الدخول إلى الحصص حتى يتم تجديد الاشتراك."
+      : isSubjectUpgrade
+        ? `حصة اليوم ${requiredSubject} وأنت مشترك في ${currentSubject} فقط.`
+        : "أنت مشترك في المجاني فقط وهذه الحصة المدفوعة الآن للطلبة ذوي الاشتراك المدفوع.";
   }
   if (elements.subscriptionUpgradeMessage) {
-    elements.subscriptionUpgradeMessage.textContent = isSubjectUpgrade
-      ? `إذا كنت تريد الاشتراك في ${requiredSubject}، اتصل بالأستاذ مباشرة على الرقم 0556960950.`
-      : "للترقية إلى الاشتراك المدفوع، اضغط على الزر الأخضر واتصل بالأستاذ مباشرة على الرقم 0556960950.";
+    elements.subscriptionUpgradeMessage.textContent = isExpired
+      ? "يرجى تسديد الاشتراك وتجديده للاستمرار في متابعة الحصص المباشرة والواجبات، أو الاتصال بالأستاذ مباشرة على الرقم 0556960950."
+      : isSubjectUpgrade
+        ? `إذا كنت تريد الاشتراك في ${requiredSubject}، اتصل بالأستاذ مباشرة على الرقم 0556960950.`
+        : "للترقية إلى الاشتراك المدفوع، اضغط على الزر الأخضر واتصل بالأستاذ مباشرة على الرقم 0556960950.";
   }
   if (elements.subscriptionDeclineButton) {
-    elements.subscriptionDeclineButton.textContent = isSubjectUpgrade
-      ? `لا أريد الاشتراك في ${requiredSubject}`
-      : "لا أريد الاشتراك";
+    elements.subscriptionDeclineButton.textContent = isExpired
+      ? "العودة إلى لوحة المتابعة"
+      : isSubjectUpgrade
+        ? `لا أريد الاشتراك في ${requiredSubject}`
+        : "لا أريد الاشتراك";
   }
 
   elements.subscriptionUpgradeModal.hidden = false;
@@ -396,7 +405,31 @@ function readStoredStudent() {
     studentId: String(studentId).trim(),
     studentName: String(studentName).trim(),
     level: String(level).trim(),
+    subscriptionEndDate: storedRecord?.subscriptionEndDate || null,
+    subscriptionStartDate: storedRecord?.subscriptionStartDate || null,
+    paymentStage: storedRecord?.paymentStage || null,
   };
+}
+
+function isStudentLiveSubscriptionExpired(endDateValue) {
+  if (!endDateValue) return false;
+  try {
+    const raw = String(endDateValue).trim();
+    let end = null;
+    const directMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+    if (directMatch) {
+      end = new Date(Number(directMatch[1]), Number(directMatch[2]) - 1, Number(directMatch[3]));
+    } else {
+      end = new Date(endDateValue);
+    }
+    if (!end || Number.isNaN(end.getTime())) return false;
+    const now = new Date();
+    const endCalendar = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    const nowCalendar = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return (endCalendar.getTime() - nowCalendar.getTime()) < 0;
+  } catch {
+    return false;
+  }
 }
 
 const LIVE_LEVEL_ALIASES = Object.freeze({
@@ -479,9 +512,15 @@ if (prejoinCompleted) {
   document.documentElement.classList.add("student-prejoin-completed-user");
 }
 
-// The classroom is entered from the parent dashboard. Once identity is known,
-// keep the viewer hands-free even after a teacher ends and later restarts class.
-initialAutoJoinPending = initialAutoJoinPending || Boolean(studentId && level) || prejoinCompleted;
+const isStudentSubExpired = isStudentLiveSubscriptionExpired(currentStudent.subscriptionEndDate);
+if (isStudentSubExpired) {
+  initialAutoJoinPending = false;
+  prejoinCompleted = false;
+} else {
+  // The classroom is entered from the parent dashboard. Once identity is known,
+  // keep the viewer hands-free even after a teacher ends and later restarts class.
+  initialAutoJoinPending = initialAutoJoinPending || Boolean(studentId && level) || prejoinCompleted;
+}
 
 /**
  * Keep status text accessible and use explicit modes rather than injecting
@@ -3585,6 +3624,10 @@ async function continueFromStudentPrejoin() {
 }
 
 async function completeStudentPrejoinAndJoin() {
+  if (isStudentLiveSubscriptionExpired(currentStudent.subscriptionEndDate)) {
+    openSubscriptionUpgradeModal("EXPIRED");
+    return;
+  }
   markPermanentStudentPrejoinCompleted();
   prejoinCompleted = true;
   initialAutoJoinPending = true;
@@ -4982,6 +5025,9 @@ socket.on("class_ended_by_teacher", () => {
 socket.on("classroom_error", (data = {}) => {
   if (data.message) {
     setViewerStatus(data.message, "error");
+    if (data.message.includes("انتهت فترة اشتراك")) {
+      openSubscriptionUpgradeModal("EXPIRED");
+    }
   }
 });
 
@@ -5083,7 +5129,7 @@ elements.prejoinCameraButton?.addEventListener("click", testOptionalStudentCamer
 elements.prejoinContinueButton?.addEventListener("click", continueFromStudentPrejoin);
 elements.subscriptionDeclineButton?.addEventListener("click", () => {
   closeSubscriptionUpgradeModal();
-  window.location.assign("./index.html");
+  window.location.assign("./parent-dashboard.html");
 });
 initializeMobileControls();
 initializeDesktopFullscreen();

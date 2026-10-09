@@ -1405,7 +1405,15 @@
         order: 3;
       }
 
-      /* Live-class banner position depends on the number of registered students. */
+      /* Subscription alert and live-class banner position depends on registered students. */
+      .parent-dashboard-page #subscription-expiry-alert {
+        order: 0;
+        width: 100%;
+        margin-bottom: 0.85rem;
+      }
+      .parent-dashboard-page:not(.has-multiple-students) #subscription-expiry-alert {
+        order: 0;
+      }
       .parent-dashboard-page:not(.has-multiple-students) #live-class-banner {
         order: 1;
       }
@@ -1415,11 +1423,14 @@
       .parent-dashboard-page.has-multiple-students #active-student-bar {
         order: 1;
       }
-      .parent-dashboard-page.has-multiple-students #live-class-banner {
+      .parent-dashboard-page.has-multiple-students #subscription-expiry-alert {
         order: 2;
       }
-      .parent-dashboard-page.has-multiple-students #dashboard-content {
+      .parent-dashboard-page.has-multiple-students #live-class-banner {
         order: 3;
+      }
+      .parent-dashboard-page.has-multiple-students #dashboard-content {
+        order: 4;
       }
       .parent-dashboard-page.has-multiple-students #parent-schedule-card,
       .parent-dashboard-page.has-multiple-students #secondary-payment-upgrade,
@@ -1704,6 +1715,17 @@
           <button id="parent-messenger-lite-choice" class="parent-messenger-lite-choice" type="button">أستخدم Facebook Lite</button>
         </div>
       </section>
+
+      <!-- Subscription Expiry Alert: Placed prominently above the live class banner -->
+      <div id="subscription-expiry-alert" class="subscription-expiry-alert" hidden role="alert">
+        <div class="subscription-expiry-alert-icon" aria-hidden="true">⏳</div>
+        <div class="subscription-expiry-alert-copy">
+          <strong id="subscription-expiry-alert-title">اقتراب موعد تجديد الاشتراك</strong>
+          <p id="subscription-expiry-alert-message">يرجى تسديد الاشتراك قبل انتهاء الفترة لضمان استمرار حضور الحصص والواجبات دون انقطاع.</p>
+        </div>
+        <a href="#secondary-payment-upgrade" class="subscription-expiry-alert-action" id="subscription-expiry-alert-btn" role="button">تسديد الاشتراك الآن ←</a>
+      </div>
+
       <!-- Prompt 10: this remains display:none until the parent level's live event arrives. -->
       <section id="live-class-banner" aria-live="polite" aria-label="تنبيه الحصة المباشرة">
         <div class="live-banner-copy">
@@ -1881,14 +1903,6 @@
               </div>
             </div>
           </article>
-          <div id="subscription-expiry-alert" class="subscription-expiry-alert" hidden role="alert">
-            <div class="subscription-expiry-alert-icon" aria-hidden="true">⏳</div>
-            <div class="subscription-expiry-alert-copy">
-              <strong id="subscription-expiry-alert-title">اقتراب موعد تجديد الاشتراك</strong>
-              <p id="subscription-expiry-alert-message">يرجى تسديد الاشتراك قبل انتهاء الفترة لضمان استمرار حضور الحصص والواجبات دون انقطاع.</p>
-            </div>
-            <a href="#secondary-payment-upgrade" class="subscription-expiry-alert-action" id="subscription-expiry-alert-btn">تسديد الاشتراك الآن ←</a>
-          </div>
         </div>
         <section class="parent-kpi-grid activity-kpi-grid" aria-label="مؤشرات التلميذ الحالي">
           <article class="parent-kpi-card"><span class="parent-kpi-icon">✓</span><div><small>الحضور</small><strong id="attendance-count">—</strong><em>حصص (> 1 ساعة)</em></div></article>
