@@ -45,7 +45,7 @@ router.get("/ice-servers", verifyToken, (req, res) => {
   });
 });
 
-const { AccessToken } = require("livekit-server-sdk");
+const { AccessToken, RoomServiceClient, TrackSource } = require("livekit-server-sdk");
 
 const DEFAULT_LIVEKIT_HOST = "192-236-187-151.sslip.io";
 const DEFAULT_LIVEKIT_PORT = "443";
@@ -61,7 +61,7 @@ function getLivekitConfig() {
   const host = String(process.env.LIVEKIT_HOST || DEFAULT_LIVEKIT_HOST).trim();
   const port = String(process.env.LIVEKIT_PORT || DEFAULT_LIVEKIT_PORT).trim();
   // Require environment variables; never store secrets as source literals. Fallback to test placeholder in test suites only.
-  const isTestOrLocal = process.env.NODE_ENV === "test" || !process.env.PORT;
+  const isTestOrLocal = process.env.NODE_ENV === "test";
   const key = String(process.env.LIVEKIT_API_KEY || (isTestOrLocal ? "test_key" : "")).trim();
   const secret = String(process.env.LIVEKIT_API_SECRET || (isTestOrLocal ? "test_secret" : "")).trim();
   const protocol = process.env.LIVEKIT_PROTOCOL || "wss";
@@ -96,24 +96,8 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
       let isAllowed = false;
       if (typeof router.classroomAuthorizer === "function") {
         isAllowed = await router.classroomAuthorizer(roomName, studentId, req.user);
-      } else if (prismaClient) {
-        try {
-          const student = await prismaClient.student.findUnique({
-            where: { id: studentId },
-            select: { id: true, level: true, liveAccessEnabled: true, paymentStage: true, subscriptionEndDate: true, accountActive: true },
-          });
-          if (student) {
-            const isExpired = student.subscriptionEndDate && (new Date(student.subscriptionEndDate).getTime() - new Date().setHours(0, 0, 0, 0) < 0);
-            if (!isExpired || roomName.includes("FREE")) {
-              isAllowed = true;
-            }
-          }
-        } catch (_) {
-          isAllowed = true; // Graceful fallback on DB blip
-        }
-      } else {
-        isAllowed = true; // In test contexts without DB
       }
+
 
       if (!isAllowed) {
         return res.status(403).json({ error: "غير مصرح لك بالانضمام إلى هذه الحصة." });
@@ -144,7 +128,8 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
     at.addGrant({
       room: roomName,
       roomJoin: true,
-      canPublish: true,
+      canPublish: isMicApproved,
+      ...(isTeacher ? {} : { canPublishSources: [TrackSource?.MICROPHONE ?? 2] }),
       canSubscribe: true,
       canPublishData: true,
       canUpdateOwnMetadata: false,
@@ -175,6 +160,27 @@ router.setStudentMicChecker = function setStudentMicChecker(fn) {
 
 router.setClassroomAuthorizer = function setClassroomAuthorizer(fn) {
   router.classroomAuthorizer = fn;
+};
+
+// Update already-connected students; changing the next token alone is insufficient.
+router.syncStudentMicrophonePermission = async function(roomName, studentId, enabled) {
+  if (!studentId) return;
+  const config = getLivekitConfig();
+  if (!config.enabled || !config.isConfigured) return;
+  const serviceUrl = config.url.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+  const client = new RoomServiceClient(serviceUrl, config.key, config.secret, { requestTimeout: 4000 });
+  try {
+    await client.updateParticipant(roomName, String(studentId), {
+      permission: {
+        canPublish: Boolean(enabled), canSubscribe: true, canPublishData: true,
+        canPublishSources: [TrackSource.MICROPHONE], canUpdateMetadata: false,
+      },
+    });
+  } catch (err) {
+    // An absent participant will obtain the current permissions on their next join.
+    if (err?.status === 404 || err?.code === "not_found") return;
+    console.warn("[SFU] Could not synchronize student microphone permission.");
+  }
 };
 
 module.exports = router;

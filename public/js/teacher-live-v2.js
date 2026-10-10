@@ -311,7 +311,7 @@ function handleSfuDegradation() {
     if (!classActive || !activeLevel || sessionId !== teacherSfuSessionId) {
       return;
     }
-    if (!teacherSfuRoom || teacherSfuRoom.state !== "connected") {
+    if (!teacherSfuRoom || teacherSfuRoom.state !== "connected" || !sfuActiveForClass) {
       sfuReconnectAttempts++;
       console.info(`[SFU] Attempting automatic reconnection to LiveKit SFU (attempt ${sfuReconnectAttempts}/${MAX_SFU_RECONNECT_ATTEMPTS})...`);
       const reconnected = await initTeacherSfuSession(activeLevel);
@@ -360,8 +360,10 @@ async function initTeacherSfuSession(roomName) {
   if (teacherSfuRoom && teacherSfuRoom.state === "connected" && currentTeacherSfuRoomName === roomName) {
     sfuActiveForClass = true;
     mediaTransportState = "sfu_active";
-    await syncTeacherSfuMedia();
-    return true;
+    const mediaResult = await syncTeacherSfuMedia();
+    sfuActiveForClass = mediaResult?.success !== false;
+    mediaTransportState = sfuActiveForClass ? "sfu_active" : "p2p_fallback";
+    return sfuActiveForClass;
   }
 
   // If already in the middle of connecting to this room, await the in-flight operation
@@ -378,7 +380,8 @@ async function initTeacherSfuSession(roomName) {
   isTeacherSfuConnecting = true;
   currentTeacherSfuRoomName = roomName;
   mediaTransportState = "sfu_connecting";
-  const sessionId = ++teacherSfuSessionId;
+  const sessionId = teacherSfuRoom && teacherSfuRoom.state !== "disconnected"
+    ? teacherSfuSessionId : ++teacherSfuSessionId;
 
   teacherSfuConnectPromise = (async () => {
     try {
@@ -444,8 +447,10 @@ async function initTeacherSfuSession(roomName) {
       mediaTransportState = "sfu_active";
       recordLiveDiagnosticEvent("sfu_connected", "Teacher successfully connected to LiveKit SFU: " + roomName);
       console.info("[SFU] Teacher successfully connected to LiveKit SFU:", roomName);
-      await syncTeacherSfuMedia();
-      return true;
+      const mediaResult = await syncTeacherSfuMedia();
+      sfuActiveForClass = mediaResult?.success !== false;
+      mediaTransportState = sfuActiveForClass ? "sfu_active" : "p2p_fallback";
+      return sfuActiveForClass;
     } catch (error) {
       if (sessionId !== teacherSfuSessionId) return false;
       if (String(error?.message).includes("Client initiated disconnect") || String(error?.message).includes("cancelled")) {
@@ -482,11 +487,13 @@ async function syncTeacherSfuMedia() {
     return;
   }
   isSfuMediaSyncing = true;
+  let result;
   try {
     do {
       pendingSfuMediaSync = false;
-      await executeTeacherSfuMediaSync();
+      result = await executeTeacherSfuMediaSync();
     } while (pendingSfuMediaSync && teacherSfuRoom?.state === "connected");
+    return result;
   } finally {
     isSfuMediaSyncing = false;
   }
@@ -617,7 +624,11 @@ async function executeTeacherSfuMediaSync() {
     }
   }
 
-  const success = !videoError && !audioError;
+  const videoRequired = Boolean(getActiveTeacherVideoTrack());
+  const audioRequired = Boolean(getActiveTeacherAudioTrack());
+  const success = !videoError && !audioError
+    && (!videoRequired || Boolean(teacherSfuVideoPub))
+    && (!audioRequired || Boolean(teacherSfuAudioPub));
   return {
     success,
     videoPublished: Boolean(teacherSfuVideoPub),
@@ -6135,6 +6146,12 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
     return;
   }
 
+  if (typeof window.getMinasatyRtcConfig === "function") {
+    const config = await window.getMinasatyRtcConfig();
+    if (!classActive) return;
+    Object.assign(rtcConfig, config);
+  }
+
   let peerConnection = peerConnections[studentSocketId];
 
 
@@ -6180,6 +6197,9 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
   peerConnection.lastOfferSentAt = now;
 
   try {
+    if (typeof peerConnection.setConfiguration === "function") {
+      peerConnection.setConfiguration(rtcConfig);
+    }
     const offer = await peerConnection.createOffer({ iceRestart });
     const optimizedSdp = optimizeOpusSdp(offer.sdp);
     await peerConnection.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: optimizedSdp }));

@@ -148,7 +148,7 @@ test('Actual SFU disconnect cleanup removes every classmate playback element', a
 test('Actual token endpoint signs authenticated roles, rejects body role spoofing and preserves existing publication grants', async () => {
   let tokenHandler; let options; let grants;
   const router = { get() {}, post(route, ...handlers) { if (route === '/sfu-token') tokenHandler = handlers.at(-1); } };
-  const context = { module: { exports: {} }, process: { env: {} }, console: { error() {} },
+  const context = { module: { exports: {} }, process: { env: { NODE_ENV: "test" } }, console: { error() {} },
     require(name) {
       if (name === 'crypto') return require('node:crypto');
       if (name === 'express') return { Router: () => router };
@@ -162,13 +162,14 @@ test('Actual token endpoint signs authenticated roles, rejects body role spoofin
   };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(root, 'routes/webrtcRoutes.js'), 'utf8'), context);
+  router.setClassroomAuthorizer(async () => true);
   const res = { status() { return this; }, json() { return this; } };
   for (const role of ['student', 'parent', 'teacher']) {
     await tokenHandler({ user: { role, id: 'uuid-' + role }, body: { roomName: 'test-room', allowMic: false, classroomRole: 'teacher', metadata: '{"classroomRole":"teacher"}' }, query: {} }, res);
     assert.equal(JSON.parse(options.metadata).classroomRole, role === 'teacher' ? 'teacher' : 'student');
     assert.equal(options.identity, 'uuid-' + role);
     assert.equal(grants.canUpdateOwnMetadata, false);
-    assert.equal(grants.canPublish, true, 'This fix must not widen or redesign the existing publication grants');
+    assert.equal(grants.canPublish, role === 'teacher', 'Student publication requires server-owned approval');
     assert.equal(grants.canSubscribe, true); assert.equal(grants.canPublishData, true);
   }
 });

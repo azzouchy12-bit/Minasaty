@@ -925,33 +925,37 @@ if (typeof webrtcRoutes?.setStudentMicChecker === "function") {
   });
 }
 if (typeof webrtcRoutes?.setClassroomAuthorizer === "function") {
-  webrtcRoutes.setClassroomAuthorizer(async (level, studentId, user) => {
-    if (user?.role === "teacher") return true;
-    if (!studentId) return false;
-    const globalTeacherSocketId = activeTeachersByLevel.get(GLOBAL_FREE_LEVEL);
-    const globalTeacherSocket = globalTeacherSocketId ? io.sockets.sockets.get(globalTeacherSocketId) : null;
-    const isGlobalFreeActive = Boolean(
-      globalTeacherSocket &&
-      activeSubjectByLevel.get(GLOBAL_FREE_LEVEL) === "FREE" &&
-      isInLevelRoom(globalTeacherSocket, GLOBAL_FREE_LEVEL)
-    );
-    if (isGlobalFreeActive || level === GLOBAL_FREE_LEVEL) return true;
+  webrtcRoutes.setClassroomAuthorizer(async (level, studentId) => {
+    if (!studentId || !isValidLevel(level)) return false;
     try {
       const student = await prisma.student.findUnique({
         where: { id: studentId },
-        select: { id: true, level: true, liveAccessEnabled: true, paymentStage: true, subscriptionEndDate: true, accountActive: true },
+        select: { id: true, level: true, liveAccessEnabled: true, paymentStage: true, paymentStatus: true,
+          subscriptionEndDate: true, accountActive: true, mathEnrollment: true, physicsEnrollment: true },
       });
       if (!student) return false;
       if (student.subscriptionEndDate) {
         const endDate = new Date(student.subscriptionEndDate);
         const now = new Date();
-        const endCalendar = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-        const nowCalendar = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        if (endCalendar.getTime() - nowCalendar.getTime() < 0) return false;
+        if (new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
+          < new Date(now.getFullYear(), now.getMonth(), now.getDate())) return false;
       }
-      return true;
+      if (student.level === UNIVERSITY_LEVEL && !student.accountActive) return false;
+      const teacherId = activeTeachersByLevel.get(level);
+      const teacher = teacherId ? io.sockets.sockets.get(teacherId) : null;
+      const recovering = pendingTeacherRecoveryByLevel.get(level);
+      if ((!teacher || !isInLevelRoom(teacher, level)) && !recovering) return false;
+      const subject = activeSubjectByLevel.get(level) || recovering?.subject;
+      if (level === GLOBAL_FREE_LEVEL) return subject === "FREE";
+      if (canonicalLevel(student.level) !== canonicalLevel(level)) return false;
+      const paymentAccess = student.level !== UNIVERSITY_LEVEL && ["PAID", "PROMISED"].includes(student.paymentStage);
+      if (!student.liveAccessEnabled && !paymentAccess && subject !== "FREE") return false;
+      return student.level === UNIVERSITY_LEVEL
+        ? (subject === "PAID" && isPaidSubscription(student)) || subject === "FREE"
+        : subject === "FREE" || (subject === "MATH" && student.mathEnrollment)
+          || (subject === "PHYSICS" && student.physicsEnrollment);
     } catch (_) {
-      return true;
+      return false;
     }
   });
 }
@@ -2715,6 +2719,7 @@ io.on("connection", (socket) => {
       const targetStudentId = targetSocket.data.studentId || null;
       const wasOpen = isStudentMicrophoneOpen(level, targetSocketId, targetStudentId);
       setStudentMicrophoneOpen(level, targetSocketId, enabled, targetStudentId);
+      await webrtcRoutes.syncStudentMicrophonePermission(level, targetStudentId, enabled);
       setStudentWhiteboardAccess(level, targetSocketId, enabled);
 
       const sessionKey = socket.data.classResumeToken;
@@ -2830,6 +2835,8 @@ io.on("connection", (socket) => {
               }
             }
 
+            setStudentMicrophoneOpen(level, targetSocketId, false, targetSocket.data.studentId);
+            await webrtcRoutes.syncStudentMicrophonePermission(level, targetSocket.data.studentId, false);
             io.to(targetSocketId).emit("microphone_revoked", { level });
             io.to(targetSocketId).emit("whiteboard_access_revoked", { level });
             mutedSocketIds.push(targetSocketId);
@@ -2958,7 +2965,8 @@ io.on("connection", (socket) => {
       }
 
       const wasOpen = isStudentMicrophoneOpen(level, targetSocketId);
-      setStudentMicrophoneOpen(level, targetSocketId, true);
+      setStudentMicrophoneOpen(level, targetSocketId, true, targetSocket.data.studentId);
+      await webrtcRoutes.syncStudentMicrophonePermission(level, targetSocket.data.studentId, true);
       setStudentWhiteboardAccess(level, targetSocketId, true);
       if (!wasOpen) {
         try {

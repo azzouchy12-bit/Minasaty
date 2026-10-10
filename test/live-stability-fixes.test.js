@@ -57,5 +57,5 @@ test("teacher-live-v2.js monitors microphone hardware state and keeps audio grap
 });
 
 test("webrtcRoutes grants canPublish permission for LiveKit SFU classroom rooms", () => {
-  assert.match(webrtcRoutes, /canPublish:\s*true/, "canPublish must be true in addGrant");
+  assert.match(webrtcRoutes, /canPublish:\s*isMicApproved/, "Publication must follow server approval");
 });

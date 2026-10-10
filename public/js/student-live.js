@@ -360,6 +360,77 @@ window.getMinasatyStudentLiveStatsAsync = async function getMinasatyStudentLiveS
   return base;
 };
 
+let sfuReceptionMonitor = null;
+
+function stopSfuReceptionMonitor() {
+  if (sfuReceptionMonitor) clearInterval(sfuReceptionMonitor);
+  sfuReceptionMonitor = null;
+}
+
+function startSfuReceptionMonitor(room) {
+  stopSfuReceptionMonitor();
+  let busy = false;
+  let lastBytes = null;
+  let lastProgress = Date.now();
+  sfuReceptionMonitor = setInterval(async () => {
+    if (busy || studentSfuRoom !== room || !joinedClass) return;
+    if (room.state !== "connected" || document.visibilityState === "hidden") {
+      lastProgress = Date.now();
+      lastBytes = null;
+      return;
+    }
+    busy = true;
+    try {
+      let expectedTracks = 0;
+      let reports = 0;
+      let bytes = 0;
+      let teacherPresent = false;
+      for (const participant of room.remoteParticipants.values()) {
+        if (getSfuParticipantRole(participant) !== "teacher") continue;
+        teacherPresent = true;
+        for (const publication of participant.trackPublications.values()) {
+          // Muted publications and intentional camera/screen pauses are not outages.
+          if (publication.isMuted) continue;
+          expectedTracks++;
+          if (typeof publication.track?.getRTCStatsReport !== "function") continue;
+          const stats = await publication.track.getRTCStatsReport();
+          stats?.forEach((report) => {
+            if (report.type === "inbound-rtp" && typeof report.bytesReceived === "number") {
+              reports++;
+              bytes += report.bytesReceived;
+            }
+          });
+        }
+      }
+      if (studentSfuRoom !== room || room.state !== "connected" || !joinedClass) return;
+      const now = Date.now();
+      if (teacherPresent && expectedTracks === 0) {
+        lastProgress = now;
+        lastBytes = null;
+        return;
+      }
+      // Missing stats are not proof of stalled reception on unsupported browsers.
+      if (reports > 0 && (lastBytes === null || bytes !== lastBytes)) lastProgress = now;
+      if (reports === 0 && teacherPresent && expectedTracks > 0
+          && Array.from(room.remoteParticipants.values()).some((p) =>
+            getSfuParticipantRole(p) === "teacher" && Array.from(p.trackPublications.values()).some((pub) => pub.track))) {
+        lastProgress = now;
+      }
+      lastBytes = reports > 0 ? bytes : null;
+      if (now - lastProgress < 20_000) return;
+      recordStudentDiagnosticEvent("teacher_media_stalled", "Teacher reception stalled; requesting recovery");
+      notifySfuTransportStatus(false);
+      clearStaleSfuMedia();
+      disconnectStudentSfu();
+      scheduleClassRecovery(500);
+    } catch (_) {
+      // A failed stats read must not tear down a working media session.
+    } finally {
+      busy = false;
+    }
+  }, 4_000);
+}
+
 async function connectStudentSfu(roomName) {
   if (typeof window.fetchMinasatySfuToken !== "function" || !window.LivekitClient?.Room) {
     console.info("[SFU-Student] LiveKit client or helper not available, using P2P.");
@@ -527,7 +598,9 @@ async function connectStudentSfu(roomName) {
       if (studentSfuRoom.state !== "connected") {
         await studentSfuRoom.connect(sfuUrl, sfuData.token);
       }
+      if (sessionId !== getCurrentSessionId()) return false;
       setConnectedTimestamp(Date.now());
+      if (typeof startSfuReceptionMonitor === "function") startSfuReceptionMonitor(studentSfuRoom);
       console.info("[SFU-Student] Connected to LiveKit SFU room successfully:", roomName);
       recordStudentDiagnosticEvent("sfu_connected", "Connected to LiveKit SFU: " + roomName);
       notifySfuTransportStatus(true);
@@ -705,6 +778,7 @@ function clearStaleSfuMedia() {
 }
 
 function disconnectStudentSfu() {
+  if (typeof stopSfuReceptionMonitor === "function") stopSfuReceptionMonitor();
   if (typeof studentSfuSessionId !== "undefined") {
     studentSfuSessionId++;
   }
@@ -4775,6 +4849,12 @@ async function negotiateStudentMicrophone() {
   isMakingRenegotiationOffer = true;
 
   try {
+    const negotiatingPeer = pc;
+    if (typeof window.getMinasatyRtcConfig === "function") {
+      Object.assign(rtcConfig, await window.getMinasatyRtcConfig());
+      if (pc !== negotiatingPeer || pc.signalingState !== "stable") return;
+      if (typeof pc.setConfiguration === "function") pc.setConfiguration(rtcConfig);
+    }
     const offer = await pc.createOffer();
     const optimizedSdp = optimizeOpusSdp(offer.sdp);
     await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: optimizedSdp }));
@@ -5514,6 +5594,11 @@ socket.on("webrtc_offer", async (data = {}) => {
     // ICE restarts arrive as a fresh teacher offer. Reusing the existing peer
     // preserves the rendered screen and audio instead of briefly blanking the
     // classroom while the network route is recovered.
+    if (typeof window.getMinasatyRtcConfig === "function") {
+      Object.assign(rtcConfig, await window.getMinasatyRtcConfig());
+      if (pc !== peerConnection) return;
+      if (typeof peerConnection.setConfiguration === "function") peerConnection.setConfiguration(rtcConfig);
+    }
     await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
     await flushPendingIceCandidates();
 
