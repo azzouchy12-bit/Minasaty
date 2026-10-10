@@ -2168,7 +2168,7 @@ function syncLocalRecordingAudioSources() {
       return;
     }
     const track = streamData?.track || streamData?.stream?.getAudioTracks?.()[0];
-    if (!track || track.readyState !== "live" || track.enabled === false) {
+    if (!track || track.readyState !== "live" || track.enabled === false || track.muted === true) {
       return;
     }
 

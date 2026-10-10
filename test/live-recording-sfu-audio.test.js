@@ -458,3 +458,44 @@ test('Obsolete P2P track end preserves replacement recording source and server a
   assert.equal(ctx.localRecordingSourceNodes.has('socket-one'),false);
   assert.equal(ctx.approvedStudentMicrophones.has('socket-one'),true,'Track end is not permission revocation');
 });
+
+
+test('Recording switches from muted SFU to approved P2P and back without duplicate student audio', () => {
+  const {ctx}=createTeacherFixture();
+  const id='transition-student',sock='transition-socket',sfuKey='__sfu_student_'+id+'__';
+  ctx.attendeeElements.set(sock,{dataset:{studentId:id}});
+  ctx.attendeeSocketByStudentId.set(id,sock);
+  ctx.approvedStudentMicrophones.add(id);ctx.approvedStudentMicrophones.add(sock);
+  const p2p=new MockMediaStream([new MockTrack('transition-p2p')]);
+  ctx.studentAudioElements.set(sock,{srcObject:p2p});
+  const sfu=new MockTrack('transition-sfu');ctx.attachSfuStudentAudio(id,sfu);
+  assert.equal(ctx.localRecordingSourceNodes.has(sfuKey),true);
+  assert.equal(ctx.localRecordingSourceNodes.has(sock),false);
+  sfu.mute();
+  assert.equal(ctx.localRecordingSourceNodes.has(sfuKey),false);
+  assert.equal(ctx.localRecordingSourceNodes.get(sock)?.stream,p2p);
+  assert.equal(ctx.localRecordingSourceNodes.size,3);
+  sfu.unmute();
+  assert.equal(ctx.localRecordingSourceNodes.has(sfuKey),true);
+  assert.equal(ctx.localRecordingSourceNodes.has(sock),false);
+  assert.equal(ctx.localRecordingSourceNodes.size,3);
+  sfu.stop();
+  assert.equal(ctx.localRecordingSourceNodes.get(sock)?.stream,p2p);
+});
+
+test('P2P arriving after muted SFU is included, but microphone revocation removes both paths', () => {
+  const {ctx}=createTeacherFixture();
+  const id='late-student',sock='late-socket',sfuKey='__sfu_student_'+id+'__';
+  ctx.attendeeElements.set(sock,{dataset:{studentId:id}});
+  ctx.attendeeSocketByStudentId.set(id,sock);
+  ctx.approvedStudentMicrophones.add(id);ctx.approvedStudentMicrophones.add(sock);
+  const sfu=new MockTrack('late-sfu');sfu.muted=true;
+  ctx.attachSfuStudentAudio(id,sfu);
+  assert.equal(ctx.localRecordingSourceNodes.has(sfuKey),false);
+  const p2p=new MockMediaStream([new MockTrack('late-p2p')]);
+  ctx.studentAudioElements.set(sock,{srcObject:p2p});ctx.syncLocalRecordingAudioSources();
+  assert.equal(ctx.localRecordingSourceNodes.get(sock)?.stream,p2p);
+  ctx.approvedStudentMicrophones.clear();ctx.syncLocalRecordingAudioSources();
+  assert.equal(ctx.localRecordingSourceNodes.has(sock),false);
+  sfu.unmute();assert.equal(ctx.localRecordingSourceNodes.has(sfuKey),false);
+});
