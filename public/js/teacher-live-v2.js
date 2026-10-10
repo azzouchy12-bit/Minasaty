@@ -481,21 +481,30 @@ function getActiveTeacherAudioTrack() {
 }
 
 async function syncTeacherSfuMedia() {
-  if (!teacherSfuRoom || teacherSfuRoom.state !== "connected") return;
+  if (!teacherSfuRoom || teacherSfuRoom.state !== "connected") return { success: false };
   if (isSfuMediaSyncing) {
     pendingSfuMediaSync = true;
-    return;
+    return syncTeacherSfuMedia.pendingPromise || { success: false };
   }
   isSfuMediaSyncing = true;
-  let result;
-  try {
+  const room = teacherSfuRoom;
+  const task = (async () => {
+    let result;
     do {
       pendingSfuMediaSync = false;
       result = await executeTeacherSfuMediaSync();
-    } while (pendingSfuMediaSync && teacherSfuRoom?.state === "connected");
+      if (teacherSfuRoom !== room) return { success: false };
+    } while (pendingSfuMediaSync && room.state === "connected");
     return result;
+  })();
+  syncTeacherSfuMedia.pendingPromise = task;
+  try {
+    return await task;
   } finally {
-    isSfuMediaSyncing = false;
+    if (syncTeacherSfuMedia.pendingPromise === task) {
+      syncTeacherSfuMedia.pendingPromise = null;
+      isSfuMediaSyncing = false;
+    }
   }
 }
 

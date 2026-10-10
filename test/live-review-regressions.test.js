@@ -135,3 +135,52 @@ test('Actual microphone renegotiation fetches TURN after the initial ICE request
   await ctx.negotiateStudentMicrophone();
   assert.equal(calls,2);assert.equal(configured,true);assert.equal(ctx.microphoneOfferSent,true);
 });
+
+
+test('Concurrent teacher media sync waits for the real publication result', async () => {
+  let release, calls=0, secondSettled=false;
+  const room={state:'connected'};
+  const ctx={teacherSfuRoom:room,isSfuMediaSyncing:false,pendingSfuMediaSync:false,
+    executeTeacherSfuMediaSync:async()=>{
+      if(++calls===1)await new Promise(resolve=>{release=resolve;});
+      return {success:false};
+    }};
+  vm.runInNewContext(extract(teacher,'syncTeacherSfuMedia'),ctx);
+  const first=ctx.syncTeacherSfuMedia();
+  const second=ctx.syncTeacherSfuMedia().then(result=>{secondSettled=true;return result;});
+  await Promise.resolve();assert.equal(secondSettled,false);
+  release();
+  assert.equal((await first).success,false);
+  assert.equal((await second).success,false);
+  assert.equal(calls,2);
+  assert.equal(ctx.isSfuMediaSyncing,false);
+});
+
+test('Student SFU reuse during reconnect keeps reception handlers and schedules disconnect recovery', async () => {
+  let attached=0,recovery=0;
+  class Room {
+    constructor(){this.state='disconnected';this.handlers=new Map();this.localParticipant={identity:'student'};}
+    on(name,fn){this.handlers.set(name,fn);}
+    async connect(){this.state='connected';}
+  }
+  const ctx={studentSfuRoom:null,currentStudentSfuRoomName:null,isStudentSfuConnecting:false,
+    studentSfuConnectPromise:null,studentSfuSessionId:0,studentSfuConnectedAt:0,
+    window:{fetchMinasatySfuToken:async()=>({enabled:true,url:'mock',token:'mock'}),LivekitClient:{Room,
+      RoomEvent:{TrackSubscribed:'track',TrackUnsubscribed:'unsubscribe',ParticipantDisconnected:'left',Disconnected:'disconnect'}}},
+    console:quiet,recordStudentDiagnosticEvent(){},notifySfuTransportStatus(){},
+    getSfuParticipantRole:()=> 'teacher',attachTeacherTrack(){attached++;},
+    clearAllClassmateAudio(){},clearStaleSfuMedia(){},joinedClass:true,socket:{connected:true,emit(){}},
+    scheduleClassRecovery(){recovery++;}};
+  vm.runInNewContext(extract(student,'connectStudentSfu'),ctx);
+  assert.equal(await ctx.connectStudentSfu('class'),true);
+  const room=ctx.studentSfuRoom;
+  room.state='reconnecting';
+  assert.equal(await ctx.connectStudentSfu('class'),true);
+  assert.equal(ctx.studentSfuRoom,room);
+  room.handlers.get('track')({kind:'audio',mediaStreamTrack:{id:'teacher-audio'}},{},{identity:'teacher'});
+  assert.equal(attached,1,'Reusing a room must preserve its subscription callbacks');
+  room.state='disconnected';room.handlers.get('disconnect')();
+  assert.equal(recovery,1);
+  ctx.joinedClass=false;room.handlers.get('disconnect')();
+  assert.equal(recovery,1,'Leaving a class must not rejoin it');
+});

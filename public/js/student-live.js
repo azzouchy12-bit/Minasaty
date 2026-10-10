@@ -487,7 +487,8 @@ async function connectStudentSfu(roomName) {
 
   isStudentSfuConnecting = true;
   currentStudentSfuRoomName = roomName;
-  const sessionId = getNextSessionId();
+  const sessionId = studentSfuRoom && studentSfuRoom.state !== "disconnected"
+    ? getCurrentSessionId() : getNextSessionId();
 
   const connectTask = (async () => {
     try {
@@ -590,6 +591,7 @@ async function connectStudentSfu(roomName) {
               receiving: false,
               reason: "sfu_disconnected",
             });
+            if (typeof scheduleClassRecovery === "function") scheduleClassRecovery(500);
           }
         });
       }
