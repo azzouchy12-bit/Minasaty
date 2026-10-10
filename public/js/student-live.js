@@ -1118,6 +1118,8 @@ const elements = {
   desktopFullscreenExitButton: document.getElementById("desktop-fullscreen-exit-btn"),
   desktopFullscreenCaptureButton: document.getElementById("desktop-fullscreen-capture-btn"),
   desktopFullscreenMessageButton: document.getElementById("desktop-fullscreen-message-btn"),
+  classContinueOverlay: document.getElementById("class-continue-overlay"),
+  classContinueButton: document.getElementById("class-continue-btn"),
   prejoinOverlay: document.getElementById("student-prejoin-overlay"),
   prejoinMicButton: document.getElementById("student-prejoin-mic-btn"),
   prejoinCameraButton: document.getElementById("student-prejoin-camera-btn"),
@@ -1491,6 +1493,37 @@ function exitLiveClass() {
     // Navigation below still completes the exit.
   }
   window.location.replace("./parent-dashboard.html");
+}
+
+
+let classContinueShown = false;
+let classContinueRefreshPending = false;
+
+function showClassContinueDialog() {
+  if (classContinueShown || !prejoinCompleted || !elements.classContinueOverlay) return;
+  classContinueShown = true;
+  elements.classContinueOverlay.hidden = false;
+  elements.classContinueButton?.focus({ preventScroll: true });
+}
+
+function flushClassContinueRefresh() {
+  if (!classContinueRefreshPending || !joinedClass || isJoining || isRecoveringStream || !socket.connected || elements.refreshMediaButton?.disabled) return;
+  classContinueRefreshPending = false;
+  refreshAudioVideo();
+}
+
+function continueWatchingClass() {
+  if (elements.classContinueOverlay?.hidden) return;
+  // Start playback within the actual click, before waiting on any network operation.
+  void startTeacherAudio({ userInitiated: true });
+  if (studentSfuRoom && typeof studentSfuRoom.startAudio === "function") {
+    void studentSfuRoom.startAudio().catch(() => {});
+  }
+  if (elements.classContinueOverlay) elements.classContinueOverlay.hidden = true;
+  classContinueRefreshPending = true;
+  flushClassContinueRefresh();
+  if (!joinedClass && !isJoining && socket.connected) void joinClass();
+  elements.refreshMediaButton?.focus({ preventScroll: true });
 }
 
 function refreshAudioVideo({ automatic = false } = {}) {
@@ -4521,6 +4554,7 @@ async function completeStudentPrejoinAndJoin() {
   if (!isDesktopStudentView()) {
     openStudentChatComposer({ focus: false });
   }
+  showClassContinueDialog();
   setPlaceholder("جاري الدخول إلى الحصة", "سيظهر بث الأستاذ تلقائياً عند توفر الحصة.");
   setViewerStatus("جارٍ الدخول إلى الحصة…", "warning");
   if (socket.connected) {
@@ -4540,6 +4574,8 @@ async function initializeStudentPrejoin() {
     if (!isDesktopStudentView()) {
       openStudentChatComposer({ focus: false });
     }
+
+    showClassContinueDialog();
 
     // Silently attempt background microphone preparation if browser already permitted it,
     // but never block entry or show the prejoin modal.
@@ -5438,6 +5474,7 @@ async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
     setRaisedHandState({ waiting: false });
     updateChatControls();
     setViewerStatus(rejoin ? "تمت إعادة الانضمام. جارٍ استقبال البث…" : "انضممت إلى الحصة. جارٍ استقبال بث الأستاذ…", "warning");
+    flushClassContinueRefresh();
   } catch (error) {
     console.error("Unable to join classroom:", error);
     isJoining = false;
@@ -6215,6 +6252,13 @@ elements.prejoinMicButton?.addEventListener("click", async () => {
     : "يجب السماح للمتصفح باستخدام الميكروفون قبل الاستمرار.");
 });
 elements.prejoinCameraButton?.addEventListener("click", testOptionalStudentCamera);
+elements.classContinueButton?.addEventListener("click", continueWatchingClass);
+elements.classContinueOverlay?.addEventListener("keydown", (event) => {
+  if (event.key === "Tab" && !elements.classContinueOverlay.hidden) {
+    event.preventDefault();
+    elements.classContinueButton?.focus({ preventScroll: true });
+  }
+});
 elements.prejoinContinueButton?.addEventListener("click", continueFromStudentPrejoin);
 elements.subscriptionDeclineButton?.addEventListener("click", () => {
   closeSubscriptionUpgradeModal();
@@ -6283,4 +6327,7 @@ if (!studentId || !studentName || !level) {
 
 window.setInterval(() => { void reportClassroomAudioReception().catch(() => {}); }, 3000);
 
-window.setInterval(checkAutomaticMediaRefresh, 2000);
+window.setInterval(() => {
+  flushClassContinueRefresh();
+  checkAutomaticMediaRefresh();
+}, 2000);
