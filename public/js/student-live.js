@@ -174,6 +174,44 @@ async function ensureTeacherAudioPlayback({ sourceHint = "unknown" } = {}) {
   }
 }
 
+/** Resume only received audio; keep video, transports, microphone and recording untouched. */
+async function refreshClassroomAudioOnly({ sourceHint = "student_mic_opened" } = {}) {
+  if (!joinedClass) return { ok: false, error: "not_joined" };
+  if (refreshClassroomAudioOnly.pendingPromise) return refreshClassroomAudioOnly.pendingPromise;
+  const operation = (async () => {
+    try {
+      const tracks = remoteMediaStream?.getAudioTracks?.().filter(
+        (track) => track.readyState === "live" && track.enabled !== false && !track.muted
+      ) || [];
+      const teacherTrack = tracks.find((track) => track.__fromSfu) ||
+        tracks.find((track) => track === teacherInboundAudioTrack) || tracks[0] ||
+        (teacherInboundAudioTrack?.readyState === "live" &&
+         teacherInboundAudioTrack.enabled !== false && !teacherInboundAudioTrack.muted
+          ? teacherInboundAudioTrack : null);
+      if (teacherTrack) playTeacherInboundAudio(teacherTrack);
+      const teacherResult = await ensureTeacherAudioPlayback({ sourceHint });
+      syncClassmateSfuAudioPlayback();
+      const classmates = Array.from(classmateAudioElements.values()).filter((audio) =>
+        !audio.muted && audio.srcObject?.getAudioTracks?.().some((track) =>
+          track.readyState === "live" && track.enabled !== false && !track.muted));
+      const results = await Promise.allSettled(classmates.map((audio) => audio.play()));
+      const blocked = results.some((result) => result.status === "rejected");
+      if (blocked) armAutoUnmuteOnFirstInteraction();
+      recordStudentDiagnosticEvent("classroom_audio_refresh", teacherResult.ok && !blocked
+        ? "Received audio playback refreshed" : "Audio refresh requires a live track or playback permission");
+      return { ok: teacherResult.ok && !blocked };
+    } catch (error) {
+      recordStudentDiagnosticEvent("classroom_audio_refresh_failed", "Unable to resume received audio");
+      return { ok: false, error: "audio_refresh_failed" };
+    }
+  })();
+  refreshClassroomAudioOnly.pendingPromise = operation;
+  try { return await operation; }
+  finally {
+    if (refreshClassroomAudioOnly.pendingPromise === operation) refreshClassroomAudioOnly.pendingPromise = null;
+  }
+}
+
 function recordStudentDiagnosticEvent(type, message) {
   const sanitized = String(message || "")
     .replace(/token=[^&\s]+/gi, "token=***")
@@ -5567,11 +5605,11 @@ socket.on("classroom_track_state", (data = {}) => {
     return;
   }
 
-  // The actual audio sender arrives through the teacher's immediately following
-  // renegotiation offer. This room-wide signal is only a lightweight state hint;
-  // it never requires the learner to refresh or press Join again.
+  // Every joined viewer resumes received audio on the server-owned mic-open signal.
+  // Existing video and transport connections remain in place.
   if (data.enabled) {
     setViewerStatus("جارٍ توصيل صوت تلميذ بالحصة…", "live");
+    void refreshClassroomAudioOnly({ sourceHint: "classroom_student_mic_opened" });
   }
 });
 
