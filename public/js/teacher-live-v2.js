@@ -5242,8 +5242,9 @@ function setTeacherWelcomeImage(levelName) {
 async function ensureTeacherVideoSender(peerConnection) {
   const track = getActiveTeacherVideoTrack();
   if (!track || !screenStream || !peerConnection || peerConnection.signalingState === "closed") return false;
-  const sender = peerConnection.getSenders?.().find((item) => item.__classroomVideoTrack === true);
+  const sender = peerConnection.getSenders?.().find((item) => item.__classroomVideoTrack === true || item.track === track);
   if (sender) {
+    sender.__classroomVideoTrack = true;
     if (sender.track !== track) await sender.replaceTrack(track);
   } else {
     const nextSender = peerConnection.addTrack(track, screenStream);
@@ -6277,15 +6278,11 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
     return;
   }
 
+  if (peerConnection.makingOffer) { if (renegotiate) peerConnection.needsTeacherMediaOffer = true; return; }
+
   if (force && (peerConnection.signalingState !== "stable" || peerConnection.connectionState === "closed")) {
     closePeerConnection(studentSocketId);
     peerConnection = createPeerConnection(studentSocketId);
-    const freshVideoTrack = getActiveTeacherVideoTrack();
-    if (freshVideoTrack && screenStream) {
-      const vs = peerConnection.addTrack(freshVideoTrack, screenStream);
-      vs.__classroomVideoTrack = true;
-      void tuneOutboundSender(vs, "video");
-    }
     ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate: false });
   } else if (
     peerConnection.makingOffer ||
@@ -6308,12 +6305,16 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
       peerConnection.setConfiguration(rtcConfig);
     }
     const offer = await peerConnection.createOffer({ iceRestart });
+    if (peerConnections[studentSocketId] !== peerConnection) return;
+    const negotiationId = `${Date.now()}:${window.__teacherOfferSequence = (window.__teacherOfferSequence || 0) + 1}`;
+    peerConnection.pendingTeacherNegotiationId = negotiationId;
     const optimizedSdp = optimizeOpusSdp(offer.sdp);
     await peerConnection.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: optimizedSdp }));
 
     await emitWithAcknowledgement("webrtc_offer", {
       targetSocketId: studentSocketId,
       sdp: peerConnection.localDescription,
+      negotiationId,
     }, 20_000);
   } catch (error) {
     console.warn(`[WebRTC] Unable to create or relay offer to student ${studentSocketId}:`, error.message || error);
@@ -7355,24 +7356,26 @@ socket.on("youtube_server_upload_failed", (data = {}) => {
 
 
 
-socket.on("webrtc_answer", async (data = {}) => {
-  const { fromSocketId, sdp } = data;
+async function applyStudentWebRtcAnswer(data = {}) {
+  const { fromSocketId, sdp, negotiationId } = data;
   const peerConnection = peerConnections[fromSocketId];
-
-
-  if (!peerConnection || !sdp) {
-    return;
-  }
-
-
+  if (!peerConnection || !sdp || sdp.type !== "answer" || peerConnection.applyingStudentAnswer
+      || peerConnection.signalingState !== "have-local-offer") return;
+  // New clients echo the offer ID; legacy clients are accepted in the correct state only.
+  if (negotiationId && negotiationId !== peerConnection.pendingTeacherNegotiationId) return;
+  peerConnection.applyingStudentAnswer = true;
   try {
     await peerConnection.setRemoteDescription(sdp);
-    await flushPendingIceCandidates(fromSocketId);
+    if (peerConnections[fromSocketId] === peerConnection) await flushPendingIceCandidates(fromSocketId);
   } catch (error) {
     console.error("Unable to apply a student WebRTC answer:", error);
-    closePeerConnection(fromSocketId);
+    if (peerConnections[fromSocketId] === peerConnection) closePeerConnection(fromSocketId);
+  } finally {
+    peerConnection.applyingStudentAnswer = false;
   }
-});
+}
+
+socket.on("webrtc_answer", applyStudentWebRtcAnswer);
 
 
 socket.on("webrtc_renegotiation_offer", async (data = {}) => {
@@ -7451,6 +7454,15 @@ socket.on("webrtc_ice_candidate", async (data = {}) => {
 });
 
 
+function parseTeacherQosAllocation(value) {
+  if (typeof value === "number") return Number.isFinite(value) && value >= 0 ? { videoBitrate: value } : null;
+  if (typeof value === "string" && value.includes(":")) {
+    const [audioBitrate, videoBitrate] = value.split(":").map(Number);
+    if (Number.isFinite(audioBitrate) && Number.isFinite(videoBitrate) && audioBitrate >= 0 && videoBitrate >= 0) return { audioBitrate, videoBitrate };
+  }
+  return null;
+}
+
 socket.on("student_quality_preference", async (data = {}) => {
   const studentSocketId = data.studentSocketId;
   const quality = String(data.quality || "auto").trim().toLowerCase();
@@ -7460,10 +7472,7 @@ socket.on("student_quality_preference", async (data = {}) => {
   if (pc && pc.connectionState !== "closed") {
     const lastAllocation = teacherQosAllocations.get(studentSocketId);
     let parsedAllocation = null;
-    if (lastAllocation) {
-      const [audioBitrate, videoBitrate] = lastAllocation.split(":").map(Number);
-      parsedAllocation = { audioBitrate, videoBitrate };
-    }
+    parsedAllocation = parseTeacherQosAllocation(lastAllocation);
     await applyAdaptiveVideoQuality(studentSocketId, pc, parsedAllocation);
   }
 });

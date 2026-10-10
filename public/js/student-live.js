@@ -5882,7 +5882,7 @@ socket.on("classroom_track_state", (data = {}) => {
 });
 
 socket.on("webrtc_offer", async (data = {}) => {
-  const { fromSocketId, sdp } = data;
+  const { fromSocketId, sdp, negotiationId } = data;
 
   if (!joinedClass || !fromSocketId || !sdp) {
     return;
@@ -5937,6 +5937,7 @@ socket.on("webrtc_offer", async (data = {}) => {
     await emitWithAcknowledgement("webrtc_answer", {
       targetSocketId: teacherSocketId,
       sdp: peerConnection.localDescription,
+      negotiationId,
     });
 
     if (typeof ensureTeacherAudioPlayback === "function") {

@@ -2399,6 +2399,7 @@ io.on("connection", (socket) => {
     io.to(targetSocketId).emit("webrtc_offer", {
       sdp: data.sdp,
       fromSocketId: socket.id,
+      negotiationId: typeof data.negotiationId === "string" ? data.negotiationId.slice(0, 80) : undefined,
     });
     acknowledge(acknowledgement, { ok: true });
   });
@@ -2431,6 +2432,7 @@ io.on("connection", (socket) => {
     io.to(targetSocketId).emit("webrtc_answer", {
       sdp: data.sdp,
       fromSocketId: socket.id,
+      negotiationId: typeof data.negotiationId === "string" ? data.negotiationId.slice(0, 80) : undefined,
     });
     acknowledge(acknowledgement, { ok: true });
   });
