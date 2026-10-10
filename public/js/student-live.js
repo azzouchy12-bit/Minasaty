@@ -595,7 +595,6 @@ function startSfuReceptionMonitor(room) {
       if (!stalled && now - lastTeacherSeen < 20_000) return;
       recordStudentDiagnosticEvent("teacher_media_stalled", "Teacher reception stalled; requesting recovery");
       if (typeof holdStudentSfuDuringRecovery === "function") holdStudentSfuDuringRecovery();
-      notifySfuTransportStatus(false);
       clearStaleSfuMedia();
       disconnectStudentSfu();
       scheduleClassRecovery(500);
@@ -979,7 +978,7 @@ function clearStaleSfuMedia() {
   }
 }
 
-function disconnectStudentSfu() {
+function disconnectStudentSfu({ notify = true } = {}) {
   if (typeof stopSfuReceptionMonitor === "function") stopSfuReceptionMonitor();
   if (typeof studentSfuSessionId !== "undefined") {
     studentSfuSessionId++;
@@ -1012,7 +1011,7 @@ function disconnectStudentSfu() {
     } catch (_) { }
     studentSfuRoom = null;
   }
-  if (typeof notifySfuTransportStatus === "function") notifySfuTransportStatus(false);
+  if (notify && typeof notifySfuTransportStatus === "function") notifySfuTransportStatus(false);
 }
 
 
@@ -4983,7 +4982,9 @@ function beginStreamRecovery(message, { force = false } = {}) {
   }
 
   clearHandResetTimer();
-  disconnectStudentSfu();
+  // A forced refresh reports missing media after room rejoin; do not send a
+  // competing offer request while the current peer is about to be discarded.
+  disconnectStudentSfu({ notify: !force });
   closePeerConnection();
   resetRemoteMedia();
   if (!microphonePermissionGranted) {
@@ -5005,7 +5006,7 @@ function beginStreamRecovery(message, { force = false } = {}) {
   setPlaceholder("جارٍ استعادة الحصة", message || "سيُعاد الاتصال بالبث تلقائياً دون تحديث الصفحة.");
   setViewerStatus(message || "انقطع البث مؤقتاً. جارٍ استعادته تلقائياً…", "warning");
   showConnectionOverlay(message || "انقطع البث مؤقتاً. جارٍ استعادته تلقائياً…", "warning");
-  scheduleClassRecovery(Math.min(1_000 * (2 ** recoveryAttempts), 8_000));
+  scheduleClassRecovery(force ? 150 : Math.min(1_000 * (2 ** recoveryAttempts), 8_000));
 }
 
 function closePeerConnection() {
