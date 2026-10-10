@@ -91,6 +91,18 @@
     return inFlightRtcPromise;
   };
 
+  window.getMinasatySfuConnectOptions = async function getMinasatySfuConnectOptions() {
+    const config = await window.getMinasatyRtcConfig();
+    const hasTurn = config?.iceServers?.some((server) => {
+      const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+      return urls.some((url) => /^turns?:/i.test(String(url || ""))) &&
+        Boolean(server.username && server.credential);
+    });
+    // Without an authenticated relay, retain LiveKit's server-provided ICE configuration.
+    if (!hasTurn) return {};
+    return { rtcConfig: { iceServers: config.iceServers }, peerConnectionTimeout: 25000 };
+  };
+
   window.fetchMinasatySfuToken = async function fetchMinasatySfuToken(roomName, allowMic = false, tokenOverride = "") {
     const token = getToken(tokenOverride);
     if (!token || !roomName) {

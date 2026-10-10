@@ -485,7 +485,10 @@ async function initTeacherSfuSession(roomName) {
       }
 
       if (teacherSfuRoom.state !== "connected") {
-        await teacherSfuRoom.connect(sfuUrl, sfuData.token);
+        const connectOptions = typeof window.getMinasatySfuConnectOptions === "function"
+          ? await window.getMinasatySfuConnectOptions() : {};
+        if (sessionId !== teacherSfuSessionId) return false;
+        await teacherSfuRoom.connect(sfuUrl, sfuData.token, connectOptions);
       }
 
       if (sessionId !== teacherSfuSessionId) return false;

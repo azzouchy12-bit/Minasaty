@@ -716,7 +716,10 @@ async function connectStudentSfu(roomName) {
       }
 
       if (studentSfuRoom.state !== "connected") {
-        await studentSfuRoom.connect(sfuUrl, sfuData.token);
+        const connectOptions = typeof window.getMinasatySfuConnectOptions === "function"
+          ? await window.getMinasatySfuConnectOptions() : {};
+        if (sessionId !== getCurrentSessionId()) return false;
+        await studentSfuRoom.connect(sfuUrl, sfuData.token, connectOptions);
       }
       if (sessionId !== getCurrentSessionId()) return false;
       setConnectedTimestamp(Date.now());
