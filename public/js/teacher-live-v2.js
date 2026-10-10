@@ -2135,6 +2135,19 @@ function syncLocalRecordingAudioSources() {
     }
   });
 
+  // Playback may remain available when the classroom graph failed to register a source.
+  // Recover only server-approved student streams for the independent recording graph.
+  studentAudioElements.forEach((audio, socketId) => {
+    const stream = audio?.srcObject;
+    const studentId = attendeeElements.get(socketId)?.dataset?.studentId;
+    const approved = approvedStudentMicrophones.has(socketId) ||
+      Boolean(studentId && approvedStudentMicrophones.has(studentId));
+    if (approved && !activeSources.has(socketId) &&
+        stream?.getAudioTracks?.().some((track) => track.readyState === "live")) {
+      activeSources.set(socketId, stream);
+    }
+  });
+
   // Filter out unauthorized P2P student audio sources
   for (const [sourceKey] of activeSources.entries()) {
     if (sourceKey === "__teacher_microphone__" || sourceKey === "__screen_audio__") {
@@ -5606,7 +5619,12 @@ function attachStudentAudio(peerConnection, studentSocketId) {
 
 
     event.track.addEventListener('ended', () => {
-      approvedStudentMicrophones.delete(studentSocketId);
+      // An obsolete receiver must not remove its replacement or revoke server approval.
+      const currentAudio = studentAudioElements.get(studentSocketId);
+      if (currentAudio?.srcObject !== incomingStream ||
+          incomingStream.getAudioTracks().some((track) => track !== event.track && track.readyState === "live")) {
+        return;
+      }
       removeStudentAudio(studentSocketId);
       removeClassroomAudioSource(studentSocketId);
     }, { once: true });

@@ -140,6 +140,7 @@ function createTeacherFixture() {
     attendeeElements: new Map(),
     approvedStudentMicrophones: new Set(),
     studentMicStates: new Map(),
+    studentAudioElements: new Map(),
     sfuStudentAudioElements: new Map(),
     sfuStudentAudioStreams: new Map(),
     classroomAudioSources: new Map(),
@@ -418,4 +419,42 @@ test('Live hearing audio playback element is maintained alongside recording mix'
   ctx.removeSfuStudentAudio(studentId);
   assert.equal(ctx.sfuStudentAudioElements.has(studentId), false);
   assert.ok(!appendedElements.has(audioEl));
+});
+
+
+test('Recording includes approved audible P2P source even when classroom graph did not register it', () => {
+  const {ctx}=createTeacherFixture();
+  const stream=new MockMediaStream([new MockTrack('p2p-mic')]);
+  ctx.studentAudioElements.set('socket-one',{srcObject:stream});
+  ctx.attendeeElements.set('socket-one',{dataset:{studentId:'student-one'}});
+  ctx.approvedStudentMicrophones.add('student-one');
+  ctx.syncLocalRecordingAudioSources();
+  assert.equal(ctx.localRecordingSourceNodes.get('socket-one')?.stream,stream);
+  ctx.approvedStudentMicrophones.clear();
+  ctx.syncLocalRecordingAudioSources();
+  assert.equal(ctx.localRecordingSourceNodes.has('socket-one'),false,'Revoked audio must leave recording');
+});
+
+test('Obsolete P2P track end preserves replacement recording source and server approval', () => {
+  const {ctx}=createTeacherFixture();
+  const audio={dataset:{},style:{},setAttribute(){},play(){return Promise.resolve()}};
+  ctx.document.createElement=()=>audio;ctx.document.body.append=()=>{};
+  ctx.addClassroomAudioSource=(id,stream,opts)=>ctx.classroomAudioSources.set(id,{stream,...opts});
+  ctx.removeStudentAudio=id=>ctx.studentAudioElements.delete(id);
+  ctx.removeClassroomAudioSource=id=>{ctx.classroomAudioSources.delete(id);ctx.syncLocalRecordingAudioSources()};
+  ctx.approvedStudentMicrophones.add('socket-one');
+  vm.runInContext(productionFunction('attachStudentAudio'),ctx);
+  const peer={};ctx.attachStudentAudio(peer,'socket-one');
+  const old=new MockTrack('old');const next=new MockTrack('new');
+  const oldStream=new MockMediaStream([old]);const newStream=new MockMediaStream([next]);
+  peer.ontrack({track:old,streams:[oldStream]});
+  peer.ontrack({track:next,streams:[newStream]});ctx.syncLocalRecordingAudioSources();
+  old.stop();
+  assert.equal(ctx.studentAudioElements.get('socket-one').srcObject,newStream);
+  assert.equal(ctx.classroomAudioSources.get('socket-one').stream,newStream);
+  assert.equal(ctx.localRecordingSourceNodes.get('socket-one').stream,newStream);
+  assert.equal(ctx.approvedStudentMicrophones.has('socket-one'),true);
+  next.stop();
+  assert.equal(ctx.localRecordingSourceNodes.has('socket-one'),false);
+  assert.equal(ctx.approvedStudentMicrophones.has('socket-one'),true,'Track end is not permission revocation');
 });
