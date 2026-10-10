@@ -87,7 +87,10 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
       identity: participantId,
       name: participantName,
       // Assigned by authenticated server claims, never by the request body.
-      metadata: JSON.stringify({ classroomRole: isTeacher ? "teacher" : "student" }),
+      metadata: JSON.stringify({
+        classroomRole: isTeacher ? "teacher" : "student",
+        role: isTeacher ? "teacher" : "student",
+      }),
       ttl: 6 * 60 * 60, // 6 hours
     });
 

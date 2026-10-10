@@ -66,8 +66,68 @@ let isStudentMicSyncing = false;
 let isStudentSfuConnecting = false;
 let currentStudentSfuRoomName = null;
 
+// Dedicated Teacher Audio reception state - completely isolated from student mic and classmate audio
+let teacherAudioElement = null;
+let teacherAudioStream = null;
+let teacherInboundAudioTrack = null;
+let knownTeacherIdentity = null;
+let studentP2pMicSender = null;
+
 const classmateAudioElements = new Map();
 const studentDiagnosticEvents = [];
+
+function getTeacherAudioElement() {
+  if (!teacherAudioElement) {
+    if (typeof document !== "undefined" && typeof document.getElementById === "function") {
+      teacherAudioElement = document.getElementById("teacher-live-audio");
+    }
+    if (!teacherAudioElement && typeof document !== "undefined" && typeof document.createElement === "function") {
+      teacherAudioElement = document.createElement("audio");
+      teacherAudioElement.id = "teacher-live-audio";
+      teacherAudioElement.autoplay = true;
+      teacherAudioElement.playsInline = true;
+      teacherAudioElement.style.display = "none";
+      if (document.body && typeof document.body.appendChild === "function") {
+        document.body.appendChild(teacherAudioElement);
+      }
+    }
+    if (teacherAudioElement) {
+      teacherAudioElement.muted = false;
+      teacherAudioElement.volume = 1.0;
+    }
+  }
+  return teacherAudioElement;
+}
+
+function playTeacherInboundAudio(track) {
+  if (!track || track.readyState !== "live") return;
+  teacherInboundAudioTrack = track;
+  const audioEl = getTeacherAudioElement();
+  if (!audioEl) return;
+
+  if (!teacherAudioStream) {
+    teacherAudioStream = new MediaStream();
+    audioEl.srcObject = teacherAudioStream;
+  }
+
+  const existingTracks = teacherAudioStream.getAudioTracks();
+  if (!existingTracks.some((t) => t.id === track.id)) {
+    existingTracks.forEach((oldT) => {
+      try { teacherAudioStream.removeTrack(oldT); } catch (_) {}
+    });
+    teacherAudioStream.addTrack(track);
+    if (audioEl.srcObject !== teacherAudioStream) {
+      audioEl.srcObject = teacherAudioStream;
+    }
+  }
+
+  audioEl.muted = false;
+  audioEl.volume = 1.0;
+  audioEl.play().catch((err) => {
+    console.debug("[Teacher-Audio] Autoplay hint:", err);
+    armAutoUnmuteOnFirstInteraction();
+  });
+}
 
 function recordStudentDiagnosticEvent(type, message) {
   const sanitized = String(message || "")
@@ -94,11 +154,20 @@ function notifySfuTransportStatus(receiving = true) {
 
 function getSfuParticipantRole(participant) {
   try {
-    const role = JSON.parse(participant?.metadata || "{}").classroomRole;
-    return role === "teacher" || role === "student" ? role : null;
-  } catch (_) {
-    return null;
+    const meta = typeof participant?.metadata === "string"
+      ? JSON.parse(participant.metadata || "{}")
+      : (participant?.metadata || {});
+    const role = meta.classroomRole || meta.role;
+    if (role === "teacher" || role === "student") return role;
+  } catch (_) { }
+  if (
+    participant?.identity === "teacher" ||
+    (typeof knownTeacherIdentity !== "undefined" && knownTeacherIdentity && participant?.identity === knownTeacherIdentity) ||
+    (typeof teacherSocketId !== "undefined" && teacherSocketId && participant?.identity === teacherSocketId)
+  ) {
+    return "teacher";
   }
+  return null;
 }
 
 function syncClassmateSfuAudioPlayback() {
@@ -160,11 +229,28 @@ function clearAllClassmateAudio() {
 }
 
 window.getMinasatyStudentLiveDiagnostics = function getMinasatyStudentLiveDiagnostics() {
+  const teacherEl = getTeacherAudioElement();
+  const teacherTracks = teacherAudioStream ? teacherAudioStream.getAudioTracks().map(t => ({
+    id: t.id,
+    readyState: t.readyState,
+    enabled: t.enabled,
+    muted: t.muted,
+  })) : [];
   return {
     transport: isStudentSfuHealthy() ? "sfu" : (pc ? "p2p" : "idle"),
     sfuConnected: isStudentSfuConnected(),
     sfuHealthy: isStudentSfuHealthy(),
     p2pActive: Boolean(pc && pc.connectionState === "connected"),
+    teacherAudioTrackState: teacherInboundAudioTrack ? teacherInboundAudioTrack.readyState : (teacherTracks[0]?.readyState || "none"),
+    teacherAudioElementState: teacherEl ? {
+      paused: teacherEl.paused,
+      muted: teacherEl.muted,
+      volume: teacherEl.volume,
+      srcObjectAttached: Boolean(teacherEl.srcObject),
+    } : null,
+    teacherTracks,
+    studentMicPublishedSfu: Boolean(studentSfuMicPub),
+    studentMicPublishedP2p: Boolean(studentP2pMicSender && studentP2pMicSender.track),
     receivingTracks: remoteMediaStream ? remoteMediaStream.getTracks().map(t => ({ kind: t.kind, readyState: t.readyState, fromSfu: Boolean(t.__fromSfu) })) : [],
     signalingConnected: Boolean(socket?.connected),
     recentEvents: studentDiagnosticEvents.slice(0, 10),
@@ -210,27 +296,40 @@ async function connectStudentSfu(roomName) {
 
       studentSfuRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
         // Prevent student from hearing self-echo
-        const isSelf = participant?.identity === studentSfuRoom?.localParticipant?.identity;
+        const isSelf = Boolean(
+          participant?.isLocal ||
+          participant?.identity === studentSfuRoom?.localParticipant?.identity ||
+          (typeof studentId !== "undefined" && studentId && String(participant?.identity) === String(studentId))
+        );
         if (isSelf) {
           return;
         }
 
         const role = getSfuParticipantRole(participant);
+        const isTeacher = Boolean(
+          role === "teacher" ||
+          participant?.identity === "teacher" ||
+          (typeof knownTeacherIdentity !== "undefined" && knownTeacherIdentity && participant?.identity === knownTeacherIdentity) ||
+          (typeof teacherSocketId !== "undefined" && teacherSocketId && participant?.identity === teacherSocketId)
+        );
+
         // Keep each classmate separate from the teacher's primary media stream.
-        if (role === "student" && participant?.identity && track.kind === "audio") {
-          console.info("[SFU-Student] Received classmate audio track via SFU from:", participant.identity);
+        if (!isTeacher && role === "student" && track.kind === "audio") {
+          console.info("[SFU-Student] Received classmate audio track via SFU from:", participant?.identity);
           playClassmateSfuAudio(participant.identity, track);
           recordStudentDiagnosticEvent("classmate_audio_received", "Classmate audio received via SFU");
           return;
         }
 
-        // Missing/unknown metadata cannot identify a teacher. Rejoin with a new token.
-        if (role !== "teacher") return;
+        if (!isTeacher) return;
         // Primary teacher broadcast track
         console.info("[SFU-Student] Received teacher track via SFU:", track.kind);
         if (track.mediaStreamTrack) {
           track.mediaStreamTrack.__fromSfu = true;
-          attachTeacherTrack({ track: track.mediaStreamTrack });
+          if (track.kind === "audio" && typeof playTeacherInboundAudio === "function") {
+            playTeacherInboundAudio(track.mediaStreamTrack);
+          }
+          attachTeacherTrack({ track: track.mediaStreamTrack, participant });
           notifySfuTransportStatus(true);
           recordStudentDiagnosticEvent("teacher_track_received", `Subscribed to teacher ${track.kind} track via SFU`);
         }
@@ -240,10 +339,15 @@ async function connectStudentSfu(roomName) {
         if (participant?.identity) {
           stopClassmateSfuAudio(participant.identity, track);
         }
-        if (track.mediaStreamTrack && remoteMediaStream) {
-          remoteMediaStream.removeTrack(track.mediaStreamTrack);
-          syncClassmateSfuAudioPlayback();
-          updateRemoteVideoPresentation();
+        if (track.mediaStreamTrack) {
+          if (typeof teacherAudioStream !== "undefined" && teacherAudioStream && teacherAudioStream.getAudioTracks().some((t) => t.id === track.mediaStreamTrack.id)) {
+            try { teacherAudioStream.removeTrack(track.mediaStreamTrack); } catch (_) {}
+          }
+          if (remoteMediaStream) {
+            remoteMediaStream.removeTrack(track.mediaStreamTrack);
+            syncClassmateSfuAudioPlayback();
+            updateRemoteVideoPresentation();
+          }
         }
       });
 
@@ -307,6 +411,10 @@ async function publishStudentSfuMic(audioStream) {
   isStudentMicSyncing = true;
   try {
     if (studentSfuMicPub) {
+      const currentTrack = studentSfuMicPub.track?.mediaStreamTrack || studentSfuMicPub.track;
+      if (currentTrack === track || currentTrack?.id === track.id) {
+        return true;
+      }
       try {
         await studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track);
       } catch (_) {}
@@ -338,6 +446,43 @@ function unpublishStudentSfuMic() {
       }
     } catch (_) { }
     studentSfuMicPub = null;
+  }
+}
+
+async function publishStudentP2pMic(track, stream) {
+  if (!pc || !track || track.readyState !== "live") return false;
+  const senders = typeof pc.getSenders === "function" ? pc.getSenders() : [];
+  const existingSender = senders.find((s) => s === studentP2pMicSender || s.__isStudentMic);
+  if (existingSender && typeof existingSender.replaceTrack === "function") {
+    studentP2pMicSender = existingSender;
+    try {
+      await existingSender.replaceTrack(track);
+    } catch (_) {}
+    microphoneOfferSent = false;
+    microphoneNegotiated = false;
+    await negotiateStudentMicrophone();
+    return true;
+  }
+  try {
+    studentP2pMicSender = pc.addTrack(track, stream);
+    if (studentP2pMicSender) {
+      studentP2pMicSender.__isStudentMic = true;
+    }
+    microphoneOfferSent = false;
+    microphoneNegotiated = false;
+    await negotiateStudentMicrophone();
+    return true;
+  } catch (err) {
+    console.warn("[P2P-Student] addTrack for mic failed:", err);
+    return false;
+  }
+}
+
+function unpublishStudentP2pMic() {
+  if (studentP2pMicSender && typeof studentP2pMicSender.replaceTrack === "function") {
+    try {
+      studentP2pMicSender.replaceTrack(null).catch(() => {});
+    } catch (_) { }
   }
 }
 
@@ -3600,6 +3745,7 @@ function stopLocalAudio() {
     localAudioStream.getTracks().forEach((track) => track.stop());
   }
   unpublishStudentSfuMic();
+  unpublishStudentP2pMic();
 
   localAudioStream = undefined;
 
@@ -3884,11 +4030,18 @@ function armAutoUnmuteOnFirstInteraction() {
   autoUnmuteArmed = true;
 
   const triggerUnmute = async () => {
-    if (!elements.remoteVideo) return;
     try {
-      elements.remoteVideo.muted = false;
-      elements.remoteVideo.volume = 1.0;
-      await elements.remoteVideo.play();
+      const audioEl = getTeacherAudioElement();
+      if (audioEl) {
+        audioEl.muted = false;
+        audioEl.volume = 1.0;
+        await audioEl.play().catch(() => {});
+      }
+      if (elements.remoteVideo) {
+        elements.remoteVideo.muted = false;
+        elements.remoteVideo.volume = 1.0;
+        await elements.remoteVideo.play().catch(() => {});
+      }
       autoUnmuteArmed = false;
       const events = ["touchstart", "touchend", "pointerdown", "click", "keydown", "scroll"];
       events.forEach((ev) => {
@@ -3908,7 +4061,8 @@ function armAutoUnmuteOnFirstInteraction() {
   // Also retry periodically in case browser policy permits unmuted playback after media buffer warms up
   [200, 600, 1200, 2500].forEach((delay) => {
     window.setTimeout(() => {
-      if (elements.remoteVideo && elements.remoteVideo.muted) {
+      const audioEl = getTeacherAudioElement();
+      if ((elements.remoteVideo && elements.remoteVideo.muted) || (audioEl && (audioEl.muted || audioEl.paused))) {
         void triggerUnmute();
       }
     }, delay);
@@ -3916,7 +4070,7 @@ function armAutoUnmuteOnFirstInteraction() {
 }
 
 async function startTeacherAudio({ userInitiated = false } = {}) {
-  if (!remoteMediaStream || isAttemptingTeacherAudio) {
+  if (!remoteMediaStream && !teacherAudioStream) {
     return false;
   }
 
@@ -3925,21 +4079,31 @@ async function startTeacherAudio({ userInitiated = false } = {}) {
     elements.enableAudioButton.hidden = true;
     elements.enableAudioButton.style.display = "none";
   }
-  elements.remoteVideo.muted = false;
-  elements.remoteVideo.volume = 1.0;
+
+  const audioEl = getTeacherAudioElement();
+  if (audioEl) {
+    audioEl.muted = false;
+    audioEl.volume = 1.0;
+  }
+  if (elements.remoteVideo) {
+    elements.remoteVideo.muted = false;
+    elements.remoteVideo.volume = 1.0;
+  }
 
   try {
-    await elements.remoteVideo.play();
+    if (audioEl && audioEl.srcObject) {
+      await audioEl.play().catch(() => {});
+    }
+    if (elements.remoteVideo) {
+      await elements.remoteVideo.play();
+    }
     if (userInitiated) {
       setViewerStatus("صوت الأستاذ يعمل الآن.", "live");
     }
     return true;
   } catch (error) {
-    console.warn("Unable to start teacher audio unmuted automatically, starting muted and auto-unmuting on interaction:", error);
-    elements.remoteVideo.muted = true;
-    try {
-      await elements.remoteVideo.play();
-    } catch (_) {}
+    console.warn("Unable to start teacher audio unmuted automatically, arming interaction handler:", error);
+    // Never force muted = true on the teacher audio! Keep muted = false so interaction immediately unpauses.
     armAutoUnmuteOnFirstInteraction();
     return false;
   } finally {
@@ -4019,16 +4183,19 @@ function addUniqueTrack(stream, track) {
       try {
         stream.removeTrack(oldTrack);
         oldTrack.enabled = false;
-        if (typeof oldTrack.stop === "function") {
-          oldTrack.stop();
-        }
       } catch (_) { }
     });
     stream.addTrack(track);
     syncClassmateSfuAudioPlayback();
-    // Force the browser to recognize the track change to prevent lingering ghost audio bugs
     if (elements.remoteVideo) {
-      elements.remoteVideo.srcObject = new MediaStream(stream.getTracks());
+      if (elements.remoteVideo.srcObject !== stream) {
+        elements.remoteVideo.srcObject = stream;
+      }
+      elements.remoteVideo.muted = false;
+      elements.remoteVideo.volume = 1.0;
+      if (typeof elements.remoteVideo.play === "function") {
+        void elements.remoteVideo.play().catch(() => {});
+      }
     }
     return;
   }
@@ -4043,7 +4210,6 @@ function addUniqueTrack(stream, track) {
         try {
           stream.removeTrack(oldP2p);
           oldP2p.enabled = false;
-          if (typeof oldP2p.stop === "function") oldP2p.stop();
         } catch (_) { }
       });
     } else {
@@ -4060,7 +4226,12 @@ function addUniqueTrack(stream, track) {
     }
     stream.addTrack(track);
     if (elements.remoteVideo) {
-      elements.remoteVideo.srcObject = new MediaStream(stream.getTracks());
+      if (elements.remoteVideo.srcObject !== stream) {
+        elements.remoteVideo.srcObject = stream;
+      }
+      if (typeof elements.remoteVideo.play === "function") {
+        void elements.remoteVideo.play().catch(() => {});
+      }
     }
     return;
   }
@@ -4069,7 +4240,12 @@ function addUniqueTrack(stream, track) {
   if (!alreadyAdded) {
     stream.addTrack(track);
     if (elements.remoteVideo) {
-      elements.remoteVideo.srcObject = new MediaStream(stream.getTracks());
+      if (elements.remoteVideo.srcObject !== stream) {
+        elements.remoteVideo.srcObject = stream;
+      }
+      if (typeof elements.remoteVideo.play === "function") {
+        void elements.remoteVideo.play().catch(() => {});
+      }
     }
   }
 }
@@ -4078,14 +4254,19 @@ function attachTeacherTrack(event) {
   const track = event.track;
   if (!track) return;
 
-  if (track.kind === "audio" && event.receiver) {
-    try {
-      if ("jitterBufferTarget" in event.receiver) {
-        event.receiver.jitterBufferTarget = 80;
-      } else if ("playoutDelayHint" in event.receiver) {
-        event.receiver.playoutDelayHint = 0.08;
-      }
-    } catch (_) { }
+  if (track.kind === "audio") {
+    if (typeof playTeacherInboundAudio === "function") {
+      playTeacherInboundAudio(track);
+    }
+    if (event.receiver) {
+      try {
+        if ("jitterBufferTarget" in event.receiver) {
+          event.receiver.jitterBufferTarget = 80;
+        } else if ("playoutDelayHint" in event.receiver) {
+          event.receiver.playoutDelayHint = 0.08;
+        }
+      } catch (_) { }
+    }
   }
 
   if (!remoteMediaStream) {
@@ -4111,6 +4292,9 @@ function attachTeacherTrack(event) {
   updateRemoteVideoPresentation();
 
   track.addEventListener("ended", () => {
+    if (track.kind === "audio" && typeof teacherAudioStream !== "undefined" && teacherAudioStream) {
+      try { teacherAudioStream.removeTrack(track); } catch (_) {}
+    }
     remoteMediaStream?.removeTrack(track);
     syncClassmateSfuAudioPlayback();
     if (track.kind === "video") {
@@ -4123,6 +4307,9 @@ function attachTeacherTrack(event) {
   track.addEventListener("unmute", () => {
     updateRemoteAudioControl();
     updateRemoteVideoPresentation();
+    if (track.kind === "audio" && typeof playTeacherInboundAudio === "function") {
+      playTeacherInboundAudio(track);
+    }
     if (track.kind === "video") void elements.remoteVideo.play().catch(() => { });
   });
 
@@ -4205,6 +4392,7 @@ function closePeerConnection() {
   }
 
   pc = undefined;
+  studentP2pMicSender = null;
   teacherSocketId = null;
   pendingIceCandidates.length = 0;
   isMakingRenegotiationOffer = false;
@@ -4499,23 +4687,8 @@ async function enableApprovedMicrophone() {
 
     // Fallback path: P2P
     if (pc) {
-      const isAlreadyAttached = pc.getSenders().some((sender) => sender.track?.id === existingTrack.id);
-      if (!isAlreadyAttached) {
-        const audioSender = pc.getSenders().find((s) => s.track?.kind === "audio" || !s.track);
-        if (audioSender && typeof audioSender.replaceTrack === "function") {
-          try {
-            await audioSender.replaceTrack(existingTrack);
-          } catch (_) {
-            pc.addTrack(existingTrack, localAudioStream);
-          }
-        } else {
-          pc.addTrack(existingTrack, localAudioStream);
-        }
-      }
+      await publishStudentP2pMic(existingTrack, localAudioStream);
       updateMicControl();
-      microphoneOfferSent = false;
-      microphoneNegotiated = false;
-      await negotiateStudentMicrophone();
     }
     return;
   }
@@ -4571,20 +4744,8 @@ async function enableApprovedMicrophone() {
 
     // 2. Fallback path: P2P
     if (pc && teacherSocketId && newTrack) {
-      const audioSender = pc.getSenders().find((s) => s.track?.kind === "audio" || !s.track);
-      if (audioSender && typeof audioSender.replaceTrack === "function") {
-        try {
-          await audioSender.replaceTrack(newTrack);
-        } catch (_) {
-          pc.addTrack(newTrack, localAudioStream);
-        }
-      } else {
-        pc.addTrack(newTrack, localAudioStream);
-      }
+      await publishStudentP2pMic(newTrack, localAudioStream);
       updateMicControl();
-      microphoneOfferSent = false;
-      microphoneNegotiated = false;
-      await negotiateStudentMicrophone();
     }
   } catch (error) {
     console.error("Unable to access student microphone:", error);
@@ -4837,6 +4998,9 @@ socket.on("room_joined", (data = {}) => {
     globalFreeClass = Boolean(data.globalFree);
     waitingForNextClass = false;
     teacherSocketId = data.teacherSocketId || teacherSocketId;
+    if (data.teacherId) {
+      knownTeacherIdentity = String(data.teacherId);
+    }
     screenShareActive = Boolean(data.screenShareActive);
     if (data.teacherMicActive === false) {
       teacherMicMutedNoticeDismissed = false;
@@ -5158,6 +5322,15 @@ socket.on("permission_granted", async () => {
   elements.raiseHandButton.hidden = false;
   elements.handWaitingActions.hidden = true;
   updateMicControl();
+
+  // Ensure teacher audio continues playing and unmuted
+  const teacherEl = getTeacherAudioElement();
+  if (teacherEl && teacherEl.paused && teacherAudioStream && teacherAudioStream.getAudioTracks().length) {
+    teacherEl.muted = false;
+    teacherEl.volume = 1.0;
+    teacherEl.play().catch(() => {});
+  }
+
   await enableApprovedMicrophone();
 });
 
@@ -5168,6 +5341,7 @@ socket.on("microphone_revoked", () => {
   microphoneOfferSent = false;
   microphoneNegotiated = false;
   unpublishStudentSfuMic();
+  unpublishStudentP2pMic();
 
   const audioTrack = localAudioStream?.getAudioTracks()[0];
   if (audioTrack) {
@@ -5177,6 +5351,14 @@ socket.on("microphone_revoked", () => {
   elements.handWaitingActions.hidden = true;
   updateMicControl();
   setViewerStatus("أغلق الأستاذ المايك. يمكنك رفع اليد عند الحاجة.", "neutral");
+
+  // Keep teacher playback intact
+  const teacherEl = getTeacherAudioElement();
+  if (teacherEl && teacherEl.paused && teacherAudioStream && teacherAudioStream.getAudioTracks().length) {
+    teacherEl.muted = false;
+    teacherEl.volume = 1.0;
+    teacherEl.play().catch(() => {});
+  }
 });
 
 socket.on("classroom_all_mics_muted", () => {
@@ -5186,6 +5368,7 @@ socket.on("classroom_all_mics_muted", () => {
   microphoneOfferSent = false;
   microphoneNegotiated = false;
   unpublishStudentSfuMic();
+  unpublishStudentP2pMic();
 
   if (localAudioStream) {
     localAudioStream.getAudioTracks().forEach((track) => {
@@ -5197,6 +5380,14 @@ socket.on("classroom_all_mics_muted", () => {
   elements.handWaitingActions.hidden = true;
   updateMicControl();
   setViewerStatus("أغلق الأستاذ ميكروفونات جميع التلاميذ.", "neutral");
+
+  // Keep teacher playback intact
+  const teacherEl = getTeacherAudioElement();
+  if (teacherEl && teacherEl.paused && teacherAudioStream && teacherAudioStream.getAudioTracks().length) {
+    teacherEl.muted = false;
+    teacherEl.volume = 1.0;
+    teacherEl.play().catch(() => {});
+  }
 });
 
 socket.on("classroom_force_reload", () => {

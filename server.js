@@ -1714,7 +1714,7 @@ io.on("connection", (socket) => {
       // publishes screen-share state after the room handshake.
       setScreenShareActive(level, false);
       setTeacherMicActive(level, true);
-      users.set(socket.id, { role: "teacher", level, name: "الأستاذ" });
+      users.set(socket.id, { role: "teacher", level, name: "الأستاذ", teacherId: authenticatedTeacher?.id || "teacher" });
 
       const recoveryStudents = isResuming
         ? await Promise.all((await io.in(level).fetchSockets())
@@ -2210,6 +2210,7 @@ io.on("connection", (socket) => {
         globalFree: isGlobalFreeActive,
         role: "student",
         teacherSocketId,
+        teacherId: users.get(teacherSocketId)?.teacherId || "teacher",
         participationCount,
         screenShareActive: isScreenShareActive(classroomLevel),
         teacherMicActive: isTeacherMicActive(classroomLevel),
