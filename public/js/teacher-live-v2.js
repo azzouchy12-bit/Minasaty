@@ -82,7 +82,7 @@ let activeLevel = null;
 let activeSubject = null;
 let classActive = false;
 
-// SFU (LiveKit Media Server) State for zero-lag 70+ student broadcasting
+// SFU (LiveKit Media Server) State for centralized high-scale broadcasting
 let teacherSfuRoom = null;
 let teacherSfuVideoPub = null;
 let teacherSfuAudioPub = null;
@@ -92,9 +92,126 @@ let pendingSfuMediaSync = false;
 let isTeacherSfuConnecting = false;
 let currentTeacherSfuRoomName = null;
 
+// Media transport state machine & diagnostics
+let mediaTransportState = "idle"; // "idle" | "sfu_connecting" | "sfu_active" | "p2p_fallback"
+const studentMediaTransports = new Map(); // socketId -> { transport, receiving, lastSeenAt }
+const sfuStudentAudioElements = new Map(); // participantId -> HTMLAudioElement
+let sfuDegradationTimer = null;
+let signalingDisconnectGraceTimer = null;
+const SIGNALING_DISCONNECT_GRACE_MS = 25_000;
+const diagnosticEvents = [];
+
+function recordLiveDiagnosticEvent(type, message) {
+  const sanitizedMessage = String(message || "")
+    .replace(/token=[^&\s]+/gi, "token=***")
+    .replace(/bearer\s+[a-z0-9._-]+/gi, "bearer ***")
+    .substring(0, 160);
+  const entry = {
+    timestamp: new Date().toISOString(),
+    type: String(type || "info"),
+    message: sanitizedMessage,
+  };
+  diagnosticEvents.unshift(entry);
+  if (diagnosticEvents.length > 25) diagnosticEvents.pop();
+  console.info(`[Diagnostics] [${entry.type}] ${entry.message}`);
+}
+
+function isTeacherSfuHealthy() {
+  return Boolean(
+    sfuActiveForClass &&
+    teacherSfuRoom &&
+    teacherSfuRoom.state === "connected" &&
+    (teacherSfuVideoPub || teacherSfuAudioPub)
+  );
+}
+
+function attachSfuStudentAudio(identity, track) {
+  if (!identity || !track) return;
+  let audio = sfuStudentAudioElements.get(identity);
+  if (!audio) {
+    audio = document.createElement("audio");
+    audio.id = `sfu-audio-${identity}`;
+    audio.autoplay = true;
+    audio.playsInline = true;
+    audio.style.display = "none";
+    document.body.appendChild(audio);
+    sfuStudentAudioElements.set(identity, audio);
+  }
+  const stream = new MediaStream([track.mediaStreamTrack || track]);
+  audio.srcObject = stream;
+  audio.play().catch((err) => console.debug("SFU student audio play hint:", err));
+}
+
+function removeSfuStudentAudio(identity) {
+  if (!identity) return;
+  const audio = sfuStudentAudioElements.get(identity);
+  if (audio) {
+    try {
+      audio.pause();
+      audio.srcObject = null;
+      audio.remove();
+    } catch (_) {}
+    sfuStudentAudioElements.delete(identity);
+  }
+}
+
+function clearAllSfuStudentAudio() {
+  sfuStudentAudioElements.forEach((audio) => {
+    try {
+      audio.pause();
+      audio.srcObject = null;
+      audio.remove();
+    } catch (_) {}
+  });
+  sfuStudentAudioElements.clear();
+}
+
+function handleSfuDegradation() {
+  if (!classActive || !activeLevel) return;
+  recordLiveDiagnosticEvent("sfu_degraded", "SFU disconnected, evaluating fallback route");
+  mediaTransportState = "p2p_fallback";
+  setStudioStatus("⚠️ تعثر خادم الوسائط SFU مؤقتاً. جارٍ محاولة إعادة الاتصال التلقائي…", "warning");
+
+  if (!sfuDegradationTimer) {
+    sfuDegradationTimer = setTimeout(async () => {
+      sfuDegradationTimer = null;
+      if (classActive && activeLevel && (!teacherSfuRoom || teacherSfuRoom.state !== "connected")) {
+        console.info("[SFU] Attempting automatic reconnection to LiveKit SFU...");
+        const reconnected = await initTeacherSfuSession(activeLevel);
+        if (reconnected) {
+          mediaTransportState = "sfu_active";
+          recordLiveDiagnosticEvent("sfu_recovered", "Successfully reconnected to LiveKit SFU");
+          setStudioStatus("تمت استعادة الاتصال بخادم الوسائط المركزي SFU بنجاح.", "live");
+        }
+      }
+    }, 3_500);
+  }
+}
+
+window.getMinasatyLiveDiagnostics = function getMinasatyLiveDiagnostics() {
+  const pConnections = Object.values(peerConnections || {});
+  return {
+    transportMode: isTeacherSfuHealthy() ? "sfu" : (mediaTransportState === "p2p_fallback" ? "p2p_fallback" : "idle"),
+    sfuHealthy: isTeacherSfuHealthy(),
+    sfuRoomState: teacherSfuRoom?.state || "disconnected",
+    sfuPublishedTracks: [
+      teacherSfuVideoPub ? "video" : null,
+      teacherSfuAudioPub ? "audio" : null,
+    ].filter(Boolean),
+    activeP2PCount: Object.keys(peerConnections || {}).length,
+    p2pSenders: pConnections.reduce((acc, pc) => acc + (pc.getSenders?.().filter(s => s.track).length || 0), 0),
+    p2pReceivers: pConnections.reduce((acc, pc) => acc + (pc.getReceivers?.().filter(r => r.track).length || 0), 0),
+    sfuStudentAudioCount: sfuStudentAudioElements.size,
+    signalingConnected: Boolean(socket?.connected),
+    recentEvents: diagnosticEvents.slice(0, 10),
+  };
+};
+
 async function initTeacherSfuSession(roomName) {
   if (typeof window.fetchMinasatySfuToken !== "function" || !window.LivekitClient?.Room) {
     console.info("[SFU] LiveKit client or helper not available, running in P2P mode.");
+    mediaTransportState = "p2p_fallback";
+    recordLiveDiagnosticEvent("sfu_unavailable", "LiveKit client bundle or helper not available on window");
     return false;
   }
   if (!roomName) return false;
@@ -102,6 +219,7 @@ async function initTeacherSfuSession(roomName) {
   // If already connected to this room, just sync media and return
   if (teacherSfuRoom && teacherSfuRoom.state === "connected" && currentTeacherSfuRoomName === roomName) {
     sfuActiveForClass = true;
+    mediaTransportState = "sfu_active";
     await syncTeacherSfuMedia();
     return true;
   }
@@ -113,6 +231,7 @@ async function initTeacherSfuSession(roomName) {
 
   isTeacherSfuConnecting = true;
   currentTeacherSfuRoomName = roomName;
+  mediaTransportState = "sfu_connecting";
 
   try {
     const sfuData = await window.fetchMinasatySfuToken(roomName, true);
@@ -120,6 +239,8 @@ async function initTeacherSfuSession(roomName) {
     if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuUrl) {
       console.info("[SFU] SFU not enabled by server, running P2P fallback.");
       isTeacherSfuConnecting = false;
+      mediaTransportState = "p2p_fallback";
+      recordLiveDiagnosticEvent("sfu_disabled", "SFU token disabled or empty response from server");
       return false;
     }
 
@@ -136,19 +257,23 @@ async function initTeacherSfuSession(roomName) {
       });
 
       teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
-        // Approved student microphones arrive through WebRTC P2P into attachStudentAudio
-        // and classroomAudioContext mix-minus. Do not play duplicate audio here.
+        if (track.kind === "audio") {
+          console.info("[SFU] Teacher received audio track from student participant:", participant.identity);
+          attachSfuStudentAudio(participant.identity, track);
+          recordLiveDiagnosticEvent("student_mic_sfu_received", `Subscribed to mic from participant ${participant.identity}`);
+        }
       });
 
       teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-        const el = document.getElementById(`sfu-audio-${participant.identity}`);
-        if (el) el.remove();
+        removeSfuStudentAudio(participant.identity);
+        recordLiveDiagnosticEvent("student_mic_sfu_removed", `Unsubscribed from mic of participant ${participant.identity}`);
       });
 
       teacherSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
         if (sfuActiveForClass) {
           console.warn("[SFU] Teacher disconnected from SFU room.");
           sfuActiveForClass = false;
+          handleSfuDegradation();
         }
       });
     }
@@ -158,6 +283,8 @@ async function initTeacherSfuSession(roomName) {
     }
 
     sfuActiveForClass = true;
+    mediaTransportState = "sfu_active";
+    recordLiveDiagnosticEvent("sfu_connected", "Teacher successfully connected to LiveKit SFU: " + roomName);
     console.info("[SFU] Teacher successfully connected to LiveKit SFU:", roomName);
     await syncTeacherSfuMedia();
     return true;
@@ -168,6 +295,8 @@ async function initTeacherSfuSession(roomName) {
     }
     console.warn("[SFU] Could not connect to SFU, using P2P fallback:", error);
     sfuActiveForClass = false;
+    mediaTransportState = "p2p_fallback";
+    recordLiveDiagnosticEvent("sfu_connect_error", error.message || "Failed to connect to LiveKit SFU");
     return false;
   } finally {
     isTeacherSfuConnecting = false;
@@ -5481,6 +5610,13 @@ async function tuneOutboundSender(sender, kind) {
 
 
 function addTeacherTracks(peerConnection, studentSocketId) {
+  // If central SFU is healthy, students receive media from SFU.
+  // Do NOT add teacher broadcast tracks to this peerConnection to prevent duplicate upload congestion.
+  if (isTeacherSfuHealthy()) {
+    console.info(`[Broadcast] SFU is healthy. Skipping P2P video/audio tracks for student ${studentSocketId}.`);
+    return;
+  }
+
   const videoStream = screenStream;
   const videoTrack = videoStream?.getVideoTracks?.().find((track) => track.readyState === "live");
   if (videoTrack) {
@@ -5489,7 +5625,6 @@ function addTeacherTracks(peerConnection, studentSocketId) {
     sender.__classroomVideoTrack = true;
     void tuneOutboundSender(sender, "video");
   }
-
 
   ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate: false });
 }
@@ -5731,6 +5866,12 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
     return;
   }
 
+  // If central SFU is active and healthy, students receive media from SFU.
+  // Do NOT send individual P2P offers to avoid parallel broadcast congestion.
+  if (isTeacherSfuHealthy() && !force) {
+    console.info(`[Broadcast] Central SFU is active. Skipping P2P offer to student ${studentSocketId}.`);
+    return;
+  }
 
   let peerConnection = peerConnections[studentSocketId];
 
@@ -5851,13 +5992,16 @@ async function resumeLiveClassAfterSocketReconnect() {
     }
 
     await ensureTeacherMicrophoneActive();
-    await syncTeacherVideoTrackToAllPeers();
+    if (!isTeacherSfuHealthy()) {
+      await syncTeacherVideoTrackToAllPeers();
+    }
     void initTeacherSfuSession(activeLevel);
 
-    const studentSocketIds = Object.keys(peerConnections);
-
-    for (const studentSocketId of studentSocketIds) {
-      void createAndSendOffer(studentSocketId, { iceRestart: true });
+    if (!isTeacherSfuHealthy()) {
+      const studentSocketIds = Object.keys(peerConnections);
+      for (const studentSocketId of studentSocketIds) {
+        void createAndSendOffer(studentSocketId, { iceRestart: true });
+      }
     }
 
     setStudioStatus("تمت استعادة الحصة ومسار الميكروفون بنجاح.", "live");
@@ -6642,6 +6786,12 @@ async function resyncSingleStudent(socketId, button) {
 
 
 socket.on("connect", () => {
+  if (signalingDisconnectGraceTimer) {
+    clearTimeout(signalingDisconnectGraceTimer);
+    signalingDisconnectGraceTimer = null;
+  }
+  recordLiveDiagnosticEvent("signaling_connect", "Socket.io reconnected successfully");
+
   if (classActive && classResumeToken) {
     void resumeLiveClassAfterSocketReconnect();
     return;
@@ -6685,7 +6835,6 @@ socket.on("room_ready", (data) => {
 socket.on("student_joined", async (data = {}) => {
   const { socketId, studentId, studentName, participationCount } = data;
 
-
   if (!classActive || !socketId) {
     return;
   }
@@ -6696,7 +6845,13 @@ socket.on("student_joined", async (data = {}) => {
 
   const attendee = upsertAttendee(socketId, studentId, studentName || "تلميذ", participationCount);
   syncStudentMicButton(attendee, socketId, false);
-  await createAndSendOffer(socketId);
+
+  if (!isTeacherSfuHealthy()) {
+    recordLiveDiagnosticEvent("student_joined_p2p", `Student ${socketId} joined; served via P2P fallback`);
+    await createAndSendOffer(socketId);
+  } else {
+    recordLiveDiagnosticEvent("student_joined_sfu", `Student ${socketId} joined; served via central LiveKit SFU`);
+  }
   refreshAbsenteesBadge();
 });
 
@@ -6736,12 +6891,24 @@ socket.on("recovery_students", async (data = {}) => {
       continue;
     }
 
-
     const attendee = upsertAttendee(student.socketId, student.studentId, student.studentName || "تلميذ", student.participationCount);
     syncStudentMicButton(attendee, student.socketId, Boolean(student.micEnabled));
     applyStudentMicrophoneState(student.socketId, Boolean(student.micEnabled));
-    await createAndSendOffer(student.socketId, { iceRestart: true });
+
+    if (!isTeacherSfuHealthy()) {
+      await createAndSendOffer(student.socketId, { iceRestart: true });
+    }
   }
+});
+
+
+socket.on("student_transport_updated", (data = {}) => {
+  if (!data?.socketId) return;
+  studentMediaTransports.set(data.socketId, {
+    transport: data.transport || "unknown",
+    receiving: Boolean(data.receiving),
+    lastSeenAt: Date.now(),
+  });
 });
 
 
@@ -7012,17 +7179,31 @@ socket.on("classroom_error", (data = {}) => {
 });
 
 
-socket.on("disconnect", () => {
+socket.on("disconnect", (reason) => {
+  recordLiveDiagnosticEvent("signaling_disconnect", "Socket.io disconnected: " + String(reason || ""));
   if (!classActive) {
     if (isStarting) setStudioStatus("انقطع الاتصال. جارٍ إعادة الاتصال قبل بدء الحصة…", "neutral");
     return;
   }
 
-
-  closeAllPeerConnections();
-  clearAttendees();
-  setStudioStatus("انقطع الاتصال بالخادم. جارٍ استعادة الحصة تلقائياً…", "error");
+  // Preserve media streams during transient signaling drops:
+  setStudioStatus("انقطع اتصال الإشارات مؤقتاً. جارٍ إعادة الاتصال التلقائي (البث مستمر)…", "warning");
   updateControls();
+
+  if (signalingDisconnectGraceTimer) {
+    clearTimeout(signalingDisconnectGraceTimer);
+  }
+  signalingDisconnectGraceTimer = setTimeout(() => {
+    signalingDisconnectGraceTimer = null;
+    if (classActive && !socket.connected) {
+      console.warn("[Signaling] Socket did not reconnect within grace period. Cleaning up stale classroom state.");
+      recordLiveDiagnosticEvent("signaling_timeout", "Socket reconnect grace period expired (25s)");
+      closeAllPeerConnections();
+      clearAttendees();
+      setStudioStatus("انقطع الاتصال بالخادم. اضغط استعادة أو أعد تحميل الصفحة.", "error");
+      updateControls();
+    }
+  }, SIGNALING_DISCONNECT_GRACE_MS);
 });
 
 

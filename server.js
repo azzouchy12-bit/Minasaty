@@ -490,6 +490,7 @@ const MAX_CLASSROOM_CHAT_HISTORY = 100;
 // reserved long enough for the teacher to reload, select the screen again, and
 // reclaim the same classroom without forcing students out.
 const TEACHER_RECOVERY_GRACE_MS = 180_000;
+const HOLD_NOTIFICATION_DEBOUNCE_MS = 4_000;
 
 /**
  * Tracks only active WebRTC classroom sockets, keyed by socket ID. Passive
@@ -783,6 +784,9 @@ function clearPendingTeacherRecovery(level) {
   if (recovery?.timer) {
     clearTimeout(recovery.timer);
   }
+  if (recovery?.notifyTimer) {
+    clearTimeout(recovery.notifyTimer);
+  }
   pendingTeacherRecoveryByLevel.delete(level);
 }
 
@@ -801,6 +805,7 @@ function holdClassroomForTeacherReturn(level, resumeToken) {
     resumeToken,
     subject: activeSubjectByLevel.get(level),
     timer: null,
+    notifyTimer: null,
   };
   recovery.timer = setTimeout(() => {
     const currentRecovery = pendingTeacherRecoveryByLevel.get(level);
@@ -815,11 +820,22 @@ function holdClassroomForTeacherReturn(level, resumeToken) {
       console.error(`[Socket.io] recovery timeout cleanup failed for ${level}:`, error);
     });
   }, TEACHER_RECOVERY_GRACE_MS);
+
+  // Debounce the student-facing notification by 4s to prevent momentary network
+  // jitter or socket transport upgrades from tearing down media on students' devices.
+  recovery.notifyTimer = setTimeout(() => {
+    const currentRecovery = pendingTeacherRecoveryByLevel.get(level);
+    const activeTeacherSocketId = activeTeachersByLevel.get(level);
+    if (currentRecovery?.resumeToken !== resumeToken || activeTeacherSocketId) {
+      return;
+    }
+    setScreenShareActive(level, false);
+    io.to(level).emit("screen_share_state", { level, active: false });
+    io.to(level).emit("teacher_reconnecting", { level });
+    io.to(`${level}_lobby`).emit("live_class_recovering", { level });
+  }, HOLD_NOTIFICATION_DEBOUNCE_MS);
+
   pendingTeacherRecoveryByLevel.set(level, recovery);
-  setScreenShareActive(level, false);
-  io.to(level).emit("screen_share_state", { level, active: false });
-  io.to(level).emit("teacher_reconnecting", { level });
-  io.to(`${level}_lobby`).emit("live_class_recovering", { level });
   console.info(`[Socket.io] Holding room ${level} for ${TEACHER_RECOVERY_GRACE_MS / 1000}s until the teacher returns or ends it.`);
   return true;
 }
@@ -2254,6 +2270,28 @@ io.on("connection", (socket) => {
         acknowledgement
       );
     }
+  });
+
+  /**
+   * Student reports whether media is being received via central SFU or P2P fallback.
+   * Forwarded to the teacher so the broadcaster avoids redundant parallel P2P streams.
+   */
+  socket.on("student_media_transport_status", (data = {}, acknowledgement) => {
+    const level = socket.data.roomLevel;
+    const transport = String(data?.transport || "").trim().toLowerCase();
+    const receiving = Boolean(data?.receiving);
+    socket.data.mediaTransport = transport;
+    socket.data.isReceivingMedia = receiving;
+
+    const teacherSocketId = activeTeachersByLevel.get(level);
+    if (teacherSocketId && teacherSocketId !== socket.id) {
+      io.to(teacherSocketId).emit("student_transport_updated", {
+        socketId: socket.id,
+        transport,
+        receiving,
+      });
+    }
+    acknowledge(acknowledgement, { ok: true, transport, receiving });
   });
 
   /**

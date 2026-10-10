@@ -86,6 +86,8 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
     const at = new AccessToken(config.key, config.secret, {
       identity: participantId,
       name: participantName,
+      // Assigned by authenticated server claims, never by the request body.
+      metadata: JSON.stringify({ classroomRole: isTeacher ? "teacher" : "student" }),
       ttl: 6 * 60 * 60, // 6 hours
     });
 
@@ -95,6 +97,7 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
       canPublish: true,
       canSubscribe: true,
       canPublishData: true,
+      canUpdateOwnMetadata: false,
     });
 
     const token = await at.toJwt();
