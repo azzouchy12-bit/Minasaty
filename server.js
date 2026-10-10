@@ -2846,6 +2846,11 @@ io.on("connection", (socket) => {
         whiteboardAccessByLevel.delete(level);
       }
 
+      const retainedStudentIds = Array.from(openStudentMicsByStudentIdByLevel.get(level) || []);
+      openStudentMicsByStudentIdByLevel.delete(level);
+      await Promise.all(retainedStudentIds.map((studentId) =>
+        webrtcRoutes.syncStudentMicrophonePermission(level, studentId, false)));
+
       // Broadcast to room that all student mics are muted
       io.to(level).emit("classroom_all_mics_muted", { level });
 

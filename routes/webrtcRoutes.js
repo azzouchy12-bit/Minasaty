@@ -162,6 +162,8 @@ router.setClassroomAuthorizer = function setClassroomAuthorizer(fn) {
   router.classroomAuthorizer = fn;
 };
 
+const microphonePermissionUpdates = new Map();
+
 // Update already-connected students; changing the next token alone is insufficient.
 router.syncStudentMicrophonePermission = async function(roomName, studentId, enabled) {
   if (!studentId) return;
@@ -169,6 +171,9 @@ router.syncStudentMicrophonePermission = async function(roomName, studentId, ena
   if (!config.enabled || !config.isConfigured) return;
   const serviceUrl = config.url.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
   const client = new RoomServiceClient(serviceUrl, config.key, config.secret, { requestTimeout: 4000 });
+  const updateKey = `${roomName}:${studentId}`;
+  const previous = microphonePermissionUpdates.get(updateKey) || Promise.resolve();
+  const update = previous.catch(() => {}).then(async () => {
   try {
     await client.updateParticipant(roomName, String(studentId), {
       permission: {
@@ -180,6 +185,11 @@ router.syncStudentMicrophonePermission = async function(roomName, studentId, ena
     // An absent participant will obtain the current permissions on their next join.
     if (err?.status === 404 || err?.code === "not_found") return;
     console.warn("[SFU] Could not synchronize student microphone permission.");
+  }
+  });
+  microphonePermissionUpdates.set(updateKey, update);
+  try { await update; } finally {
+    if (microphonePermissionUpdates.get(updateKey) === update) microphonePermissionUpdates.delete(updateKey);
   }
 };
 

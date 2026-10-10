@@ -68,6 +68,7 @@ let currentStudentSfuRoomName = null;
 let studentSfuConnectPromise = null;
 let studentSfuSessionId = 0;
 let studentSfuConnectedAt = 0;
+let sfuReceptionMonitor = null;
 const SFU_STARTUP_GRACE_PERIOD_MS = 12_000;
 
 // Dedicated Teacher Audio reception state - completely isolated from student mic and classmate audio
@@ -359,8 +360,6 @@ window.getMinasatyStudentLiveStatsAsync = async function getMinasatyStudentLiveS
   }
   return base;
 };
-
-let sfuReceptionMonitor = null;
 
 function stopSfuReceptionMonitor() {
   if (sfuReceptionMonitor) clearInterval(sfuReceptionMonitor);
