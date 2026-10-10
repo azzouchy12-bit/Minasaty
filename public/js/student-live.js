@@ -69,7 +69,7 @@ let studentSfuConnectPromise = null;
 let studentSfuSessionId = 0;
 let studentSfuConnectedAt = 0;
 let sfuReceptionMonitor = null;
-const SFU_STARTUP_GRACE_PERIOD_MS = 12_000;
+const SFU_STARTUP_GRACE_PERIOD_MS = 2_500;
 
 // Dedicated Teacher Audio reception state - completely isolated from student mic and classmate audio
 let teacherAudioElement = null;
@@ -587,7 +587,7 @@ function startSfuReceptionMonitor(room) {
       const expectsVideo = typeof screenShareActive !== "undefined" && screenShareActive;
       if (expectsVideo && !teacherVideoPublished) {
         if (missingVideoSince === null) missingVideoSince = now;
-        if (now - missingVideoSince >= 12_000) stalled = true;
+        if (now - missingVideoSince >= 2_000) stalled = true;
       } else {
         missingVideoSince = null;
       }
@@ -597,7 +597,7 @@ function startSfuReceptionMonitor(room) {
       if (typeof holdStudentSfuDuringRecovery === "function") holdStudentSfuDuringRecovery();
       clearStaleSfuMedia();
       disconnectStudentSfu();
-      scheduleClassRecovery(500);
+      scheduleClassRecovery(150);
     } catch (_) {
       // A failed stats read must not tear down a working media session.
     } finally {
@@ -625,6 +625,7 @@ async function connectStudentSfu(roomName) {
   if (typeof window.fetchMinasatySfuToken !== "function" || !window.LivekitClient?.Room) {
     console.info("[SFU-Student] LiveKit client or helper not available, using P2P.");
     recordStudentDiagnosticEvent("sfu_unavailable", "LiveKit client or helper not on window");
+    notifySfuTransportStatus(false);
     return false;
   }
   if (!roomName) return false;
@@ -690,6 +691,7 @@ async function connectStudentSfu(roomName) {
       if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuUrl) {
         console.info("[SFU-Student] SFU not enabled by server, staying on P2P.");
         recordStudentDiagnosticEvent("sfu_disabled", "SFU not enabled by server response");
+        notifySfuTransportStatus(false);
         return false;
       }
 
@@ -755,7 +757,7 @@ async function connectStudentSfu(roomName) {
               if (typeof updateRemoteVideoPresentation === "function") updateRemoteVideoPresentation();
             }
           }
-          const grace = typeof SFU_STARTUP_GRACE_PERIOD_MS !== "undefined" ? SFU_STARTUP_GRACE_PERIOD_MS : 12_000;
+          const grace = typeof SFU_STARTUP_GRACE_PERIOD_MS !== "undefined" ? SFU_STARTUP_GRACE_PERIOD_MS : 2_500;
           const healthy = typeof isStudentSfuHealthy === "function" ? isStudentSfuHealthy() : true;
           if (!healthy && (Date.now() - getConnectedTimestamp() > grace)) {
             notifySfuTransportStatus(false);
@@ -836,7 +838,7 @@ function isStudentSfuHealthy() {
   }
 
   // Startup grace period: give teacher media time to arrive and negotiate
-  const grace = typeof SFU_STARTUP_GRACE_PERIOD_MS !== "undefined" ? SFU_STARTUP_GRACE_PERIOD_MS : 12_000;
+  const grace = typeof SFU_STARTUP_GRACE_PERIOD_MS !== "undefined" ? SFU_STARTUP_GRACE_PERIOD_MS : 2_500;
   const connectedAt = typeof studentSfuConnectedAt !== "undefined"
     ? studentSfuConnectedAt
     : (typeof window !== "undefined" ? window.__studentSfuConnectedAt || 0 : 0);
@@ -1612,8 +1614,8 @@ function checkAutomaticMediaRefresh() {
   if (isJoining || isRecoveringStream || !socket.connected || elements.refreshMediaButton?.disabled) return;
   const now = Date.now();
   if (state.missingSince === null) state.missingSince = now;
-  if (now - state.missingSince < 8_000 || state.attempts >= 3
-      || (state.lastAttempt !== null && now - state.lastAttempt < 20_000)) return;
+  if (now - state.missingSince < 2_000 || state.attempts >= 3
+      || (state.lastAttempt !== null && now - state.lastAttempt < 4_000)) return;
   state.lastAttempt = now;
   state.missingSince = now;
   state.attempts += 1;

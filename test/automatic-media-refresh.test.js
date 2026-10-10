@@ -15,20 +15,20 @@ function fixture() {
   return {ctx,state,calls,tick(time){now=time;ctx.checkAutomaticMediaRefresh();}};
 }
 test('Late student automatically requests the same audio/video refresh after missing screen grace period',()=>{
-  const f=fixture(); f.tick(0); f.tick(7999); assert.equal(f.calls.length,0); f.tick(8000);
+  const f=fixture(); f.tick(0); f.tick(1999); assert.equal(f.calls.length,0); f.tick(2000);
   assert.equal(f.calls.length,1); assert.equal(f.calls[0].automatic,true);
 });
 test('Attached but undecoded screen is not mistaken for delivered video',()=>{
   const f=fixture(); f.ctx.elements.remoteVideo.srcObject={getVideoTracks:()=>[{readyState:'live',muted:false}]};
-  f.tick(0); f.tick(8000); assert.equal(f.calls.length,1);
+  f.tick(0); f.tick(2000); assert.equal(f.calls.length,1);
 });
 test('Healthy rendered screen is never automatically rebuilt and resets retry budget',()=>{
   const f=fixture(); Object.assign(f.ctx.elements.remoteVideo,{srcObject:{getVideoTracks:()=>[{readyState:'live',muted:false}]},readyState:2,videoWidth:1280,paused:false});
   f.state.attempts=3; f.tick(0); f.tick(60000); assert.equal(f.calls.length,0); assert.equal(f.state.attempts,0);
 });
 test('Automatic refresh has cooldown and finite retries during a persistent outage',()=>{
-  const f=fixture(); f.tick(0); f.tick(8000); f.tick(16000); assert.equal(f.calls.length,1);
-  f.tick(28000); f.tick(48000); f.tick(90000); assert.equal(f.calls.length,3);
+  const f=fixture(); f.tick(0); f.tick(2000); f.tick(3000); assert.equal(f.calls.length,1);
+  f.tick(6000); f.tick(10000); f.tick(14000); assert.equal(f.calls.length,3);
 });
 test('Hidden page, inactive screen and deliberate adaptive pause do not trigger refresh',()=>{
   for (const setup of [f=>f.ctx.document.visibilityState='hidden',f=>f.ctx.screenShareActive=false,
@@ -42,7 +42,7 @@ test('A disconnected socket or recovery in progress cannot start an overlapping 
   }
 });
 test('Leaving class resets the automatic retry state for the next class',()=>{
-  const f=fixture(); f.tick(0); f.tick(8000); f.ctx.joinedClass=false; f.tick(10000);
+  const f=fixture(); f.tick(0); f.tick(2000); f.ctx.joinedClass=false; f.tick(10000);
   assert.equal(f.state.attempts,0); assert.equal(f.state.lastAttempt,null);
 });
 test('Refresh explicitly forces failed media rebuild even when SFU tracks are still present',()=>{
