@@ -575,7 +575,7 @@ function startSfuReceptionMonitor(room) {
           const previous = progressByPublication.get(publication);
           const progress = !previous || bytes !== previous.bytes ? now : previous.progress;
           progressByPublication.set(publication, { bytes, progress });
-          if (now - progress >= 20_000) stalled = true;
+          if (now - progress >= 3_500) stalled = true;
         }
       }
       if (studentSfuRoom !== room || room.state !== "connected" || !joinedClass) return;
@@ -592,7 +592,7 @@ function startSfuReceptionMonitor(room) {
         missingVideoSince = null;
       }
       // Each publication has its own clock: moving video cannot hide stalled audio.
-      if (!stalled && now - lastTeacherSeen < 20_000) return;
+      if (!stalled && now - lastTeacherSeen < 3_500) return;
       recordStudentDiagnosticEvent("teacher_media_stalled", "Teacher reception stalled; requesting recovery");
       if (typeof holdStudentSfuDuringRecovery === "function") holdStudentSfuDuringRecovery();
       clearStaleSfuMedia();
@@ -603,7 +603,7 @@ function startSfuReceptionMonitor(room) {
     } finally {
       busy = false;
     }
-  }, 4_000);
+  }, 1_500);
 }
 
 function holdStudentSfuDuringRecovery() {
@@ -4850,6 +4850,14 @@ function addUniqueTrack(stream, track) {
     if (existingVideo.some((currentTrack) => currentTrack.id === track.id)) {
       return;
     }
+    // Remove any stale or previous video tracks so stream has strictly ONE video track at all times
+    existingVideo.forEach((oldTrack) => {
+      try {
+        stream.removeTrack(oldTrack);
+        oldTrack.enabled = false;
+        if (typeof oldTrack.stop === "function") oldTrack.stop();
+      } catch (_) { }
+    });
     stream.addTrack(track);
     if (elements.remoteVideo) {
       if (elements.remoteVideo.srcObject !== stream) {

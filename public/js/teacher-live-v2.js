@@ -5988,8 +5988,10 @@ function addTeacherTracks(peerConnection, studentSocketId) {
   // If central SFU is healthy, students receive media from SFU.
   // Do NOT add teacher broadcast tracks to this peerConnection to prevent duplicate upload congestion.
   if (isTeacherSfuHealthy()) {
-    console.info(`[Broadcast] SFU is healthy. Skipping P2P video/audio tracks for student ${studentSocketId}.`);
-    return;
+    if (!peerConnection?.__teacherP2pFallback) {
+      console.info(`[Broadcast] SFU is healthy. Skipping P2P video/audio tracks for student ${studentSocketId}.`);
+      return;
+    }
   }
 
   const videoStream = screenStream;
@@ -6005,11 +6007,14 @@ function addTeacherTracks(peerConnection, studentSocketId) {
 }
 
 
-function createPeerConnection(studentSocketId) {
+function createPeerConnection(studentSocketId, { fallback = false } = {}) {
   closePeerConnection(studentSocketId);
 
 
   const peerConnection = new RTCPeerConnection(rtcConfig);
+  if (fallback) {
+    peerConnection.__teacherP2pFallback = true;
+  }
   peerConnections[studentSocketId] = peerConnection;
   pendingIceCandidates[studentSocketId] = [];
 
@@ -6259,7 +6264,7 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
 
 
   if (!peerConnection) {
-    peerConnection = createPeerConnection(studentSocketId);
+    peerConnection = createPeerConnection(studentSocketId, { fallback: force || Boolean(peerConnections[studentSocketId]?.__teacherP2pFallback) });
   }
 
 
@@ -6282,7 +6287,7 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
 
   if (force && (peerConnection.signalingState !== "stable" || peerConnection.connectionState === "closed")) {
     closePeerConnection(studentSocketId);
-    peerConnection = createPeerConnection(studentSocketId);
+    peerConnection = createPeerConnection(studentSocketId, { fallback: true });
     ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate: false });
   } else if (
     peerConnection.makingOffer ||
@@ -6315,7 +6320,7 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
       targetSocketId: studentSocketId,
       sdp: peerConnection.localDescription,
       negotiationId,
-    }, 20_000);
+    }, 6_000);
   } catch (error) {
     console.warn(`[WebRTC] Unable to create or relay offer to student ${studentSocketId}:`, error.message || error);
     if (error?.message?.includes("تعذر توجيه")) {
@@ -7245,6 +7250,9 @@ socket.on("student_joined", async (data = {}) => {
   if (!isTeacherSfuHealthy()) {
     recordLiveDiagnosticEvent("student_joined_p2p", `Student ${socketId} joined; served via P2P fallback`);
     await createAndSendOffer(socketId);
+  } else if (data.recovering === true) {
+    recordLiveDiagnosticEvent("student_joined_p2p", `Student ${socketId} joined (recovering); served via P2P fallback`);
+    await createAndSendOffer(socketId, { force: true, iceRestart: true });
   } else {
     recordLiveDiagnosticEvent("student_joined_sfu", `Student ${socketId} joined; served via central LiveKit SFU`);
   }
