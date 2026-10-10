@@ -2692,6 +2692,42 @@ io.on("connection", (socket) => {
    * room and role authorization boundaries.
    * Payload: { targetSocketId, enabled }
    */
+  // A student may revoke only their own microphone, never grant publishing rights.
+  socket.on("student_close_mic", async (_data = {}, acknowledgement) => {
+    const level = socket.data.roomLevel;
+    if (socket.data.role !== "student" || !isValidLevel(level || "") || !isInLevelRoom(socket, level)) {
+      return emitClassroomError(socket, "student_close_mic", "لا يمكنك تعديل المايك خارج الحصة.", acknowledgement);
+    }
+    try {
+      const studentId = socket.data.studentId;
+      setStudentMicrophoneOpen(level, socket.id, false, studentId);
+      const micStartedAt = socket.data.micStartedAt;
+      socket.data.micStartedAt = null;
+      if (micStartedAt && Date.now() - micStartedAt >= 10000) {
+        void recordClassParticipation({ studentId, level: socket.data.studentAcademicLevel || level,
+          subject: activeSubjectByLevel.get(level), sessionKey: io.sockets.sockets.get(activeTeachersByLevel.get(level))?.data?.classResumeToken })
+          .catch((error) => console.warn("Self-mute participation recording failed:", error.message));
+      }
+      await webrtcRoutes.syncStudentMicrophonePermission(level, studentId, false);
+      // A newer teacher grant or a room change takes precedence over this delayed completion.
+      if (socket.data.roomLevel !== level || !isInLevelRoom(socket, level) ||
+          isStudentMicrophoneOpen(level, socket.id, studentId)) {
+        return acknowledge(acknowledgement, { ok: true, superseded: true });
+      }
+      socket.emit("microphone_revoked", { level, reason: "student_self_mute" });
+      io.to(level).emit("classroom_track_state", { type: "student_audio", speakerSocketId: socket.id, enabled: false });
+      const teacherId = activeTeachersByLevel.get(level);
+      if (teacherId) io.to(teacherId).emit("student_mic_state_changed", { socketId: socket.id, enabled: false });
+      for (const companionId of activeCompanionsByLevel.get(level) || []) {
+        io.to(companionId).emit("student_mic_state_changed", { socketId: socket.id, enabled: false });
+      }
+      acknowledge(acknowledgement, { ok: true, enabled: false });
+    } catch (error) {
+      console.warn("Student self-mute failed:", error.message);
+      acknowledge(acknowledgement, { ok: false, error: "تعذر تأكيد إغلاق الميكروفون." });
+    }
+  });
+
   socket.on("teacher_set_mic", async (data = {}, acknowledgement) => {
     try {
       const level = socket.data.roomLevel;

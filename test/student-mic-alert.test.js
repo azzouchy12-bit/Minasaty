@@ -47,5 +47,5 @@ test("student-live.js implements playMicOpenedAlert and connects it to permissio
 
 test("public/student-live.html includes cache-busted student-live.js script tag", () => {
   const html = fs.readFileSync(path.join(root, "public/student-live.html"), "utf8");
-  assert.match(html, /student-live\.js\?v=mic-alert-ring-5/);
+  assert.match(html, /student-live\.js\?v=mic-alert-ring-6/);
 });

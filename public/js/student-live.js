@@ -876,6 +876,7 @@ let isMakingRenegotiationOffer = false;
 let microphoneOfferSent = false;
 let microphoneNegotiated = false;
 let microphonePermissionGranted = false;
+let studentMicrophoneSelfClosed = false;
 // Browser permission and teacher permission are intentionally separate: the
 // first is prepared on entry, while the second alone enables transmission.
 let microphonePrepared = false;
@@ -3907,12 +3908,12 @@ function setRaisedHandState({ waiting = false } = {}) {
     button.setAttribute("aria-pressed", "true");
     button.setAttribute(
       "aria-label",
-      "الميكروفون مفتوح — الأستاذ يستمع إليك"
+      "إغلاق الميكروفون — يستمر سماع الأستاذ"
     );
-    button.title = "الميكروفون مفتوح — الأستاذ يستمع إليك";
+    button.title = "إغلاق الميكروفون — يستمر سماع الأستاذ";
     const icon = button.querySelector("span[aria-hidden]") || button.querySelector("span:first-child");
     if (icon) icon.textContent = "🎙️";
-    setButtonLabel(button, "ميكروفون مفتوح");
+    setButtonLabel(button, "إغلاق الميكروفون");
 
     elements.handWaitingActions.hidden = true;
     elements.handWaitingActions.classList.remove("hand-raised");
@@ -3933,7 +3934,7 @@ function setRaisedHandState({ waiting = false } = {}) {
   button.title = waiting ? "تنزيل اليد وإلغاء طلب التحدث" : "رفع اليد وطلب التحدث";
   const icon = button.querySelector("span[aria-hidden]") || button.querySelector("span:first-child");
   if (icon) icon.textContent = "✋";
-  setButtonLabel(button, waiting ? "تنزيل اليد" : "رفع اليد");
+  setButtonLabel(button, waiting ? "تنزيل اليد" : (studentMicrophoneSelfClosed ? "ميكروفون مغلق" : "رفع اليد"));
 
   // The same primary button is the complete toggle. Keep the legacy waiting
   // wrapper hidden so no second or third hand-control button can appear.
@@ -3943,9 +3944,26 @@ function setRaisedHandState({ waiting = false } = {}) {
   if (waitingLabel) waitingLabel.textContent = "";
 }
 
+async function closeOwnMicrophone() {
+  if (!joinedClass || !microphonePermissionGranted) return;
+  // Silence capture immediately, including in-flight SFU publication and P2P sends.
+  stopLocalAudio();
+  studentMicrophoneSelfClosed = true;
+  clearHandResetTimer();
+  setRaisedHandState({ waiting: false });
+  showMobileControlToast("الميكروفون مغلق. لطلب الكلام مجددًا ارفع يدك.");
+  void ensureTeacherAudioPlayback({ sourceHint: "student_self_mute" });
+  try {
+    await emitWithAcknowledgement("student_close_mic", {}, 8000);
+    if (!microphonePermissionGranted) setViewerStatus("أغلقت ميكروفونك. ما زلت تسمع الأستاذ.", "live");
+  } catch (error) {
+    if (!microphonePermissionGranted) setViewerStatus("ميكروفونك مغلق محليًا؛ تعذر تأكيد الحالة للأستاذ.", "warning");
+  }
+}
+
 function toggleRaisedHand() {
   if (microphonePermissionGranted) {
-    showMobileControlToast("الميكروفون مفتوح حالياً — الأستاذ يستمع إلى صوتك");
+    void closeOwnMicrophone();
     return;
   }
   if (elements.raiseHandButton.classList.contains("hand-raised")) {
@@ -5744,6 +5762,7 @@ socket.on("permission_granted", async () => {
   playMicOpenedAlert();
 
   microphonePermissionGranted = true;
+  studentMicrophoneSelfClosed = false;
   clearHandResetTimer();
   // Resolve the student's request immediately and switch button to active microphone indicator.
   setRaisedHandState({ waiting: false });
@@ -5763,7 +5782,7 @@ socket.on("permission_granted", async () => {
   }
 });
 
-socket.on("microphone_revoked", () => {
+socket.on("microphone_revoked", (data = {}) => {
   clearHandResetTimer();
   microphonePermissionGranted = false;
   isMakingRenegotiationOffer = false;
@@ -5779,7 +5798,7 @@ socket.on("microphone_revoked", () => {
   setRaisedHandState({ waiting: false });
   elements.handWaitingActions.hidden = true;
   updateMicControl();
-  setViewerStatus("أغلق الأستاذ المايك. يمكنك رفع اليد عند الحاجة.", "neutral");
+  setViewerStatus(data.reason === "student_self_mute" ? "ميكروفونك مغلق. يمكنك رفع اليد لطلب الكلام." : "أغلق الأستاذ المايك. يمكنك رفع اليد عند الحاجة.", "neutral");
 
   // Keep teacher playback intact
   if (typeof ensureTeacherAudioPlayback === "function") {
