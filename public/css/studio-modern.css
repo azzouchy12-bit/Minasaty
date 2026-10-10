@@ -2350,3 +2350,5 @@
   background: rgba(16, 29, 49, 0.8);
 }
 
+
+.attendee-audio-delivery { display: block; font-size: .62rem; line-height: 1.6; color: var(--text-secondary); overflow-wrap: anywhere; }

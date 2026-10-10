@@ -125,6 +125,49 @@ function isStudentMicrophoneApproved(identity) {
   return false;
 }
 
+const audioReceptionReports = new Map();
+
+function summarizeStudentAudioDelivery(speakerSocketId, now = Date.now()) {
+  let direct = 0, mixed = 0, waiting = 0;
+  for (const listenerId of attendeeElements.keys()) {
+    if (listenerId === speakerSocketId) continue;
+    const report = audioReceptionReports.get(listenerId);
+    if (!report || now - report.receivedAt > 12000) { waiting++; continue; }
+    if (report.tracks.some((track) => track.speakerSocketId === speakerSocketId && track.confirmed)) direct++;
+    else if (report.p2pMixConfirmed) mixed++;
+    else waiting++;
+  }
+  const speakerReport = audioReceptionReports.get(speakerSocketId);
+  const published = Boolean(speakerReport?.micPublished && now - speakerReport.receivedAt <= 12000);
+  return { published, direct, mixed, waiting };
+}
+
+function renderStudentAudioDeliveryStatus() {
+  for (const id of audioReceptionReports.keys()) if (!attendeeElements.has(id)) audioReceptionReports.delete(id);
+  attendeeElements.forEach((attendee, socketId) => {
+    let label = attendee.querySelector(".attendee-audio-delivery");
+    if (!approvedStudentMicrophones.has(socketId)) { label?.remove(); return; }
+    if (!label) {
+      label = document.createElement("small"); label.className = "attendee-audio-delivery";
+      (attendee.querySelector(".attendee-details") || attendee).append(label);
+    }
+    const status = summarizeStudentAudioDelivery(socketId);
+    label.textContent = (status.published ? "نشر الميكروفون مؤكد" : "إذن مفتوح؛ بانتظار النشر") +
+      " · استقبال صوته: " + status.direct + " · استقبال المزيج: " + status.mixed + " · غير مؤكد: " + status.waiting;
+    label.title = "تقارير المتصفحات عن وصول البيانات وتشغيل الصوت. المزيج لا يثبت صوت هذا التلميذ منفردًا، والتقارير لا تثبت عمل السماعات.";
+  });
+}
+
+socket.on("student_audio_reception_report", (data = {}) => {
+  if (!data || typeof data !== "object") return;
+  if (!classActive || !attendeeElements.has(data.socketId)) return;
+  audioReceptionReports.set(data.socketId, { micPublished: data.micPublished === true,
+    tracks: Array.isArray(data.tracks) ? data.tracks : [], p2pMixConfirmed: data.p2pMixConfirmed === true,
+    receivedAt: Date.now() });
+  renderStudentAudioDeliveryStatus();
+});
+window.setInterval(() => { if (classActive) renderStudentAudioDeliveryStatus(); else audioReceptionReports.clear(); }, 3000);
+
 function recordLiveDiagnosticEvent(type, message) {
   const sanitizedMessage = String(message || "")
     .replace(/token=[^&\s]+/gi, "token=***")
@@ -5127,6 +5170,12 @@ function applyStudentMicrophoneState(studentSocketId, enabled) {
   }
 
 
+  if (studentMicStates.get(studentSocketId) !== Boolean(enabled) && typeof audioReceptionReports !== "undefined") {
+    audioReceptionReports.delete(studentSocketId);
+    for (const report of audioReceptionReports.values()) {
+      report.tracks = report.tracks.filter((track) => track.speakerSocketId !== studentSocketId);
+    }
+  }
   studentMicStates.set(studentSocketId, Boolean(enabled));
 
 
@@ -5155,6 +5204,7 @@ function applyStudentMicrophoneState(studentSocketId, enabled) {
   }
   rebuildClassroomAudioGraph();
   syncLocalRecordingAudioSources();
+  if (typeof renderStudentAudioDeliveryStatus === "function") renderStudentAudioDeliveryStatus();
 }
 
 
@@ -6909,7 +6959,7 @@ async function setStudentMicrophone(socketId, enabled, button) {
 
 
     setStudioStatus(
-      enabled ? "تم فتح مايك التلميذ وأصبح صوته مسموعًا للصف." : "تم إغلاق مايك التلميذ.",
+      enabled ? "تم منح إذن المايك. جارٍ التحقق من نشر الصوت واستقباله." : "تم إغلاق مايك التلميذ.",
       "live"
     );
     closeStudentChatMicMenu();

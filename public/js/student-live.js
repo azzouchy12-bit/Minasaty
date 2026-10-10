@@ -212,6 +212,88 @@ async function refreshClassroomAudioOnly({ sourceHint = "student_mic_opened" } =
   }
 }
 
+const audioReceptionProgress = new Map();
+let audioReceptionReportBusy = false;
+
+function audioPlaybackIsActive(audio, track) {
+  return Boolean(audio && track && track.readyState === "live" && track.enabled !== false && !track.muted &&
+    !audio.paused && !audio.muted && audio.volume > 0 &&
+    audio.srcObject?.getAudioTracks?.().some((current) => current.id === track.id));
+}
+
+async function sampleAudioReception(key, track, readStats) {
+  if (!track || track.readyState !== "live" || track.muted || track.enabled === false || !readStats) {
+    audioReceptionProgress.delete(key); return false;
+  }
+  let timeout;
+  try {
+    const stats = await Promise.race([readStats(), new Promise((resolve) => {
+      timeout = window.setTimeout(() => resolve(null), 1500);
+    })]);
+    if (!stats) { audioReceptionProgress.delete(key); return false; }
+    let bytes = 0, samples = 0, decodedSamplesAvailable = false;
+    stats.forEach((report) => {
+      if (report.type !== "inbound-rtp" || (report.kind || report.mediaType) !== "audio") return;
+      bytes += Number(report.bytesReceived) || 0;
+      if (typeof report.totalSamplesReceived === "number") {
+        decodedSamplesAvailable = true; samples += report.totalSamplesReceived;
+      }
+    });
+    const previous = audioReceptionProgress.get(key);
+    audioReceptionProgress.set(key, { track, bytes, samples });
+    return Boolean(previous?.track === track && bytes > previous.bytes &&
+      (!decodedSamplesAvailable || samples > previous.samples));
+  } catch (_) { audioReceptionProgress.delete(key); return false; }
+  finally { window.clearTimeout(timeout); }
+}
+
+async function reportClassroomAudioReception() {
+  if (!joinedClass || !socket.connected) { audioReceptionProgress.clear(); return; }
+  if (audioReceptionReportBusy) return;
+  audioReceptionReportBusy = true;
+  const sessionRoom = studentSfuRoom, sessionPeer = pc, teacherId = teacherSocketId;
+  const usedKeys = new Set();
+  try {
+    const tracks = [], pending = [];
+    if (sessionRoom?.state === "connected") {
+      for (const participant of sessionRoom.remoteParticipants.values()) {
+        if (getSfuParticipantRole(participant) !== "student") continue;
+        for (const publication of participant.trackPublications.values()) {
+          const remoteTrack = publication.track, mediaTrack = remoteTrack?.mediaStreamTrack;
+          if (!mediaTrack || mediaTrack.kind !== "audio") continue;
+          const key = "sfu:" + participant.identity + ":" + mediaTrack.id; usedKeys.add(key);
+          if (pending.length >= 64) continue;
+          pending.push(sampleAudioReception(key, mediaTrack,
+            typeof remoteTrack.getRTCStatsReport === "function" ? () => remoteTrack.getRTCStatsReport() : null).then((receiving) => {
+            tracks.push({ identity: participant.identity, receiving,
+              playing: audioPlaybackIsActive(classmateAudioElements.get(participant.identity), mediaTrack) });
+          }));
+        }
+      }
+    }
+    const mixTrack = teacherInboundAudioTrack;
+    const isP2pMix = mixTrack && !mixTrack.__fromSfu && sessionPeer?.connectionState === "connected";
+    const mixKey = "p2p:" + mixTrack?.id; if (isP2pMix) usedKeys.add(mixKey);
+    const receiver = isP2pMix ? sessionPeer.getReceivers?.().find((item) => item.track === mixTrack) : null;
+    const mixReceiving = isP2pMix ? await sampleAudioReception(mixKey, mixTrack,
+      typeof receiver?.getStats === "function" ? () => receiver.getStats() : null) : false;
+    await Promise.all(pending);
+    const sfuMicTrack = sessionRoom?.state === "connected" ? studentSfuMicPub?.track?.mediaStreamTrack : null;
+    const micTrack = sfuMicTrack?.readyState === "live" && sfuMicTrack.enabled !== false && !sfuMicTrack.muted
+      ? sfuMicTrack : (sessionPeer?.connectionState === "connected" ? studentP2pMicSender?.track : null);
+    if (!joinedClass || !socket.connected || teacherSocketId !== teacherId ||
+        studentSfuRoom !== sessionRoom || pc !== sessionPeer) return;
+    socket.emit("student_audio_reception_report", {
+      micPublished: Boolean(microphonePermissionGranted && micTrack?.readyState === "live" && micTrack.enabled !== false && !micTrack.muted),
+      tracks: tracks.slice(0, 64),
+      p2pMix: { receiving: Boolean(mixReceiving), playing: Boolean(isP2pMix && audioPlaybackIsActive(getTeacherAudioElement(), mixTrack)) },
+    });
+  } finally {
+    for (const key of audioReceptionProgress.keys()) if (!usedKeys.has(key)) audioReceptionProgress.delete(key);
+    audioReceptionReportBusy = false;
+  }
+}
+
 function recordStudentDiagnosticEvent(type, message) {
   const sanitized = String(message || "")
     .replace(/token=[^&\s]+/gi, "token=***")
@@ -6087,3 +6169,5 @@ if (!studentId || !studentName || !level) {
   });
 }
 
+
+window.setInterval(() => { void reportClassroomAudioReception().catch(() => {}); }, 3000);

@@ -2318,6 +2318,41 @@ io.on("connection", (socket) => {
    * Student reports whether media is being received via central SFU or P2P fallback.
    * Forwarded to the teacher so the broadcaster avoids redundant parallel P2P streams.
    */
+  // Treat browser feedback as authenticated observations, never as proof of human hearing.
+  socket.on("student_audio_reception_report", (data = {}) => {
+    if (!data || typeof data !== "object") return;
+    const level = socket.data.roomLevel, teacherId = activeTeachersByLevel.get(level);
+    if (socket.data.role !== "student" || !teacherId || !isInLevelRoom(socket, level) ||
+        !Array.isArray(data.tracks) || data.tracks.length > 64) return;
+    const now = Date.now();
+    if (socket.data.lastAudioReceptionReport && now - socket.data.lastAudioReceptionReport < 1000) return;
+    socket.data.lastAudioReceptionReport = now;
+    const members = io.sockets.adapter.rooms.get(level) || new Set();
+    const allowedSpeakers = new Map();
+    for (const memberId of members) {
+      const member = io.sockets.sockets.get(memberId);
+      if (member?.data.role === "student" && member.data.roomLevel === level &&
+          isStudentMicrophoneOpen(level, memberId, member.data.studentId)) {
+        allowedSpeakers.set(member.data.studentId, memberId);
+      }
+    }
+    const observations = new Map();
+    for (const track of data.tracks) {
+      if (!track || typeof track.identity !== "string") continue;
+      const speakerId = allowedSpeakers.get(track.identity);
+      if (!speakerId || speakerId === socket.id) continue;
+      const previous = observations.get(speakerId);
+      observations.set(speakerId, { speakerSocketId: speakerId,
+        confirmed: Boolean(previous?.confirmed || (track.receiving === true && track.playing === true)) });
+    }
+    io.to(teacherId).emit("student_audio_reception_report", {
+      socketId: socket.id,
+      micPublished: Boolean(data.micPublished === true && isStudentMicrophoneOpen(level, socket.id, socket.data.studentId)),
+      tracks: Array.from(observations.values()),
+      p2pMixConfirmed: data.p2pMix?.receiving === true && data.p2pMix?.playing === true,
+    });
+  });
+
   socket.on("student_media_transport_status", (data = {}, acknowledgement) => {
     const level = socket.data.roomLevel;
     const transport = String(data?.transport || "").trim().toLowerCase();
