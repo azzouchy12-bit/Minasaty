@@ -1493,7 +1493,7 @@ function exitLiveClass() {
   window.location.replace("./parent-dashboard.html");
 }
 
-function refreshAudioVideo() {
+function refreshAudioVideo({ automatic = false } = {}) {
   if (!joinedClass) {
     showMobileControlToast("يعمل تحديث الصوت والصورة بعد الانضمام إلى الحصة.");
     return;
@@ -1508,22 +1508,66 @@ function refreshAudioVideo() {
   }
 
   const button = elements.refreshMediaButton;
-  if (!button || button.disabled) return;
+  if (button?.disabled) return;
 
-  button.disabled = true;
-  button.classList.add("is-refreshing");
-  const label = button.querySelector(".refresh-media-label");
+  if (button) button.disabled = true;
+  button?.classList.add("is-refreshing");
+  const label = button?.querySelector(".refresh-media-label");
   if (label) label.textContent = "جارٍ تحديث الصوت والصورة…";
   showMobileControlToast("جارٍ تحديث الصوت والصورة دون مغادرة الحصة…");
 
   // Rebuild only the peer connection and request a fresh offer. Avoiding a
   // full-page reload prevents the mobile browser from showing a black screen.
-  beginStreamRecovery("جارٍ استعادة الصوت والصورة دون تحديث الصفحة…");
+  if (automatic) recordStudentDiagnosticEvent("automatic_media_refresh", "Shared screen has not rendered; refreshing audio/video automatically");
+  beginStreamRecovery("جارٍ استعادة الصوت والصورة دون تحديث الصفحة…", { force: true });
   window.setTimeout(() => {
-    button.disabled = false;
-    button.classList.remove("is-refreshing");
+    if (button) button.disabled = false;
+    button?.classList.remove("is-refreshing");
     if (label) label.textContent = "تحديث الصوت والصورة";
   }, 1_500);
+}
+
+
+const automaticMediaRefreshState = { missingSince: null, lastAttempt: null, attempts: 0 };
+
+function checkAutomaticMediaRefresh() {
+  const state = automaticMediaRefreshState;
+  if (!joinedClass) {
+    state.missingSince = null;
+    state.lastAttempt = null;
+    state.attempts = 0;
+    return;
+  }
+  // Background tabs intentionally pause video; never rebuild their connection.
+  if (document.visibilityState === "hidden" || !screenShareActive) {
+    state.missingSince = null;
+    return;
+  }
+  const video = elements.remoteVideo;
+  const tracks = video?.srcObject?.getVideoTracks?.() || [];
+  const rendered = tracks.some(track => track.readyState === "live" && !track.muted)
+    && video.readyState >= 2 && video.videoWidth > 0 && !video.paused;
+  if (rendered) {
+    state.missingSince = null;
+    state.lastAttempt = null;
+    state.attempts = 0;
+    return;
+  }
+  // Respect deliberate subscription/mute settings rather than treating them as outages.
+  const sdkVideo = teacherSfuPlaybackTracks.get("video");
+  if (sdkVideo?.isMuted || sdkVideo?.streamState === "paused") {
+    state.missingSince = null;
+    return;
+  }
+  if (isJoining || isRecoveringStream || !socket.connected || elements.refreshMediaButton?.disabled) return;
+  const now = Date.now();
+  if (state.missingSince === null) state.missingSince = now;
+  if (now - state.missingSince < 8_000 || state.attempts >= 3
+      || (state.lastAttempt !== null && now - state.lastAttempt < 20_000)) return;
+  state.lastAttempt = now;
+  state.missingSince = now;
+  state.attempts += 1;
+  refreshAudioVideo({ automatic: true });
 }
 
 const MOBILE_CONTROLS_POSITION_KEY = "studentMobileControlsPosition";
@@ -6238,3 +6282,5 @@ if (!studentId || !studentName || !level) {
 
 
 window.setInterval(() => { void reportClassroomAudioReception().catch(() => {}); }, 3000);
+
+window.setInterval(checkAutomaticMediaRefresh, 2000);
