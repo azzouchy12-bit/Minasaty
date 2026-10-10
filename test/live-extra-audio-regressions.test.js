@@ -23,12 +23,12 @@ class Stream {
 }
 function audio(){return {muted:false,volume:1,paused:true,srcObject:null,plays:0,style:{},async play(){this.plays++;this.paused=false;},pause(){},remove(){}};}
 function playbackContext(){
-  const ctx={teacherAudioElement:audio(),teacherAudioStream:null,teacherInboundAudioTrack:null,
+  const ctx={teacherAudioPlaybackBlocked:false,teacherAudioElement:audio(),teacherAudioStream:null,teacherInboundAudioTrack:null,
     remoteMediaStream:null,MediaStream:Stream,console:quiet,elements:{remoteVideo:audio()},
     syncClassmateSfuAudioPlayback(){},clearRecoveryTimer(){},updateChatControls(){},setViewerStatus(){},
     updateRemoteVideoPresentation(){},updateRemoteAudioControl(){},recordStudentDiagnosticEvent(){},
     screenShareActive:false,isAttemptingTeacherAudio:false};
-  vm.runInNewContext(['getTeacherAudioElement','playTeacherInboundAudio','addUniqueTrack','attachTeacherTrack','startTeacherAudio'].map(n=>fn(student,n)).join('\n'),ctx);
+  vm.runInNewContext(['setTeacherAudioPlaybackBlocked','getTeacherAudioElement','playTeacherInboundAudio','addUniqueTrack','attachTeacherTrack','startTeacherAudio'].map(n=>fn(student,n)).join('\n'),ctx);
   return ctx;
 }
 test('Teacher track plays through dedicated audio while the video stays muted',async()=>{

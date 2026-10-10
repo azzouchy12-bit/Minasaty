@@ -171,7 +171,8 @@ test('Student SFU reuse during reconnect keeps reception handlers and schedules 
     getSfuParticipantRole:()=> 'teacher',attachTeacherTrack(){attached++;},
     clearAllClassmateAudio(){},clearStaleSfuMedia(){},joinedClass:true,socket:{connected:true,emit(){}},
     scheduleClassRecovery(){recovery++;}};
-  vm.runInNewContext(extract(student,'connectStudentSfu'),ctx);
+  ctx.teacherSfuPlaybackTracks = new Map();
+  vm.runInNewContext(['detachTeacherSfuPlaybackTrack','attachTeacherSfuPlaybackTrack','connectStudentSfu'].map(n=>extract(student,n)).join('\n'),ctx);
   assert.equal(await ctx.connectStudentSfu('class'),true);
   const room=ctx.studentSfuRoom;
   room.state='reconnecting';

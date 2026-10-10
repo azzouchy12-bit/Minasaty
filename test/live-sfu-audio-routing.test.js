@@ -54,8 +54,9 @@ async function viewer() {
     },
     window: { LivekitClient: { Room, RoomEvent: events }, fetchMinasatySfuToken: async () => ({ enabled: true, token: 'test', url: 'wss://test.invalid' }) },
   };
+  ctx.teacherSfuPlaybackTracks = new Map();
   vm.createContext(ctx);
-  for (const name of ['recordStudentDiagnosticEvent', 'notifySfuTransportStatus', 'getSfuParticipantRole',
+  for (const name of ['detachTeacherSfuPlaybackTrack', 'attachTeacherSfuPlaybackTrack', 'recordStudentDiagnosticEvent', 'notifySfuTransportStatus', 'getSfuParticipantRole',
     'syncClassmateSfuAudioPlayback', 'playClassmateSfuAudio', 'stopClassmateSfuAudio',
     'clearAllClassmateAudio', 'connectStudentSfu', 'addUniqueTrack', 'attachTeacherTrack']) {
     vm.runInContext(productionFunction(name), ctx, { filename: 'student-live.js:' + name });

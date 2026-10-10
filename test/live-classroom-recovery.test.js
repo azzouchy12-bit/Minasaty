@@ -458,6 +458,8 @@ test("Student recovery: terminal SFU disconnect clears stale SFU tracks and pres
   const clearStaleFn = extractFunction(studentSource, "clearStaleSfuMedia");
   vm.runInNewContext(clearStaleFn, studentCtx);
 
+  studentCtx.teacherSfuPlaybackTracks = new Map();
+  vm.runInContext(extractFunction(studentSource, "detachTeacherSfuPlaybackTrack"), studentCtx);
   studentCtx.clearStaleSfuMedia();
 
   assert.equal(tracks.length, 1);

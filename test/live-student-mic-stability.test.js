@@ -276,9 +276,14 @@ async function createStudentEnvironment({ sfuConnected = false, p2pConnected = t
     isStudentSfuHealthy: () => Boolean(ctx.studentSfuRoom && ctx.studentSfuRoom.state === 'connected'),
   };
 
+  ctx.teacherSfuPlaybackTracks = new Map();
+  ctx.teacherAudioPlaybackBlocked = false;
   vm.createContext(ctx);
 
   const functionsToLoad = [
+    'setTeacherAudioPlaybackBlocked',
+    'detachTeacherSfuPlaybackTrack',
+    'attachTeacherSfuPlaybackTrack',
     'getTeacherAudioElement',
     'playTeacherInboundAudio',
     'recordStudentDiagnosticEvent',

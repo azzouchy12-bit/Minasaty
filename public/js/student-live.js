@@ -79,6 +79,8 @@ let knownTeacherIdentity = null;
 let studentP2pMicSender = null;
 
 const classmateAudioElements = new Map();
+const teacherSfuPlaybackTracks = new Map();
+let teacherAudioPlaybackBlocked = false;
 const studentDiagnosticEvents = [];
 
 function getTeacherAudioElement() {
@@ -102,6 +104,42 @@ function getTeacherAudioElement() {
     }
   }
   return teacherAudioElement;
+}
+
+function setTeacherAudioPlaybackBlocked(blocked) {
+  teacherAudioPlaybackBlocked = Boolean(blocked);
+  if (elements.enableAudioButton) {
+    elements.enableAudioButton.hidden = !teacherAudioPlaybackBlocked;
+    elements.enableAudioButton.style.display = teacherAudioPlaybackBlocked ? "" : "none";
+  }
+}
+
+function detachTeacherSfuPlaybackTrack(kind, expectedTrack = null) {
+  const track = teacherSfuPlaybackTracks.get(kind);
+  if (!track || (expectedTrack && track !== expectedTrack)) return;
+  teacherSfuPlaybackTracks.delete(kind);
+  const element = kind === "video" ? elements.remoteVideo : getTeacherAudioElement();
+  try { if (element && typeof track.detach === "function") track.detach(element); } catch (_) {}
+}
+
+function attachTeacherSfuPlaybackTrack(track, participant) {
+  if (!track?.mediaStreamTrack) return;
+  const previous = teacherSfuPlaybackTracks.get(track.kind);
+  if (previous && previous !== track) detachTeacherSfuPlaybackTrack(track.kind, previous);
+  track.mediaStreamTrack.__fromSfu = true;
+  attachTeacherTrack({ track: track.mediaStreamTrack, participant });
+  if (typeof track.attach !== "function") return;
+  const element = track.kind === "video" ? elements.remoteVideo : getTeacherAudioElement();
+  if (!element) return;
+  // Adaptive stream requires SDK attachment so visibility and size reach the server.
+  // Video has its own muted element; teacher audio has exactly one dedicated output.
+  if (track.kind === "video") {
+    element.srcObject = new MediaStream([track.mediaStreamTrack]);
+    element.muted = true;
+  }
+  track.attach(element);
+  if (track.kind === "video") element.muted = true;
+  teacherSfuPlaybackTracks.set(track.kind, track);
 }
 
 function playTeacherInboundAudio(track) {
@@ -128,7 +166,10 @@ function playTeacherInboundAudio(track) {
 
   audioEl.muted = false;
   audioEl.volume = 1.0;
-  audioEl.play().catch((err) => {
+  audioEl.play().then(() => {
+    if (teacherInboundAudioTrack === track) setTeacherAudioPlaybackBlocked(false);
+  }).catch((err) => {
+    if (teacherInboundAudioTrack === track && err?.name === "NotAllowedError") setTeacherAudioPlaybackBlocked(true);
     console.warn("[Teacher-Audio] Autoplay blocked or playback failure:", err.message);
     recordStudentDiagnosticEvent("teacher_audio_play_blocked", `Teacher audio play blocked: ${err.message}`);
     if (typeof armAutoUnmuteOnFirstInteraction === "function") armAutoUnmuteOnFirstInteraction();
@@ -676,7 +717,7 @@ async function connectStudentSfu(roomName) {
           console.info("[SFU-Student] Received teacher track via SFU:", track.kind);
           if (track.mediaStreamTrack) {
             track.mediaStreamTrack.__fromSfu = true;
-            attachTeacherTrack({ track: track.mediaStreamTrack, participant });
+            attachTeacherSfuPlaybackTrack(track, participant);
             notifySfuTransportStatus(true);
             recordStudentDiagnosticEvent("teacher_track_received", `Subscribed to teacher ${track.kind} track via SFU`);
           }
@@ -684,6 +725,7 @@ async function connectStudentSfu(roomName) {
 
         studentSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
           if (sessionId !== getCurrentSessionId()) return;
+          detachTeacherSfuPlaybackTrack(track.kind, track);
           if (participant?.identity) {
             stopClassmateSfuAudio(participant.identity, track);
           }
@@ -895,6 +937,8 @@ function unpublishStudentP2pMic() {
 }
 
 function clearStaleSfuMedia() {
+  detachTeacherSfuPlaybackTrack("video");
+  detachTeacherSfuPlaybackTrack("audio");
   if (remoteMediaStream) {
     const sfuTracks = remoteMediaStream.getTracks().filter((t) => t.__fromSfu);
     for (const t of sfuTracks) {
@@ -4493,8 +4537,8 @@ function updateRemoteAudioControl() {
     elements.remoteVideo.muted = true;
   }
   if (elements.enableAudioButton) {
-    elements.enableAudioButton.hidden = true;
-    elements.enableAudioButton.style.display = "none";
+    elements.enableAudioButton.hidden = !teacherAudioPlaybackBlocked;
+    elements.enableAudioButton.style.display = teacherAudioPlaybackBlocked ? "" : "none";
   }
 }
 
@@ -4510,7 +4554,8 @@ function armAutoUnmuteOnFirstInteraction() {
       if (audioEl) {
         audioEl.muted = false;
         audioEl.volume = 1.0;
-        await audioEl.play().catch(() => {});
+        await audioEl.play();
+        setTeacherAudioPlaybackBlocked(false);
       }
       if (elements.remoteVideo) {
         elements.remoteVideo.muted = true;
@@ -4524,7 +4569,9 @@ function armAutoUnmuteOnFirstInteraction() {
         document.removeEventListener(ev, triggerUnmute, true);
       });
       console.info("[WebRTC-Student] Audio unmuted automatically via user interaction.");
-    } catch (_) {}
+    } catch (error) {
+      if (error?.name === "NotAllowedError") setTeacherAudioPlaybackBlocked(true);
+    }
   };
 
   const events = ["touchstart", "touchend", "pointerdown", "click", "keydown", "scroll"];
@@ -4567,7 +4614,8 @@ async function startTeacherAudio({ userInitiated = false } = {}) {
 
   try {
     if (audioEl && audioEl.srcObject) {
-      await audioEl.play().catch(() => {});
+      await audioEl.play();
+      setTeacherAudioPlaybackBlocked(false);
     }
     if (elements.remoteVideo) {
       await elements.remoteVideo.play();
@@ -4577,6 +4625,7 @@ async function startTeacherAudio({ userInitiated = false } = {}) {
     }
     return true;
   } catch (error) {
+    if (error?.name === "NotAllowedError") setTeacherAudioPlaybackBlocked(true);
     console.warn("Unable to start teacher audio unmuted automatically, arming interaction handler:", error);
     // Never force muted = true on the teacher audio! Keep muted = false so interaction immediately unpauses.
     armAutoUnmuteOnFirstInteraction();
@@ -4613,6 +4662,9 @@ function updateRemoteVideoPresentation() {
 }
 
 function resetRemoteMedia() {
+  detachTeacherSfuPlaybackTrack("video");
+  detachTeacherSfuPlaybackTrack("audio");
+  setTeacherAudioPlaybackBlocked(false);
   remoteMediaStream = undefined;
   screenShareActive = false;
   lastScreenShareRevision = 0;
