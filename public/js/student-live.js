@@ -81,6 +81,7 @@ let studentP2pMicSender = null;
 const classmateAudioElements = new Map();
 const teacherSfuPlaybackTracks = new Map();
 let teacherAudioPlaybackBlocked = false;
+let studentSfuRecoveryHoldUntil = 0;
 const studentDiagnosticEvents = [];
 
 function getTeacherAudioElement() {
@@ -593,6 +594,7 @@ function startSfuReceptionMonitor(room) {
       // Each publication has its own clock: moving video cannot hide stalled audio.
       if (!stalled && now - lastTeacherSeen < 20_000) return;
       recordStudentDiagnosticEvent("teacher_media_stalled", "Teacher reception stalled; requesting recovery");
+      if (typeof holdStudentSfuDuringRecovery === "function") holdStudentSfuDuringRecovery();
       notifySfuTransportStatus(false);
       clearStaleSfuMedia();
       disconnectStudentSfu();
@@ -605,7 +607,22 @@ function startSfuReceptionMonitor(room) {
   }, 4_000);
 }
 
+function holdStudentSfuDuringRecovery() {
+  // Give the targeted peer recovery time to complete without a competing SFU startup.
+  studentSfuRecoveryHoldUntil = Date.now() + 45_000;
+}
+
+function isStudentSfuRecoveryHeld() {
+  return typeof studentSfuRecoveryHoldUntil !== "undefined"
+    && Date.now() < studentSfuRecoveryHoldUntil;
+}
+
 async function connectStudentSfu(roomName) {
+  if (typeof isStudentSfuRecoveryHeld === "function" && isStudentSfuRecoveryHeld()) {
+    notifySfuTransportStatus(false);
+    recordStudentDiagnosticEvent("sfu_recovery_held", "Using targeted peer recovery before retrying LiveKit");
+    return false;
+  }
   if (typeof window.fetchMinasatySfuToken !== "function" || !window.LivekitClient?.Room) {
     console.info("[SFU-Student] LiveKit client or helper not available, using P2P.");
     recordStudentDiagnosticEvent("sfu_unavailable", "LiveKit client or helper not on window");
@@ -1551,6 +1568,7 @@ function refreshAudioVideo({ automatic = false } = {}) {
 
   // Rebuild only the peer connection and request a fresh offer. Avoiding a
   // full-page reload prevents the mobile browser from showing a black screen.
+  if (typeof holdStudentSfuDuringRecovery === "function") holdStudentSfuDuringRecovery();
   if (automatic) recordStudentDiagnosticEvent("automatic_media_refresh", "Shared screen has not rendered; refreshing audio/video automatically");
   beginStreamRecovery("جارٍ استعادة الصوت والصورة دون تحديث الصفحة…", { force: true });
   window.setTimeout(() => {
@@ -5027,6 +5045,7 @@ function resetViewerState({ message, mode = "neutral", showJoin = true } = {}) {
   stopLocalAudio();
   joinedClass = false;
   isJoining = false;
+  studentSfuRecoveryHoldUntil = 0;
   setStudentSessionActive(false);
   globalFreeClass = false;
   setParticipationCount(0);
