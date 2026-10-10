@@ -369,54 +369,56 @@ function stopSfuReceptionMonitor() {
 function startSfuReceptionMonitor(room) {
   stopSfuReceptionMonitor();
   let busy = false;
-  let lastBytes = null;
-  let lastProgress = Date.now();
+  let lastTeacherSeen = Date.now();
+  const progressByPublication = new Map();
   sfuReceptionMonitor = setInterval(async () => {
     if (busy || studentSfuRoom !== room || !joinedClass) return;
     if (room.state !== "connected" || document.visibilityState === "hidden") {
-      lastProgress = Date.now();
-      lastBytes = null;
+      lastTeacherSeen = Date.now();
+      progressByPublication.clear();
       return;
     }
     busy = true;
     try {
-      let expectedTracks = 0;
-      let reports = 0;
-      let bytes = 0;
+      const now = Date.now();
       let teacherPresent = false;
+      let stalled = false;
+      const activePublications = new Set();
       for (const participant of room.remoteParticipants.values()) {
         if (getSfuParticipantRole(participant) !== "teacher") continue;
         teacherPresent = true;
         for (const publication of participant.trackPublications.values()) {
-          // Muted publications and intentional camera/screen pauses are not outages.
-          if (publication.isMuted) continue;
-          expectedTracks++;
-          if (typeof publication.track?.getRTCStatsReport !== "function") continue;
-          const stats = await publication.track.getRTCStatsReport();
-          stats?.forEach((report) => {
-            if (report.type === "inbound-rtp" && typeof report.bytesReceived === "number") {
-              reports++;
-              bytes += report.bytesReceived;
-            }
-          });
+          // Intentional mute and adaptive-stream pauses must not trigger recovery.
+          if (publication.isMuted || publication.track?.streamState === "paused"
+              || publication.isDesired === false) continue;
+          activePublications.add(publication);
+          let bytes = null;
+          if (typeof publication.track?.getRTCStatsReport === "function") {
+            const stats = await publication.track.getRTCStatsReport();
+            stats?.forEach((report) => {
+              if (report.type === "inbound-rtp" && typeof report.bytesReceived === "number") {
+                bytes = (bytes || 0) + report.bytesReceived;
+              }
+            });
+          }
+          // A browser without usable stats is not evidence of an outage.
+          if (bytes === null && publication.track) {
+            progressByPublication.delete(publication);
+            continue;
+          }
+          const previous = progressByPublication.get(publication);
+          const progress = !previous || bytes !== previous.bytes ? now : previous.progress;
+          progressByPublication.set(publication, { bytes, progress });
+          if (now - progress >= 20_000) stalled = true;
         }
       }
       if (studentSfuRoom !== room || room.state !== "connected" || !joinedClass) return;
-      const now = Date.now();
-      if (teacherPresent && expectedTracks === 0) {
-        lastProgress = now;
-        lastBytes = null;
-        return;
+      for (const publication of progressByPublication.keys()) {
+        if (!activePublications.has(publication)) progressByPublication.delete(publication);
       }
-      // Missing stats are not proof of stalled reception on unsupported browsers.
-      if (reports > 0 && (lastBytes === null || bytes !== lastBytes)) lastProgress = now;
-      if (reports === 0 && teacherPresent && expectedTracks > 0
-          && Array.from(room.remoteParticipants.values()).some((p) =>
-            getSfuParticipantRole(p) === "teacher" && Array.from(p.trackPublications.values()).some((pub) => pub.track))) {
-        lastProgress = now;
-      }
-      lastBytes = reports > 0 ? bytes : null;
-      if (now - lastProgress < 20_000) return;
+      if (teacherPresent) lastTeacherSeen = now;
+      // Each publication has its own clock: moving video cannot hide stalled audio.
+      if (!stalled && now - lastTeacherSeen < 20_000) return;
       recordStudentDiagnosticEvent("teacher_media_stalled", "Teacher reception stalled; requesting recovery");
       notifySfuTransportStatus(false);
       clearStaleSfuMedia();
@@ -542,9 +544,6 @@ async function connectStudentSfu(roomName) {
           console.info("[SFU-Student] Received teacher track via SFU:", track.kind);
           if (track.mediaStreamTrack) {
             track.mediaStreamTrack.__fromSfu = true;
-            if (track.kind === "audio" && typeof playTeacherInboundAudio === "function") {
-              playTeacherInboundAudio(track.mediaStreamTrack);
-            }
             attachTeacherTrack({ track: track.mediaStreamTrack, participant });
             notifySfuTransportStatus(true);
             recordStudentDiagnosticEvent("teacher_track_received", `Subscribed to teacher ${track.kind} track via SFU`);
@@ -675,8 +674,9 @@ async function publishStudentSfuMic(audioStream) {
   if (!track || track.readyState !== "live") {
     return false;
   }
-  if (isStudentMicSyncing) return false;
+  if (!microphonePermissionGranted || isStudentMicSyncing) return false;
   isStudentMicSyncing = true;
+  const room = studentSfuRoom;
   try {
     if (studentSfuMicPub) {
       const currentTrack = studentSfuMicPub.track?.mediaStreamTrack || studentSfuMicPub.track;
@@ -684,15 +684,21 @@ async function publishStudentSfuMic(audioStream) {
         return true;
       }
       try {
-        await studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track);
+        await room.localParticipant.unpublishTrack(studentSfuMicPub.track, false);
       } catch (_) {}
       studentSfuMicPub = null;
     }
-    studentSfuMicPub = await studentSfuRoom.localParticipant.publishTrack(track, {
+    const publication = await room.localParticipant.publishTrack(track, {
       name: "student-mic",
       source: window.LivekitClient?.Track?.Source?.Microphone || "microphone",
       dtx: true,
+      stopOnUnpublish: false,
     });
+    if (!microphonePermissionGranted || !joinedClass || studentSfuRoom !== room || track.enabled === false) {
+      try { await room.localParticipant.unpublishTrack(publication.track || track, false); } catch (_) {}
+      return false;
+    }
+    studentSfuMicPub = publication;
     console.info("[SFU-Student] Successfully published student mic to LiveKit SFU.");
     recordStudentDiagnosticEvent("student_mic_published_sfu", "Published student mic to SFU");
     return true;
@@ -706,11 +712,10 @@ async function publishStudentSfuMic(audioStream) {
 }
 
 function unpublishStudentSfuMic() {
-  isStudentMicSyncing = false;
   if (studentSfuRoom && studentSfuMicPub) {
     try {
       if (studentSfuMicPub.track) {
-        studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track);
+        Promise.resolve(studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track, false)).catch(() => {});
       }
     } catch (_) { }
     studentSfuMicPub = null;
@@ -4330,6 +4335,10 @@ async function initializeStudentPrejoin() {
 }
 
 function updateRemoteAudioControl() {
+  // Native video controls must not enable a second output for the same audio.
+  if (elements.remoteVideo && !elements.remoteVideo.muted) {
+    elements.remoteVideo.muted = true;
+  }
   if (elements.enableAudioButton) {
     elements.enableAudioButton.hidden = true;
     elements.enableAudioButton.style.display = "none";
@@ -4351,7 +4360,7 @@ function armAutoUnmuteOnFirstInteraction() {
         await audioEl.play().catch(() => {});
       }
       if (elements.remoteVideo) {
-        elements.remoteVideo.muted = false;
+        elements.remoteVideo.muted = true;
         elements.remoteVideo.volume = 1.0;
         await elements.remoteVideo.play().catch(() => {});
       }
@@ -4399,7 +4408,7 @@ async function startTeacherAudio({ userInitiated = false } = {}) {
     audioEl.volume = 1.0;
   }
   if (elements.remoteVideo) {
-    elements.remoteVideo.muted = false;
+    elements.remoteVideo.muted = true;
     elements.remoteVideo.volume = 1.0;
   }
 
@@ -4456,7 +4465,7 @@ function resetRemoteMedia() {
   lastScreenShareRevision = 0;
   pendingRemoteAudioTracks.length = 0;
   elements.remoteVideo.srcObject = null;
-  elements.remoteVideo.muted = false;
+  elements.remoteVideo.muted = true;
   elements.remoteVideo.controls = false;
   elements.remoteVideo.classList.remove("is-screen-share", "has-live-video");
   elements.placeholder.hidden = false;
@@ -4504,7 +4513,7 @@ function addUniqueTrack(stream, track) {
       if (elements.remoteVideo.srcObject !== stream) {
         elements.remoteVideo.srcObject = stream;
       }
-      elements.remoteVideo.muted = false;
+      elements.remoteVideo.muted = true;
       elements.remoteVideo.volume = 1.0;
       if (typeof elements.remoteVideo.play === "function") {
         void elements.remoteVideo.play().catch(() => {});
@@ -4568,6 +4577,10 @@ function attachTeacherTrack(event) {
   if (!track) return;
 
   if (track.kind === "audio") {
+    // Ignore a late fallback track before it can replace the dedicated output.
+    if (!track.__fromSfu && remoteMediaStream?.getAudioTracks?.().some(
+      (current) => current.readyState === "live" && current.__fromSfu
+    )) return;
     if (typeof playTeacherInboundAudio === "function") {
       playTeacherInboundAudio(track);
     }
@@ -4585,7 +4598,7 @@ function attachTeacherTrack(event) {
   if (!remoteMediaStream) {
     remoteMediaStream = new MediaStream();
     elements.remoteVideo.srcObject = remoteMediaStream;
-    elements.remoteVideo.muted = false;
+    elements.remoteVideo.muted = true;
   }
   addUniqueTrack(remoteMediaStream, track);
 
@@ -4620,7 +4633,8 @@ function attachTeacherTrack(event) {
   track.addEventListener("unmute", () => {
     updateRemoteAudioControl();
     updateRemoteVideoPresentation();
-    if (track.kind === "audio" && typeof playTeacherInboundAudio === "function") {
+    if (track.kind === "audio" && typeof playTeacherInboundAudio === "function"
+        && remoteMediaStream?.getAudioTracks?.().includes(track)) {
       playTeacherInboundAudio(track);
     }
     if (track.kind === "video") void elements.remoteVideo.play().catch(() => { });
@@ -4996,6 +5010,7 @@ async function enableApprovedMicrophone() {
     // Primary path: SFU
     if (sfuAvailable) {
       const sfuPublished = await publishStudentSfuMic(localAudioStream);
+      if (!microphonePermissionGranted || !joinedClass) return;
       if (sfuPublished) {
         updateMicControl();
         setViewerStatus("المايك يعمل الآن عبر البث المباشر (SFU).", "live");
@@ -5042,6 +5057,11 @@ async function enableApprovedMicrophone() {
         channelCount: 1,
       },
     });
+    // Approval may be revoked while the browser permission dialog is open.
+    if (!microphonePermissionGranted || !joinedClass) {
+      stopLocalAudio();
+      return;
+    }
     microphonePrepared = true;
 
     // Immediately resume teacher playback if the browser audio focus paused it during getUserMedia
@@ -5050,7 +5070,7 @@ async function enableApprovedMicrophone() {
     }
 
     // The peer/sfu might have been closed while the permission prompt was open.
-    if (!joinedClass || (!isStudentSfuConnected() && (!pc || !teacherSocketId))) {
+    if (!microphonePermissionGranted || !joinedClass || (!isStudentSfuConnected() && (!pc || !teacherSocketId))) {
       stopLocalAudio();
       return;
     }
@@ -5064,6 +5084,7 @@ async function enableApprovedMicrophone() {
     // 1. Primary path: SFU
     if (isStudentSfuConnected()) {
       const sfuPublished = await publishStudentSfuMic(localAudioStream);
+      if (!microphonePermissionGranted || !joinedClass) return;
       if (sfuPublished) {
         updateMicControl();
         setViewerStatus("المايك يعمل الآن عبر البث المباشر (SFU).", "live");
@@ -5882,11 +5903,7 @@ elements.dismissTeacherMicMuteBtn?.addEventListener("click", () => {
 elements.screenShareWatchButton?.addEventListener("click", watchCurrentScreenShare);
 elements.remoteVideo?.addEventListener("volumechange", updateRemoteAudioControl);
 elements.remoteVideo?.addEventListener("click", () => {
-  if (elements.remoteVideo.muted) {
-    elements.remoteVideo.muted = false;
-    elements.remoteVideo.volume = 1.0;
-    void elements.remoteVideo.play().catch(() => {});
-  }
+  void startTeacherAudio({ userInitiated: true });
 });
 elements.raiseHandButton.addEventListener("click", toggleRaisedHand);
 elements.lowerHandButton?.addEventListener("click", lowerHand);

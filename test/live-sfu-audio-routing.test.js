@@ -173,7 +173,7 @@ test('Actual token endpoint signs authenticated roles, rejects body role spoofin
     assert.equal(grants.canSubscribe, true); assert.equal(grants.canPublishData, true);
   }
 });
-test('Actual subscribe/unsubscribe keeps teacher playback volume and mute state unchanged', async () => {
+test('Actual subscribe/unsubscribe keeps video muted while preserving the teacher audio track', async () => {
   const { ctx, subscribe, unsubscribe } = await viewer();
   ctx.elements.remoteVideo.volume = 1;
   ctx.elements.remoteVideo.muted = false;
@@ -181,11 +181,11 @@ test('Actual subscribe/unsubscribe keeps teacher playback volume and mute state 
   subscribe('teacher-uuid', 'teacher', teacher);
   subscribe('student-uuid', 'student', student);
   assert.equal(ctx.elements.remoteVideo.volume, 1);
-  assert.equal(ctx.elements.remoteVideo.muted, false);
+  assert.equal(ctx.elements.remoteVideo.muted, true);
   assert.equal(teacher.enabled, true);
   unsubscribe('student-uuid', 'student', student);
   assert.equal(ctx.elements.remoteVideo.volume, 1);
-  assert.equal(ctx.elements.remoteVideo.muted, false);
+  assert.equal(ctx.elements.remoteVideo.muted, true);
   assert.equal(teacher.readyState, 'live');
 });
 

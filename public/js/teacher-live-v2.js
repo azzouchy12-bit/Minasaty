@@ -210,7 +210,7 @@ function attachSfuStudentAudio(identity, track) {
 
   if (typeof mediaStreamTrack.addEventListener === "function") {
     mediaStreamTrack.addEventListener("ended", () => {
-      removeSfuStudentAudio(identity);
+      removeSfuStudentAudio(identity, mediaStreamTrack);
     }, { once: true });
     mediaStreamTrack.addEventListener("mute", () => {
       syncLocalRecordingAudioSources();
@@ -223,8 +223,12 @@ function attachSfuStudentAudio(identity, track) {
   syncLocalRecordingAudioSources();
 }
 
-function removeSfuStudentAudio(identity) {
+function removeSfuStudentAudio(identity, track = null) {
   if (!identity) return;
+  const mediaTrack = track?.mediaStreamTrack || track;
+  const currentTrack = sfuStudentAudioStreams.get(identity)?.track;
+  // Delayed end/unsubscribe events belong to the old publication, not its replacement.
+  if (mediaTrack && currentTrack !== mediaTrack && currentTrack?.id !== mediaTrack.id) return;
   sfuStudentAudioStreams.delete(identity);
   const audio = sfuStudentAudioElements.get(identity);
   if (audio) {
@@ -414,7 +418,7 @@ async function initTeacherSfuSession(roomName) {
 
         teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
           if (sessionId !== teacherSfuSessionId) return;
-          removeSfuStudentAudio(participant.identity);
+          removeSfuStudentAudio(participant.identity, track);
           recordLiveDiagnosticEvent("student_mic_sfu_removed", `Unsubscribed from mic of participant ${participant.identity}`);
         });
 

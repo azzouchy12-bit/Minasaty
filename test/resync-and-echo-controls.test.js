@@ -122,13 +122,14 @@ test("teacher audio plays automatically and enable-audio-btn is hidden without f
   assert.match(portraitCss, /body\.student-live-page \.remote-audio-toggle\s*\{[\s\S]*?display:\s*none\s*!important;/);
   assert.match(studentJs, /elements\.enableAudioButton\.hidden = true;/);
 
-  // Video does not start muted in HTML
-  assert.match(html, /<video id="remote-video"\s+autoplay\s+playsinline/);
-  assert.doesNotMatch(html, /<video id="remote-video"\s+autoplay\s+muted/);
+  // Video remains muted; the dedicated audio element carries teacher sound
+  assert.match(html, /<video id="remote-video"\s+autoplay\s+muted\s+playsinline/);
+  assert.match(html, /<audio id="teacher-live-audio"\s+autoplay\s+playsinline/);
 
   // Audio auto-unmute is implemented on first interaction
   assert.match(studentJs, /armAutoUnmuteOnFirstInteraction/);
-  assert.match(studentJs, /elements\.remoteVideo\.muted = false/);
+  assert.match(studentJs, /elements\.remoteVideo\.muted = true/);
+  assert.match(studentJs, /audioEl\.muted = false/);
 });
 
 
