@@ -40,7 +40,7 @@ test("teacher-live-v2.js implements resynchronization and echo elimination witho
   assert.match(js, /function syncStudentResyncButton\(attendee,\s*socketId\)/);
 
   // Force option on createAndSendOffer
-  assert.match(js, /async function createAndSendOffer\(studentSocketId,\s*\{\s*iceRestart\s*=\s*false,\s*force\s*=\s*false\s*\}\s*=\s*\{\}\)/);
+  assert.match(js, /async function createAndSendOffer\(studentSocketId,\s*\{\s*iceRestart\s*=\s*false,\s*force\s*=\s*false,\s*renegotiate\s*=\s*false\s*\}\s*=\s*\{\}\)/);
 
   // Zero-cut recording verification: resync functions must NOT stop local recording
   const resyncFnMatch = js.match(/async function resyncClassroomAudioAndStream\(\)[\s\S]*?finally/);

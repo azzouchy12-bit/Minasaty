@@ -5239,27 +5239,42 @@ function setTeacherWelcomeImage(levelName) {
 }
 
 
+async function ensureTeacherVideoSender(peerConnection) {
+  const track = getActiveTeacherVideoTrack();
+  if (!track || !screenStream || !peerConnection || peerConnection.signalingState === "closed") return false;
+  const sender = peerConnection.getSenders?.().find((item) => item.__classroomVideoTrack === true);
+  if (sender) {
+    if (sender.track !== track) await sender.replaceTrack(track);
+  } else {
+    const nextSender = peerConnection.addTrack(track, screenStream);
+    nextSender.__classroomVideoTrack = true;
+    void tuneOutboundSender(nextSender, "video");
+  }
+  return true;
+}
+
+function flushPendingTeacherMediaOffer(studentSocketId, peerConnection) {
+  if (peerConnections[studentSocketId] !== peerConnection || !classActive || !peerConnection.needsTeacherMediaOffer
+      || peerConnection.makingOffer || peerConnection.signalingState !== "stable") return;
+  peerConnection.needsTeacherMediaOffer = false;
+  void createAndSendOffer(studentSocketId, { renegotiate: true });
+}
+
 async function syncTeacherVideoTrackToAllPeers() {
   const track = getActiveTeacherVideoTrack();
   if (!track) return { updated: 0, failed: 0 };
   const operations = Object.entries(peerConnections).map(async ([studentSocketId, peerConnection]) => {
-    const sender = peerConnection.getSenders?.().find((item) => item.__classroomVideoTrack === true);
-    if (sender) {
-      if (sender.track !== track) await sender.replaceTrack(track);
-      return true;
+    const hadSender = peerConnection.getSenders?.().some((item) => item.__classroomVideoTrack === true);
+    const updated = await ensureTeacherVideoSender(peerConnection);
+    if (updated && !hadSender) {
+      await createAndSendOffer(studentSocketId, { renegotiate: true });
     }
-    if (!screenStream) return false;
-    const nextSender = peerConnection.addTrack(track, screenStream);
-    nextSender.__classroomVideoTrack = true;
-    void tuneOutboundSender(nextSender, "video");
-    if (peerConnection.remoteDescription && peerConnection.signalingState === "stable") {
-      void createAndSendOffer(studentSocketId);
-    }
-    return true;
+    return updated;
   });
   const results = await Promise.allSettled(operations);
-  void syncTeacherSfuMedia();
+  const sfuResult = await syncTeacherSfuMedia();
   return {
+    sfuResult,
     updated: results.filter((result) => result.status === "fulfilled" && result.value === true).length,
     failed: results.filter((result) => result.status === "rejected").length,
   };
@@ -6000,6 +6015,7 @@ function createPeerConnection(studentSocketId) {
 
   addTeacherTracks(peerConnection, studentSocketId);
   attachStudentAudio(peerConnection, studentSocketId);
+  peerConnection.onsignalingstatechange = () => flushPendingTeacherMediaOffer(studentSocketId, peerConnection);
 
 
   peerConnection.onicecandidate = (event) => {
@@ -6220,14 +6236,14 @@ function optimizeOpusSdp(sdp) {
 }
 
 
-async function createAndSendOffer(studentSocketId, { iceRestart = false, force = false } = {}) {
+async function createAndSendOffer(studentSocketId, { iceRestart = false, force = false, renegotiate = false } = {}) {
   if (!classActive || (!getActiveTeacherVideoTrack() && !getActiveTeacherAudioTrack())) {
     return;
   }
 
   // If central SFU is active and healthy, students receive media from SFU.
   // Do NOT send individual P2P offers to avoid parallel broadcast congestion.
-  if (isTeacherSfuHealthy() && !force) {
+  if (isTeacherSfuHealthy() && !force && !peerConnections[studentSocketId]?.__teacherP2pFallback) {
     console.info(`[Broadcast] Central SFU is active. Skipping P2P offer to student ${studentSocketId}.`);
     return;
   }
@@ -6257,7 +6273,7 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
   ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate: false });
 
   const now = Date.now();
-  if (!force && peerConnection.lastOfferSentAt && now - peerConnection.lastOfferSentAt < 2500) {
+  if (!force && !renegotiate && peerConnection.lastOfferSentAt && now - peerConnection.lastOfferSentAt < 2500) {
     return;
   }
 
@@ -6276,6 +6292,7 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
     peerConnection.signalingState !== "stable" ||
     peerConnection.connectionState === "closed"
   ) {
+    if (renegotiate && peerConnection.connectionState !== "closed") peerConnection.needsTeacherMediaOffer = true;
     return;
   }
 
@@ -6283,6 +6300,10 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
   peerConnection.lastOfferSentAt = now;
 
   try {
+    if (force) peerConnection.__teacherP2pFallback = true;
+    // A targeted fallback must include the current screen even when SFU is healthy.
+    await ensureTeacherVideoSender(peerConnection);
+    if (!classActive || peerConnections[studentSocketId] !== peerConnection) return;
     if (typeof peerConnection.setConfiguration === "function") {
       peerConnection.setConfiguration(rtcConfig);
     }
@@ -6300,8 +6321,9 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
       closePeerConnection(studentSocketId);
     }
   } finally {
-    if (peerConnections[studentSocketId]) {
-      peerConnections[studentSocketId].makingOffer = false;
+    if (peerConnections[studentSocketId] === peerConnection) {
+      peerConnection.makingOffer = false;
+      flushPendingTeacherMediaOffer(studentSocketId, peerConnection);
     }
   }
 }
@@ -6578,8 +6600,12 @@ async function replaceScreenShareStream() {
     void publishScreenShareState(true);
     addClassroomAudioSource("__screen_audio__", replacement, { enabled: true });
     syncMixMinusAudioToAllPeers();
-    nextVideoTrack.onended = () => void stopScreenShare();
-    setStudioStatus("تم تشغيل مشاركة الشاشة للحصة.", "live");
+    nextVideoTrack.onended = () => {
+      if (screenStream === replacement) void stopScreenShare();
+    };
+    const pendingDelivery = syncResult.failed > 0 || (sfuActiveForClass && !syncResult.sfuResult?.success);
+    setStudioStatus(pendingDelivery ? "الشاشة جاهزة محليًا؛ جارٍ استعادة إرسالها للتلاميذ…" : "تم تجهيز إرسال الشاشة؛ التحقق من استقبال التلاميذ مستمر.", pendingDelivery ? "warning" : "live");
+    if (pendingDelivery && sfuActiveForClass) handleSfuDegradation();
     updateControls();
   } catch (error) {
     setStudioStatus(error?.message || "تعذر تغيير مشاركة الشاشة.", "error");

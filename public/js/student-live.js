@@ -490,24 +490,28 @@ function startSfuReceptionMonitor(room) {
   stopSfuReceptionMonitor();
   let busy = false;
   let lastTeacherSeen = Date.now();
+  let missingVideoSince = null;
   const progressByPublication = new Map();
   sfuReceptionMonitor = setInterval(async () => {
     if (busy || studentSfuRoom !== room || !joinedClass) return;
     if (room.state !== "connected" || document.visibilityState === "hidden") {
       lastTeacherSeen = Date.now();
       progressByPublication.clear();
+      missingVideoSince = null;
       return;
     }
     busy = true;
     try {
       const now = Date.now();
       let teacherPresent = false;
+      let teacherVideoPublished = false;
       let stalled = false;
       const activePublications = new Set();
       for (const participant of room.remoteParticipants.values()) {
         if (getSfuParticipantRole(participant) !== "teacher") continue;
         teacherPresent = true;
         for (const publication of participant.trackPublications.values()) {
+          if (publication.kind === "video" || publication.track?.kind === "video" || publication.source === "screen_share") teacherVideoPublished = true;
           // Intentional mute and adaptive-stream pauses must not trigger recovery.
           if (publication.isMuted || publication.track?.streamState === "paused"
               || publication.isDesired === false) continue;
@@ -537,6 +541,14 @@ function startSfuReceptionMonitor(room) {
         if (!activePublications.has(publication)) progressByPublication.delete(publication);
       }
       if (teacherPresent) lastTeacherSeen = now;
+      // Room presence and working audio do not prove that an already shared screen arrived.
+      const expectsVideo = typeof screenShareActive !== "undefined" && screenShareActive;
+      if (expectsVideo && !teacherVideoPublished) {
+        if (missingVideoSince === null) missingVideoSince = now;
+        if (now - missingVideoSince >= 12_000) stalled = true;
+      } else {
+        missingVideoSince = null;
+      }
       // Each publication has its own clock: moving video cannot hide stalled audio.
       if (!stalled && now - lastTeacherSeen < 20_000) return;
       recordStudentDiagnosticEvent("teacher_media_stalled", "Teacher reception stalled; requesting recovery");
