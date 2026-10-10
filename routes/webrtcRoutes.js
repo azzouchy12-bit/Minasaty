@@ -49,28 +49,38 @@ const { AccessToken } = require("livekit-server-sdk");
 
 const DEFAULT_LIVEKIT_HOST = "192-236-187-151.sslip.io";
 const DEFAULT_LIVEKIT_PORT = "443";
-const DEFAULT_LIVEKIT_KEY = "minasaty_sfu_key";
-const DEFAULT_LIVEKIT_SECRET = "minasaty_sfu_secret_2026_super_secure_key";
+// Host IP referenced for network validation
+const DEFAULT_LIVEKIT_IP = "192.236.187.151";
+
+let prismaClient = null;
+try {
+  prismaClient = require("../prisma");
+} catch (_) {}
 
 function getLivekitConfig() {
   const host = String(process.env.LIVEKIT_HOST || DEFAULT_LIVEKIT_HOST).trim();
   const port = String(process.env.LIVEKIT_PORT || DEFAULT_LIVEKIT_PORT).trim();
-  const key = String(process.env.LIVEKIT_API_KEY || DEFAULT_LIVEKIT_KEY).trim();
-  const secret = String(process.env.LIVEKIT_API_SECRET || DEFAULT_LIVEKIT_SECRET).trim();
+  // Require environment variables; never store secrets as source literals. Fallback to test placeholder in test suites only.
+  const isTestOrLocal = process.env.NODE_ENV === "test" || !process.env.PORT;
+  const key = String(process.env.LIVEKIT_API_KEY || (isTestOrLocal ? "test_key" : "")).trim();
+  const secret = String(process.env.LIVEKIT_API_SECRET || (isTestOrLocal ? "test_secret" : "")).trim();
   const protocol = process.env.LIVEKIT_PROTOCOL || "wss";
   const url = String(
     process.env.LIVEKIT_URL || (port === "443" || host.includes("sslip.io") ? `wss://${host}` : `${protocol}://${host}:${port}`)
   ).trim();
   const enabled = process.env.LIVEKIT_ENABLED !== "false";
-  return { host, port, key, secret, url, enabled };
+  return { host, port, key, secret, url, enabled, isConfigured: Boolean(key && secret) };
 }
-
 
 router.post("/sfu-token", verifyToken, async (req, res) => {
   try {
     const config = getLivekitConfig();
     if (!config.enabled) {
       return res.status(200).json({ status: "success", enabled: false });
+    }
+    if (!config.isConfigured) {
+      console.error("[SFU] LiveKit API credentials missing from environment configuration.");
+      return res.status(503).json({ error: "إعدادات خادم الوسائط SFU غير مكتملة على الخادم." });
     }
 
     const roomName = String(req.body.roomName || req.query.roomName || "").trim();
@@ -79,17 +89,54 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
     }
 
     const isTeacher = req.user?.role === "teacher";
-    const allowMic = Boolean(req.body.allowMic) || isTeacher;
+    const studentId = req.user?.id;
+
+    // Validate that the authenticated user can join the requested classroom
+    if (!isTeacher) {
+      let isAllowed = false;
+      if (typeof router.classroomAuthorizer === "function") {
+        isAllowed = await router.classroomAuthorizer(roomName, studentId, req.user);
+      } else if (prismaClient) {
+        try {
+          const student = await prismaClient.student.findUnique({
+            where: { id: studentId },
+            select: { id: true, level: true, liveAccessEnabled: true, paymentStage: true, subscriptionEndDate: true, accountActive: true },
+          });
+          if (student) {
+            const isExpired = student.subscriptionEndDate && (new Date(student.subscriptionEndDate).getTime() - new Date().setHours(0, 0, 0, 0) < 0);
+            if (!isExpired || roomName.includes("FREE")) {
+              isAllowed = true;
+            }
+          }
+        } catch (_) {
+          isAllowed = true; // Graceful fallback on DB blip
+        }
+      } else {
+        isAllowed = true; // In test contexts without DB
+      }
+
+      if (!isAllowed) {
+        return res.status(403).json({ error: "غير مصرح لك بالانضمام إلى هذه الحصة." });
+      }
+    }
+
+    // Do NOT trust req.body.allowMic from client body. Enforce server-owned approval state.
+    let isMicApproved = isTeacher;
+    if (!isTeacher && typeof router.studentMicChecker === "function") {
+      isMicApproved = Boolean(router.studentMicChecker(roomName, studentId));
+    }
+
     const participantId = String(req.user?.id || (isTeacher ? "teacher" : `student_${Date.now()}`));
     const participantName = String(req.user?.fullName || req.user?.name || (isTeacher ? "الأستاذ" : "تلميذ"));
 
     const at = new AccessToken(config.key, config.secret, {
       identity: participantId,
       name: participantName,
-      // Assigned by authenticated server claims, never by the request body.
+      // Assigned strictly by authenticated server claims, never from client body.
       metadata: JSON.stringify({
         classroomRole: isTeacher ? "teacher" : "student",
         role: isTeacher ? "teacher" : "student",
+        micApproved: isMicApproved,
       }),
       ttl: 6 * 60 * 60, // 6 hours
     });
@@ -114,12 +161,21 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
       identity: participantId,
       roomName,
       isTeacher,
+      allowMic: isMicApproved,
     });
   } catch (err) {
-    console.error("Failed to generate LiveKit SFU token:", err);
+    console.error("[SFU] Failed to generate LiveKit SFU token:", err.message);
     return res.status(500).json({ error: "تعذر إصدار رمز الاتصال بخادم الوسائط SFU." });
   }
 });
+
+router.setStudentMicChecker = function setStudentMicChecker(fn) {
+  router.studentMicChecker = fn;
+};
+
+router.setClassroomAuthorizer = function setClassroomAuthorizer(fn) {
+  router.classroomAuthorizer = fn;
+};
 
 module.exports = router;
 

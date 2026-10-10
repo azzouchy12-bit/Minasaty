@@ -91,15 +91,39 @@ let isSfuMediaSyncing = false;
 let pendingSfuMediaSync = false;
 let isTeacherSfuConnecting = false;
 let currentTeacherSfuRoomName = null;
+let teacherSfuConnectPromise = null;
+let teacherSfuSessionId = 0;
+let sfuReconnectAttempts = 0;
+const MAX_SFU_RECONNECT_ATTEMPTS = 5;
 
 // Media transport state machine & diagnostics
 let mediaTransportState = "idle"; // "idle" | "sfu_connecting" | "sfu_active" | "p2p_fallback"
 const studentMediaTransports = new Map(); // socketId -> { transport, receiving, lastSeenAt }
 const sfuStudentAudioElements = new Map(); // participantId -> HTMLAudioElement
+const sfuStudentAudioStreams = new Map(); // participantId -> { stream, track }
 let sfuDegradationTimer = null;
 let signalingDisconnectGraceTimer = null;
 const SIGNALING_DISCONNECT_GRACE_MS = 25_000;
 const diagnosticEvents = [];
+
+function getSocketIdForStudentIdentity(identity) {
+  if (!identity) return null;
+  const direct = attendeeSocketByStudentId.get(identity);
+  if (direct) return direct;
+  if (attendeeElements.has(identity)) return identity;
+  for (const [sockId, item] of attendeeElements.entries()) {
+    if (item.dataset?.studentId === identity) return sockId;
+  }
+  return null;
+}
+
+function isStudentMicrophoneApproved(identity) {
+  if (!identity) return false;
+  if (approvedStudentMicrophones.has(identity)) return true;
+  const socketId = getSocketIdForStudentIdentity(identity);
+  if (socketId && approvedStudentMicrophones.has(socketId)) return true;
+  return false;
+}
 
 function recordLiveDiagnosticEvent(type, message) {
   const sanitizedMessage = String(message || "")
@@ -117,16 +141,57 @@ function recordLiveDiagnosticEvent(type, message) {
 }
 
 function isTeacherSfuHealthy() {
-  return Boolean(
-    sfuActiveForClass &&
-    teacherSfuRoom &&
-    teacherSfuRoom.state === "connected" &&
-    (teacherSfuVideoPub || teacherSfuAudioPub)
-  );
+  if (!sfuActiveForClass || !teacherSfuRoom || teacherSfuRoom.state !== "connected") {
+    return false;
+  }
+  const intendedVideo = Boolean(typeof getActiveTeacherVideoTrack === "function" ? getActiveTeacherVideoTrack() : null);
+  const intendedAudio = Boolean(typeof getActiveTeacherAudioTrack === "function" ? getActiveTeacherAudioTrack() : null);
+
+  // If teacher intends neither video nor audio (idle/setup), room connectivity is enough
+  if (!intendedVideo && !intendedAudio) {
+    return true;
+  }
+
+  // Check live publication states
+  const videoLive = Boolean(teacherSfuVideoPub?.track?.mediaStreamTrack?.readyState === "live");
+  const audioLive = Boolean(teacherSfuAudioPub?.track?.mediaStreamTrack?.readyState === "live");
+
+  // If video is intended, is it live?
+  if (intendedVideo && !videoLive) {
+    return false;
+  }
+  // If audio is intended, is it live?
+  if (intendedAudio && !audioLive) {
+    return false;
+  }
+
+  // Incorporate student reception feedback if students are present
+  if (studentMediaTransports.size > 0) {
+    let sfuStudents = 0;
+    let receivingStudents = 0;
+    const now = Date.now();
+    for (const info of studentMediaTransports.values()) {
+      if (now - (info.lastSeenAt || 0) < 30_000) {
+        if (info.transport === "sfu") {
+          sfuStudents++;
+          if (info.receiving) {
+            receivingStudents++;
+          }
+        }
+      }
+    }
+    // If we have at least 2 students on SFU and none are receiving, SFU delivery is failing
+    if (sfuStudents >= 2 && receivingStudents === 0) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function attachSfuStudentAudio(identity, track) {
   if (!identity || !track) return;
+  const mediaStreamTrack = track.mediaStreamTrack || track;
   let audio = sfuStudentAudioElements.get(identity);
   if (!audio) {
     audio = document.createElement("audio");
@@ -137,13 +202,30 @@ function attachSfuStudentAudio(identity, track) {
     document.body.appendChild(audio);
     sfuStudentAudioElements.set(identity, audio);
   }
-  const stream = new MediaStream([track.mediaStreamTrack || track]);
+  const stream = new MediaStream([mediaStreamTrack]);
   audio.srcObject = stream;
   audio.play().catch((err) => console.debug("SFU student audio play hint:", err));
+
+  sfuStudentAudioStreams.set(identity, { stream, track: mediaStreamTrack });
+
+  if (typeof mediaStreamTrack.addEventListener === "function") {
+    mediaStreamTrack.addEventListener("ended", () => {
+      removeSfuStudentAudio(identity);
+    }, { once: true });
+    mediaStreamTrack.addEventListener("mute", () => {
+      syncLocalRecordingAudioSources();
+    });
+    mediaStreamTrack.addEventListener("unmute", () => {
+      syncLocalRecordingAudioSources();
+    });
+  }
+
+  syncLocalRecordingAudioSources();
 }
 
 function removeSfuStudentAudio(identity) {
   if (!identity) return;
+  sfuStudentAudioStreams.delete(identity);
   const audio = sfuStudentAudioElements.get(identity);
   if (audio) {
     try {
@@ -153,9 +235,11 @@ function removeSfuStudentAudio(identity) {
     } catch (_) {}
     sfuStudentAudioElements.delete(identity);
   }
+  syncLocalRecordingAudioSources();
 }
 
 function clearAllSfuStudentAudio() {
+  sfuStudentAudioStreams.clear();
   sfuStudentAudioElements.forEach((audio) => {
     try {
       audio.pause();
@@ -164,28 +248,83 @@ function clearAllSfuStudentAudio() {
     } catch (_) {}
   });
   sfuStudentAudioElements.clear();
+  syncLocalRecordingAudioSources();
+}
+
+function cancelSfuDegradation() {
+  if (sfuDegradationTimer) {
+    clearTimeout(sfuDegradationTimer);
+    sfuDegradationTimer = null;
+  }
+  sfuReconnectAttempts = 0;
+}
+
+function transitionStudentToP2pFallback(socketId) {
+  if (!classActive || !socketId) return;
+  console.info(`[Fallback] Transitioning student ${socketId} to P2P fallback.`);
+  recordLiveDiagnosticEvent("p2p_fallback_student", `Transitioning student ${socketId} to P2P fallback`);
+  void createAndSendOffer(socketId, { iceRestart: true, force: true });
+}
+
+function transitionAllStudentsToP2pFallback() {
+  if (!classActive) return;
+  console.info("[Fallback] Transitioning all active students to P2P fallback.");
+  recordLiveDiagnosticEvent("p2p_fallback_all", "Transitioning all students to P2P fallback");
+  const socketIds = new Set([
+    ...Object.keys(peerConnections || {}),
+    ...studentMediaTransports.keys(),
+    ...Array.from(attendeeSocketByStudentId.values()),
+  ]);
+  for (const socketId of socketIds) {
+    if (socketId) {
+      transitionStudentToP2pFallback(socketId);
+    }
+  }
 }
 
 function handleSfuDegradation() {
   if (!classActive || !activeLevel) return;
   recordLiveDiagnosticEvent("sfu_degraded", "SFU disconnected, evaluating fallback route");
   mediaTransportState = "p2p_fallback";
-  setStudioStatus("⚠️ تعثر خادم الوسائط SFU مؤقتاً. جارٍ محاولة إعادة الاتصال التلقائي…", "warning");
 
-  if (!sfuDegradationTimer) {
-    sfuDegradationTimer = setTimeout(async () => {
-      sfuDegradationTimer = null;
-      if (classActive && activeLevel && (!teacherSfuRoom || teacherSfuRoom.state !== "connected")) {
-        console.info("[SFU] Attempting automatic reconnection to LiveKit SFU...");
-        const reconnected = await initTeacherSfuSession(activeLevel);
-        if (reconnected) {
-          mediaTransportState = "sfu_active";
-          recordLiveDiagnosticEvent("sfu_recovered", "Successfully reconnected to LiveKit SFU");
-          setStudioStatus("تمت استعادة الاتصال بخادم الوسائط المركزي SFU بنجاح.", "live");
-        }
-      }
-    }, 3_500);
+  if (sfuDegradationTimer) return;
+
+  const attempt = sfuReconnectAttempts + 1;
+  if (attempt > MAX_SFU_RECONNECT_ATTEMPTS) {
+    console.warn(`[SFU] Max reconnection attempts (${MAX_SFU_RECONNECT_ATTEMPTS}) reached. Switching permanently to P2P fallback.`);
+    recordLiveDiagnosticEvent("sfu_fallback_exhausted", `Max SFU reconnect attempts (${MAX_SFU_RECONNECT_ATTEMPTS}) exceeded`);
+    setStudioStatus("⚠️ تعذر الاتصال بخادم الوسائط SFU بعد عدة محاولات. تم التحويل التلقائي لنمط P2P البديل.", "warning");
+    transitionAllStudentsToP2pFallback();
+    return;
   }
+
+  // Bounded exponential backoff with jitter: 2s base * 1.5^(attempt-1), capped at 10s, with +/- 20% random jitter
+  const baseDelay = Math.min(2000 * Math.pow(1.5, attempt - 1), 10000);
+  const jitter = baseDelay * (0.8 + Math.random() * 0.4);
+  const delayMs = Math.round(jitter);
+
+  setStudioStatus(`⚠️ تعثر خادم الوسائط SFU مؤقتاً (محاولة ${attempt}/${MAX_SFU_RECONNECT_ATTEMPTS}). جارٍ إعادة الاتصال التلقائي خلال ${(delayMs / 1000).toFixed(1)} ث…`, "warning");
+
+  const sessionId = teacherSfuSessionId;
+  sfuDegradationTimer = setTimeout(async () => {
+    sfuDegradationTimer = null;
+    if (!classActive || !activeLevel || sessionId !== teacherSfuSessionId) {
+      return;
+    }
+    if (!teacherSfuRoom || teacherSfuRoom.state !== "connected") {
+      sfuReconnectAttempts++;
+      console.info(`[SFU] Attempting automatic reconnection to LiveKit SFU (attempt ${sfuReconnectAttempts}/${MAX_SFU_RECONNECT_ATTEMPTS})...`);
+      const reconnected = await initTeacherSfuSession(activeLevel);
+      if (reconnected) {
+        sfuReconnectAttempts = 0;
+        mediaTransportState = "sfu_active";
+        recordLiveDiagnosticEvent("sfu_recovered", "Successfully reconnected to LiveKit SFU");
+        setStudioStatus("تمت استعادة الاتصال بخادم الوسائط المركزي SFU بنجاح.", "live");
+      } else {
+        handleSfuDegradation();
+      }
+    }
+  }, delayMs);
 }
 
 window.getMinasatyLiveDiagnostics = function getMinasatyLiveDiagnostics() {
@@ -202,6 +341,7 @@ window.getMinasatyLiveDiagnostics = function getMinasatyLiveDiagnostics() {
     p2pSenders: pConnections.reduce((acc, pc) => acc + (pc.getSenders?.().filter(s => s.track).length || 0), 0),
     p2pReceivers: pConnections.reduce((acc, pc) => acc + (pc.getReceivers?.().filter(r => r.track).length || 0), 0),
     sfuStudentAudioCount: sfuStudentAudioElements.size,
+    sfuStudentRecordingAudioCount: sfuStudentAudioStreams.size,
     signalingConnected: Boolean(socket?.connected),
     recentEvents: diagnosticEvents.slice(0, 10),
   };
@@ -224,83 +364,107 @@ async function initTeacherSfuSession(roomName) {
     return true;
   }
 
-  // If already in the middle of connecting to this room, don't abort it!
-  if (isTeacherSfuConnecting && currentTeacherSfuRoomName === roomName) {
-    return true;
+  // If already in the middle of connecting to this room, await the in-flight operation
+  if (isTeacherSfuConnecting && currentTeacherSfuRoomName === roomName && teacherSfuConnectPromise) {
+    return teacherSfuConnectPromise;
+  }
+
+  // Proper room switching: close previous session before setting new room name
+  const previousRoomName = currentTeacherSfuRoomName;
+  if (previousRoomName && previousRoomName !== roomName) {
+    closeTeacherSfuSession();
   }
 
   isTeacherSfuConnecting = true;
   currentTeacherSfuRoomName = roomName;
   mediaTransportState = "sfu_connecting";
+  const sessionId = ++teacherSfuSessionId;
 
-  try {
-    const sfuData = await window.fetchMinasatySfuToken(roomName, true);
-    const sfuUrl = sfuData?.url || sfuData?.serverUrl;
-    if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuUrl) {
-      console.info("[SFU] SFU not enabled by server, running P2P fallback.");
-      isTeacherSfuConnecting = false;
+  teacherSfuConnectPromise = (async () => {
+    try {
+      const sfuData = await window.fetchMinasatySfuToken(roomName, true);
+      if (sessionId !== teacherSfuSessionId) return false;
+
+      const sfuUrl = sfuData?.url || sfuData?.serverUrl;
+      if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuUrl) {
+        console.info("[SFU] SFU not enabled by server, running P2P fallback.");
+        mediaTransportState = "p2p_fallback";
+        recordLiveDiagnosticEvent("sfu_disabled", "SFU token disabled or empty response from server");
+        return false;
+      }
+
+      if (!teacherSfuRoom || teacherSfuRoom.state === "disconnected") {
+        const Room = window.LivekitClient.Room;
+        teacherSfuRoom = new Room({
+          adaptiveStream: true,
+          dynacast: true,
+        });
+
+        teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          if (sessionId !== teacherSfuSessionId) return;
+          if (track.kind === "audio") {
+            console.info("[SFU] Teacher received audio track from student participant:", participant.identity);
+            attachSfuStudentAudio(participant.identity, track);
+            recordLiveDiagnosticEvent("student_mic_sfu_received", `Subscribed to mic from participant ${participant.identity}`);
+          }
+        });
+
+        teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+          if (sessionId !== teacherSfuSessionId) return;
+          removeSfuStudentAudio(participant.identity);
+          recordLiveDiagnosticEvent("student_mic_sfu_removed", `Unsubscribed from mic of participant ${participant.identity}`);
+        });
+
+        teacherSfuRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, (participant) => {
+          if (sessionId !== teacherSfuSessionId) return;
+          if (participant?.identity) {
+            removeSfuStudentAudio(participant.identity);
+            recordLiveDiagnosticEvent("student_mic_sfu_left", `Participant disconnected: ${participant.identity}`);
+          }
+        });
+
+        teacherSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
+          if (sessionId !== teacherSfuSessionId) return;
+          clearAllSfuStudentAudio();
+          if (sfuActiveForClass) {
+            console.warn("[SFU] Teacher disconnected from SFU room.");
+            sfuActiveForClass = false;
+            handleSfuDegradation();
+          }
+        });
+      }
+
+      if (teacherSfuRoom.state !== "connected") {
+        await teacherSfuRoom.connect(sfuUrl, sfuData.token);
+      }
+
+      if (sessionId !== teacherSfuSessionId) return false;
+
+      sfuActiveForClass = true;
+      mediaTransportState = "sfu_active";
+      recordLiveDiagnosticEvent("sfu_connected", "Teacher successfully connected to LiveKit SFU: " + roomName);
+      console.info("[SFU] Teacher successfully connected to LiveKit SFU:", roomName);
+      await syncTeacherSfuMedia();
+      return true;
+    } catch (error) {
+      if (sessionId !== teacherSfuSessionId) return false;
+      if (String(error?.message).includes("Client initiated disconnect") || String(error?.message).includes("cancelled")) {
+        return false;
+      }
+      console.warn("[SFU] Could not connect to SFU, using P2P fallback:", error);
+      sfuActiveForClass = false;
       mediaTransportState = "p2p_fallback";
-      recordLiveDiagnosticEvent("sfu_disabled", "SFU token disabled or empty response from server");
+      recordLiveDiagnosticEvent("sfu_connect_error", error.message || "Failed to connect to LiveKit SFU");
       return false;
+    } finally {
+      if (sessionId === teacherSfuSessionId) {
+        isTeacherSfuConnecting = false;
+        teacherSfuConnectPromise = null;
+      }
     }
+  })();
 
-    // Only close previous session if connecting to a DIFFERENT room
-    if (teacherSfuRoom && currentTeacherSfuRoomName !== roomName) {
-      closeTeacherSfuSession();
-    }
-
-    if (!teacherSfuRoom || teacherSfuRoom.state === "disconnected") {
-      const Room = window.LivekitClient.Room;
-      teacherSfuRoom = new Room({
-        adaptiveStream: true,
-        dynacast: true,
-      });
-
-      teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
-        if (track.kind === "audio") {
-          console.info("[SFU] Teacher received audio track from student participant:", participant.identity);
-          attachSfuStudentAudio(participant.identity, track);
-          recordLiveDiagnosticEvent("student_mic_sfu_received", `Subscribed to mic from participant ${participant.identity}`);
-        }
-      });
-
-      teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-        removeSfuStudentAudio(participant.identity);
-        recordLiveDiagnosticEvent("student_mic_sfu_removed", `Unsubscribed from mic of participant ${participant.identity}`);
-      });
-
-      teacherSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
-        if (sfuActiveForClass) {
-          console.warn("[SFU] Teacher disconnected from SFU room.");
-          sfuActiveForClass = false;
-          handleSfuDegradation();
-        }
-      });
-    }
-
-    if (teacherSfuRoom.state !== "connected") {
-      await teacherSfuRoom.connect(sfuUrl, sfuData.token);
-    }
-
-    sfuActiveForClass = true;
-    mediaTransportState = "sfu_active";
-    recordLiveDiagnosticEvent("sfu_connected", "Teacher successfully connected to LiveKit SFU: " + roomName);
-    console.info("[SFU] Teacher successfully connected to LiveKit SFU:", roomName);
-    await syncTeacherSfuMedia();
-    return true;
-  } catch (error) {
-    // Suppress warnings from intentional client aborts
-    if (String(error?.message).includes("Client initiated disconnect") || String(error?.message).includes("cancelled")) {
-      return false;
-    }
-    console.warn("[SFU] Could not connect to SFU, using P2P fallback:", error);
-    sfuActiveForClass = false;
-    mediaTransportState = "p2p_fallback";
-    recordLiveDiagnosticEvent("sfu_connect_error", error.message || "Failed to connect to LiveKit SFU");
-    return false;
-  } finally {
-    isTeacherSfuConnecting = false;
-  }
+  return teacherSfuConnectPromise;
 }
 
 function getActiveTeacherAudioTrack() {
@@ -329,11 +493,13 @@ async function syncTeacherSfuMedia() {
 }
 
 async function executeTeacherSfuMediaSync() {
-  if (!teacherSfuRoom || teacherSfuRoom.state !== "connected") return;
-  try {
-    const allPubs = Array.from(teacherSfuRoom.localParticipant?.trackPublications?.values() || []);
+  if (!teacherSfuRoom || teacherSfuRoom.state !== "connected") return { success: false };
+  const allPubs = Array.from(teacherSfuRoom.localParticipant?.trackPublications?.values() || []);
+  let videoError = null;
+  let audioError = null;
 
-    // 1. Sync Video / Screen track
+  // 1. Sync Video / Screen track independently
+  try {
     const videoTrack = getActiveTeacherVideoTrack();
     const existingVideoPub = (teacherSfuVideoPub && allPubs.includes(teacherSfuVideoPub))
       ? teacherSfuVideoPub
@@ -343,26 +509,26 @@ async function executeTeacherSfuMediaSync() {
       if (existingVideoPub) {
         teacherSfuVideoPub = existingVideoPub;
         const currentTrack = existingVideoPub.track?.mediaStreamTrack;
-        if (currentTrack === videoTrack || currentTrack?.id === videoTrack.id) {
-          // Exact same track is already published and live, nothing to do
-        } else {
+        if (currentTrack !== videoTrack && currentTrack?.id !== videoTrack.id) {
           if (existingVideoPub.track && typeof existingVideoPub.track.replaceTrack === "function") {
             try {
               await existingVideoPub.track.replaceTrack(videoTrack);
             } catch (_) {
-              try { await teacherSfuRoom.localParticipant.unpublishTrack(existingVideoPub.track); } catch (_) {}
+              try { await teacherSfuRoom.localParticipant.unpublishTrack(existingVideoPub.track, false); } catch (_) {}
               teacherSfuVideoPub = await teacherSfuRoom.localParticipant.publishTrack(videoTrack, {
                 name: "teacher-screen",
                 source: window.LivekitClient?.Track?.Source?.ScreenShare || "screen_share",
                 simulcast: true,
+                stopOnUnpublish: false,
               });
             }
           } else {
-            try { await teacherSfuRoom.localParticipant.unpublishTrack(existingVideoPub.track); } catch (_) {}
+            try { await teacherSfuRoom.localParticipant.unpublishTrack(existingVideoPub.track, false); } catch (_) {}
             teacherSfuVideoPub = await teacherSfuRoom.localParticipant.publishTrack(videoTrack, {
               name: "teacher-screen",
               source: window.LivekitClient?.Track?.Source?.ScreenShare || "screen_share",
               simulcast: true,
+              stopOnUnpublish: false,
             });
           }
         }
@@ -371,18 +537,27 @@ async function executeTeacherSfuMediaSync() {
           name: "teacher-screen",
           source: window.LivekitClient?.Track?.Source?.ScreenShare || "screen_share",
           simulcast: true,
+          stopOnUnpublish: false,
         });
       }
     } else if (existingVideoPub) {
       try {
         if (existingVideoPub.track) {
-          await teacherSfuRoom.localParticipant.unpublishTrack(existingVideoPub.track);
+          await teacherSfuRoom.localParticipant.unpublishTrack(existingVideoPub.track, false);
         }
       } catch (_) {}
       teacherSfuVideoPub = null;
     }
+  } catch (vErr) {
+    if (vErr?.name !== "TrackInvalidError" && !String(vErr?.message).includes("already been published")) {
+      videoError = vErr;
+      recordLiveDiagnosticEvent("sfu_video_publish_error", vErr?.message || "Error publishing SFU video");
+      console.warn("[SFU] Observable error syncing video track to SFU room:", vErr);
+    }
+  }
 
-    // 2. Sync Audio / Mic track
+  // 2. Sync Audio / Mic track independently (NOT blocked by video error!)
+  try {
     const audioTrack = getActiveTeacherAudioTrack();
     const existingAudioPub = (teacherSfuAudioPub && allPubs.includes(teacherSfuAudioPub))
       ? teacherSfuAudioPub
@@ -392,28 +567,28 @@ async function executeTeacherSfuMediaSync() {
       if (existingAudioPub) {
         teacherSfuAudioPub = existingAudioPub;
         const currentTrack = existingAudioPub.track?.mediaStreamTrack;
-        if (currentTrack === audioTrack || currentTrack?.id === audioTrack.id) {
-          // Exact same track is already published and live, nothing to do
-        } else {
+        if (currentTrack !== audioTrack && currentTrack?.id !== audioTrack.id) {
           if (existingAudioPub.track && typeof existingAudioPub.track.replaceTrack === "function") {
             try {
               await existingAudioPub.track.replaceTrack(audioTrack);
             } catch (_) {
-              try { await teacherSfuRoom.localParticipant.unpublishTrack(existingAudioPub.track); } catch (_) {}
+              try { await teacherSfuRoom.localParticipant.unpublishTrack(existingAudioPub.track, false); } catch (_) {}
               teacherSfuAudioPub = await teacherSfuRoom.localParticipant.publishTrack(audioTrack, {
                 name: "teacher-audio",
                 source: window.LivekitClient?.Track?.Source?.Microphone || "microphone",
                 dtx: true,
                 red: true,
+                stopOnUnpublish: false,
               });
             }
           } else {
-            try { await teacherSfuRoom.localParticipant.unpublishTrack(existingAudioPub.track); } catch (_) {}
+            try { await teacherSfuRoom.localParticipant.unpublishTrack(existingAudioPub.track, false); } catch (_) {}
             teacherSfuAudioPub = await teacherSfuRoom.localParticipant.publishTrack(audioTrack, {
               name: "teacher-audio",
               source: window.LivekitClient?.Track?.Source?.Microphone || "microphone",
               dtx: true,
               red: true,
+              stopOnUnpublish: false,
             });
           }
         }
@@ -423,36 +598,51 @@ async function executeTeacherSfuMediaSync() {
           source: window.LivekitClient?.Track?.Source?.Microphone || "microphone",
           dtx: true,
           red: true,
+          stopOnUnpublish: false,
         });
       }
     } else if (existingAudioPub) {
       try {
         if (existingAudioPub.track) {
-          await teacherSfuRoom.localParticipant.unpublishTrack(existingAudioPub.track);
+          await teacherSfuRoom.localParticipant.unpublishTrack(existingAudioPub.track, false);
         }
       } catch (_) {}
       teacherSfuAudioPub = null;
     }
-  } catch (err) {
-    if (err?.name === "TrackInvalidError" || String(err?.message).includes("already been published")) {
-      return;
+  } catch (aErr) {
+    if (aErr?.name !== "TrackInvalidError" && !String(aErr?.message).includes("already been published")) {
+      audioError = aErr;
+      recordLiveDiagnosticEvent("sfu_audio_publish_error", aErr?.message || "Error publishing SFU audio");
+      console.warn("[SFU] Observable error syncing audio track to SFU room:", aErr);
     }
-    console.warn("[SFU] Error syncing media with SFU room:", err);
   }
+
+  const success = !videoError && !audioError;
+  return {
+    success,
+    videoPublished: Boolean(teacherSfuVideoPub),
+    audioPublished: Boolean(teacherSfuAudioPub),
+    videoError,
+    audioError,
+  };
 }
 
 function closeTeacherSfuSession() {
+  cancelSfuDegradation();
+  clearAllSfuStudentAudio();
   sfuActiveForClass = false;
   isTeacherSfuConnecting = false;
+  teacherSfuConnectPromise = null;
   currentTeacherSfuRoomName = null;
   isSfuMediaSyncing = false;
   pendingSfuMediaSync = false;
   teacherSfuVideoPub = null;
   teacherSfuAudioPub = null;
+  teacherSfuSessionId++;
   if (teacherSfuRoom) {
     try {
       if (teacherSfuRoom.state !== "disconnected") {
-        teacherSfuRoom.disconnect();
+        teacherSfuRoom.disconnect(false);
       }
     } catch (_) {}
     teacherSfuRoom = null;
@@ -1921,6 +2111,49 @@ function syncLocalRecordingAudioSources() {
     }
   });
 
+  // Filter out unauthorized P2P student audio sources
+  for (const [sourceKey] of activeSources.entries()) {
+    if (sourceKey === "__teacher_microphone__" || sourceKey === "__screen_audio__") {
+      continue;
+    }
+    if (!approvedStudentMicrophones.has(sourceKey)) {
+      const attendee = attendeeElements.get(sourceKey);
+      const studentId = attendee?.dataset?.studentId;
+      if (!studentId || !approvedStudentMicrophones.has(studentId)) {
+        activeSources.delete(sourceKey);
+      }
+    }
+  }
+
+  // Include authorized students' SFU microphone audio in the recording mix
+  sfuStudentAudioStreams.forEach((streamData, identity) => {
+    if (!isStudentMicrophoneApproved(identity)) {
+      return;
+    }
+    const track = streamData?.track || streamData?.stream?.getAudioTracks?.()[0];
+    if (!track || track.readyState !== "live" || track.enabled === false) {
+      return;
+    }
+
+    const sfuKey = `__sfu_student_${identity}__`;
+    activeSources.set(sfuKey, streamData.stream);
+
+    // Deduplication: prevent duplicate audio if student is active on both SFU and P2P
+    const mappedSocketId = getSocketIdForStudentIdentity(identity);
+    if (mappedSocketId && activeSources.has(mappedSocketId)) {
+      activeSources.delete(mappedSocketId);
+    }
+    if (activeSources.has(identity)) {
+      activeSources.delete(identity);
+    }
+    for (const [key] of activeSources.entries()) {
+      if (key.startsWith("__")) continue;
+      const attendee = attendeeElements.get(key);
+      if (attendee?.dataset?.studentId === identity || attendeeSocketByStudentId.get(identity) === key) {
+        activeSources.delete(key);
+      }
+    }
+  });
 
   Array.from(activeSources.entries()).forEach(([sourceKey, stream]) => {
     if (!stream?.getAudioTracks?.().some((track) => track.readyState === "live")) {
@@ -2057,19 +2290,24 @@ function buildLocalRecordingStream() {
   const recordingStream = new MediaStream([videoTrack]);
 
 
-  const recordingSourceStreams = Array.from(classroomAudioSources.values())
-    .filter((source) => source?.enabled !== false)
-    .map((source) => source?.stream)
+  const sfuApprovedStreams = Array.from(sfuStudentAudioStreams.entries())
+    .filter(([identity]) => isStudentMicrophoneApproved(identity))
+    .map(([, data]) => data?.stream)
     .filter((stream) => stream?.getAudioTracks?.().some((track) => track.readyState === "live"));
 
+  const recordingSourceStreams = [
+    ...Array.from(classroomAudioSources.values())
+      .filter((source) => source?.enabled !== false)
+      .map((source) => source?.stream),
+    ...sfuApprovedStreams,
+  ].filter((stream) => stream?.getAudioTracks?.().some((track) => track.readyState === "live"));
 
   const fallbackSourceStreams = [screenStream, cameraStream]
     .filter(Boolean)
     .filter((stream) => stream.getAudioTracks().some((track) => track.readyState === "live"));
 
-
   const uniqueAudioStreams = Array.from(new Set(
-    (recordingSourceStreams.length ? recordingSourceStreams : fallbackSourceStreams)
+    [...recordingSourceStreams, ...fallbackSourceStreams]
   ));
   const liveAudioTracks = uniqueAudioStreams
     .flatMap((stream) => stream.getAudioTracks())
@@ -4719,6 +4957,7 @@ function removeClassroomAudioSource(sourceKey) {
   }
   classroomAudioSources.delete(sourceKey);
   rebuildClassroomAudioGraph();
+  syncLocalRecordingAudioSources();
 }
 
 
@@ -4826,6 +5065,25 @@ function syncMixMinusAudioToAllPeers() {
 
 
 
+window.getMinasatyTeacherMixMinusDiagnostics = function getMinasatyTeacherMixMinusDiagnostics(studentSocketId) {
+  const destination = classroomAudioDestinations.get(studentSocketId);
+  const teacherSource = classroomAudioSources.get("__teacher_microphone__");
+  const screenSource = classroomAudioSources.get("__screen_audio__");
+  const peerConn = peerConnections[studentSocketId];
+  return {
+    studentSocketId,
+    mixMinusDestinationExists: Boolean(destination),
+    teacherSourceEnabled: Boolean(teacherSource?.enabled),
+    screenSourceEnabled: Boolean(screenSource?.enabled),
+    mixMinusAudioTrackLive: Boolean(destination?.stream?.getAudioTracks()?.some((t) => t.readyState === "live")),
+    peerConnectionState: peerConn?.connectionState || "none",
+    peerSignalingState: peerConn?.signalingState || "none",
+    outboundAudioSenderActive: Boolean(peerConn?.getSenders()?.some((s) => s.__classroomMixMinusAudio && s.track?.readyState === "live")),
+    sfuStudentAudioConnected: Boolean(sfuStudentAudioStreams.get(studentSocketId)),
+    micApproved: approvedStudentMicrophones.has(studentSocketId),
+  };
+};
+
 function applyStudentMicrophoneState(studentSocketId, enabled) {
   if (!studentSocketId) {
     return;
@@ -4835,14 +5093,17 @@ function applyStudentMicrophoneState(studentSocketId, enabled) {
   studentMicStates.set(studentSocketId, Boolean(enabled));
 
 
+  const attendee = attendeeElements.get(studentSocketId);
+  const studentId = attendee?.dataset?.studentId;
+
   if (enabled) {
     approvedStudentMicrophones.add(studentSocketId);
+    if (studentId) approvedStudentMicrophones.add(studentId);
   } else {
     approvedStudentMicrophones.delete(studentSocketId);
+    if (studentId) approvedStudentMicrophones.delete(studentId);
   }
 
-
-  const attendee = attendeeElements.get(studentSocketId);
   if (attendee) {
     attendee.classList.remove("is-hand-raised");
     attendee.classList.toggle("is-mic-open", Boolean(enabled));
@@ -4851,12 +5112,12 @@ function applyStudentMicrophoneState(studentSocketId, enabled) {
     reorderOpenMicrophoneAttendees();
   }
 
-
   const source = classroomAudioSources.get(studentSocketId);
   if (source) {
     source.enabled = Boolean(enabled);
   }
   rebuildClassroomAudioGraph();
+  syncLocalRecordingAudioSources();
 }
 
 
@@ -4956,6 +5217,7 @@ function addClassroomAudioSource(sourceKey, stream, { enabled = true } = {}) {
     node.connect(gainNode);
     classroomAudioSources.set(sourceKey, { node, gainNode, stream, enabled: Boolean(enabled) });
     rebuildClassroomAudioGraph();
+    syncLocalRecordingAudioSources();
     return true;
   } catch (error) {
     console.warn("Unable to add an audio source to the classroom mix-minus graph:", error);
@@ -5862,7 +6124,7 @@ function optimizeOpusSdp(sdp) {
 
 
 async function createAndSendOffer(studentSocketId, { iceRestart = false, force = false } = {}) {
-  if (!classActive || !getActiveTeacherVideoTrack()) {
+  if (!classActive || (!getActiveTeacherVideoTrack() && !getActiveTeacherAudioTrack())) {
     return;
   }
 
@@ -6622,6 +6884,7 @@ async function muteAllStudentsMicrophones() {
     });
     approvedStudentMicrophones.clear();
     rebuildClassroomAudioGraph();
+    syncLocalRecordingAudioSources();
     setStudioStatus("تم كتم ميكروفونات جميع التلاميذ بنجاح.", "live");
   } catch (err) {
     console.error("Failed to mute all mics:", err);
@@ -6909,6 +7172,10 @@ socket.on("student_transport_updated", (data = {}) => {
     receiving: Boolean(data.receiving),
     lastSeenAt: Date.now(),
   });
+  if (data.receiving === false && classActive) {
+    recordLiveDiagnosticEvent("student_not_receiving", `Student ${data.socketId} reported receiving=false; initiating targeted P2P recovery`);
+    transitionStudentToP2pFallback(data.socketId);
+  }
 });
 
 

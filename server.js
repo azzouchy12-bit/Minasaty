@@ -919,6 +919,43 @@ function setStudentWhiteboardAccess(level, socketId, enabled) {
   if (allowed.size === 0) whiteboardAccessByLevel.delete(level);
 }
 
+if (typeof webrtcRoutes?.setStudentMicChecker === "function") {
+  webrtcRoutes.setStudentMicChecker((level, studentId) => {
+    return isStudentMicrophoneOpen(level, null, studentId);
+  });
+}
+if (typeof webrtcRoutes?.setClassroomAuthorizer === "function") {
+  webrtcRoutes.setClassroomAuthorizer(async (level, studentId, user) => {
+    if (user?.role === "teacher") return true;
+    if (!studentId) return false;
+    const globalTeacherSocketId = activeTeachersByLevel.get(GLOBAL_FREE_LEVEL);
+    const globalTeacherSocket = globalTeacherSocketId ? io.sockets.sockets.get(globalTeacherSocketId) : null;
+    const isGlobalFreeActive = Boolean(
+      globalTeacherSocket &&
+      activeSubjectByLevel.get(GLOBAL_FREE_LEVEL) === "FREE" &&
+      isInLevelRoom(globalTeacherSocket, GLOBAL_FREE_LEVEL)
+    );
+    if (isGlobalFreeActive || level === GLOBAL_FREE_LEVEL) return true;
+    try {
+      const student = await prisma.student.findUnique({
+        where: { id: studentId },
+        select: { id: true, level: true, liveAccessEnabled: true, paymentStage: true, subscriptionEndDate: true, accountActive: true },
+      });
+      if (!student) return false;
+      if (student.subscriptionEndDate) {
+        const endDate = new Date(student.subscriptionEndDate);
+        const now = new Date();
+        const endCalendar = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+        const nowCalendar = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (endCalendar.getTime() - nowCalendar.getTime() < 0) return false;
+      }
+      return true;
+    } catch (_) {
+      return true;
+    }
+  });
+}
+
 function clearClassroomChatHistory(level) {
   classroomChatHistoryByLevel.delete(level);
 }
