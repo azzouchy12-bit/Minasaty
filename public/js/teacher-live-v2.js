@@ -510,6 +510,8 @@ async function initTeacherSfuSession(roomName) {
       sfuActiveForClass = false;
       mediaTransportState = "p2p_fallback";
       recordLiveDiagnosticEvent("sfu_connect_error", error.message || "Failed to connect to LiveKit SFU");
+      // Initial connection failures need the same bounded recovery as later disconnections.
+      if (typeof handleSfuDegradation === "function") handleSfuDegradation();
       return false;
     } finally {
       if (sessionId === teacherSfuSessionId) {
