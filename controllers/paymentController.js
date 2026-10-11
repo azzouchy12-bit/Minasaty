@@ -3,6 +3,11 @@ const prisma = require("../lib/prisma");
 const { logAudit } = require("../utils/audit");
 const { awardReferralCommission } = require("../utils/referral");
 const { sendTelegramNotification } = require("../services/telegramService");
+const {
+  isStudentSubscriptionExpired,
+  isStudentEligibleForRenewal,
+  calculateRenewedSubscriptionDates,
+} = require("../utils/subscriptionValidity");
 
 const SOFIZPAY_BASE_URL = String(process.env.SOFIZPAY_BASE_URL || "https://sofizpay.com").replace(/\/$/, "");
 const SOFIZPAY_ACCOUNT = String(process.env.SOFIZPAY_ACCOUNT || "GBYAJX2VUMCKQQMTQRKIHFL7GWKPXQGAQNNCJOIV232S3Q73NNYK6JF4").trim();
@@ -235,6 +240,8 @@ async function getOwnedStudent(req, studentId) {
       paymentStatus: true,
       mathEnrollment: true,
       physicsEnrollment: true,
+      subscriptionStartDate: true,
+      subscriptionEndDate: true,
     },
   });
 }
@@ -289,9 +296,25 @@ async function activatePaidTransaction(transaction, providerPayload) {
 
     const student = await tx.student.findUnique({
       where: { id: fresh.studentId },
-      select: { id: true, parentPhone: true, level: true, mathEnrollment: true, physicsEnrollment: true },
+      select: {
+        id: true,
+        parentPhone: true,
+        level: true,
+        studentName: true,
+        paymentStage: true,
+        mathEnrollment: true,
+        physicsEnrollment: true,
+        subscriptionStartDate: true,
+        subscriptionEndDate: true,
+      },
     });
     if (!student) throw new Error("التلميذ غير موجود.");
+
+    const isExpired = isStudentSubscriptionExpired(student);
+    const renewedDates = calculateRenewedSubscriptionDates(
+      student.subscriptionStartDate,
+      student.subscriptionEndDate
+    );
 
     const paidStudent = await tx.student.update({
       where: { id: fresh.studentId },
@@ -299,13 +322,18 @@ async function activatePaidTransaction(transaction, providerPayload) {
         paymentStatus: true,
         paymentStage: "PAID",
         amountDue: fresh.amount,
-        // A complementary subject upgrade must preserve the existing subject.
-        // Buying MATH while already enrolled in PHYSICS (or vice versa)
-        // therefore activates BOTH instead of removing the old enrollment.
-        mathEnrollment: Boolean(student.mathEnrollment || subscription.mathEnrollment),
-        physicsEnrollment: Boolean(student.physicsEnrollment || subscription.physicsEnrollment),
+        // A complementary subject upgrade preserves existing subjects,
+        // whereas a renewal on an expired account sets only the chosen subject(s).
+        mathEnrollment: isExpired
+          ? Boolean(subscription.mathEnrollment)
+          : Boolean(student.mathEnrollment || subscription.mathEnrollment),
+        physicsEnrollment: isExpired
+          ? Boolean(subscription.physicsEnrollment)
+          : Boolean(student.physicsEnrollment || subscription.physicsEnrollment),
         liveAccessEnabled: true,
         paymentReceiptPending: false,
+        subscriptionStartDate: renewedDates.subscriptionStartDate,
+        subscriptionEndDate: renewedDates.subscriptionEndDate,
       },
     });
 
@@ -428,12 +456,13 @@ async function startSofizPayPayment(req, res) {
     const student = await getOwnedStudent(req, req.body?.studentId);
     if (!student || !studentBelongsToParent(student, req)) return res.status(403).json({ error: "لا تملك صلاحية الدفع لهذا التلميذ." });
     if (student.level === "طالب جامعي") return res.status(400).json({ error: "الدفع الإلكتروني بهذه الروابط متاح لتلاميذ التعليم المتوسط فقط حاليًا." });
+    const canRenew = isStudentEligibleForRenewal(student);
     const requestedSubjectAlreadyEnabled = subscriptionType === "MATH"
       ? student.mathEnrollment
       : subscriptionType === "PHYSICS"
         ? student.physicsEnrollment
         : student.mathEnrollment && student.physicsEnrollment;
-    if (requestedSubjectAlreadyEnabled && (student.paymentStage === "PAID" || student.paymentStatus)) {
+    if (!canRenew && requestedSubjectAlreadyEnabled && (student.paymentStage === "PAID" || student.paymentStatus)) {
       return res.status(400).json({ error: "هذه المادة مفعلة ومدفوعة لهذا الحساب بالفعل." });
     }
 

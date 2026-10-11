@@ -20,6 +20,11 @@ const { notificationRoom } = require("../utils/socketNotifications");
 const { notifyTelegram, sendTelegramToParent } = require("../services/telegramService");
 const { sendEmail } = require("../services/emailService");
 const { sendVerifiedParentEmail } = require("../services/parentEmailEvents");
+const {
+  isStudentSubscriptionExpired,
+  isStudentEligibleForRenewal,
+  calculateRenewedSubscriptionDates,
+} = require("../utils/subscriptionValidity");
 
 const uploadDirectory =
   process.env.UPLOAD_DIR || path.join(__dirname, "..", "public", "uploads");
@@ -796,6 +801,8 @@ async function submitPaymentReceipt(req, res) {
         paymentStage: true,
         paymentStatus: true,
         paymentReceiptUrl: true,
+        subscriptionStartDate: true,
+        subscriptionEndDate: true,
       },
     });
 
@@ -804,7 +811,8 @@ async function submitPaymentReceipt(req, res) {
       return res.status(403).json({ error: "لا تملك صلاحية إرسال وصل دفع لهذا الطالب." });
     }
 
-    if (student.paymentStage === "PAID" || student.paymentStatus) {
+    const canRenew = isStudentEligibleForRenewal(student);
+    if (!canRenew && (student.paymentStage === "PAID" || student.paymentStatus)) {
       await removeUploadedCard(uploadedReceiptFile.filename);
       return res.status(400).json({ error: "هذا الحساب لديه اشتراك مدفوع بالفعل." });
     }
@@ -927,6 +935,8 @@ async function confirmStudentPaymentReceipt(req, res) {
         paymentReceiptPending: true,
         paymentReceiptSubmittedAt: true,
         pendingSubscriptionType: true,
+        subscriptionStartDate: true,
+        subscriptionEndDate: true,
       },
     });
 
@@ -937,6 +947,11 @@ async function confirmStudentPaymentReceipt(req, res) {
     if (!student.paymentReceiptUrl || !student.paymentReceiptPending) {
       return res.status(400).json({ error: "لا يوجد وصل دفع جديد بانتظار التأكيد." });
     }
+
+    const renewedDates = calculateRenewedSubscriptionDates(
+      student.subscriptionStartDate,
+      student.subscriptionEndDate
+    );
 
     const updatedStudent = await prisma.$transaction(async (tx) => {
       const updated = await tx.student.update({
@@ -951,6 +966,8 @@ async function confirmStudentPaymentReceipt(req, res) {
           paymentReceiptDecidedAt: new Date(),
           pendingSubscriptionType: null,
           liveAccessEnabled: true,
+          subscriptionStartDate: renewedDates.subscriptionStartDate,
+          subscriptionEndDate: renewedDates.subscriptionEndDate,
         },
       });
       await awardReferralCommission(tx, {
@@ -960,6 +977,7 @@ async function confirmStudentPaymentReceipt(req, res) {
       });
       return updated;
     });
+    notifyAccountStatus(req, updatedStudent);
     notifyPaymentReceiptStatus(req, updatedStudent);
     void notifyParentPaymentReceiptDecision(req, {
       student,
