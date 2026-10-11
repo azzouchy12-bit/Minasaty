@@ -962,6 +962,7 @@ function wirePaymentReceiptActions({ input, captureButton, fileChoiceButton, upl
 function openPaymentAccessModal(reason = "access", subjectOverride = null) {
   if (!elements.paymentAccessModal) return;
 
+  const isExpired = reason === "lesson-expired" || reason === "subscription-expired";
   const subscriptionUpgrade = reason === "subscription-upgrade";
   const subjectUpgrade = reason === "subject-upgrade";
   const lessonUpgrade = reason.startsWith("lesson-");
@@ -980,39 +981,47 @@ function openPaymentAccessModal(reason = "access", subjectOverride = null) {
       : "الاشتراك الحالي";
 
   if (elements.paymentAccessTitle) {
-    elements.paymentAccessTitle.textContent = lessonUpgrade
-      ? reason === "lesson-unpaid"
-        ? "أنت غير مشترك حالياً"
-        : lessonFreeOnly
-          ? "هذا الدرس مخصص للاشتراك المدفوع"
-          : `هذا الدرس في ${targetLabel}`
-      : subjectUpgrade
-        ? `هذا المحتوى مخصص لـ${targetLabel}`
-        : subscriptionUpgrade
-          ? "هذه الحصة مخصصة للاشتراك المدفوع"
-          : "الدخول للحصة يحتاج إلى تفعيل";
+    elements.paymentAccessTitle.textContent = isExpired
+      ? "انتهت فترة اشتراكك"
+      : lessonUpgrade
+        ? reason === "lesson-unpaid"
+          ? "أنت غير مشترك حالياً"
+          : lessonFreeOnly
+            ? "هذا الدرس مخصص للاشتراك المدفوع"
+            : `هذا الدرس في ${targetLabel}`
+        : subjectUpgrade
+          ? `هذا المحتوى مخصص لـ${targetLabel}`
+          : subscriptionUpgrade
+            ? "هذه الحصة مخصصة للاشتراك المدفوع"
+            : "الدخول للحصة يحتاج إلى تفعيل";
   }
   if (elements.paymentAccessHeadMessage) {
-    elements.paymentAccessHeadMessage.textContent = targetSubject && currentStudent
-      ? `أنت مسجل في ${currentSubscription}، وهذا المحتوى مخصص لـ${targetLabel}.`
-      : lessonUpgrade && reason === "lesson-unpaid"
-        ? "أنت لست مشتركاً حاليًا، وحسابك مجاني."
-        : subscriptionUpgrade
-          ? "أنت مشترك في الحساب المجاني فقط وهذه الحصة مخصصة للاشتراك المدفوع."
-          : "لم يتم تفعيل صلاحية الدخول إلى هذا المحتوى بعد.";
+    elements.paymentAccessHeadMessage.textContent = isExpired
+      ? "انتهت فترة اشتراك التلميذ. يرجى تجديد الاشتراك للدخول إلى الحصص المباشرة والدروس المسجلة."
+      : targetSubject && currentStudent
+        ? `أنت مسجل في ${currentSubscription}، وهذا المحتوى مخصص لـ${targetLabel}.`
+        : lessonUpgrade && reason === "lesson-unpaid"
+          ? "أنت لست مشتركاً حاليًا، وحسابك مجاني."
+          : subscriptionUpgrade
+            ? "أنت مشترك في الحساب المجاني فقط وهذه الحصة مخصصة للاشتراك المدفوع."
+            : "لم يتم تفعيل صلاحية الدخول إلى هذا المحتوى بعد.";
   }
   if (elements.paymentAccessMessage) {
-    elements.paymentAccessMessage.textContent = targetSubject
-      ? `للتسجيل في ${targetLabel} مع الاحتفاظ باشتراكك الحالي، اختر الدفع الإلكتروني أو الوعد بالدفع مع الأستاذ.`
-      : lessonUpgrade
-        ? "للوصول إلى هذا الدرس، استخدم زر الترقية أو اتصل بالأستاذ للوعد بالدفع."
-        : "اختر طريقة تفعيل الوصول إلى الحصة.";
+    elements.paymentAccessMessage.textContent = isExpired
+      ? "يمكنك تجديد الاشتراك وتسديد الرسوم عبر الدفع الإلكتروني أو إرسال وصل الدفع أو الاتصال بالأستاذ."
+      : targetSubject
+        ? `للتسجيل في ${targetLabel} مع الاحتفاظ باشتراكك الحالي، اختر الدفع الإلكتروني أو الوعد بالدفع مع الأستاذ.`
+        : lessonUpgrade
+          ? "للوصول إلى هذا الدرس، استخدم زر الترقية أو اتصل بالأستاذ للوعد بالدفع."
+          : "اختر طريقة تفعيل الوصول إلى الحصة.";
   }
   if (elements.upgradeSubjectButton) {
-    elements.upgradeSubjectButton.hidden = !paymentAccessUpgradeType;
-    elements.upgradeSubjectButton.textContent = paymentAccessUpgradeType
-      ? `ترقية حسابي والتسجيل في ${targetLabel}`
-      : "ترقية حسابي";
+    elements.upgradeSubjectButton.hidden = !paymentAccessUpgradeType && !isExpired;
+    elements.upgradeSubjectButton.textContent = isExpired
+      ? "تجديد وتسديد الاشتراك الآن"
+      : paymentAccessUpgradeType
+        ? `ترقية حسابي والتسجيل في ${targetLabel}`
+        : "ترقية حسابي";
     elements.upgradeSubjectButton.href = "#";
   }
   if (elements.callTeacherNowButton) {
@@ -1026,13 +1035,15 @@ function openPaymentAccessModal(reason = "access", subjectOverride = null) {
 
 function openLessonUpgradeModal(video) {
   lessonUpgradeContext = video || null;
-  const reason = video?.accessReason === "UNPAID"
-    ? "lesson-unpaid"
-    : video?.accessReason === "MATH_ONLY"
-      ? "lesson-math-only"
-      : video?.accessReason === "PHYSICS_ONLY"
-        ? "lesson-physics-only"
-        : "lesson-free-only";
+  const reason = video?.accessReason === "EXPIRED"
+    ? "lesson-expired"
+    : video?.accessReason === "UNPAID"
+      ? "lesson-unpaid"
+      : video?.accessReason === "MATH_ONLY"
+        ? "lesson-math-only"
+        : video?.accessReason === "PHYSICS_ONLY"
+          ? "lesson-physics-only"
+          : "lesson-free-only";
   const subject = video?.repositoryType === "PHYSICS" || video?.repositoryType === "MATH" ? video.repositoryType : null;
   openPaymentAccessModal(reason, subject);
 }
@@ -2197,7 +2208,7 @@ function renderLessonVideos(videos) {
     const watch = document.createElement("button");
     watch.type = "button";
     watch.className = `watch-lesson-video-btn${video.locked ? " is-locked" : ""}`;
-    watch.textContent = video.locked ? "ترقية الحساب" : "مشاهدة الدرس";
+    watch.textContent = video.locked ? (video.accessReason === "EXPIRED" ? "تجديد الاشتراك" : "ترقية الحساب") : "مشاهدة الدرس";
     watch.setAttribute("aria-label", video.locked ? `ترقية الحساب للوصول إلى ${video.title}` : `مشاهدة ${video.title || "الحصة المسجلة"}`);
     watch.addEventListener("click", () => {
       if (video.locked) {

@@ -170,3 +170,35 @@ test("studentController.js allows expired receipt submission and updates dates o
   assert.match(studentCtrl, /subscriptionEndDate:\s*renewedDates\.subscriptionEndDate/);
   assert.match(studentCtrl, /notifyAccountStatus\(req,\s*updatedStudent\);/);
 });
+
+test("lessonVideoController.js restricts access for expired subscriptions and subject enrollments", () => {
+  const lessonCtrl = fs.readFileSync(path.join(root, "controllers/lessonVideoController.js"), "utf8");
+
+  assert.match(lessonCtrl, /isStudentSubscriptionExpired/);
+  assert.match(lessonCtrl, /if\s*\(isStudentSubscriptionExpired\(student\)\)\s*\{\s*return\s*\{\s*canWatch:\s*false,\s*accessReason:\s*"EXPIRED"\s*\};/);
+  assert.match(lessonCtrl, /if\s*\(repositoryType === "MATH" && !student\.mathEnrollment\)\s*\{\s*return\s*\{\s*canWatch:\s*false,\s*accessReason:\s*"PHYSICS_ONLY"\s*\};/);
+  assert.match(lessonCtrl, /if\s*\(repositoryType === "PHYSICS" && !student\.physicsEnrollment\)\s*\{\s*return\s*\{\s*canWatch:\s*false,\s*accessReason:\s*"MATH_ONLY"\s*\};/);
+});
+
+test("studentController.js updateStudentSubscriptionDates activates student access when extended to valid date", () => {
+  const studentCtrl = fs.readFileSync(path.join(root, "controllers/studentController.js"), "utf8");
+
+  assert.match(studentCtrl, /let isNowActive = false;/);
+  assert.match(studentCtrl, /updateData\.liveAccessEnabled = true;/);
+  assert.match(studentCtrl, /updateData\.paymentStatus = true;/);
+  assert.match(studentCtrl, /updateData\.paymentStage = "PAID";/);
+  assert.match(studentCtrl, /io\?\.to\(`\$\{currentStudent\.level\}_lobby`\)\.emit\("student_live_access_updated",/);
+});
+
+test("server.js grants secondary payment access for active subscriptionEndDate", () => {
+  const serverJs = fs.readFileSync(path.join(root, "server.js"), "utf8");
+
+  assert.match(serverJs, /const hasSecondaryPaymentAccess =\s*student\.level !== UNIVERSITY_LEVEL && \(Boolean\(student\.subscriptionEndDate/);
+});
+
+test("parent-dashboard.js handles EXPIRED in openLessonUpgradeModal and openPaymentAccessModal", () => {
+  const parentJs = fs.readFileSync(path.join(root, "public/js/parent-dashboard.js"), "utf8");
+
+  assert.match(parentJs, /video\?\.accessReason === "EXPIRED"\s*\?\s*"lesson-expired"/);
+  assert.match(parentJs, /const isExpired = reason === "lesson-expired" \|\| reason === "subscription-expired";/);
+});

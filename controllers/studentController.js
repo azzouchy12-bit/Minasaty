@@ -508,11 +508,20 @@ async function removeUploadedCard(filename) {
 
 function notifyAccountStatus(req, student) {
   const io = req.app.get("io");
-  io?.to(`${student.level}_lobby`).emit("student_account_status_updated", {
+  const payload = {
     studentId: student.id,
     accountActive: student.accountActive,
     cardReuploadRequested: student.cardReuploadRequested,
-  });
+    subscriptionStartDate: student.subscriptionStartDate,
+    subscriptionEndDate: student.subscriptionEndDate,
+    paymentStage: student.paymentStage,
+    paymentStatus: student.paymentStatus,
+    liveAccessEnabled: student.liveAccessEnabled,
+  };
+  io?.to(`${student.level}_lobby`).emit("student_account_status_updated", payload);
+  if (student.parentPhone) {
+    io?.to(`parent_${student.parentPhone}`).emit("student_account_status_updated", payload);
+  }
 }
 
 function notifyPaymentReceiptStatus(req, student) {
@@ -1512,19 +1521,45 @@ async function updateStudentSubscriptionDates(req, res) {
 
     const currentStudent = await prisma.student.findUnique({
       where: { id },
-      select: { id: true, level: true, studentName: true },
+      select: {
+        id: true,
+        level: true,
+        studentName: true,
+        parentPhone: true,
+        paymentStage: true,
+        paymentStatus: true,
+        liveAccessEnabled: true,
+      },
     });
 
     if (!currentStudent) {
       return res.status(404).json({ error: "التلميذ غير موجود." });
     }
 
+    let isNowActive = false;
+    if (parsedEndDate) {
+      const now = new Date();
+      const endCalendar = new Date(parsedEndDate.getFullYear(), parsedEndDate.getMonth(), parsedEndDate.getDate());
+      const nowCalendar = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      isNowActive = (endCalendar.getTime() - nowCalendar.getTime()) >= 0;
+    }
+
+    const updateData = {
+      subscriptionStartDate: parsedStartDate,
+      subscriptionEndDate: parsedEndDate,
+    };
+
+    if (isNowActive) {
+      updateData.liveAccessEnabled = true;
+      updateData.paymentStatus = true;
+      if (currentStudent.paymentStage === "EXPIRED" || currentStudent.paymentStage === "UNPAID" || !currentStudent.paymentStage) {
+        updateData.paymentStage = "PAID";
+      }
+    }
+
     const updatedStudent = await prisma.student.update({
       where: { id },
-      data: {
-        subscriptionStartDate: parsedStartDate,
-        subscriptionEndDate: parsedEndDate,
-      },
+      data: updateData,
     });
 
     void logAudit(req, {
@@ -1540,6 +1575,15 @@ async function updateStudentSubscriptionDates(req, res) {
 
     notifyTeacherRosterChanged(req, currentStudent.level, "status-updated");
     notifyAccountStatus(req, updatedStudent);
+
+    const io = req.app.get("io");
+    io?.to(`${currentStudent.level}_lobby`).emit("student_live_access_updated", {
+      studentId: updatedStudent.id,
+      liveAccessEnabled: updatedStudent.liveAccessEnabled,
+      paymentStatus: updatedStudent.paymentStatus,
+      paymentStage: updatedStudent.paymentStage,
+      subscriptionEndDate: updatedStudent.subscriptionEndDate,
+    });
 
     return res.status(200).json({
       status: "success",

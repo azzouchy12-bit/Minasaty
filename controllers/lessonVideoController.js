@@ -1,6 +1,7 @@
 "use strict";
 
 const prisma = require("../lib/prisma");
+const { isStudentSubscriptionExpired } = require("../utils/subscriptionValidity");
 
 const MAX_TITLE_LENGTH = 160;
 const VALID_LEVELS = new Set([
@@ -134,6 +135,8 @@ async function getParentStudentForLevel(parentPhone, level, studentId) {
       paymentStatus: true,
       mathEnrollment: true,
       physicsEnrollment: true,
+      subscriptionStartDate: true,
+      subscriptionEndDate: true,
     },
   });
 }
@@ -158,6 +161,10 @@ function getStudentRepositoryTypes(student) {
 function getLessonAccess(student, video) {
   const repositoryType = video.repositoryType || LEGACY_REPOSITORY_TYPE;
   const paymentStage = student.paymentStage || (student.paymentStatus ? "PAID" : "UNPAID");
+
+  if (isStudentSubscriptionExpired(student)) {
+    return { canWatch: false, accessReason: "EXPIRED" };
+  }
 
   if (student.level !== "طالب جامعي" && paymentStage === "UNPAID") {
     return { canWatch: false, accessReason: "UNPAID" };

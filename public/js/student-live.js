@@ -4559,7 +4559,7 @@ async function continueFromStudentPrejoin() {
 }
 
 async function completeStudentPrejoinAndJoin() {
-  if (isStudentLiveSubscriptionExpired(currentStudent.subscriptionEndDate)) {
+  if (isStudentLiveSubscriptionExpired(currentStudent.subscriptionEndDate) || currentStudent?.paymentStage === "EXPIRED") {
     openSubscriptionUpgradeModal("EXPIRED");
     return;
   }
@@ -5510,6 +5510,7 @@ async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
     isJoining = false;
     const joinErrorMessage = error.message || "تعذر الانضمام إلى الحصة.";
     const isLiveAccessBlocked = joinErrorMessage.includes("لم تقم بالدفع");
+    const isSubscriptionExpiredBlocked = joinErrorMessage.includes("انتهت فترة اشتراك التلميذ");
     const deniedSubject = joinErrorMessage.includes("فيزياء")
       ? "PHYSICS"
       : joinErrorMessage.includes("رياضيات")
@@ -5527,6 +5528,7 @@ async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
       !isLiveAccessBlocked &&
       !isSubscriptionUpgradeBlocked &&
       !isIdentityBlocked &&
+      !isSubscriptionExpiredBlocked &&
       recoveryAttempts < MAX_RECOVERY_ATTEMPTS
     ) {
       recoveryAttempts += 1;
@@ -5553,22 +5555,29 @@ async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
     updateChatControls();
     setViewerStatus(joinErrorMessage, "error");
     setPlaceholder(
-      isSubscriptionUpgradeBlocked
-        ? "ترقية الاشتراك مطلوبة"
-        : isLiveAccessBlocked || isIdentityBlocked
-          ? "دخول الحصة غير متاح"
-          : "الحصة غير متاحة",
-      isLiveAccessBlocked || isSubscriptionUpgradeBlocked || isIdentityBlocked
+      isSubscriptionExpiredBlocked
+        ? "انتهت فترة الاشتراك"
+        : isSubscriptionUpgradeBlocked
+          ? "ترقية الاشتراك مطلوبة"
+          : isLiveAccessBlocked || isIdentityBlocked
+            ? "دخول الحصة غير متاح"
+            : "الحصة غير متاحة",
+      isLiveAccessBlocked || isSubscriptionUpgradeBlocked || isIdentityBlocked || isSubscriptionExpiredBlocked
         ? joinErrorMessage
         : "بانتظار بدء الأستاذ للحصة تلقائياً."
     );
+
+    if (isSubscriptionExpiredBlocked) {
+      openSubscriptionUpgradeModal("EXPIRED");
+      return;
+    }
 
     if (isSubscriptionUpgradeBlocked) {
       openSubscriptionUpgradeModal(deniedSubject || "university");
       return;
     }
 
-    if (!isLiveAccessBlocked && !isIdentityBlocked) {
+    if (!isLiveAccessBlocked && !isIdentityBlocked && !isSubscriptionExpiredBlocked) {
       waitForNextLiveClass("الحصة غير نشطة الآن. ستنضم تلقائياً عند بدء الأستاذ للحصة.");
     }
   }
@@ -5728,12 +5737,53 @@ let lastLiveAccessRefreshAt = 0;
 
 function handleLiveAccessActivation(data = {}) {
   if (String(data.studentId || "") !== String(studentId || "")) return;
-  if (!joinedClass || isJoining || isRecoveringStream) return;
+
+  if (data.subscriptionEndDate && currentStudent) {
+    currentStudent.subscriptionEndDate = data.subscriptionEndDate;
+  }
+  if (data.liveAccessEnabled !== undefined && currentStudent) {
+    currentStudent.liveAccessEnabled = data.liveAccessEnabled;
+  }
+  if (data.paymentStage && currentStudent) {
+    currentStudent.paymentStage = data.paymentStage;
+  }
+  if (data.paymentStatus !== undefined && currentStudent) {
+    currentStudent.paymentStatus = data.paymentStatus;
+  }
+
+  try {
+    for (const key of ["student", "currentStudent", "loggedInStudent"]) {
+      const raw = sessionStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (String(parsed.id || "") === String(studentId || "")) {
+          if (data.subscriptionEndDate) parsed.subscriptionEndDate = data.subscriptionEndDate;
+          if (data.liveAccessEnabled !== undefined) parsed.liveAccessEnabled = data.liveAccessEnabled;
+          if (data.paymentStage) parsed.paymentStage = data.paymentStage;
+          if (data.paymentStatus !== undefined) parsed.paymentStatus = data.paymentStatus;
+          sessionStorage.setItem(key, JSON.stringify(parsed));
+        }
+      }
+    }
+  } catch (_) {}
 
   const accessGranted =
     data.liveAccessEnabled === true ||
     data.paymentStatus === true ||
-    data.paymentStage === "PAID";
+    data.paymentStage === "PAID" ||
+    (data.subscriptionEndDate && !isStudentLiveSubscriptionExpired(data.subscriptionEndDate));
+
+  if (accessGranted) {
+    closeSubscriptionUpgradeModal();
+  }
+
+  if (!joinedClass || isJoining || isRecoveringStream) {
+    if (accessGranted && !joinedClass && !isJoining) {
+      void joinClassroomRoom();
+    }
+    return;
+  }
+
   if (!accessGranted) return;
 
   const now = Date.now();

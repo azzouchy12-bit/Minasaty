@@ -948,7 +948,8 @@ if (typeof webrtcRoutes?.setClassroomAuthorizer === "function") {
       const subject = activeSubjectByLevel.get(level) || recovering?.subject;
       if (level === GLOBAL_FREE_LEVEL) return subject === "FREE";
       if (canonicalLevel(student.level) !== canonicalLevel(level)) return false;
-      const paymentAccess = student.level !== UNIVERSITY_LEVEL && ["PAID", "PROMISED"].includes(student.paymentStage);
+      const isSubValid = Boolean(student.subscriptionEndDate && new Date(student.subscriptionEndDate) >= new Date(new Date().setHours(0, 0, 0, 0)));
+      const paymentAccess = student.level !== UNIVERSITY_LEVEL && (isSubValid || ["PAID", "PROMISED"].includes(student.paymentStage));
       if (!student.liveAccessEnabled && !paymentAccess && subject !== "FREE") return false;
       return student.level === UNIVERSITY_LEVEL
         ? (subject === "PAID" && isPaidSubscription(student)) || subject === "FREE"
@@ -2121,7 +2122,7 @@ io.on("connection", (socket) => {
       // Normal classes retain their existing payment rules. A global FREE class
       // is open to every registered student, regardless of payment status.
       const hasSecondaryPaymentAccess =
-        student.level !== UNIVERSITY_LEVEL && ["PAID", "PROMISED"].includes(student.paymentStage);
+        student.level !== UNIVERSITY_LEVEL && (Boolean(student.subscriptionEndDate && new Date(student.subscriptionEndDate) >= new Date(new Date().setHours(0, 0, 0, 0))) || ["PAID", "PROMISED"].includes(student.paymentStage));
       if (!isGlobalFreeActive && !student.liveAccessEnabled && !hasSecondaryPaymentAccess && !isFreeClass) {
         return emitClassroomError(
           socket,
