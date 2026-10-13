@@ -70,7 +70,9 @@ function getLivekitConfig() {
   const url = String(
     process.env.LIVEKIT_URL || (port === "443" || host.includes("sslip.io") ? `wss://${host}` : `${protocol}://${host}:${port}`)
   ).trim();
-  const enabled = process.env.LIVEKIT_ENABLED !== "false";
+  // LiveKit is temporarily disabled as requested by user.
+  // Set LIVEKIT_ENABLED="true" in environment variables to re-enable it.
+  const enabled = process.env.LIVEKIT_ENABLED === "true" || (isTest && process.env.LIVEKIT_ENABLED !== "false");
   return { host, port, key, secret, url, enabled, isConfigured: Boolean(key && secret) };
 }
 
