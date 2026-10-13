@@ -89,7 +89,16 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
     }
 
     const isTeacher = req.user?.role === "teacher";
-    const studentId = req.user?.id;
+    let studentId = String(req.body?.studentId || req.query?.studentId || req.user?.id || req.user?.studentId || "").trim();
+    if (!isTeacher && !studentId && req.user?.role === "parent" && req.user?.phone && prismaClient) {
+      try {
+        const matchedStudent = await prismaClient.student.findFirst({
+          where: { parentPhone: req.user.phone },
+          select: { id: true },
+        });
+        if (matchedStudent) studentId = matchedStudent.id;
+      } catch (_) {}
+    }
 
     // Validate that the authenticated user can join the requested classroom
     if (!isTeacher) {
@@ -110,8 +119,8 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
       isMicApproved = Boolean(router.studentMicChecker(roomName, studentId));
     }
 
-    const participantId = String(req.user?.id || (isTeacher ? "teacher" : `student_${Date.now()}`));
-    const participantName = String(req.user?.fullName || req.user?.name || (isTeacher ? "الأستاذ" : "تلميذ"));
+    const participantId = String(req.user?.id || (isTeacher ? "teacher" : (studentId || `student_${Date.now()}`)));
+    const participantName = String(req.user?.fullName || req.user?.name || req.body?.studentName || (isTeacher ? "الأستاذ" : "تلميذ"));
 
     const at = new AccessToken(config.key, config.secret, {
       identity: participantId,

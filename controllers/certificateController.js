@@ -135,10 +135,17 @@ async function getCertificateImage(req, res) {
       return res.status(403).json({ error: "لا تملك صلاحية عرض هذه الشهادة." });
     }
 
+    const etag = `W/"cert-${certificate.id}"`;
+    if (req.headers["if-none-match"] === etag) {
+      return res.status(304).end();
+    }
+
     res.setHeader("Content-Type", certificate.imageMimeType || "image/jpeg");
     res.setHeader("Content-Length", String(certificate.imageData.length));
-    res.setHeader("Cache-Control", "private, no-store");
-    return res.send(Buffer.from(certificate.imageData));
+    res.setHeader("Cache-Control", "private, max-age=86400, stale-while-revalidate=3600");
+    res.setHeader("ETag", etag);
+    const body = Buffer.isBuffer(certificate.imageData) ? certificate.imageData : Buffer.from(certificate.imageData);
+    return res.send(body);
   } catch (error) {
     console.error("Unable to read student certificate image:", error);
     return res.status(500).json({ error: "تعذر عرض صورة الشهادة حاليًا." });

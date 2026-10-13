@@ -103,7 +103,7 @@
     return { rtcConfig: { iceServers: config.iceServers }, peerConnectionTimeout: 25000 };
   };
 
-  window.fetchMinasatySfuToken = async function fetchMinasatySfuToken(roomName, allowMic = false, tokenOverride = "") {
+  window.fetchMinasatySfuToken = async function fetchMinasatySfuToken(roomName, allowMic = false, tokenOverride = "", studentIdOverride = "") {
     const token = getToken(tokenOverride);
     if (!token || !roomName) {
       if (!token) console.warn("[SFU-Token] Cannot fetch token: missing auth token.");
@@ -111,13 +111,25 @@
       return null;
     }
 
-    const inFlightKey = `${roomName}_${Boolean(allowMic)}`;
+    const resolvedStudentId = String(
+      studentIdOverride ||
+      (typeof sessionStorage !== "undefined" ? sessionStorage.getItem("studentId") : "") ||
+      (typeof window !== "undefined" && window.currentStudent?.id ? window.currentStudent.id : "") ||
+      ""
+    ).trim();
+
+    const inFlightKey = `${roomName}_${Boolean(allowMic)}_${resolvedStudentId}`;
     if (sfuInFlightMap.has(inFlightKey)) {
       return sfuInFlightMap.get(inFlightKey);
     }
 
     const sfuPromise = (async () => {
       try {
+        const payload = { roomName, allowMic };
+        if (resolvedStudentId) {
+          payload.studentId = resolvedStudentId;
+        }
+
         const response = await fetchWithTimeout("/api/webrtc/sfu-token", {
           method: "POST",
           headers: {
@@ -125,7 +137,7 @@
             Accept: "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ roomName, allowMic }),
+          body: JSON.stringify(payload),
           credentials: "same-origin",
         }, 8_000);
 

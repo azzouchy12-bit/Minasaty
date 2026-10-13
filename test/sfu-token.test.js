@@ -51,3 +51,36 @@ test("teacher-live-v2.js and student-live.js integrate LiveKit SFU client method
   assert.ok(studentHtml.includes("livekit-client.umd.js"), "student-live.html must include livekit-client.umd.js");
 });
 
+test("classroomAuthorizer in server.js allows enrolled students even when teacher is temporarily offline/reconnecting", async () => {
+  const vm = require("node:vm");
+  let authorizer;
+  const record = { id: "student-1", level: "السنة الثالثة", liveAccessEnabled: true, mathEnrollment: true, accountActive: true, parentPhone: "0555123456" };
+  const serverSrc = fs.readFileSync(path.join(ROOT, "server.js"), "utf8");
+  const start = serverSrc.indexOf("if (typeof webrtcRoutes?.setClassroomAuthorizer");
+  const end = serverSrc.indexOf("\nfunction clearClassroomChatHistory", start);
+  const ctx = {
+    webrtcRoutes: { setClassroomAuthorizer(fn) { authorizer = fn; } },
+    isValidLevel: () => true,
+    GLOBAL_FREE_LEVEL: "FREE",
+    UNIVERSITY_LEVEL: "UNIVERSITY",
+    canonicalLevel: v => v,
+    activeTeachersByLevel: new Map(), // Teacher is offline/reconnecting!
+    activeSubjectByLevel: new Map(),
+    pendingTeacherRecoveryByLevel: new Map(),
+    io: { sockets: { sockets: new Map() } },
+    isInLevelRoom: () => false,
+    isPaidSubscription: () => false,
+    prisma: { student: { async findUnique() { return record; }, async findFirst() { return record; } } }
+  };
+  vm.runInNewContext(serverSrc.slice(start, end), ctx);
+
+  // Student should be authorized even if teacher is offline!
+  const allowed = await authorizer("السنة الثالثة", "student-1", { role: "parent", phone: "0555123456" });
+  assert.equal(allowed, true, "Enrolled student must not be blocked with 403 when teacher is offline or reconnecting");
+
+  // When studentId is missing, it should resolve via parentPhone
+  const resolvedAllowed = await authorizer("السنة الثالثة", "", { role: "parent", phone: "0555123456" });
+  assert.equal(resolvedAllowed, true, "Student should be resolved from parent phone and authorized");
+});
+
+

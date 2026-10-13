@@ -116,6 +116,7 @@ app.use(
         // invisible reCAPTCHA challenge uses Google-hosted scripts and frames.
         "script-src": [
           "'self'",
+          "'unsafe-inline'",
           "https://www.gstatic.com",
           "https://accounts.google.com",
           "https://apis.google.com",
@@ -925,15 +926,28 @@ if (typeof webrtcRoutes?.setStudentMicChecker === "function") {
   });
 }
 if (typeof webrtcRoutes?.setClassroomAuthorizer === "function") {
-  webrtcRoutes.setClassroomAuthorizer(async (level, studentId) => {
+  webrtcRoutes.setClassroomAuthorizer(async (level, studentId, reqUser) => {
+    if (!studentId && reqUser?.role === "parent" && reqUser?.phone) {
+      try {
+        const candidateLevels = [level, ...(typeof academicLevelCandidates === "function" ? academicLevelCandidates(level) : [])];
+        const matchingStudent = await prisma.student.findFirst({
+          where: { parentPhone: reqUser.phone, level: { in: candidateLevels } },
+          select: { id: true },
+        });
+        if (matchingStudent) studentId = matchingStudent.id;
+      } catch (_) {}
+    }
     if (!studentId || !isValidLevel(level)) return false;
     try {
       const student = await prisma.student.findUnique({
         where: { id: studentId },
         select: { id: true, level: true, liveAccessEnabled: true, paymentStage: true, paymentStatus: true,
-          subscriptionEndDate: true, accountActive: true, mathEnrollment: true, physicsEnrollment: true },
+          subscriptionEndDate: true, accountActive: true, mathEnrollment: true, physicsEnrollment: true, parentPhone: true },
       });
       if (!student) return false;
+      if (reqUser?.role === "parent" && reqUser?.phone && student.parentPhone && student.parentPhone !== reqUser.phone) {
+        return false;
+      }
       if (student.subscriptionEndDate) {
         const endDate = new Date(student.subscriptionEndDate);
         const now = new Date();
@@ -944,17 +958,21 @@ if (typeof webrtcRoutes?.setClassroomAuthorizer === "function") {
       const teacherId = activeTeachersByLevel.get(level);
       const teacher = teacherId ? io.sockets.sockets.get(teacherId) : null;
       const recovering = pendingTeacherRecoveryByLevel.get(level);
-      if ((!teacher || !isInLevelRoom(teacher, level)) && !recovering) return false;
       const subject = activeSubjectByLevel.get(level) || recovering?.subject;
       if (level === GLOBAL_FREE_LEVEL) return subject === "FREE";
       if (canonicalLevel(student.level) !== canonicalLevel(level)) return false;
       const isSubValid = Boolean(student.subscriptionEndDate && new Date(student.subscriptionEndDate) >= new Date(new Date().setHours(0, 0, 0, 0)));
       const paymentAccess = student.level !== UNIVERSITY_LEVEL && (isSubValid || ["PAID", "PROMISED"].includes(student.paymentStage));
       if (!student.liveAccessEnabled && !paymentAccess && subject !== "FREE") return false;
+      if (subject) {
+        return student.level === UNIVERSITY_LEVEL
+          ? (subject === "PAID" && isPaidSubscription(student)) || subject === "FREE"
+          : subject === "FREE" || (subject === "MATH" && student.mathEnrollment)
+            || (subject === "PHYSICS" && student.physicsEnrollment);
+      }
       return student.level === UNIVERSITY_LEVEL
-        ? (subject === "PAID" && isPaidSubscription(student)) || subject === "FREE"
-        : subject === "FREE" || (subject === "MATH" && student.mathEnrollment)
-          || (subject === "PHYSICS" && student.physicsEnrollment);
+        ? isPaidSubscription(student) || student.liveAccessEnabled
+        : Boolean(student.mathEnrollment || student.physicsEnrollment || student.liveAccessEnabled);
     } catch (_) {
       return false;
     }

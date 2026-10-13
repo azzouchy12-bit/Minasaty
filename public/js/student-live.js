@@ -684,14 +684,25 @@ async function connectStudentSfu(roomName) {
 
   const connectTask = (async () => {
     try {
-      const sfuData = await window.fetchMinasatySfuToken(roomName, false);
+      const activeStudentId = (typeof studentId !== "undefined" ? studentId : "") || (typeof currentStudent !== "undefined" ? currentStudent?.id : "");
+      const sfuData = await window.fetchMinasatySfuToken(roomName, false, "", activeStudentId);
       if (sessionId !== getCurrentSessionId()) return false;
 
       const sfuUrl = sfuData?.url || sfuData?.serverUrl;
       if (!sfuData || !sfuData.enabled || !sfuData.token || !sfuUrl) {
-        console.info("[SFU-Student] SFU not enabled by server, staying on P2P.");
-        recordStudentDiagnosticEvent("sfu_disabled", "SFU not enabled by server response");
-        notifySfuTransportStatus(false);
+        if (sfuData && sfuData.enabled === false) {
+          console.info("[SFU-Student] SFU not enabled by server, staying on P2P.");
+          recordStudentDiagnosticEvent("sfu_disabled", "SFU not enabled by server response");
+          notifySfuTransportStatus(false);
+          return false;
+        }
+        console.warn("[SFU-Student] SFU token temporarily unavailable, retrying LiveKit in 3s...");
+        recordStudentDiagnosticEvent("sfu_retry_pending", "SFU token temporarily unavailable; retrying");
+        setTimeout(() => {
+          if (sessionId === getCurrentSessionId() && (!studentSfuRoom || studentSfuRoom.state === "disconnected")) {
+            connectStudentSfu(roomName);
+          }
+        }, 3000);
         return false;
       }
 
