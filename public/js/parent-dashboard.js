@@ -1542,6 +1542,7 @@ function selectStudent(studentId) {
   elements.dashboardContent.hidden = false;
   clearError();
   emitLobbyJoin(student.level);
+  void checkLiveStatusFast(student.level);
   void loadActivityStats(student.id);
   void loadStudentHomework(student.id);
   void loadStudentCertificates(student.id);
@@ -2369,13 +2370,22 @@ async function loadActivityStats(studentId) {
   }
 }
 
+let pendingLobbyLevel = null;
+
 function emitLobbyJoin(level) {
-  if (!level || !socket?.connected) {
+  if (!level) {
     return;
   }
 
   const normalizedLevel = canonicalLevel(level);
   currentLobbyLevel = normalizedLevel;
+  pendingLobbyLevel = normalizedLevel;
+
+  void checkLiveStatusFast(normalizedLevel);
+
+  if (!socket?.connected) {
+    return;
+  }
 
   socket.emit("join_level_lobby", { level: normalizedLevel }, (response) => {
     if (!response?.ok) {
@@ -2855,13 +2865,18 @@ function initializeLobbySocket() {
 
   socket = io({
     auth: { token: getParentToken() || "" },
-    transports: ["websocket", "polling"],
+    transports: ["polling", "websocket"],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
   });
 
   socket.on("connect", () => {
-    if (currentStudent?.level) {
-      emitLobbyJoin(currentStudent.level);
-      void checkLiveStatusFast(currentStudent.level);
+    const levelToJoin = pendingLobbyLevel || (currentStudent?.level ? canonicalLevel(currentStudent.level) : null);
+    if (levelToJoin) {
+      emitLobbyJoin(levelToJoin);
+      void checkLiveStatusFast(levelToJoin);
     }
   });
 

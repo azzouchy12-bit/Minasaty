@@ -385,6 +385,22 @@ function notifySfuTransportStatus(receiving = true) {
   }
 }
 
+function requestTargetedP2pFallback(reason = "") {
+  if (typeof hasLiveP2pTeacherMedia === "function" && hasLiveP2pTeacherMedia()) return;
+  if (typeof holdStudentSfuDuringRecovery === "function") {
+    holdStudentSfuDuringRecovery();
+  }
+  notifySfuTransportStatus(false);
+  if (socket && socket.connected) {
+    socket.emit("student_request_p2p_stream", {
+      level: typeof level !== "undefined" ? level : "",
+      studentId: typeof studentId !== "undefined" ? studentId : "",
+      reason: String(reason || "sfu_fallback"),
+    });
+    setViewerStatus("جارٍ استقبال بث الأستاذ المباشر…", "warning");
+  }
+}
+
 function getSfuParticipantRole(participant) {
   try {
     const meta = typeof participant?.metadata === "string"
@@ -864,6 +880,9 @@ async function connectStudentSfu(roomName) {
       console.warn("[SFU-Student] SFU connection failed, falling back to P2P:", error);
       recordStudentDiagnosticEvent("sfu_connect_failed", error.message || "Failed to connect to SFU");
       notifySfuTransportStatus(false);
+      if (typeof requestTargetedP2pFallback === "function") {
+        requestTargetedP2pFallback("SFU connection failed: " + (error?.message || "network error"));
+      }
       return false;
     } finally {
       if (sessionId === getCurrentSessionId()) {
@@ -5763,6 +5782,12 @@ socket.on("room_joined", (data = {}) => {
       teacher: "أكاديمية التفوق"
     });
     void connectStudentSfu(data.classroomLevel || data.level);
+    window.setTimeout(() => {
+      if (joinedClass && !hasLiveP2pTeacherMedia() && !isStudentSfuConnected()) {
+        console.info("[SFU-Student] SFU not connected after initial grace period; requesting targeted P2P stream.");
+        requestTargetedP2pFallback("SFU connect grace timeout");
+      }
+    }, 4500);
   }
 });
 

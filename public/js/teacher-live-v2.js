@@ -7324,6 +7324,9 @@ socket.on("student_joined", async (data = {}) => {
     await createAndSendOffer(socketId);
   } else {
     recordLiveDiagnosticEvent("student_joined_sfu", `Student ${socketId} joined; served via central LiveKit SFU`);
+    if (data.recovering) {
+      transitionStudentToP2pFallback(socketId, { allowWhileSfuActive: true });
+    }
   }
   refreshAbsenteesBadge();
 });
@@ -7426,10 +7429,7 @@ function handleStudentTransportUpdated(data = {}) {
       const timer = setTimeout(() => {
         studentSfuFallbackTimers.delete(data.socketId);
         const latest = studentMediaTransports.get(data.socketId);
-        if (
-          !classActive || !latest || latest.transport !== "sfu" || latest.receiving
-          || Date.now() - latest.lastSeenAt > STUDENT_SFU_FALLBACK_DELAY_MS + 5_000
-        ) return;
+        if (!classActive || !latest || latest.transport !== "sfu" || latest.receiving) return;
         recordLiveDiagnosticEvent("student_not_receiving", `Student ${data.socketId} still lacks expected LiveKit media; starting targeted P2P recovery`);
         transitionStudentToP2pFallback(data.socketId, { allowWhileSfuActive: true });
       }, STUDENT_SFU_FALLBACK_DELAY_MS);
@@ -7439,6 +7439,13 @@ function handleStudentTransportUpdated(data = {}) {
 }
 
 socket.on("student_transport_updated", handleStudentTransportUpdated);
+
+socket.on("student_needs_p2p", (data = {}) => {
+  if (!classActive || !data?.socketId) return;
+  console.info(`[Fallback] Student ${data.socketId} requested targeted P2P stream; delivering fallback offer.`);
+  recordLiveDiagnosticEvent("student_requested_p2p", `Student ${data.socketId} requested targeted P2P (${data.reason || "network"}); sending offer`);
+  transitionStudentToP2pFallback(data.socketId, { allowWhileSfuActive: true });
+});
 
 
 socket.on("youtube_server_upload_completed", (data = {}) => {

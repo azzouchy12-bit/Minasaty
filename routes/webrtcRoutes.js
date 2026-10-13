@@ -10,8 +10,10 @@ const DEFAULT_TURN_HOST = "192.236.187.151";
 const DEFAULT_TURN_PORT = "3478";
 const DEFAULT_TURN_REALM = "minasaty.com";
 
+const DEFAULT_TURN_SECRET = "minasaty_sfu_secret_2026_super_secure_key";
+
 function getTurnConfig() {
-  const secret = String(process.env.COTURN_SECRET || "").trim();
+  const secret = String(process.env.COTURN_SECRET || DEFAULT_TURN_SECRET).trim();
   const host = String(process.env.COTURN_HOST || DEFAULT_TURN_HOST).trim();
   const port = String(process.env.COTURN_PORT || DEFAULT_TURN_PORT).trim();
   const realm = String(process.env.COTURN_REALM || DEFAULT_TURN_REALM).trim();
@@ -37,7 +39,11 @@ router.get("/ice-servers", verifyToken, (req, res) => {
     iceServers: [
       { urls: [DEFAULT_STUN_URL] },
       {
-        urls: [`turn:${endpoint}?transport=udp`, `turn:${endpoint}?transport=tcp`],
+        urls: [
+          `turn:${endpoint}?transport=udp`,
+          `turn:${endpoint}?transport=tcp`,
+          `turn:${turn.host}:443?transport=tcp`,
+        ],
         username,
         credential,
       },

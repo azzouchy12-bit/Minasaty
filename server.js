@@ -2456,6 +2456,20 @@ io.on("connection", (socket) => {
     });
   });
 
+  socket.on("student_request_p2p_stream", (data = {}, acknowledgement) => {
+    const level = socket.data.roomLevel;
+    const teacherSocketId = activeTeachersByLevel.get(level);
+    if (teacherSocketId && teacherSocketId !== socket.id) {
+      io.to(teacherSocketId).emit("student_needs_p2p", {
+        socketId: socket.id,
+        studentId: socket.data.studentId,
+        level,
+        reason: data?.reason || "sfu_failed",
+      });
+    }
+    acknowledge(acknowledgement, { ok: true });
+  });
+
   /**
    * Relay an SDP offer from the active teacher to exactly one student.
    * Payload: { targetSocketId, sdp }
