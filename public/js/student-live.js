@@ -575,7 +575,7 @@ function startSfuReceptionMonitor(room) {
           const previous = progressByPublication.get(publication);
           const progress = !previous || bytes !== previous.bytes ? now : previous.progress;
           progressByPublication.set(publication, { bytes, progress });
-          if (now - progress >= 3_500) stalled = true;
+          if (now - progress >= 8_000) stalled = true;
         }
       }
       if (studentSfuRoom !== room || room.state !== "connected" || !joinedClass) return;
@@ -587,14 +587,13 @@ function startSfuReceptionMonitor(room) {
       const expectsVideo = typeof screenShareActive !== "undefined" && screenShareActive;
       if (expectsVideo && !teacherVideoPublished) {
         if (missingVideoSince === null) missingVideoSince = now;
-        if (now - missingVideoSince >= 2_000) stalled = true;
+        if (now - missingVideoSince >= 6_000) stalled = true;
       } else {
         missingVideoSince = null;
       }
       // Each publication has its own clock: moving video cannot hide stalled audio.
-      if (!stalled && now - lastTeacherSeen < 3_500) return;
+      if (!stalled && now - lastTeacherSeen < 8_000) return;
       recordStudentDiagnosticEvent("teacher_media_stalled", "Teacher reception stalled; requesting recovery");
-      if (typeof holdStudentSfuDuringRecovery === "function") holdStudentSfuDuringRecovery();
       clearStaleSfuMedia();
       disconnectStudentSfu();
       scheduleClassRecovery(150);
@@ -778,6 +777,19 @@ async function connectStudentSfu(roomName) {
         studentSfuRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, (participant) => {
           if (sessionId !== getCurrentSessionId()) return;
           stopClassmateSfuAudio(participant?.identity);
+        });
+
+        studentSfuRoom.on(window.LivekitClient.RoomEvent.Reconnecting, () => {
+          if (sessionId !== getCurrentSessionId()) return;
+          console.info("[SFU-Student] LiveKit room reconnecting...");
+          recordStudentDiagnosticEvent("sfu_reconnecting", "LiveKit SFU room reconnecting; holding media state");
+        });
+
+        studentSfuRoom.on(window.LivekitClient.RoomEvent.Reconnected, () => {
+          if (sessionId !== getCurrentSessionId()) return;
+          console.info("[SFU-Student] LiveKit room reconnected successfully.");
+          recordStudentDiagnosticEvent("sfu_reconnected", "LiveKit SFU room reconnected successfully");
+          notifySfuTransportStatus(true);
         });
 
         studentSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {

@@ -184,7 +184,10 @@ function recordLiveDiagnosticEvent(type, message) {
 }
 
 function isTeacherSfuHealthy() {
-  if (!sfuActiveForClass || !teacherSfuRoom || teacherSfuRoom.state !== "connected") {
+  if (!sfuActiveForClass || !teacherSfuRoom) {
+    return false;
+  }
+  if (teacherSfuRoom.state !== "connected" && teacherSfuRoom.state !== "reconnecting") {
     return false;
   }
   const intendedVideo = Boolean(typeof getActiveTeacherVideoTrack === "function" ? getActiveTeacherVideoTrack() : null);
@@ -192,7 +195,12 @@ function isTeacherSfuHealthy() {
 
   // If teacher intends neither video nor audio (idle/setup), room connectivity is enough
   if (!intendedVideo && !intendedAudio) {
-    return true;
+    return teacherSfuRoom.state === "connected" || teacherSfuRoom.state === "reconnecting";
+  }
+
+  // Active publications check (matches teacherSfuVideoPub || teacherSfuAudioPub)
+  if (!(teacherSfuVideoPub || teacherSfuAudioPub)) {
+    return false;
   }
 
   // Check live publication states
@@ -209,7 +217,7 @@ function isTeacherSfuHealthy() {
   }
 
   // Incorporate student reception feedback if students are present
-  if (studentMediaTransports.size > 0) {
+  if (studentMediaTransports.size > 0 && teacherSfuRoom.state === "connected") {
     let sfuStudents = 0;
     let receivingStudents = 0;
     const now = Date.now();
@@ -223,9 +231,16 @@ function isTeacherSfuHealthy() {
         }
       }
     }
-    // If we have at least 2 students on SFU and none are receiving, SFU delivery is failing
-    if (sfuStudents >= 2 && receivingStudents === 0) {
-      return false;
+    // Only fail if lack of reception persists for at least 15s across 3+ students
+    // (prevents momentary keyframe delays or ICE restarts from marking SFU dead)
+    if (sfuStudents >= 3 && receivingStudents === 0) {
+      if (!isTeacherSfuHealthy._allZeroSince) {
+        isTeacherSfuHealthy._allZeroSince = now;
+      } else if (now - isTeacherSfuHealthy._allZeroSince > 15_000) {
+        return false;
+      }
+    } else {
+      isTeacherSfuHealthy._allZeroSince = null;
     }
   }
 
@@ -308,6 +323,12 @@ function cancelSfuDegradation() {
 
 function transitionStudentToP2pFallback(socketId) {
   if (!classActive || !socketId) return;
+  // If central SFU is active, connecting, or reconnecting, DO NOT fall back to P2P!
+  // Mesh fallback with multiple students will flood teacher's upload and freeze the stream.
+  if (isTeacherSfuHealthy() || isTeacherSfuConnecting || (teacherSfuRoom && teacherSfuRoom.state !== "disconnected")) {
+    console.info(`[Fallback] Central SFU is active/recovering. Suppressing P2P fallback for student ${socketId}.`);
+    return;
+  }
   console.info(`[Fallback] Transitioning student ${socketId} to P2P fallback.`);
   recordLiveDiagnosticEvent("p2p_fallback_student", `Transitioning student ${socketId} to P2P fallback`);
   void createAndSendOffer(socketId, { iceRestart: true, force: true });
@@ -471,6 +492,23 @@ async function initTeacherSfuSession(roomName) {
             removeSfuStudentAudio(participant.identity);
             recordLiveDiagnosticEvent("student_mic_sfu_left", `Participant disconnected: ${participant.identity}`);
           }
+        });
+
+        teacherSfuRoom.on(window.LivekitClient.RoomEvent.Reconnecting, () => {
+          if (sessionId !== teacherSfuSessionId) return;
+          console.info("[SFU] Teacher LiveKit room reconnecting...");
+          recordLiveDiagnosticEvent("sfu_reconnecting", "LiveKit SFU room is reconnecting; maintaining session");
+        });
+
+        teacherSfuRoom.on(window.LivekitClient.RoomEvent.Reconnected, async () => {
+          if (sessionId !== teacherSfuSessionId) return;
+          console.info("[SFU] Teacher LiveKit room reconnected successfully.");
+          recordLiveDiagnosticEvent("sfu_reconnected", "LiveKit SFU room reconnected successfully");
+          sfuActiveForClass = true;
+          mediaTransportState = "sfu_active";
+          try {
+            await syncTeacherSfuMedia();
+          } catch (_) {}
         });
 
         teacherSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
@@ -7250,9 +7288,6 @@ socket.on("student_joined", async (data = {}) => {
   if (!isTeacherSfuHealthy()) {
     recordLiveDiagnosticEvent("student_joined_p2p", `Student ${socketId} joined; served via P2P fallback`);
     await createAndSendOffer(socketId);
-  } else if (data.recovering === true) {
-    recordLiveDiagnosticEvent("student_joined_p2p", `Student ${socketId} joined (recovering); served via P2P fallback`);
-    await createAndSendOffer(socketId, { force: true, iceRestart: true });
   } else {
     recordLiveDiagnosticEvent("student_joined_sfu", `Student ${socketId} joined; served via central LiveKit SFU`);
   }
@@ -7314,8 +7349,12 @@ socket.on("student_transport_updated", (data = {}) => {
     lastSeenAt: Date.now(),
   });
   if (data.receiving === false && classActive) {
-    recordLiveDiagnosticEvent("student_not_receiving", `Student ${data.socketId} reported receiving=false; initiating targeted P2P recovery`);
-    transitionStudentToP2pFallback(data.socketId);
+    if (!isTeacherSfuHealthy() && mediaTransportState === "p2p_fallback") {
+      recordLiveDiagnosticEvent("student_not_receiving", `Student ${data.socketId} reported receiving=false; initiating targeted P2P recovery`);
+      transitionStudentToP2pFallback(data.socketId);
+    } else {
+      console.info(`[Diagnostics] Student ${data.socketId} reported receiving=false while SFU is active; maintaining SFU stream.`);
+    }
   }
 });
 
