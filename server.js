@@ -755,6 +755,29 @@ function isInLevelRoom(socket, level) {
   return Boolean(socket && socket.rooms && socket.rooms.has(level));
 }
 
+app.get("/api/live-status/:level", (req, res) => {
+  const level = canonicalLevel(req.params.level);
+  const teacherSocketId = activeTeachersByLevel.get(level);
+  const teacherSocket = teacherSocketId ? io.sockets.sockets.get(teacherSocketId) : null;
+  const isClassLive = Boolean(teacherSocket && isInLevelRoom(teacherSocket, level));
+  const globalTeacherSocketId = activeTeachersByLevel.get(GLOBAL_FREE_LEVEL);
+  const globalTeacherSocket = globalTeacherSocketId ? io.sockets.sockets.get(globalTeacherSocketId) : null;
+  const isGlobalFreeLive = Boolean(
+    globalTeacherSocket &&
+    activeSubjectByLevel.get(GLOBAL_FREE_LEVEL) === "FREE" &&
+    isInLevelRoom(globalTeacherSocket, GLOBAL_FREE_LEVEL)
+  );
+  const subject = isGlobalFreeLive ? "FREE" : (activeSubjectByLevel.get(level) || null);
+  return res.json({
+    ok: true,
+    isClassLive: isClassLive || isGlobalFreeLive,
+    globalFree: isGlobalFreeLive,
+    level,
+    subject,
+    subjectLabel: isGlobalFreeLive ? "حصة مجانية مفتوحة للجميع" : getLiveSubjectLabel(subject),
+  });
+});
+
 /**
  * Verify that the source and target sockets are current members of the same
  * level room. This is the key privacy boundary for direct signaling.
@@ -1159,6 +1182,12 @@ async function closeClassroom(level, reason) {
   // Parent dashboards join a separate passive lobby. They receive only the
   // live-state change—not attendee data, WebRTC signals, or media.
   io.to(`${level}_lobby`).emit("live_class_ended", { level, globalFree: level === GLOBAL_FREE_LEVEL, reason });
+  const canonicalEndedLevel = canonicalLevel(level);
+  if (canonicalEndedLevel !== level) {
+    io.to(`${canonicalEndedLevel}_lobby`).emit("live_class_ended", { level, canonicalLevel: canonicalEndedLevel, globalFree: level === GLOBAL_FREE_LEVEL, reason });
+    activeTeachersByLevel.delete(canonicalEndedLevel);
+    activeSubjectByLevel.delete(canonicalEndedLevel);
+  }
 
   await Promise.all(
     participants.map(async (participant) => {
@@ -1534,10 +1563,13 @@ io.on("connection", (socket) => {
       }
 
       await socket.join(`${level}_lobby`);
+      if (data.level && normalizeText(data.level) !== level) {
+        await socket.join(`${normalizeText(data.level)}_lobby`);
+      }
       await socket.join(`${GLOBAL_FREE_LEVEL}_lobby`);
       socket.data.lobbyLevel = level;
 
-      const teacherSocketId = activeTeachersByLevel.get(level);
+      const teacherSocketId = activeTeachersByLevel.get(level) || (data.level ? activeTeachersByLevel.get(normalizeText(data.level)) : null);
       const teacherSocket = teacherSocketId
         ? io.sockets.sockets.get(teacherSocketId)
         : null;
@@ -1630,7 +1662,8 @@ io.on("connection", (socket) => {
       const authenticatedTeacher = await requireTeacherSocketSession(socket, "teacher_start_room", acknowledgement);
       if (!authenticatedTeacher) return;
 
-      const level = normalizeText(data.level);
+      const rawLevel = normalizeText(data.level);
+      const level = canonicalLevel(rawLevel);
       let subject = normalizeText(data.subject).toUpperCase();
       const resumeToken = normalizeText(data.resumeToken);
 
@@ -1759,13 +1792,21 @@ io.on("connection", (socket) => {
         ? resumeToken
         : pendingRecovery?.resumeToken;
       await socket.join(level);
+      if (rawLevel && rawLevel !== level) {
+        await socket.join(rawLevel);
+      }
       socket.data.role = "teacher";
       socket.data.roomLevel = level;
+      socket.data.rawRoomLevel = rawLevel;
       socket.data.studentName = null;
       socket.data.classResumeToken = effectiveResumeToken;
       socket.data.teacherId = authenticatedTeacher?.id || null;
       activeTeachersByLevel.set(level, socket.id);
       activeSubjectByLevel.set(level, subject);
+      if (rawLevel && rawLevel !== level) {
+        activeTeachersByLevel.set(rawLevel, socket.id);
+        activeSubjectByLevel.set(rawLevel, subject);
+      }
       if (scheduledClass?.id) activeScheduledClassByLevel.set(level, scheduledClass);
       if (!isResuming && !currentTeacherSocket) {
         clearClassroomChatHistory(level);
@@ -1813,15 +1854,32 @@ io.on("connection", (socket) => {
           lobbySockets.filter((peer) => peer.data.lobbyLevel).forEach((peer) => peer.emit("live_class_resumed", liveClassPayload));
         } else {
           io.to(`${level}_lobby`).emit("live_class_resumed", liveClassPayload);
+          if (rawLevel && rawLevel !== level) {
+            io.to(`${rawLevel}_lobby`).emit("live_class_resumed", liveClassPayload);
+          }
+          const lobbySockets = await io.fetchSockets();
+          lobbySockets.forEach((peer) => {
+            if (peer.data.lobbyLevel && (peer.data.lobbyLevel === level || canonicalLevel(peer.data.lobbyLevel) === level || peer.data.lobbyLevel === rawLevel)) {
+              peer.emit("live_class_resumed", liveClassPayload);
+            }
+          });
         }
         socket.emit("recovery_students", { level, students: recoveryStudents });
       } else if (isGlobalFreeClass) {
         const lobbySockets = await io.fetchSockets();
         lobbySockets.filter((peer) => peer.data.lobbyLevel).forEach((peer) => peer.emit("live_class_started", liveClassPayload));
       } else {
-        // Notify only passive dashboards/viewers observing this exact level.
-        // Socket.io delivers this immediately without requiring a page refresh.
+        // Broadcast immediately without delay across canonical and raw lobby channels
         io.to(`${level}_lobby`).emit("live_class_started", liveClassPayload);
+        if (rawLevel && rawLevel !== level) {
+          io.to(`${rawLevel}_lobby`).emit("live_class_started", liveClassPayload);
+        }
+        const lobbySockets = await io.fetchSockets();
+        lobbySockets.forEach((peer) => {
+          if (peer.data.lobbyLevel && (peer.data.lobbyLevel === level || canonicalLevel(peer.data.lobbyLevel) === level || peer.data.lobbyLevel === rawLevel)) {
+            peer.emit("live_class_started", liveClassPayload);
+          }
+        });
       }
 
       emitClassroomChatHistory(socket, level);

@@ -1,15 +1,58 @@
-const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
-const js=fs.readFileSync('C:/MINASSATI/Minasaty-main (5)/Minasaty-main/public/js/student-live.js','utf8');
-const html=fs.readFileSync('C:/MINASSATI/Minasaty-main (5)/Minasaty-main/public/student-live.html','utf8');
-function fn(n){const m=js.match(new RegExp('^function '+n+'\\([^]*?^\\}','m'));assert.ok(m,n);return m[0];}
-function fixture(){const calls=[];const ctx={prejoinCompleted:true,joinedClass:true,isJoining:false,isRecoveringStream:false,socket:{connected:true},studentSfuRoom:null,
-  elements:{classContinueOverlay:{hidden:true},classContinueButton:{focus(){}},refreshMediaButton:{disabled:false,focus(){}}},
-  startTeacherAudio:o=>{calls.push('play');return Promise.resolve(true);},refreshAudioVideo:()=>calls.push('refresh'),joinClass:()=>calls.push('join')};
-  vm.runInNewContext('let classContinueShown=false;let classContinueRefreshPending=false;\n'+['showClassContinueDialog','flushClassContinueRefresh','continueWatchingClass'].map(fn).join('\n'),ctx);return{ctx,calls};}
-test('Entry dialog has exactly one button labeled متابعة الحصة',()=>{const section=html.match(/<section id="class-continue-overlay"[^]*?<\/section>/)[0];assert.equal((section.match(/<button\b/g)||[]).length,1);assert.match(section,/>متابعة الحصة<\/button>/);assert.match(section,/aria-modal="true"/);});
-test('Continuation dialog appears once and does not reopen during media recovery',()=>{const f=fixture();f.ctx.showClassContinueDialog();assert.equal(f.ctx.elements.classContinueOverlay.hidden,false);f.ctx.continueWatchingClass();f.ctx.showClassContinueDialog();assert.equal(f.ctx.elements.classContinueOverlay.hidden,true);assert.deepEqual(f.calls,['play','refresh']);});
-test('Continuation click waits for join completion rather than losing the refresh request',()=>{const f=fixture();f.ctx.isJoining=true;f.ctx.showClassContinueDialog();f.ctx.continueWatchingClass();assert.deepEqual(f.calls,['play']);f.ctx.isJoining=false;f.ctx.flushClassContinueRefresh();assert.deepEqual(f.calls,['play','refresh']);f.ctx.flushClassContinueRefresh();assert.equal(f.calls.length,2);});
-test('Continuation pressed before socket connects is fulfilled after reconnection',()=>{const f=fixture();f.ctx.socket.connected=false;f.ctx.showClassContinueDialog();f.ctx.continueWatchingClass();assert.deepEqual(f.calls,['play']);f.ctx.socket.connected=true;f.ctx.flushClassContinueRefresh();assert.deepEqual(f.calls,['play','refresh']);});
-test('Continuation keeps pending refresh while another media operation disables the button',()=>{const f=fixture();f.ctx.elements.refreshMediaButton.disabled=true;f.ctx.showClassContinueDialog();f.ctx.continueWatchingClass();assert.deepEqual(f.calls,['play']);f.ctx.elements.refreshMediaButton.disabled=false;f.ctx.flushClassContinueRefresh();assert.deepEqual(f.calls,['play','refresh']);});
-test('Hidden continuation button cannot trigger another rebuild on repeated clicks',()=>{const f=fixture();f.ctx.showClassContinueDialog();f.ctx.continueWatchingClass();f.ctx.continueWatchingClass();assert.deepEqual(f.calls,['play','refresh']);});
-test('Click uses LiveKit audio activation and starts join when entry has not completed',()=>{const f=fixture();f.ctx.joinedClass=false;f.ctx.studentSfuRoom={startAudio:()=>{f.calls.push('sdk-play');return Promise.resolve();}};f.ctx.showClassContinueDialog();f.ctx.continueWatchingClass();assert.deepEqual(f.calls,['play','sdk-play','join']);f.ctx.joinedClass=true;f.ctx.flushClassContinueRefresh();assert.equal(f.calls.at(-1),'refresh');});
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const path = require("node:path");
+const fs = require("node:fs");
+
+const root = path.resolve(__dirname, "..");
+const js = fs.readFileSync(path.join(root, "public/js/student-live.js"), "utf8");
+const html = fs.readFileSync(path.join(root, "public/student-live.html"), "utf8");
+
+test("class-continue-overlay modal is completely removed from student-live.html", () => {
+  assert.equal(
+    html.includes('id="class-continue-overlay"'),
+    false,
+    "class-continue-overlay should be completely removed from student-live.html"
+  );
+  assert.equal(
+    html.includes("مرحبًا بك في الحصة"),
+    false,
+    "The 'مرحبًا بك في الحصة' welcome modal should not exist in student-live.html"
+  );
+  assert.equal(
+    html.includes(">متابعة الحصة</button>"),
+    false,
+    "The 'متابعة الحصة' button should not exist in student-live.html"
+  );
+});
+
+test("student entry immediately activates audio and arms auto-unmute without continue dialog", () => {
+  assert.match(
+    js,
+    /completeStudentPrejoinAndJoin\(\)[\s\S]*?startTeacherAudio\(\{ userInitiated: true \}\)[\s\S]*?armAutoUnmuteOnFirstInteraction\(\)/,
+    "completeStudentPrejoinAndJoin must start audio and arm auto-unmute directly"
+  );
+  assert.match(
+    js,
+    /hasPermanentStudentPrejoinCompleted\(\)[\s\S]*?startTeacherAudio\(\{ userInitiated: true \}\)[\s\S]*?armAutoUnmuteOnFirstInteraction\(\)/,
+    "initializeStudentPrejoin with permanent prejoin must start audio and arm auto-unmute directly"
+  );
+  assert.doesNotMatch(
+    js,
+    /completeStudentPrejoinAndJoin\(\)[\s\S]*?showClassContinueDialog\(\)/,
+    "completeStudentPrejoinAndJoin must not call showClassContinueDialog"
+  );
+});
+
+test("parent-dashboard restores live class banner with zero delay and connects lobby on boot", () => {
+  const parentJs = fs.readFileSync(path.join(root, "public/js/parent-dashboard.js"), "utf8");
+  assert.match(
+    parentJs,
+    /sessionStorage\.getItem\("lastLiveClassState"\)/,
+    "parent-dashboard.js must read lastLiveClassState from sessionStorage for 0ms initial render"
+  );
+  assert.match(
+    parentJs,
+    /checkLiveStatusFast/,
+    "parent-dashboard.js must include fast live status preflight"
+  );
+});

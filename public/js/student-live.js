@@ -1552,6 +1552,17 @@ function exitLiveClass() {
   notifyNativeLiveService("stop");
   initialAutoJoinPending = false;
   clearScreenShareRefreshGuard();
+  try {
+    if (currentStudent?.level && (joinedClass || !waitingForNextClass)) {
+      sessionStorage.setItem("lastLiveClassState", JSON.stringify({
+        isClassLive: true,
+        level: currentStudent.level,
+        subject: currentSubject || "MATH",
+        globalFree: Boolean(isGlobalFreeClass),
+        savedAt: Date.now()
+      }));
+    }
+  } catch (_) {}
   waitingForNextClass = true;
   joinedClass = false;
   setStudentSessionActive(false);
@@ -1574,10 +1585,7 @@ let classContinueShown = false;
 let classContinueRefreshPending = false;
 
 function showClassContinueDialog() {
-  if (classContinueShown || !prejoinCompleted || !elements.classContinueOverlay) return;
-  classContinueShown = true;
-  elements.classContinueOverlay.hidden = false;
-  elements.classContinueButton?.focus({ preventScroll: true });
+  // Completely removed per user request: entry proceeds directly without interruption
 }
 
 function flushClassContinueRefresh() {
@@ -1587,8 +1595,7 @@ function flushClassContinueRefresh() {
 }
 
 function continueWatchingClass() {
-  if (elements.classContinueOverlay?.hidden) return;
-  // Start playback within the actual click, before waiting on any network operation.
+  // Direct activation without modal
   void startTeacherAudio({ userInitiated: true });
   if (studentSfuRoom && typeof studentSfuRoom.startAudio === "function") {
     void studentSfuRoom.startAudio().catch(() => {});
@@ -4629,7 +4636,8 @@ async function completeStudentPrejoinAndJoin() {
   if (!isDesktopStudentView()) {
     openStudentChatComposer({ focus: false });
   }
-  showClassContinueDialog();
+  void startTeacherAudio({ userInitiated: true });
+  armAutoUnmuteOnFirstInteraction();
   setPlaceholder("جاري الدخول إلى الحصة", "سيظهر بث الأستاذ تلقائياً عند توفر الحصة.");
   setViewerStatus("جارٍ الدخول إلى الحصة…", "warning");
   if (socket.connected) {
@@ -4650,7 +4658,8 @@ async function initializeStudentPrejoin() {
       openStudentChatComposer({ focus: false });
     }
 
-    showClassContinueDialog();
+    void startTeacherAudio({ userInitiated: true });
+    armAutoUnmuteOnFirstInteraction();
 
     // Silently attempt background microphone preparation if browser already permitted it,
     // but never block entry or show the prejoin modal.
@@ -6389,13 +6398,6 @@ elements.prejoinMicButton?.addEventListener("click", async () => {
     : "يجب السماح للمتصفح باستخدام الميكروفون قبل الاستمرار.");
 });
 elements.prejoinCameraButton?.addEventListener("click", testOptionalStudentCamera);
-elements.classContinueButton?.addEventListener("click", continueWatchingClass);
-elements.classContinueOverlay?.addEventListener("keydown", (event) => {
-  if (event.key === "Tab" && !elements.classContinueOverlay.hidden) {
-    event.preventDefault();
-    elements.classContinueButton?.focus({ preventScroll: true });
-  }
-});
 elements.prejoinContinueButton?.addEventListener("click", continueFromStudentPrejoin);
 elements.subscriptionDeclineButton?.addEventListener("click", () => {
   closeSubscriptionUpgradeModal();

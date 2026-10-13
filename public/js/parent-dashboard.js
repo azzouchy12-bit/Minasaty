@@ -1061,6 +1061,23 @@ function setLiveClassVisible(isVisible, liveData = {}) {
   const visible = Boolean(isVisible);
   elements.liveBanner?.classList.toggle("is-visible", visible);
 
+  if (visible) {
+    try {
+      sessionStorage.setItem("lastLiveClassState", JSON.stringify({
+        ...liveData,
+        isClassLive: true,
+        level: liveData.level || currentStudent?.level,
+        subject: liveData.subject || activeLiveClassType,
+        globalFree: Boolean(liveData.globalFree || globalFreeClassActive),
+        savedAt: Date.now(),
+      }));
+    } catch (_) {}
+  } else {
+    try {
+      sessionStorage.removeItem("lastLiveClassState");
+    } catch (_) {}
+  }
+
   const isExpired = isStudentSubscriptionExpired(currentStudent);
   if (visible && elements.liveBannerDetails) {
     if (isExpired) {
@@ -1494,9 +1511,23 @@ function selectStudent(studentId) {
   parentScheduledClasses = [];
   parentScheduleLoading = true;
   parentScheduleError = "";
-  activeLiveClassType = null;
-  globalFreeClassActive = false;
-  setLiveClassVisible(false);
+  const studentLevel = canonicalLevel(student.level);
+  let liveRestored = false;
+  try {
+    const cachedLive = JSON.parse(sessionStorage.getItem("lastLiveClassState") || "null");
+    if (cachedLive && (cachedLive.globalFree || canonicalLevel(cachedLive.level) === studentLevel)) {
+      activeLiveClassType = cachedLive.subject || activeLiveClassType;
+      globalFreeClassActive = Boolean(cachedLive.globalFree);
+      setLiveClassVisible(true, cachedLive);
+      liveRestored = true;
+    }
+  } catch (_) {}
+
+  if (!liveRestored && activeLiveClassType && canonicalLevel(currentLobbyLevel) !== studentLevel && !globalFreeClassActive) {
+    activeLiveClassType = null;
+    globalFreeClassActive = false;
+    setLiveClassVisible(false);
+  }
   parentTeacherAbsent = false;
   teacherAbsenceLevel = null;
   renderParentSchedule();
@@ -2376,8 +2407,7 @@ async function loadDashboard({ backgroundRefresh = false } = {}) {
 
   if (!backgroundRefresh) {
     clearError();
-    if (elements.dashboardContent) elements.dashboardContent.hidden = true;
-    if (elements.loadingState && elements.dashboardContent) setLiveClassVisible(false);
+    if (!currentStudent && elements.dashboardContent) elements.dashboardContent.hidden = true;
   }
 
   try {
@@ -2798,6 +2828,24 @@ function setParentActiveNav(link) {
   elements.parentNavLinks.forEach((item) => item.classList.toggle("is-active", item === link));
 }
 
+async function checkLiveStatusFast(level) {
+  if (!level) return;
+  try {
+    const res = await fetch(`/api/live-status/${encodeURIComponent(canonicalLevel(level))}`, {
+      headers: { Accept: "application/json" }
+    });
+    if (!res.ok) return;
+    const data = await res.json().catch(() => ({}));
+    if (data && data.ok) {
+      if (data.isClassLive) {
+        activeLiveClassType = data.subject || activeLiveClassType;
+        globalFreeClassActive = Boolean(data.globalFree);
+        setLiveClassVisible(true, data);
+      }
+    }
+  } catch (_) {}
+}
+
 function initializeLobbySocket() {
   // Socket.io is loaded by parent-dashboard.html before this script.
   if (typeof io !== "function") {
@@ -2813,11 +2861,14 @@ function initializeLobbySocket() {
   socket.on("connect", () => {
     if (currentStudent?.level) {
       emitLobbyJoin(currentStudent.level);
+      void checkLiveStatusFast(currentStudent.level);
     }
   });
 
   socket.on("live_class_started", (data = {}) => {
-    if (!currentStudent || (!data.globalFree && data.level && data.level !== currentStudent.level)) {
+    const studentLevel = currentStudent ? canonicalLevel(currentStudent.level) : null;
+    const eventLevel = data.level ? canonicalLevel(data.level) : null;
+    if (!currentStudent || (!data.globalFree && eventLevel && studentLevel && eventLevel !== studentLevel)) {
       return;
     }
 
@@ -2827,7 +2878,9 @@ function initializeLobbySocket() {
   });
 
   socket.on("live_class_resumed", (data = {}) => {
-    if (!currentStudent || (!data.globalFree && data.level && data.level !== currentStudent.level)) {
+    const studentLevel = currentStudent ? canonicalLevel(currentStudent.level) : null;
+    const eventLevel = data.level ? canonicalLevel(data.level) : null;
+    if (!currentStudent || (!data.globalFree && eventLevel && studentLevel && eventLevel !== studentLevel)) {
       return;
     }
 
@@ -2837,7 +2890,9 @@ function initializeLobbySocket() {
   });
 
   socket.on("live_class_ended", (data = {}) => {
-    if (!currentStudent || (!data.globalFree && data.level && data.level !== currentStudent.level)) {
+    const studentLevel = currentStudent ? canonicalLevel(currentStudent.level) : null;
+    const eventLevel = data.level ? canonicalLevel(data.level) : null;
+    if (!currentStudent || (!data.globalFree && eventLevel && studentLevel && eventLevel !== studentLevel)) {
       return;
     }
 
@@ -3063,6 +3118,26 @@ if (!getParentToken()) {
         refreshAccessAfterReturningFromCall();
       }
     });
+
+    // ⚡ Instant pre-render: Read cached student & live state immediately without waiting for API
+    try {
+      const stored = JSON.parse(sessionStorage.getItem("currentStudent") || localStorage.getItem("currentStudent") || "null");
+      if (stored) {
+        currentStudent = stored;
+        updateActiveStudentBar(stored);
+        renderStudent(stored);
+      }
+      const storedLive = JSON.parse(sessionStorage.getItem("lastLiveClassState") || "null");
+      if (storedLive && stored && (storedLive.globalFree || canonicalLevel(storedLive.level) === canonicalLevel(stored.level))) {
+        activeLiveClassType = storedLive.subject || null;
+        globalFreeClassActive = Boolean(storedLive.globalFree);
+        setLiveClassVisible(true, storedLive);
+      }
+      if (stored?.level) {
+        void checkLiveStatusFast(stored.level);
+      }
+    } catch (_) {}
+
     initializeLobbySocket();
     void loadDashboard().then(() => {
       checkSofizPayReturn();
