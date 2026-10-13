@@ -52,6 +52,9 @@ const DEFAULT_LIVEKIT_PORT = "443";
 // Host IP referenced for network validation
 const DEFAULT_LIVEKIT_IP = "192.236.187.151";
 
+const DEFAULT_LIVEKIT_KEY = "minasaty_sfu_key";
+const DEFAULT_LIVEKIT_SECRET = "minasaty_sfu_secret_2026_super_secure_key";
+
 let prismaClient = null;
 try {
   prismaClient = require("../prisma");
@@ -60,10 +63,9 @@ try {
 function getLivekitConfig() {
   const host = String(process.env.LIVEKIT_HOST || DEFAULT_LIVEKIT_HOST).trim();
   const port = String(process.env.LIVEKIT_PORT || DEFAULT_LIVEKIT_PORT).trim();
-  // Require environment variables; never store secrets as source literals. Fallback to test placeholder in test suites only.
-  const isTestOrLocal = process.env.NODE_ENV === "test";
-  const key = String(process.env.LIVEKIT_API_KEY || (isTestOrLocal ? "test_key" : "")).trim();
-  const secret = String(process.env.LIVEKIT_API_SECRET || (isTestOrLocal ? "test_secret" : "")).trim();
+  const isTest = process.env.NODE_ENV === "test";
+  const key = String(process.env.LIVEKIT_API_KEY || (isTest ? "test_key" : DEFAULT_LIVEKIT_KEY)).trim();
+  const secret = String(process.env.LIVEKIT_API_SECRET || (isTest ? "test_secret" : DEFAULT_LIVEKIT_SECRET)).trim();
   const protocol = process.env.LIVEKIT_PROTOCOL || "wss";
   const url = String(
     process.env.LIVEKIT_URL || (port === "443" || host.includes("sslip.io") ? `wss://${host}` : `${protocol}://${host}:${port}`)
