@@ -2385,9 +2385,17 @@ io.on("connection", (socket) => {
         socketId: socket.id,
         transport,
         receiving,
+        receivingAudio: Boolean(data?.receivingAudio),
+        receivingVideo: Boolean(data?.receivingVideo),
       });
     }
-    acknowledge(acknowledgement, { ok: true, transport, receiving });
+    acknowledge(acknowledgement, {
+      ok: true,
+      transport,
+      receiving,
+      receivingAudio: Boolean(data?.receivingAudio),
+      receivingVideo: Boolean(data?.receivingVideo),
+    });
   });
 
   /**

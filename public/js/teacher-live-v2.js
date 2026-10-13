@@ -99,6 +99,10 @@ const MAX_SFU_RECONNECT_ATTEMPTS = 5;
 // Media transport state machine & diagnostics
 let mediaTransportState = "idle"; // "idle" | "sfu_connecting" | "sfu_active" | "p2p_fallback"
 const studentMediaTransports = new Map(); // socketId -> { transport, receiving, lastSeenAt }
+const studentSfuFallbackTimers = new Map();
+const studentSfuReturnTimers = new Map();
+const STUDENT_SFU_FALLBACK_DELAY_MS = 5_000;
+const STUDENT_SFU_RETURN_CONFIRM_MS = 3_000;
 const sfuStudentAudioElements = new Map(); // participantId -> HTMLAudioElement
 const sfuStudentAudioStreams = new Map(); // participantId -> { stream, track }
 let sfuDegradationTimer = null;
@@ -321,11 +325,21 @@ function cancelSfuDegradation() {
   sfuReconnectAttempts = 0;
 }
 
-function transitionStudentToP2pFallback(socketId) {
+function transitionStudentToP2pFallback(socketId, { allowWhileSfuActive = false } = {}) {
   if (!classActive || !socketId) return;
+  const existingPeer = peerConnections[socketId];
+  if (
+    allowWhileSfuActive && existingPeer?.__teacherP2pFallback
+    && existingPeer.connectionState !== "failed"
+    && existingPeer.connectionState !== "closed"
+  ) {
+    return;
+  }
   // If central SFU is active, connecting, or reconnecting, DO NOT fall back to P2P!
   // Mesh fallback with multiple students will flood teacher's upload and freeze the stream.
-  if (isTeacherSfuHealthy() || isTeacherSfuConnecting || (teacherSfuRoom && teacherSfuRoom.state !== "disconnected")) {
+  // A single student's explicit, persistent no-media report is the exception: recover
+  // only that student while leaving the central SFU available to the rest of the class.
+  if (!allowWhileSfuActive && (isTeacherSfuHealthy() || isTeacherSfuConnecting || (teacherSfuRoom && teacherSfuRoom.state !== "disconnected"))) {
     console.info(`[Fallback] Central SFU is active/recovering. Suppressing P2P fallback for student ${socketId}.`);
     return;
   }
@@ -7341,22 +7355,70 @@ socket.on("recovery_students", async (data = {}) => {
 });
 
 
-socket.on("student_transport_updated", (data = {}) => {
+function handleStudentTransportUpdated(data = {}) {
   if (!data?.socketId) return;
+  const audioTrack = typeof getActiveTeacherAudioTrack === "function" ? getActiveTeacherAudioTrack() : null;
+  const videoTrack = typeof getActiveTeacherVideoTrack === "function" ? getActiveTeacherVideoTrack() : null;
+  const expectsAudio = Boolean(audioTrack?.readyState === "live" && audioTrack.enabled !== false);
+  const expectsVideo = Boolean(videoTrack?.readyState === "live" && videoTrack.enabled !== false);
+  const expectsMedia = expectsAudio || expectsVideo;
+  const hasKindTelemetry = typeof data.receivingAudio === "boolean" || typeof data.receivingVideo === "boolean";
+  const receivesExpectedMedia = hasKindTelemetry
+    ? (!expectsAudio || data.receivingAudio === true) && (!expectsVideo || data.receivingVideo === true)
+    : Boolean(data.receiving && expectsMedia);
+  const receiving = Boolean(data.transport === "sfu" && data.receiving && expectsMedia && receivesExpectedMedia);
+  if (receiving) {
+    const fallbackTimer = studentSfuFallbackTimers.get(data.socketId);
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+    studentSfuFallbackTimers.delete(data.socketId);
+  } else {
+    const returnTimer = studentSfuReturnTimers.get(data.socketId);
+    if (returnTimer) clearTimeout(returnTimer);
+    studentSfuReturnTimers.delete(data.socketId);
+  }
   studentMediaTransports.set(data.socketId, {
     transport: data.transport || "unknown",
-    receiving: Boolean(data.receiving),
+    receiving,
+    receivingAudio: Boolean(data.receivingAudio),
+    receivingVideo: Boolean(data.receivingVideo),
     lastSeenAt: Date.now(),
   });
-  if (data.receiving === false && classActive) {
-    if (!isTeacherSfuHealthy() && mediaTransportState === "p2p_fallback") {
-      recordLiveDiagnosticEvent("student_not_receiving", `Student ${data.socketId} reported receiving=false; initiating targeted P2P recovery`);
-      transitionStudentToP2pFallback(data.socketId);
-    } else {
-      console.info(`[Diagnostics] Student ${data.socketId} reported receiving=false while SFU is active; maintaining SFU stream.`);
+  if (receiving) {
+    const peerConnection = peerConnections[data.socketId];
+    if (peerConnection?.__teacherP2pFallback && !studentSfuReturnTimers.has(data.socketId)) {
+      const timer = setTimeout(() => {
+        studentSfuReturnTimers.delete(data.socketId);
+        const latest = studentMediaTransports.get(data.socketId);
+        if (
+          !classActive || !latest?.receiving || Date.now() - latest.lastSeenAt > STUDENT_SFU_RETURN_CONFIRM_MS + 2_000
+          || !peerConnections[data.socketId]?.__teacherP2pFallback
+        ) return;
+        recordLiveDiagnosticEvent("student_sfu_recovered", `Student ${data.socketId} confirmed LiveKit audio/video; ending targeted P2P fallback`);
+        closePeerConnection(data.socketId);
+      }, STUDENT_SFU_RETURN_CONFIRM_MS);
+      studentSfuReturnTimers.set(data.socketId, timer);
+    }
+    return;
+  }
+  if (data.transport === "sfu" && expectsMedia && classActive) {
+    console.info(`[Diagnostics] Student ${data.socketId} is missing expected LiveKit media; checking targeted recovery.`);
+    if (!studentSfuFallbackTimers.has(data.socketId)) {
+      const timer = setTimeout(() => {
+        studentSfuFallbackTimers.delete(data.socketId);
+        const latest = studentMediaTransports.get(data.socketId);
+        if (
+          !classActive || !latest || latest.transport !== "sfu" || latest.receiving
+          || Date.now() - latest.lastSeenAt > STUDENT_SFU_FALLBACK_DELAY_MS + 5_000
+        ) return;
+        recordLiveDiagnosticEvent("student_not_receiving", `Student ${data.socketId} still lacks expected LiveKit media; starting targeted P2P recovery`);
+        transitionStudentToP2pFallback(data.socketId, { allowWhileSfuActive: true });
+      }, STUDENT_SFU_FALLBACK_DELAY_MS);
+      studentSfuFallbackTimers.set(data.socketId, timer);
     }
   }
-});
+}
+
+socket.on("student_transport_updated", handleStudentTransportUpdated);
 
 
 socket.on("youtube_server_upload_completed", (data = {}) => {

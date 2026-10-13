@@ -350,11 +350,37 @@ function recordStudentDiagnosticEvent(type, message) {
   console.info(`[Student-Diagnostics] [${type}] ${sanitized}`);
 }
 
+function getTeacherSfuReceptionState() {
+  const tracks = [];
+  for (const stream of [remoteMediaStream, teacherAudioStream]) {
+    if (typeof stream?.getTracks !== "function") continue;
+    tracks.push(...stream.getTracks());
+  }
+  const isLiveSfuTrack = (track) => track?.__fromSfu === true && track.readyState === "live";
+  const receivingAudio = tracks.some((track) => track.kind === "audio" && isLiveSfuTrack(track));
+  const receivingVideo = tracks.some((track) => track.kind === "video" && isLiveSfuTrack(track));
+  return { receivingAudio, receivingVideo, receiving: receivingAudio || receivingVideo };
+}
+
+function hasLiveP2pTeacherMedia() {
+  const tracks = [];
+  for (const stream of [remoteMediaStream, teacherAudioStream]) {
+    if (typeof stream?.getTracks !== "function") continue;
+    tracks.push(...stream.getTracks());
+  }
+  return tracks.some((track) => track?.__fromSfu !== true && track.readyState === "live");
+}
+
 function notifySfuTransportStatus(receiving = true) {
   if (socket && socket.connected) {
+    const reception = typeof getTeacherSfuReceptionState === "function"
+      ? getTeacherSfuReceptionState()
+      : { receiving: Boolean(receiving), receivingAudio: false, receivingVideo: false };
     socket.emit("student_media_transport_status", {
       transport: "sfu",
-      receiving: Boolean(receiving),
+      receiving: Boolean(receiving && reception.receiving),
+      receivingAudio: Boolean(receiving && reception.receivingAudio),
+      receivingVideo: Boolean(receiving && reception.receivingVideo),
     });
   }
 }
@@ -593,6 +619,11 @@ function startSfuReceptionMonitor(room) {
       }
       // Each publication has its own clock: moving video cannot hide stalled audio.
       if (!stalled && now - lastTeacherSeen < 8_000) return;
+      if (typeof hasLiveP2pTeacherMedia === "function" && hasLiveP2pTeacherMedia()) {
+        recordStudentDiagnosticEvent("p2p_media_preserved", "LiveKit reception stalled; preserving working P2P media while LiveKit retries in the background");
+        notifySfuTransportStatus(false);
+        return;
+      }
       recordStudentDiagnosticEvent("teacher_media_stalled", "Teacher reception stalled; requesting recovery");
       clearStaleSfuMedia();
       disconnectStudentSfu();
@@ -800,11 +831,13 @@ async function connectStudentSfu(roomName) {
           notifySfuTransportStatus(false);
           recordStudentDiagnosticEvent("sfu_disconnected", "Student disconnected from LiveKit SFU room");
           if (typeof joinedClass !== "undefined" && joinedClass && socket?.connected) {
-            socket.emit("student_transport_updated", {
-              transport: "p2p",
-              receiving: false,
-              reason: "sfu_disconnected",
-            });
+            if (typeof hasLiveP2pTeacherMedia === "function" && hasLiveP2pTeacherMedia()) {
+              recordStudentDiagnosticEvent("p2p_media_preserved", "LiveKit disconnected; preserving P2P media while reconnecting LiveKit in the background");
+              window.setTimeout(() => {
+                if (joinedClass && hasLiveP2pTeacherMedia()) void connectStudentSfu(roomName);
+              }, 3_000);
+              return;
+            }
             if (typeof scheduleClassRecovery === "function") scheduleClassRecovery(500);
           }
         });
