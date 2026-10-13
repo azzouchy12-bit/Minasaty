@@ -348,6 +348,17 @@ function transitionStudentToP2pFallback(socketId, { allowWhileSfuActive = false 
   void createAndSendOffer(socketId, { iceRestart: true, force: true });
 }
 
+
+function retryPendingTargetedP2pOffers() {
+  if (!classActive || !socket.connected) return;
+  for (const [socketId, peerConnection] of Object.entries(peerConnections || {})) {
+    if (!peerConnection?.__teacherP2pFallback || !peerConnection.__teacherP2pOfferNeedsRetry) continue;
+    peerConnection.__teacherP2pOfferNeedsRetry = false;
+    console.info(`[Fallback] Retrying targeted P2P offer after signaling recovery for student ${socketId}.`);
+    void createAndSendOffer(socketId, { iceRestart: true, force: true });
+  }
+}
+
 function transitionAllStudentsToP2pFallback() {
   if (!classActive) return;
   console.info("[Fallback] Transitioning all active students to P2P fallback.");
@@ -6373,10 +6384,15 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
       sdp: peerConnection.localDescription,
       negotiationId,
     }, 6_000);
+    peerConnection.__teacherP2pOfferNeedsRetry = false;
   } catch (error) {
     console.warn(`[WebRTC] Unable to create or relay offer to student ${studentSocketId}:`, error.message || error);
     if (error?.message?.includes("تعذر توجيه")) {
       closePeerConnection(studentSocketId);
+    } else if (peerConnection.__teacherP2pFallback) {
+      // Keep the failed targeted offer queued. A Socket.IO reconnect can retry
+      // it with a fresh peer connection instead of leaving have-local-offer stuck.
+      peerConnection.__teacherP2pOfferNeedsRetry = true;
     }
   } finally {
     if (peerConnections[studentSocketId] === peerConnection) {
@@ -6451,6 +6467,8 @@ async function resumeLiveClassAfterSocketReconnect() {
         void createAndSendOffer(studentSocketId, { iceRestart: true });
       }
     }
+
+    retryPendingTargetedP2pOffers();
 
     setStudioStatus("تمت استعادة الحصة ومسار الميكروفون بنجاح.", "live");
   } catch (error) {
@@ -7260,6 +7278,8 @@ socket.on("connect", () => {
   if (!classActive) {
     setStudioStatus("الاستوديو جاهز", "neutral");
     void checkForOpenScheduledClass();
+  } else {
+    retryPendingTargetedP2pOffers();
   }
 });
 
