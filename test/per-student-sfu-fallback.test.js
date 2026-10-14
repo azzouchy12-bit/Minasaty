@@ -19,6 +19,11 @@ function fallbackFixture(existingPeer = null) {
   const offers = [];
   const context = {
     classActive: true,
+    attendeeElements: new Map([["student", {}]]),
+    studentMediaTransports: new Map(),
+    STUDENT_RECOVERY_COOLDOWN_MS: 15_000,
+    MAX_STUDENT_RECOVERY_ATTEMPTS: 3,
+    renderAttendeeTransportStatus() {},
     peerConnections: existingPeer ? { student: existingPeer } : {},
     isTeacherSfuHealthy: () => true,
     isTeacherSfuConnecting: false,
@@ -93,7 +98,7 @@ test("Student preserves working P2P media when LiveKit reception stalls", () => 
 
 test("Teacher schedules a targeted fallback and switches back only after confirmed SFU media", () => {
   assert.match(teacherSource, /STUDENT_SFU_FALLBACK_DELAY_MS = 5_000/);
-  assert.match(teacherSource, /transitionStudentToP2pFallback\(data\.socketId, \{ allowWhileSfuActive: true \}\)/);
+  assert.match(teacherSource, /transitionStudentToP2pFallback\(data\.socketId, \{ allowWhileSfuActive: true, restartStalled: true \}\)/);
   assert.match(teacherSource, /STUDENT_SFU_RETURN_CONFIRM_MS = 3_000/);
   assert.match(teacherSource, /student_sfu_recovered/);
 });
@@ -106,6 +111,8 @@ test("Repeated no-media reports keep one recovery timer and still trigger target
     Date: { now: () => now },
     STUDENT_SFU_FALLBACK_DELAY_MS: 5_000,
     STUDENT_SFU_RETURN_CONFIRM_MS: 3_000,
+    STUDENT_RECOVERY_COOLDOWN_MS: 15_000,
+    attendeeElements: new Map([["student", {}]]),
     studentSfuFallbackTimers: new Map(),
     studentSfuReturnTimers: new Map(),
     studentMediaTransports: new Map(),
@@ -134,5 +141,5 @@ test("Repeated no-media reports keep one recovery timer and still trigger target
   timers[0].callback();
   assert.equal(fallbacks.length, 1);
   assert.equal(fallbacks[0][0], "student");
-  assert.deepEqual(JSON.parse(JSON.stringify(fallbacks[0][1])), { allowWhileSfuActive: true });
+  assert.deepEqual(JSON.parse(JSON.stringify(fallbacks[0][1])), { allowWhileSfuActive: true, restartStalled: true });
 });

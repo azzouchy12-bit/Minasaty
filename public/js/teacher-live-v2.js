@@ -103,6 +103,8 @@ const studentSfuFallbackTimers = new Map();
 const studentSfuReturnTimers = new Map();
 const STUDENT_SFU_FALLBACK_DELAY_MS = 5_000;
 const STUDENT_SFU_RETURN_CONFIRM_MS = 3_000;
+const STUDENT_RECOVERY_COOLDOWN_MS = 15_000;
+const MAX_STUDENT_RECOVERY_ATTEMPTS = 3;
 const sfuStudentAudioElements = new Map(); // participantId -> HTMLAudioElement
 const sfuStudentAudioStreams = new Map(); // participantId -> { stream, track }
 let sfuDegradationTimer = null;
@@ -325,15 +327,15 @@ function cancelSfuDegradation() {
   sfuReconnectAttempts = 0;
 }
 
-function transitionStudentToP2pFallback(socketId, { allowWhileSfuActive = false } = {}) {
-  if (!classActive || !socketId) return;
+function transitionStudentToP2pFallback(socketId, { allowWhileSfuActive = false, restartStalled = false } = {}) {
+  if (!classActive || !socketId || !attendeeElements.has(socketId)) return false;
   const existingPeer = peerConnections[socketId];
   if (
-    allowWhileSfuActive && existingPeer?.__teacherP2pFallback
+    allowWhileSfuActive && !restartStalled && existingPeer?.__teacherP2pFallback
     && existingPeer.connectionState !== "failed"
     && existingPeer.connectionState !== "closed"
   ) {
-    return;
+    return false;
   }
   // If central SFU is active, connecting, or reconnecting, DO NOT fall back to P2P!
   // Mesh fallback with multiple students will flood teacher's upload and freeze the stream.
@@ -341,11 +343,28 @@ function transitionStudentToP2pFallback(socketId, { allowWhileSfuActive = false 
   // only that student while leaving the central SFU available to the rest of the class.
   if (!allowWhileSfuActive && (isTeacherSfuHealthy() || isTeacherSfuConnecting || (teacherSfuRoom && teacherSfuRoom.state !== "disconnected"))) {
     console.info(`[Fallback] Central SFU is active/recovering. Suppressing P2P fallback for student ${socketId}.`);
-    return;
+    return false;
   }
+  const state = studentMediaTransports.get(socketId) || {};
+  const now = Date.now();
+  if (state.recoveryAttempts >= MAX_STUDENT_RECOVERY_ATTEMPTS) {
+    if (!state.recoveryExhausted) {
+      state.recoveryExhausted = true;
+      state.p2pPending = false;
+      studentMediaTransports.set(socketId, state);
+      renderAttendeeTransportStatus(socketId);
+      recordLiveDiagnosticEvent("student_recovery_exhausted", `Student ${socketId}: automatic media recovery limit reached`);
+    }
+    return false;
+  }
+  if (state.lastRecoveryAt && now - state.lastRecoveryAt < STUDENT_RECOVERY_COOLDOWN_MS) return false;
+  studentMediaTransports.set(socketId, { ...state,
+    recoveryAttempts: (state.recoveryAttempts || 0) + 1, lastRecoveryAt: now, p2pPending: true });
+  renderAttendeeTransportStatus(socketId);
   console.info(`[Fallback] Transitioning student ${socketId} to P2P fallback.`);
   recordLiveDiagnosticEvent("p2p_fallback_student", `Transitioning student ${socketId} to P2P fallback`);
   void createAndSendOffer(socketId, { iceRestart: true, force: true });
+  return true;
 }
 
 
@@ -1827,6 +1846,26 @@ async function uploadTeacherChatOriginalImage(file, level) {
 }
 
 
+async function fetchClassroomImageBlob(url, headers) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    let retryable = true;
+    try {
+      const response = await fetch(url, { headers, signal: controller.signal, cache: "no-store" });
+      if (!response.ok) {
+        retryable = response.status >= 500 || response.status === 408 || response.status === 429;
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || "تعذر تحميل صورة السؤال.");
+      }
+      return await response.blob();
+    } catch (error) {
+      if (!retryable || attempt === 2) throw error;
+    } finally { clearTimeout(timeout); }
+    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+  }
+}
+
 async function loadQuestionImage(imageId) {
   const token = sessionStorage.getItem("teacherToken");
   if (!token || !imageId) {
@@ -1834,16 +1873,9 @@ async function loadQuestionImage(imageId) {
   }
 
 
-  const response = await fetch(`/api/live-chat/question-image/${encodeURIComponent(imageId)}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "image/*" },
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || "تعذر تحميل صورة السؤال.");
-  }
-
-
-  const imageUrl = URL.createObjectURL(await response.blob());
+  const blob = await fetchClassroomImageBlob(`/api/live-chat/question-image/${encodeURIComponent(imageId)}`,
+    { Authorization: `Bearer ${token}`, Accept: "image/*" });
+  const imageUrl = URL.createObjectURL(blob);
   renderedQuestionImageUrls.add(imageUrl);
   return imageUrl;
 }
@@ -4946,10 +4978,11 @@ function renderAttendeeTransportStatus(socketId) {
   const state = studentMediaTransports.get(socketId) || {};
   const isP2p = state.p2pActive || state.p2pPending;
   const isSfu = state.sfuReady;
-  badge.textContent = isSfu ? "LiveKit" : (isP2p ? "P2P" : "LiveKit جارٍ الاتصال");
+  badge.textContent = state.recoveryExhausted ? "البث يحتاج تحديثًا" : (isSfu ? "LiveKit" : (isP2p ? "P2P" : "LiveKit جارٍ الاتصال"));
   badge.title = isSfu
     ? "الصوت والصورة يصلان عبر LiveKit"
     : (isP2p ? (state.p2pActive ? "الصوت أو الصورة يصلان عبر P2P؛ يجري تجهيز LiveKit بالخلفية" : "جارٍ تجهيز بث P2P مع محاولة LiveKit بالخلفية") : "جارٍ الاتصال بـLiveKit؛ سيعمل P2P كمسار احتياطي عند الحاجة");
+  if (state.recoveryExhausted) badge.title = "تعذر تأكيد وصول البث بعد محاولات الاستعادة. يمكن تحديث الصوت والصورة لهذا التلميذ.";
   badge.style.color = isSfu ? "#fecaca" : (isP2p ? "#bfdbfe" : "#cbd5e1");
   badge.style.background = isSfu ? "rgba(220,38,38,.24)" : (isP2p ? "rgba(37,99,235,.24)" : "rgba(148,163,184,.14)");
   badge.style.border = isSfu ? "1px solid rgba(248,113,113,.55)" : (isP2p ? "1px solid rgba(96,165,250,.55)" : "1px solid rgba(148,163,184,.35)");
@@ -6411,6 +6444,8 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
     Object.assign(rtcConfig, config);
   }
 
+  if (!attendeeElements.has(studentSocketId)) return;
+
   let peerConnection = peerConnections[studentSocketId];
 
 
@@ -6456,16 +6491,17 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
     if (force) peerConnection.__teacherP2pFallback = true;
     // A targeted fallback must include the current screen even when SFU is healthy.
     await ensureTeacherVideoSender(peerConnection);
-    if (!classActive || peerConnections[studentSocketId] !== peerConnection) return;
+    if (!classActive || !attendeeElements.has(studentSocketId) || peerConnections[studentSocketId] !== peerConnection) return;
     if (typeof peerConnection.setConfiguration === "function") {
       peerConnection.setConfiguration(rtcConfig);
     }
     const offer = await peerConnection.createOffer({ iceRestart });
-    if (peerConnections[studentSocketId] !== peerConnection) return;
+    if (!attendeeElements.has(studentSocketId) || peerConnections[studentSocketId] !== peerConnection) return;
     const negotiationId = `${Date.now()}:${window.__teacherOfferSequence = (window.__teacherOfferSequence || 0) + 1}`;
     peerConnection.pendingTeacherNegotiationId = negotiationId;
     const optimizedSdp = optimizeOpusSdp(offer.sdp);
     await peerConnection.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: optimizedSdp }));
+    if (!classActive || !attendeeElements.has(studentSocketId) || peerConnections[studentSocketId] !== peerConnection) return;
 
     await emitWithAcknowledgement("webrtc_offer", {
       targetSocketId: studentSocketId,
@@ -6474,13 +6510,16 @@ async function createAndSendOffer(studentSocketId, { iceRestart = false, force =
     }, 6_000);
     peerConnection.__teacherP2pOfferNeedsRetry = false;
   } catch (error) {
-    console.warn(`[WebRTC] Unable to create or relay offer to student ${studentSocketId}:`, error.message || error);
     if (error?.message?.includes("تعذر توجيه")) {
+      recordLiveDiagnosticEvent("student_offer_unavailable", `Student ${studentSocketId} is no longer available for this offer`);
       closePeerConnection(studentSocketId);
     } else if (peerConnection.__teacherP2pFallback) {
+      console.warn(`[WebRTC] Unable to create or relay offer to student ${studentSocketId}:`, error.message || error);
       // Keep the failed targeted offer queued. A Socket.IO reconnect can retry
       // it with a fresh peer connection instead of leaving have-local-offer stuck.
       peerConnection.__teacherP2pOfferNeedsRetry = true;
+    } else {
+      console.warn(`[WebRTC] Unable to create or relay offer to student ${studentSocketId}:`, error.message || error);
     }
   } finally {
     if (peerConnections[studentSocketId] === peerConnection) {
@@ -7494,7 +7533,7 @@ socket.on("recovery_students", async (data = {}) => {
 
 
 function handleStudentTransportUpdated(data = {}) {
-  if (!data?.socketId) return;
+  if (!classActive || !data?.socketId || !attendeeElements.has(data.socketId)) return;
   const audioTrack = typeof getActiveTeacherAudioTrack === "function" ? getActiveTeacherAudioTrack() : null;
   const videoTrack = typeof getActiveTeacherVideoTrack === "function" ? getActiveTeacherVideoTrack() : null;
   const expectsAudio = Boolean(audioTrack?.readyState === "live" && audioTrack.enabled !== false);
@@ -7504,37 +7543,44 @@ function handleStudentTransportUpdated(data = {}) {
   const receivesExpectedMedia = hasKindTelemetry
     ? (!expectsAudio || data.receivingAudio === true) && (!expectsVideo || data.receivingVideo === true)
     : Boolean(data.receiving && expectsMedia);
-  const p2pReceiving = Boolean(data.transport === "p2p" && data.receiving && (data.receivingAudio || data.receivingVideo));
-  const receiving = Boolean(data.transport === "sfu" && data.receiving && expectsMedia && receivesExpectedMedia);
-  if (receiving) {
+  const p2p = data.transport === "p2p" ? data : (data.p2p || {});
+  const p2pReceiving = Boolean(expectsMedia && p2p.receiving &&
+    (!expectsAudio || p2p.receivingAudio === true) && (!expectsVideo || p2p.receivingVideo === true));
+  const sfuReceiving = Boolean(data.transport === "sfu" && data.receiving && expectsMedia && receivesExpectedMedia);
+  const receiving = sfuReceiving || p2pReceiving;
+  if (receiving || !expectsMedia) {
     const fallbackTimer = studentSfuFallbackTimers.get(data.socketId);
     if (fallbackTimer) clearTimeout(fallbackTimer);
     studentSfuFallbackTimers.delete(data.socketId);
-  } else {
+  }
+  if (!sfuReceiving) {
     const returnTimer = studentSfuReturnTimers.get(data.socketId);
     if (returnTimer) clearTimeout(returnTimer);
     studentSfuReturnTimers.delete(data.socketId);
   }
   const previousTransport = studentMediaTransports.get(data.socketId) || {};
   studentMediaTransports.set(data.socketId, {
-    transport: data.transport || "unknown",
+    ...previousTransport,
+    transport: sfuReceiving ? "sfu" : (p2pReceiving ? "p2p" : (data.transport || "unknown")),
     receiving,
     receivingAudio: Boolean(data.receivingAudio),
     receivingVideo: Boolean(data.receivingVideo),
-    p2pPending: data.transport === "p2p" ? false : Boolean(previousTransport.p2pPending),
-    p2pActive: p2pReceiving ? true : (receiving ? false : Boolean(previousTransport.p2pActive)),
-    sfuReady: receiving,
+    p2pPending: receiving ? false : Boolean(previousTransport.p2pPending),
+    p2pActive: p2pReceiving,
+    sfuReady: sfuReceiving,
+    recoveryAttempts: receiving ? 0 : (previousTransport.recoveryAttempts || 0),
+    recoveryExhausted: receiving ? false : Boolean(previousTransport.recoveryExhausted),
     lastSeenAt: Date.now(),
   });
   renderAttendeeTransportStatus(data.socketId);
-  if (receiving && data.transport === "sfu") {
+  if (sfuReceiving) {
     const peerConnection = peerConnections[data.socketId];
     if (peerConnection?.__teacherP2pFallback && !studentSfuReturnTimers.has(data.socketId)) {
       const timer = setTimeout(() => {
         studentSfuReturnTimers.delete(data.socketId);
         const latest = studentMediaTransports.get(data.socketId);
         if (
-          !classActive || !latest?.receiving || Date.now() - latest.lastSeenAt > STUDENT_SFU_RETURN_CONFIRM_MS + 2_000
+          !classActive || !latest?.sfuReady || Date.now() - latest.lastSeenAt > STUDENT_SFU_RETURN_CONFIRM_MS + 2_000
           || !peerConnections[data.socketId]?.__teacherP2pFallback
         ) return;
         recordLiveDiagnosticEvent("student_sfu_recovered", `Student ${data.socketId} confirmed LiveKit audio/video; ending targeted P2P fallback`);
@@ -7544,15 +7590,16 @@ function handleStudentTransportUpdated(data = {}) {
     }
     return;
   }
-  if (data.transport === "sfu" && expectsMedia && classActive) {
-    console.info(`[Diagnostics] Student ${data.socketId} is missing expected LiveKit media; checking targeted recovery.`);
+  if (receiving || !expectsMedia || previousTransport.recoveryExhausted) return;
+  if (previousTransport.lastRecoveryAt && Date.now() - previousTransport.lastRecoveryAt < STUDENT_RECOVERY_COOLDOWN_MS) return;
+  if (data.transport === "sfu" || data.transport === "p2p") {
     if (!studentSfuFallbackTimers.has(data.socketId)) {
       const timer = setTimeout(() => {
         studentSfuFallbackTimers.delete(data.socketId);
         const latest = studentMediaTransports.get(data.socketId);
-        if (!classActive || !latest || latest.transport !== "sfu" || latest.receiving) return;
-        recordLiveDiagnosticEvent("student_not_receiving", `Student ${data.socketId} still lacks expected LiveKit media; starting targeted P2P recovery`);
-        transitionStudentToP2pFallback(data.socketId, { allowWhileSfuActive: true });
+        if (!classActive || !attendeeElements.has(data.socketId) || !latest || latest.receiving) return;
+        const started = transitionStudentToP2pFallback(data.socketId, { allowWhileSfuActive: true, restartStalled: true });
+        if (started) recordLiveDiagnosticEvent("student_not_receiving", `Student ${data.socketId} lacks expected media on both transports; started targeted recovery`);
       }, STUDENT_SFU_FALLBACK_DELAY_MS);
       studentSfuFallbackTimers.set(data.socketId, timer);
     }
@@ -7562,21 +7609,20 @@ function handleStudentTransportUpdated(data = {}) {
 socket.on("student_transport_updated", handleStudentTransportUpdated);
 
 socket.on("student_needs_p2p", (data = {}) => {
-  if (!classActive || !data?.socketId) return;
+  if (!classActive || !data?.socketId || !attendeeElements.has(data.socketId)) return;
   const existing = studentMediaTransports.get(data.socketId) || {};
   studentMediaTransports.set(data.socketId, {
     ...existing,
     transport: "p2p",
     p2pPending: false,
-    p2pActive: true,
+    p2pActive: Boolean(existing.p2pActive),
     sfuReady: false,
     lastSeenAt: Date.now(),
   });
   renderAttendeeTransportStatus(data.socketId);
 
-  console.info(`[Fallback] Student ${data.socketId} requested targeted P2P stream; delivering fallback offer.`);
-  recordLiveDiagnosticEvent("student_requested_p2p", `Student ${data.socketId} requested targeted P2P (${data.reason || "network"}); sending offer`);
-  transitionStudentToP2pFallback(data.socketId, { allowWhileSfuActive: true });
+  const started = transitionStudentToP2pFallback(data.socketId, { allowWhileSfuActive: true });
+  if (started) recordLiveDiagnosticEvent("student_requested_p2p", `Student ${data.socketId} requested targeted P2P (${data.reason || "network"}); sending offer`);
 });
 
 

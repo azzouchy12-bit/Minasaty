@@ -96,6 +96,8 @@ let studentSfuRetryTimer = null;
 let studentSfuRetryAttempt = 0;
 let initialP2pPreviewRequested = false;
 const studentSfuMediaProgress = new Map();
+const studentP2pMediaProgress = new Map();
+let studentP2pReceptionBusy = false;
 const studentDiagnosticEvents = [];
 
 function getTeacherAudioElement() {
@@ -402,38 +404,94 @@ function hasLiveP2pTeacherMedia() {
   return tracks.some((track) => track?.__fromSfu !== true && track.readyState === "live");
 }
 
-function notifySfuTransportStatus(receiving = true) {
-  if (receiving) {
-    try { sessionStorage.setItem("studentMediaTransport", "sfu"); } catch (_) {}
+function getTeacherP2pReceptionState() {
+  const peer = typeof pc !== "undefined" ? pc : null;
+  const recent = (kind) => Boolean(peer?.connectionState === "connected" &&
+    peer.getReceivers?.().some(({ track }) => {
+      const progress = studentP2pMediaProgress.get(track);
+      return track?.kind === kind && track.__fromSfu !== true && track.readyState === "live" &&
+        track.enabled !== false && !track.muted && progress?.peer === peer &&
+        progress.lastProgressAt > 0 && Date.now() - progress.lastProgressAt <= 8_000;
+    }));
+  const receivingAudio = recent("audio"), receivingVideo = recent("video");
+  return { receivingAudio, receivingVideo, receiving: receivingAudio || receivingVideo };
+}
+
+async function sampleTeacherP2pReception() {
+  if (studentP2pReceptionBusy) return;
+  const peer = typeof pc !== "undefined" ? pc : null;
+  if (!joinedClass || peer?.connectionState !== "connected") {
+    studentP2pMediaProgress.clear();
+    return;
   }
+  studentP2pReceptionBusy = true;
+  const activeTracks = new Set();
+  try {
+    for (const receiver of peer.getReceivers?.() || []) {
+      const track = receiver.track;
+      if (!track || track.__fromSfu === true || track.readyState !== "live" ||
+          track.enabled === false || track.muted || typeof receiver.getStats !== "function") continue;
+      activeTracks.add(track);
+      let timeout;
+      try {
+        const stats = await Promise.race([receiver.getStats(), new Promise((resolve) => {
+          timeout = window.setTimeout(() => resolve(null), 1_500);
+        })]);
+        if (pc !== peer || !joinedClass) return;
+        let bytes = 0, units = 0, hasUnits = false, found = false;
+        stats?.forEach((report) => {
+          if (report.type !== "inbound-rtp" || (report.kind || report.mediaType) !== track.kind) return;
+          found = true;
+          bytes += Number(report.bytesReceived) || 0;
+          const decoded = track.kind === "audio" ? report.totalSamplesReceived : report.framesDecoded;
+          if (typeof decoded === "number") { hasUnits = true; units += decoded; }
+        });
+        if (!found) { studentP2pMediaProgress.delete(track); continue; }
+        const previous = studentP2pMediaProgress.get(track);
+        const advanced = previous?.peer === peer && bytes > previous.bytes &&
+          (!hasUnits || !previous.hasUnits || units > previous.units);
+        studentP2pMediaProgress.set(track, { peer, bytes, units, hasUnits,
+          lastProgressAt: advanced ? Date.now() : (previous?.lastProgressAt || 0) });
+      } catch (_) {
+        studentP2pMediaProgress.delete(track);
+      } finally { window.clearTimeout(timeout); }
+    }
+    for (const track of studentP2pMediaProgress.keys()) {
+      if (!activeTracks.has(track)) studentP2pMediaProgress.delete(track);
+    }
+    if (pc === peer && joinedClass) notifySfuTransportStatus(true);
+  } finally { studentP2pReceptionBusy = false; }
+}
+
+function notifySfuTransportStatus(receiving = true) {
   if (socket && socket.connected) {
     const reception = typeof getTeacherSfuReceptionState === "function"
       ? getTeacherSfuReceptionState()
       : { receiving: Boolean(receiving), receivingAudio: false, receivingVideo: false };
+    if (receiving && reception.receiving) {
+      try { sessionStorage.setItem("studentMediaTransport", "sfu"); } catch (_) {}
+    }
     socket.emit("student_media_transport_status", {
       transport: "sfu",
       receiving: Boolean(receiving && reception.receiving),
       receivingAudio: Boolean(receiving && reception.receivingAudio),
       receivingVideo: Boolean(receiving && reception.receivingVideo),
+      p2p: typeof getTeacherP2pReceptionState === "function" ? getTeacherP2pReceptionState() : { receiving: false, receivingAudio: false, receivingVideo: false },
     });
   }
 }
 
 function notifyP2pTransportStatus() {
-  try { sessionStorage.setItem("studentMediaTransport", "p2p"); } catch (_) {}
   if (!socket?.connected) return;
-  const tracks = [remoteMediaStream, teacherAudioStream]
-    .filter((stream) => typeof stream?.getTracks === "function")
-    .flatMap((stream) => stream.getTracks())
-    .filter((track) => track.__fromSfu !== true && track.readyState === "live");
-  const receivingAudio = tracks.some((track) => track.kind === "audio");
-  const receivingVideo = tracks.some((track) => track.kind === "video");
-  if (!receivingAudio && !receivingVideo) return;
+  const p2p = getTeacherP2pReceptionState();
+  if (!p2p.receiving) { void sampleTeacherP2pReception(); return; }
+  try { sessionStorage.setItem("studentMediaTransport", "p2p"); } catch (_) {}
   socket.emit("student_media_transport_status", {
     transport: "p2p",
-    receiving: true,
-    receivingAudio,
-    receivingVideo,
+    receiving: p2p.receiving,
+    receivingAudio: p2p.receivingAudio,
+    receivingVideo: p2p.receivingVideo,
+    p2p,
   });
 }
 
@@ -7416,6 +7474,7 @@ if (!studentId || !studentName || !level) {
 
 
 window.setInterval(() => { void reportClassroomAudioReception().catch(() => {}); }, 3000);
+window.setInterval(() => { void sampleTeacherP2pReception().catch(() => {}); }, 3000);
 
 window.setInterval(() => {
   flushClassContinueRefresh();

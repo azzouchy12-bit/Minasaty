@@ -2466,9 +2466,17 @@ io.on("connection", (socket) => {
   socket.on("student_media_transport_status", (data = {}, acknowledgement) => {
     const level = socket.data.roomLevel;
     const transport = String(data?.transport || "").trim().toLowerCase();
+    if (socket.data.role !== "student" || !isInLevelRoom(socket, level) || !["sfu", "p2p"].includes(transport)) {
+      return acknowledge(acknowledgement, { ok: false });
+    }
     const receiving = Boolean(data?.receiving);
+    const p2p = {
+      receiving: data?.p2p?.receiving === true,
+      receivingAudio: data?.p2p?.receivingAudio === true,
+      receivingVideo: data?.p2p?.receivingVideo === true,
+    };
     socket.data.mediaTransport = transport;
-    socket.data.isReceivingMedia = receiving;
+    socket.data.isReceivingMedia = receiving || p2p.receiving;
 
     const teacherSocketId = activeTeachersByLevel.get(level);
     if (teacherSocketId && teacherSocketId !== socket.id) {
@@ -2478,6 +2486,7 @@ io.on("connection", (socket) => {
         receiving,
         receivingAudio: Boolean(data?.receivingAudio),
         receivingVideo: Boolean(data?.receivingVideo),
+        p2p,
       });
     }
     acknowledge(acknowledgement, {
