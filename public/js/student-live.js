@@ -1182,6 +1182,8 @@ let didLoseSocketConnection = false;
 let isRecoveringStream = false;
 let recoveryAttempts = 0;
 let recoveryTimer = null;
+let p2pDisconnectTimer = null;
+const P2P_DISCONNECT_GRACE_MS = 3_500;
 const MAX_RECOVERY_ATTEMPTS = 8;
 const STUDENT_MIC_PERMISSION_STORAGE_KEY = "studentLiveMicPermission:v1";
 const STUDENT_PREJOIN_COMPLETED_KEY = "studentLivePrejoinCompleted:v1";
@@ -5166,6 +5168,10 @@ function beginStreamRecovery(message, { force = false } = {}) {
 }
 
 function closePeerConnection() {
+  if (p2pDisconnectTimer) {
+    window.clearTimeout(p2pDisconnectTimer);
+    p2pDisconnectTimer = null;
+  }
   if (pc) {
     pc.onicecandidate = null;
     pc.ontrack = null;
@@ -5391,7 +5397,16 @@ function createViewerPeerConnection() {
       return;
     }
 
+    if (pc.connectionState === "connected" && p2pDisconnectTimer) {
+      window.clearTimeout(p2pDisconnectTimer);
+      p2pDisconnectTimer = null;
+    }
+
     if (pc.connectionState === "failed") {
+      if (isStudentSfuHealthy()) {
+        console.info("[WebRTC-Student] P2P failed while LiveKit media is healthy; preserving playback.");
+        return;
+      }
       beginStreamRecovery("انقطع اتصال البث. جارٍ استعادته تلقائياً…");
     }
   };
@@ -5404,6 +5419,10 @@ function createViewerPeerConnection() {
     const { iceConnectionState } = pc;
 
     if (iceConnectionState === "connected" || iceConnectionState === "completed") {
+      if (p2pDisconnectTimer) {
+        window.clearTimeout(p2pDisconnectTimer);
+        p2pDisconnectTimer = null;
+      }
       clearRecoveryTimer();
       recoveryAttempts = 0;
       isRecoveringStream = false;
@@ -5413,14 +5432,34 @@ function createViewerPeerConnection() {
     }
 
     if (iceConnectionState === "disconnected") {
-      showConnectionOverlay("اتصال البث غير مستقر. جارٍ محاولة الاستعادة…", "warning");
-      setViewerStatus("اتصال البث غير مستقر. جارٍ محاولة الاستعادة…", "warning");
-      isRecoveringStream = true;
-      scheduleClassRecovery(2_000);
+      // ICE can briefly report "disconnected" during Wi-Fi jitter even while
+      // LiveKit is delivering media. Wait before showing a warning or rejoining.
+      if (isStudentSfuHealthy()) {
+        hideConnectionOverlay();
+        return;
+      }
+      if (p2pDisconnectTimer) return;
+      const disconnectedPeer = pc;
+      p2pDisconnectTimer = window.setTimeout(() => {
+        p2pDisconnectTimer = null;
+        if (pc !== disconnectedPeer || pc.iceConnectionState !== "disconnected" || isStudentSfuHealthy()) return;
+        showConnectionOverlay("اتصال البث غير مستقر. جارٍ محاولة الاستعادة…", "warning");
+        setViewerStatus("اتصال البث غير مستقر. جارٍ محاولة الاستعادة…", "warning");
+        isRecoveringStream = true;
+        scheduleClassRecovery(2_000);
+      }, P2P_DISCONNECT_GRACE_MS);
       return;
     }
 
     if (iceConnectionState === "failed") {
+      if (p2pDisconnectTimer) {
+        window.clearTimeout(p2pDisconnectTimer);
+        p2pDisconnectTimer = null;
+      }
+      if (isStudentSfuHealthy()) {
+        console.info("[WebRTC-Student] P2P ICE failed while LiveKit media is healthy; preserving playback.");
+        return;
+      }
       beginStreamRecovery("فشل اتصال البث. جارٍ إعادة الاتصال تلقائياً…");
     }
   };
