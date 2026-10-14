@@ -5,15 +5,18 @@ const express = require("express");
 const { verifyToken } = require("../middleware/authMiddleware");
 
 const router = express.Router();
-const DEFAULT_STUN_URL = "stun:stun.l.google.com:19302";
+const DEFAULT_STUN_URLS = [
+  "stun:stun.l.google.com:19302",
+  "stun:stun1.l.google.com:19302",
+  "stun:stun.cloudflare.com:3478",
+  "stun:192.236.187.151:3478",
+];
 const DEFAULT_TURN_HOST = "192.236.187.151";
 const DEFAULT_TURN_PORT = "3478";
 const DEFAULT_TURN_REALM = "minasaty.com";
 
-const DEFAULT_TURN_SECRET = "minasaty_sfu_secret_2026_super_secure_key";
-
 function getTurnConfig() {
-  const secret = String(process.env.COTURN_SECRET || DEFAULT_TURN_SECRET).trim();
+  const secret = String(process.env.COTURN_SECRET || process.env.TURN_SECRET || "").trim();
   const host = String(process.env.COTURN_HOST || DEFAULT_TURN_HOST).trim();
   const port = String(process.env.COTURN_PORT || DEFAULT_TURN_PORT).trim();
   const realm = String(process.env.COTURN_REALM || DEFAULT_TURN_REALM).trim();
@@ -23,8 +26,13 @@ function getTurnConfig() {
 
 router.get("/ice-servers", verifyToken, (req, res) => {
   const turn = getTurnConfig();
+  const stunServers = DEFAULT_STUN_URLS.map((url) => ({ urls: [url] }));
+
   if (!turn) {
-    return res.status(503).json({ error: "إعدادات خادم TURN غير متاحة حاليًا." });
+    return res.status(200).json({
+      status: "success",
+      iceServers: stunServers,
+    });
   }
 
   const expiry = Math.floor(Date.now() / 1000) + 43200;
@@ -37,12 +45,11 @@ router.get("/ice-servers", verifyToken, (req, res) => {
     expiresAt: expiry,
     realm: turn.realm,
     iceServers: [
-      { urls: [DEFAULT_STUN_URL] },
+      ...stunServers,
       {
         urls: [
           `turn:${endpoint}?transport=udp`,
           `turn:${endpoint}?transport=tcp`,
-          `turn:${turn.host}:443?transport=tcp`,
         ],
         username,
         credential,
@@ -76,9 +83,9 @@ function getLivekitConfig() {
   const url = String(
     process.env.LIVEKIT_URL || (port === "443" || host.includes("sslip.io") ? `wss://${host}` : `${protocol}://${host}:${port}`)
   ).trim();
-  // LiveKit is temporarily disabled as requested by user.
-  // Set LIVEKIT_ENABLED="true" in environment variables to re-enable it.
-  const enabled = process.env.LIVEKIT_ENABLED === "true" || (isTest && process.env.LIVEKIT_ENABLED !== "false");
+  // LiveKit SFU is enabled by default to ensure all students (especially on WiFi / ADSL) receive live media without NAT blockage.
+  // Set LIVEKIT_ENABLED="false" in environment variables to disable it.
+  const enabled = process.env.LIVEKIT_ENABLED !== "false";
   return { host, port, key, secret, url, enabled, isConfigured: Boolean(key && secret) };
 }
 

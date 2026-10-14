@@ -6140,11 +6140,12 @@ socket.on("room_joined", (data = {}) => {
     window.setTimeout(() => {
       const hasP2p = hasLiveP2pTeacherMedia();
       const hasSfu = isStudentSfuConnected() && (teacherSfuPlaybackTracks.size > 0 || (typeof getTeacherSfuReceptionState === "function" && getTeacherSfuReceptionState().receiving));
-      if (joinedClass && !hasP2p && !hasSfu) {
-        console.info("[SFU-Student] No media received after grace period (3.5s); requesting targeted P2P stream.");
-        requestTargetedP2pFallback("No media after initial grace period (3.5s)");
+      const isConnecting = Boolean(isStudentSfuConnecting || (studentSfuRoom && studentSfuRoom.state === "connecting"));
+      if (joinedClass && !hasP2p && !hasSfu && !isConnecting) {
+        console.info("[SFU-Student] No media received after grace period (7s); requesting targeted P2P stream while keeping SFU active.");
+        requestTargetedP2pFallback("No media after initial grace period", { holdSfu: false });
       }
-    }, 3500);
+    }, 7000);
   }
 });
 
