@@ -1322,6 +1322,16 @@
         background: rgba(37, 99, 235, 0.6);
       }
 
+      /* On mobile / phone: remove download button from chat card (relocated inside image modal) */
+      @media (max-width: 900px) {
+        .student-chat-image-card .student-chat-image-download {
+          display: none !important;
+        }
+      }
+      .student-desktop-mode .student-chat-image-card .student-chat-image-download {
+        display: inline-flex !important;
+      }
+
       @media (max-width: 68rem) {
         .viewer-shell {
           grid-template-rows: auto auto auto;
@@ -5846,6 +5856,199 @@
         .calc-key-zero {
           grid-column: span 1 !important;
         }
+
+        /* ===== Student Image Zoom & Download Modal (Mobile / Phone) ===== */
+        .student-image-modal {
+          position: fixed !important;
+          z-index: 2147483646 !important;
+          inset: 0 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: center !important;
+          padding: 0.5rem !important;
+          box-sizing: border-box !important;
+          touch-action: none !important;
+        }
+        .student-image-modal[hidden] {
+          display: none !important;
+        }
+        .student-image-backdrop {
+          position: absolute !important;
+          inset: 0 !important;
+          z-index: 0 !important;
+          background: rgba(2, 6, 23, 0.88) !important;
+          backdrop-filter: blur(8px) !important;
+          -webkit-backdrop-filter: blur(8px) !important;
+        }
+        .student-image-dialog {
+          position: relative !important;
+          z-index: 1 !important;
+          width: 100% !important;
+          max-width: min(96vw, 42rem) !important;
+          height: 90vh !important;
+          max-height: 90dvh !important;
+          background: #0b1329 !important;
+          border: 2px solid rgba(59, 130, 246, 0.45) !important;
+          border-radius: 1.15rem !important;
+          box-shadow: 0 25px 65px rgba(0, 0, 0, 0.85), 0 0 35px rgba(37, 99, 235, 0.3) !important;
+          display: flex !important;
+          flex-direction: column !important;
+          overflow: hidden !important;
+          box-sizing: border-box !important;
+          animation: modalScaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+        }
+        .student-image-header {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          gap: 0.65rem !important;
+          padding: 0.65rem 0.85rem !important;
+          background: rgba(15, 23, 42, 0.96) !important;
+          border-bottom: 1.5px solid rgba(148, 163, 184, 0.2) !important;
+          flex-shrink: 0 !important;
+          z-index: 10 !important;
+          flex-wrap: wrap !important;
+        }
+        .student-image-actions-right {
+          display: flex !important;
+          align-items: center !important;
+          gap: 0.55rem !important;
+        }
+        .student-image-close-btn {
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 2.45rem !important;
+          height: 2.45rem !important;
+          min-width: 2.45rem !important;
+          min-height: 2.45rem !important;
+          border-radius: 0.55rem !important;
+          background: #dc2626 !important;
+          color: #ffffff !important;
+          border: 1.5px solid #ef4444 !important;
+          font-size: 1.3rem !important;
+          font-weight: 900 !important;
+          cursor: pointer !important;
+          box-shadow: 0 4px 14px rgba(220, 38, 38, 0.45) !important;
+          transition: background 0.15s ease, transform 0.1s ease !important;
+          -webkit-tap-highlight-color: transparent !important;
+        }
+        .student-image-close-btn:hover {
+          background: #b91c1c !important;
+        }
+        .student-image-close-btn:active {
+          transform: scale(0.92) !important;
+        }
+        .student-image-download-btn {
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          gap: 0.45rem !important;
+          min-height: 2.45rem !important;
+          padding: 0.4rem 0.95rem !important;
+          background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+          color: #ffffff !important;
+          border: 1.5px solid rgba(96, 165, 250, 0.6) !important;
+          border-radius: 0.55rem !important;
+          font-size: 0.88rem !important;
+          font-weight: 800 !important;
+          font-family: 'Cairo', sans-serif !important;
+          cursor: pointer !important;
+          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4) !important;
+          white-space: nowrap !important;
+          transition: background 0.15s ease, transform 0.1s ease !important;
+          -webkit-tap-highlight-color: transparent !important;
+        }
+        .student-image-download-btn:hover {
+          background: linear-gradient(135deg, #1d4ed8, #1e40af) !important;
+        }
+        .student-image-download-btn:active {
+          transform: scale(0.95) !important;
+        }
+        .student-image-zoom-controls {
+          display: flex !important;
+          align-items: center !important;
+          gap: 0.35rem !important;
+        }
+        .student-image-zoom-btn {
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          min-width: 2.1rem !important;
+          height: 2.1rem !important;
+          padding: 0 0.5rem !important;
+          background: rgba(30, 41, 59, 0.9) !important;
+          color: #e2e8f0 !important;
+          border: 1px solid rgba(148, 163, 184, 0.3) !important;
+          border-radius: 0.45rem !important;
+          font-size: 1.1rem !important;
+          font-weight: 700 !important;
+          cursor: pointer !important;
+          transition: background 0.15s ease !important;
+          -webkit-tap-highlight-color: transparent !important;
+        }
+        .student-image-zoom-btn:active {
+          background: rgba(59, 130, 246, 0.4) !important;
+        }
+        .student-image-zoom-level {
+          font-size: 0.82rem !important;
+          font-weight: 800 !important;
+          color: #38bdf8 !important;
+          min-width: 2.8rem !important;
+          text-align: center !important;
+          user-select: none !important;
+        }
+        .student-image-zoom-reset {
+          font-size: 0.75rem !important;
+          font-family: 'Cairo', sans-serif !important;
+        }
+        .student-image-stage {
+          position: relative !important;
+          flex: 1 1 auto !important;
+          width: 100% !important;
+          height: 100% !important;
+          min-height: 0 !important;
+          overflow: hidden !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          background: #020617 !important;
+          touch-action: none !important;
+          user-select: none !important;
+          -webkit-user-select: none !important;
+        }
+        .student-image-wrapper {
+          position: absolute !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          transform-origin: center center !important;
+          will-change: transform !important;
+          cursor: grab !important;
+          transition: transform 0.08s ease-out !important;
+        }
+        .student-image-wrapper.is-dragging {
+          cursor: grabbing !important;
+          transition: none !important;
+        }
+        .student-image-modal-img {
+          max-width: 90vw !important;
+          max-height: 70vh !important;
+          object-fit: contain !important;
+          border-radius: 0.5rem !important;
+          pointer-events: none !important;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+        }
+        .student-image-hint {
+          padding: 0.35rem 0.5rem !important;
+          text-align: center !important;
+          font-size: 0.75rem !important;
+          color: #94a3b8 !important;
+          background: rgba(15, 23, 42, 0.95) !important;
+          border-top: 1px solid rgba(148, 163, 184, 0.15) !important;
+          flex-shrink: 0 !important;
+        }
       </style>
   </head>
   <body class="student-live-page">
@@ -6358,6 +6561,49 @@
             </div>
           </div>
         </section>
+      </div>
+
+      <!-- مربع معاينة صورة الأستاذ وتكبيرها للهاتف -->
+      <div id="student-image-modal" class="student-image-modal" role="dialog" aria-modal="true" aria-label="معاينة الصورة وتكبيرها" hidden>
+        <div class="student-image-backdrop" id="student-image-backdrop"></div>
+        <div class="student-image-dialog" id="student-image-dialog" dir="rtl">
+          <header class="student-image-header">
+            <div class="student-image-actions-right">
+              <!-- زر في (X) الأحمر للخروج من المربع فقط -->
+              <button id="close-image-modal-btn" class="student-image-close-btn" type="button" aria-label="إغلاق معاينة الصورة" title="إغلاق">
+                <span aria-hidden="true">✕</span>
+              </button>
+              <!-- زر تحميل الصورة إلى الهاتف بجانب زر X -->
+              <button id="download-image-modal-btn" class="student-image-download-btn" type="button" aria-label="تحميل الصورة إلى الهاتف" title="تحميل الصورة إلى الهاتف">
+                <svg class="download-icon-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span class="student-image-download-text">تحميل الصورة</span>
+              </button>
+            </div>
+
+            <!-- أدوات تكبير وتصغير وإعادة ضبط حجم الصورة -->
+            <div class="student-image-zoom-controls">
+              <button id="zoom-in-image-btn" class="student-image-zoom-btn" type="button" aria-label="تكبير الصورة" title="تكبير">+</button>
+              <span id="zoom-level-indicator" class="student-image-zoom-level">100%</span>
+              <button id="zoom-out-image-btn" class="student-image-zoom-btn" type="button" aria-label="تصغير الصورة" title="تصغير">−</button>
+              <button id="zoom-reset-image-btn" class="student-image-zoom-btn student-image-zoom-reset" type="button" aria-label="إعادة ضبط الحجم" title="إعادة الضبط">إعادة الضبط</button>
+            </div>
+          </header>
+
+          <!-- مسرح عرض الصورة مع دعم السحب والتكبير باللمس المتعدد (Pinch to Zoom) -->
+          <div class="student-image-stage" id="student-image-stage">
+            <div class="student-image-wrapper" id="student-image-wrapper">
+              <img id="student-image-modal-img" class="student-image-modal-img" alt="صورة الأستاذ المعروضة" draggable="false" />
+            </div>
+          </div>
+
+          <div class="student-image-hint">
+            <span>يمكنك التكبير عبر أزرار + و - أو باللمس المزدوج وسحب الصورة</span>
+          </div>
+        </div>
       </div>
 
       <!-- عناصر توافق برمجية لا تظهر ولا تحجز أي مساحة في الصفحة. -->

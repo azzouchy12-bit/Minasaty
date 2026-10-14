@@ -3969,6 +3969,279 @@ const STUDENT_REACTIONS_CONFIG = [
 
 const myActiveChatReactions = new Map();
 
+// ===== Student Image Modal State & Controllers (Mobile Preview, Zoom & Download) =====
+let currentModalImageData = null;
+let modalZoomScale = 1;
+let modalPanX = 0;
+let modalPanY = 0;
+let isPanningImage = false;
+let startPanPointerX = 0;
+let startPanPointerY = 0;
+const activeImagePointers = new Map();
+let initialImagePinchDist = 0;
+let initialImagePinchScale = 1;
+let lastImageTapTime = 0;
+
+function applyStudentImageTransform() {
+  const wrapper = document.getElementById("student-image-wrapper");
+  const indicator = document.getElementById("zoom-level-indicator");
+  if (wrapper) {
+    wrapper.style.transform = `translate3d(${modalPanX}px, ${modalPanY}px, 0) scale(${modalZoomScale})`;
+  }
+  if (indicator) {
+    indicator.textContent = `${Math.round(modalZoomScale * 100)}%`;
+  }
+}
+
+function resetStudentImageZoom() {
+  modalZoomScale = 1;
+  modalPanX = 0;
+  modalPanY = 0;
+  isPanningImage = false;
+  activeImagePointers.clear();
+  initialImagePinchDist = 0;
+  const wrapper = document.getElementById("student-image-wrapper");
+  wrapper?.classList.remove("is-dragging");
+  applyStudentImageTransform();
+}
+
+function zoomInStudentImage() {
+  modalZoomScale = Math.min(modalZoomScale + 0.35, 5);
+  applyStudentImageTransform();
+}
+
+function zoomOutStudentImage() {
+  modalZoomScale = Math.max(modalZoomScale - 0.35, 1);
+  if (modalZoomScale <= 1) {
+    modalPanX = 0;
+    modalPanY = 0;
+  }
+  applyStudentImageTransform();
+}
+
+function openStudentImageModal({ imageUrl, imageId = null, imageName = "", directUrl = null, kind = "teacher" } = {}) {
+  const modal = document.getElementById("student-image-modal");
+  const modalImg = document.getElementById("student-image-modal-img");
+  if (!modal || !modalImg || !imageUrl) return;
+
+  const token = sessionStorage.getItem("parentToken") || localStorage.getItem("parentToken") || "";
+  const resolvedDirectUrl = directUrl || (imageId?.startsWith("tci_")
+    ? (token
+        ? `/api/live-chat/teacher-image/${encodeURIComponent(imageId)}?token=${encodeURIComponent(token)}&download=1`
+        : `/api/live-chat/teacher-image/${encodeURIComponent(imageId)}?download=1`)
+    : imageUrl);
+
+  let downloadName = imageName || "صورة-الأستاذ.jpg";
+  if (!/\.[a-z0-9]{3,4}$/i.test(downloadName)) {
+    downloadName += ".jpg";
+  }
+
+  currentModalImageData = {
+    imageUrl,
+    imageId,
+    imageName: downloadName,
+    directUrl: resolvedDirectUrl,
+    kind,
+  };
+
+  modalImg.src = imageUrl;
+  resetStudentImageZoom();
+
+  modal.hidden = false;
+  modal.style.setProperty("display", "flex", "important");
+  document.body.classList.add("student-image-modal-open");
+}
+
+function closeStudentImageModal(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === "function") {
+      event.stopImmediatePropagation();
+    }
+  }
+  const modal = document.getElementById("student-image-modal");
+  if (!modal) return;
+  modal.hidden = true;
+  modal.style.setProperty("display", "none", "important");
+  document.body.classList.remove("student-image-modal-open");
+  resetStudentImageZoom();
+  currentModalImageData = null;
+}
+
+async function downloadStudentModalImage(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === "function") {
+      event.stopImmediatePropagation();
+    }
+  }
+  if (!currentModalImageData) return;
+
+  const downloadBtn = document.getElementById("download-image-modal-btn");
+  const textEl = downloadBtn?.querySelector(".student-image-download-text");
+  const origText = textEl?.textContent || "تحميل الصورة";
+  if (textEl) textEl.textContent = "جاري التحميل...";
+
+  try {
+    await triggerOriginalImageDownload({
+      event,
+      imageId: currentModalImageData.imageId,
+      imageUrl: currentModalImageData.imageUrl,
+      preferredName: currentModalImageData.imageName,
+      directUrl: currentModalImageData.directUrl,
+    });
+    if (textEl) {
+      textEl.textContent = "تم التحميل ✓";
+      window.setTimeout(() => {
+        if (textEl) textEl.textContent = origText;
+      }, 2500);
+    }
+  } catch (err) {
+    console.error("Student modal image download failed:", err);
+    if (textEl) textEl.textContent = origText;
+  }
+}
+
+function initStudentImageModalGestures() {
+  const stage = document.getElementById("student-image-stage");
+  const wrapper = document.getElementById("student-image-wrapper");
+  if (!stage || !wrapper) return;
+
+  stage.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    try { stage.setPointerCapture?.(e.pointerId); } catch (_) {}
+    activeImagePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activeImagePointers.size === 1) {
+      const now = Date.now();
+      if (now - lastImageTapTime < 320) {
+        lastImageTapTime = 0;
+        if (modalZoomScale > 1.2) {
+          resetStudentImageZoom();
+        } else {
+          modalZoomScale = 2.5;
+          applyStudentImageTransform();
+        }
+        return;
+      }
+      lastImageTapTime = now;
+
+      if (modalZoomScale > 1) {
+        isPanningImage = true;
+        startPanPointerX = e.clientX - modalPanX;
+        startPanPointerY = e.clientY - modalPanY;
+        wrapper.classList.add("is-dragging");
+      }
+    } else if (activeImagePointers.size === 2) {
+      isPanningImage = false;
+      const pts = Array.from(activeImagePointers.values());
+      initialImagePinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      initialImagePinchScale = modalZoomScale;
+    }
+  }, { passive: false });
+
+  stage.addEventListener("pointermove", (e) => {
+    if (!activeImagePointers.has(e.pointerId)) return;
+    activeImagePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activeImagePointers.size === 2 && initialImagePinchDist > 0) {
+      e.preventDefault();
+      const pts = Array.from(activeImagePointers.values());
+      const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      const ratio = currentDist / initialImagePinchDist;
+      modalZoomScale = Math.min(Math.max(initialImagePinchScale * ratio, 1), 5);
+      if (modalZoomScale <= 1) {
+        modalPanX = 0;
+        modalPanY = 0;
+      }
+      applyStudentImageTransform();
+    } else if (activeImagePointers.size === 1 && isPanningImage && modalZoomScale > 1) {
+      e.preventDefault();
+      modalPanX = e.clientX - startPanPointerX;
+      modalPanY = e.clientY - startPanPointerY;
+      applyStudentImageTransform();
+    }
+  }, { passive: false });
+
+  const handlePointerEnd = (e) => {
+    activeImagePointers.delete(e.pointerId);
+    if (activeImagePointers.size < 2) {
+      initialImagePinchDist = 0;
+    }
+    if (activeImagePointers.size === 0) {
+      isPanningImage = false;
+      wrapper.classList.remove("is-dragging");
+      if (modalZoomScale <= 1) {
+        resetStudentImageZoom();
+      }
+    }
+  };
+
+  stage.addEventListener("pointerup", handlePointerEnd);
+  stage.addEventListener("pointercancel", handlePointerEnd);
+
+  stage.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      zoomInStudentImage();
+    } else {
+      zoomOutStudentImage();
+    }
+  }, { passive: false });
+}
+
+function initializeStudentImageModal() {
+  const modal = document.getElementById("student-image-modal");
+  const closeBtn = document.getElementById("close-image-modal-btn");
+  const downloadBtn = document.getElementById("download-image-modal-btn");
+  const zoomInBtn = document.getElementById("zoom-in-image-btn");
+  const zoomOutBtn = document.getElementById("zoom-out-image-btn");
+  const zoomResetBtn = document.getElementById("zoom-reset-image-btn");
+  const backdrop = document.getElementById("student-image-backdrop");
+
+  if (!modal) return;
+
+  closeBtn?.addEventListener("click", (e) => {
+    closeStudentImageModal(e);
+  });
+
+  downloadBtn?.addEventListener("click", (e) => {
+    downloadStudentModalImage(e);
+  });
+
+  zoomInBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    zoomInStudentImage();
+  });
+
+  zoomOutBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    zoomOutStudentImage();
+  });
+
+  zoomResetBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resetStudentImageZoom();
+  });
+
+  backdrop?.addEventListener("click", (e) => {
+    closeStudentImageModal(e);
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && modal && !modal.hidden) {
+      closeStudentImageModal(e);
+    }
+  });
+
+  initStudentImageModalGestures();
+}
+
 async function triggerOriginalImageDownload({ event, imageId, imageUrl, preferredName, directUrl }) {
   const token = sessionStorage.getItem("parentToken") || localStorage.getItem("parentToken") || "";
   let finalBlob = null;
@@ -3986,6 +4259,22 @@ async function triggerOriginalImageDownload({ event, imageId, imageUrl, preferre
     try {
       const resp = await fetch(`/api/live-chat/teacher-image/${encodeURIComponent(imageId)}`, {
         headers: token ? { Authorization: `Bearer ${token}`, Accept: "image/*" } : { Accept: "image/*" },
+      });
+      if (resp.ok) finalBlob = await resp.blob();
+    } catch (_) {}
+  }
+
+  // 3. Fallback: fetch from data URL or imageUrl
+  if (!finalBlob && imageUrl && imageUrl.startsWith("data:")) {
+    try {
+      const resp = await fetch(imageUrl);
+      if (resp.ok) finalBlob = await resp.blob();
+    } catch (_) {}
+  }
+  if (!finalBlob && imageUrl && !imageUrl.startsWith("blob:") && !imageUrl.startsWith("data:")) {
+    try {
+      const resp = await fetch(imageUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (resp.ok) finalBlob = await resp.blob();
     } catch (_) {}
@@ -4014,24 +4303,19 @@ async function triggerOriginalImageDownload({ event, imageId, imageUrl, preferre
     return;
   }
 
-  // 3. Fallback: navigate via direct URL with ?download=1
-  if (directUrl && directUrl !== "#") {
-    if (!event) {
-      const tempLink = document.createElement("a");
-      tempLink.href = directUrl;
-      tempLink.download = finalName;
-      tempLink.target = "_blank";
-      tempLink.rel = "noopener noreferrer";
-      document.body.append(tempLink);
-      tempLink.click();
-      window.setTimeout(() => tempLink.remove(), 1_000);
-    }
-    return;
-  }
-
-  if (imageUrl) {
+  // 4. Fallback: navigate via direct URL with ?download=1
+  const fallbackUrl = (directUrl && directUrl !== "#") ? directUrl : imageUrl;
+  if (fallbackUrl) {
     if (event) event.preventDefault();
-    window.open(imageUrl, "_blank");
+    const tempLink = document.createElement("a");
+    tempLink.href = fallbackUrl;
+    tempLink.download = finalName;
+    tempLink.target = "_blank";
+    tempLink.rel = "noopener noreferrer";
+    document.body.append(tempLink);
+    tempLink.click();
+    window.setTimeout(() => tempLink.remove(), 1_000);
+    return;
   }
 }
 
@@ -4101,20 +4385,42 @@ function appendStudentChatMessage({ id, sender, message = "", kind, imageUrl = n
     image.src = imageUrl;
     image.alt = "صورة سؤال أو واجب مرفقة";
     image.loading = "lazy";
-    image.addEventListener("click", () => openChatLinkInSeparateView({ preventDefault() { } }, imageUrl));
+
+    let downloadName = imageName || "صورة-الأستاذ-الأصلية.jpg";
+    if (!/\.[a-z0-9]{3,4}$/i.test(downloadName)) {
+      downloadName += ".jpg";
+    }
+
+    const token = sessionStorage.getItem("parentToken") || localStorage.getItem("parentToken") || "";
+    const directDownloadUrl = token
+      ? `/api/live-chat/teacher-image/${encodeURIComponent(imageId || "")}?token=${encodeURIComponent(token)}&download=1`
+      : `/api/live-chat/teacher-image/${encodeURIComponent(imageId || "")}?download=1`;
+
+    image.addEventListener("click", (event) => {
+      // Keep desktop Chrome PC experience completely untouched!
+      if (isDesktopStudentView()) {
+        openChatLinkInSeparateView(event, imageUrl);
+      } else {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        openStudentImageModal({
+          imageUrl,
+          imageId,
+          imageName: downloadName,
+          directUrl: directDownloadUrl,
+          kind,
+        });
+      }
+    });
+
     imageCard.append(image);
+
+    // Desktop mode maintains the download link in the message card.
+    // On mobile phone, this download button is hidden/removed from the message card and placed inside the image modal.
     if (kind === "teacher" && imageId?.startsWith("tci_")) {
       const download = document.createElement("a");
       download.className = "student-chat-image-download";
-      const token = sessionStorage.getItem("parentToken") || localStorage.getItem("parentToken") || "";
-      const directDownloadUrl = token
-        ? `/api/live-chat/teacher-image/${encodeURIComponent(imageId)}?token=${encodeURIComponent(token)}&download=1`
-        : `/api/live-chat/teacher-image/${encodeURIComponent(imageId)}?download=1`;
       download.href = directDownloadUrl;
-      let downloadName = imageName || "صورة-الأستاذ-الأصلية.jpg";
-      if (!/\.[a-z0-9]{3,4}$/i.test(downloadName)) {
-        downloadName += ".jpg";
-      }
       download.download = downloadName;
       download.textContent = "تنزيل الصورة الأصلية";
       download.setAttribute("aria-label", "تنزيل الصورة المرسلة من الأستاذ بجودتها الأصلية");
@@ -6998,6 +7304,7 @@ initializeStudentKeyboardLayout();
 initializeQualitySelector();
 initializeSignalFinder();
 initializeStudentCalculator();
+initializeStudentImageModal();
 
 window.addEventListener("pagehide", () => {
   enableNativeSwipeRefresh();
@@ -7007,6 +7314,7 @@ window.addEventListener("pagehide", () => {
   closeSubscriptionUpgradeModal();
   closeSignalFinderModal();
   closeStudentCalculatorModal();
+  closeStudentImageModal();
   closePeerConnection();
   stopLocalAudio();
 });
