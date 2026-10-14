@@ -141,9 +141,21 @@ function attachTeacherSfuPlaybackTrack(track, participant) {
   if (track.kind === "video") {
     element.srcObject = new MediaStream([track.mediaStreamTrack]);
     element.muted = true;
+    if (typeof element?.play === "function") void element.play().catch(() => {});
+    if (elements?.placeholder) elements.placeholder.hidden = true;
+    if (typeof updateRemoteVideoPresentation === "function") updateRemoteVideoPresentation();
+    if (typeof clearRecoveryTimer === "function") clearRecoveryTimer();
+    recoveryAttempts = 0;
+    isRecoveringStream = false;
+    if (typeof hideConnectionOverlay === "function") hideConnectionOverlay();
   }
   track.attach(element);
-  if (track.kind === "video") element.muted = true;
+  if (track.kind === "video") {
+    element.muted = true;
+    if (typeof element?.play === "function") void element.play().catch(() => {});
+    if (elements?.placeholder) elements.placeholder.hidden = true;
+    if (typeof updateRemoteVideoPresentation === "function") updateRemoteVideoPresentation();
+  }
   teacherSfuPlaybackTracks.set(track.kind, track);
 }
 
@@ -1791,26 +1803,31 @@ function checkAutomaticMediaRefresh() {
     state.attempts = 0;
     return;
   }
-  // During initial class entry (first 25 seconds), allow media negotiations and keyframes to arrive seamlessly without disruption.
+  // During initial class entry, allow a brief grace period (3.5 seconds) for initial media negotiations to arrive.
   const joinedAt = typeof studentClassJoinedAt !== "undefined" ? studentClassJoinedAt : 0;
-  if (joinedAt && (Date.now() - joinedAt < 25_000)) {
+  if (joinedAt && (Date.now() - joinedAt < 3_500)) {
     state.missingSince = null;
     return;
   }
-  // If LiveKit SFU is connected and healthy or actively connecting, media is managed smoothly without tearing down connection.
+  // If LiveKit SFU is connected and healthy, media is managed smoothly without tearing down connection.
   if (typeof isStudentSfuConnected === "function" && isStudentSfuConnected()) {
     if (typeof isStudentSfuHealthy === "function" && isStudentSfuHealthy()) {
       state.missingSince = null;
       return;
     }
   }
+  // If SFU has been connecting for less than 4 seconds, allow it to finish; otherwise do not block recovery
   if (typeof isStudentSfuConnecting !== "undefined" && isStudentSfuConnecting) {
-    state.missingSince = null;
-    return;
+    if (joinedAt && (Date.now() - joinedAt < 4_000)) {
+      state.missingSince = null;
+      return;
+    }
   }
   if (typeof studentSfuRoom !== "undefined" && studentSfuRoom && studentSfuRoom.state === "connecting") {
-    state.missingSince = null;
-    return;
+    if (joinedAt && (Date.now() - joinedAt < 4_000)) {
+      state.missingSince = null;
+      return;
+    }
   }
   // Background tabs intentionally pause video; never rebuild their connection.
   if (document.visibilityState === "hidden" || !screenShareActive) {
@@ -5938,6 +5955,7 @@ async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
   joinedClass = true;
   isJoining = true;
   studentClassJoinedAt = Date.now();
+  initialP2pPreviewRequested = false;
   // Once joining starts, the pre-join layer must stop intercepting controls.
   setStudentSessionActive(true);
   if (!rejoin) {
@@ -6165,15 +6183,25 @@ socket.on("room_joined", (data = {}) => {
       title: elements.classLevelLabel?.textContent || "الحصة المباشرة",
       teacher: "أكاديمية التفوق"
     });
+    if (typeof ensureTeacherAudioPlayback === "function") {
+      void ensureTeacherAudioPlayback({ sourceHint: "room_joined" });
+    }
     requestInitialP2pPreview();
     void connectStudentSfu(data.classroomLevel || data.level, { backgroundRetry: true });
     window.setTimeout(() => {
       const hasP2p = hasLiveP2pTeacherMedia();
       const hasSfu = isStudentSfuConnected() && (teacherSfuPlaybackTracks.size > 0 || (typeof getTeacherSfuReceptionState === "function" && getTeacherSfuReceptionState().receiving));
-      const isConnecting = Boolean(isStudentSfuConnecting || (studentSfuRoom && studentSfuRoom.state === "connecting"));
-      if (joinedClass && !hasP2p && !hasSfu && !isConnecting) {
-        console.info("[SFU-Student] No media received after grace period (7s); requesting targeted P2P stream while keeping SFU active.");
+      if (joinedClass && !hasP2p && !hasSfu) {
+        console.info("[SFU-Student] No media received after fast initial grace period (3.5s); requesting targeted P2P stream while keeping SFU active.");
         requestTargetedP2pFallback("No media after initial grace period", { holdSfu: false });
+      }
+    }, 3500);
+    window.setTimeout(() => {
+      const hasP2p = hasLiveP2pTeacherMedia();
+      const hasSfu = isStudentSfuConnected() && (teacherSfuPlaybackTracks.size > 0 || (typeof getTeacherSfuReceptionState === "function" && getTeacherSfuReceptionState().receiving));
+      if (joinedClass && !hasP2p && !hasSfu) {
+        console.info("[SFU-Student] No media received after secondary grace period (7s); requesting targeted P2P stream while keeping SFU active.");
+        requestTargetedP2pFallback("No media after secondary grace period", { holdSfu: false });
       }
     }, 7000);
   }
