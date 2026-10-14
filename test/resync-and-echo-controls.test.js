@@ -58,7 +58,7 @@ test("teacher-live-v2.js implements resynchronization and echo elimination witho
   assert.match(js, /elements\.fixEchoButton\?\.addEventListener\("click",\s*\(\)\s*=>\s*void fixClassroomEcho\(\)\)/);
 });
 
-test("server.js defines teacher_force_resync and teacher_force_resync_student handlers", () => {
+test("server.js defines teacher_force_resync and teacher_force_resync_student handlers with implicit background delivery", () => {
   const serverPath = path.join(__dirname, "..", "server.js");
   const serverJs = fs.readFileSync(serverPath, "utf8");
 
@@ -66,21 +66,25 @@ test("server.js defines teacher_force_resync and teacher_force_resync_student ha
   assert.match(serverJs, /socket\.to\(level\)\.emit\("classroom_force_resync",/);
   assert.match(serverJs, /socket\.on\("teacher_force_resync_student",/);
   assert.match(serverJs, /io\.to\(targetSocketId\)\.emit\("classroom_force_resync",/);
+  assert.match(serverJs, /silent:\s*true/);
+  assert.match(serverJs, /reload:\s*false/);
 });
 
-test("student-live.js handles classroom_force_resync without crash", () => {
+test("student-live.js handles classroom_force_resync implicitly without interrupting joined session", () => {
   const studentPath = path.join(__dirname, "..", "public", "js", "student-live.js");
   const studentJs = fs.readFileSync(studentPath, "utf8");
 
   assert.match(studentJs, /socket\.on\("classroom_force_resync",/);
+  assert.match(studentJs, /handleImplicitMediaResync/);
   assert.match(studentJs, /elements\.remoteVideo\.play\(\)/);
 });
 
-test("student-live.js reloads page completely when teacher triggers resync/reload", () => {
+test("student-live.js prevents classroom_force_reload from dropping active class session", () => {
   const studentPath = path.join(__dirname, "..", "public", "js", "student-live.js");
   const studentJs = fs.readFileSync(studentPath, "utf8");
 
   assert.match(studentJs, /socket\.on\("classroom_force_reload",/);
+  assert.match(studentJs, /if\s*\(joinedClass\)/);
   assert.match(studentJs, /window\.location\.reload\(\)/);
 });
 

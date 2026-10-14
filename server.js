@@ -3105,13 +3105,9 @@ io.on("connection", (socket) => {
       io.to(targetSocketId).emit("classroom_force_resync", {
         level,
         targetSocketId,
-        reload: true,
-        hardReload: true,
-        timestamp: Date.now(),
-      });
-      io.to(targetSocketId).emit("classroom_force_reload", {
-        level,
-        targetSocketId,
+        silent: true,
+        reload: false,
+        hardReload: false,
         timestamp: Date.now(),
       });
 

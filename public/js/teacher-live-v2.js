@@ -7071,7 +7071,7 @@ function syncStudentResyncButton(attendee, socketId) {
     button = document.createElement("button");
     button.type = "button";
     button.className = "attendee-resync-btn";
-    button.title = "تحديث صفحة هذا التلميذ كلياً";
+    button.title = "تحديث ومزامنة هذا التلميذ في الخلفية دون مقاطعة";
     button.innerHTML = `
       <svg viewBox="0 0 24 24" aria-hidden="true" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
@@ -7308,19 +7308,35 @@ async function resyncSingleStudent(socketId, button) {
   if (button) button.disabled = true;
 
   try {
-    setStudioStatus("جارٍ تحديث صفحة التلميذ كلياً…", "neutral");
+    setStudioStatus("جارٍ تحديث ومزامنة صوت وبث التلميذ في الخلفية…", "neutral");
 
+    // 1. Ensure teacher microphone is active and healthy
+    await ensureTeacherMicrophoneActive();
+
+    // 2. Ensure student mix-minus audio destination and audio graph are active
+    ensureStudentAudioDestination(socketId);
+    rebuildClassroomAudioGraph();
+    syncMixMinusAudioToAllPeers();
+
+    // 3. Sync LiveKit SFU media if active
+    if (typeof syncTeacherSfuMedia === "function") {
+      void syncTeacherSfuMedia();
+    }
+
+    // 4. Send background resync signal to student (NO full page reload)
     try {
       await emitWithAcknowledgement("teacher_force_resync_student", {
         level: activeLevel,
         targetSocketId: socketId,
-        reload: true,
-        hardReload: true,
+        silent: true,
+        reload: false,
+        hardReload: false,
       }, 5000);
     } catch (e) {
       console.warn("teacher_force_resync_student warning:", e);
     }
 
+    // 5. Ensure targeted P2P peer connection is ready with audio & video as fallback
     let pc = peerConnections[socketId];
     if (!pc || pc.connectionState === "closed" || pc.signalingState !== "stable") {
       closePeerConnection(socketId);
@@ -7328,9 +7344,10 @@ async function resyncSingleStudent(socketId, button) {
     }
 
     ensureStudentAudioSender(pc, socketId, { renegotiate: false });
+    await ensureTeacherVideoSender(pc);
     await createAndSendOffer(socketId, { iceRestart: true, force: true });
 
-    setStudioStatus("تم تحديث صفحة التلميذ بنجاح.", "live");
+    setStudioStatus("تم تحديث ومزامنة صوت وبث التلميذ في الخلفية بنجاح.", "live");
   } catch (err) {
     console.error(`Error resyncing student ${socketId}:`, err);
     setStudioStatus("تعذر تحديث صفحة التلميذ.", "error");

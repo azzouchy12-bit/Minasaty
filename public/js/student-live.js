@@ -6646,33 +6646,118 @@ if (typeof navigator !== "undefined" && navigator.mediaDevices && typeof navigat
   });
 }
 
+async function handleImplicitMediaResync(sourceHint = "teacher_force_resync") {
+  console.info(`[Resync] Executing implicit background media resync (source: ${sourceHint}).`);
+
+  // 1. Audio restoration is priority #1: ensure teacher audio is unmuted, resumed and playing
+  try {
+    if (typeof refreshClassroomAudioOnly === "function") {
+      await refreshClassroomAudioOnly({ sourceHint });
+    }
+    if (typeof ensureTeacherAudioPlayback === "function") {
+      await ensureTeacherAudioPlayback({ sourceHint });
+    }
+    if (typeof syncClassmateSfuAudioPlayback === "function") {
+      syncClassmateSfuAudioPlayback();
+    }
+    if (typeof classroomAudioContext !== "undefined" && classroomAudioContext && classroomAudioContext.state === "suspended") {
+      await classroomAudioContext.resume().catch(() => {});
+    }
+    const audioEl = elements.teacherAudioElement || document.getElementById("teacher-live-audio");
+    if (audioEl && audioEl.paused && audioEl.srcObject) {
+      audioEl.play().catch(() => {});
+    }
+    // Re-verify student mic tracks if permitted and open
+    if (typeof localAudioStream !== "undefined" && localAudioStream && typeof microphonePermissionGranted !== "undefined" && microphonePermissionGranted) {
+      localAudioStream.getAudioTracks().forEach((track) => {
+        if (track.readyState === "live") track.enabled = true;
+      });
+      if (typeof isStudentSfuConnected === "function" && isStudentSfuConnected() && typeof publishStudentSfuMic === "function") {
+        void publishStudentSfuMic(localAudioStream);
+      }
+    }
+  } catch (audioErr) {
+    console.warn("[Resync] Audio verification warning:", audioErr);
+  }
+
+  // 2. Video and Media Routing: Attempt LiveKit first, then fallback to P2P smoothly in background
+  try {
+    const sfuConnected = typeof isStudentSfuConnected === "function" && isStudentSfuConnected();
+    const sfuHealthy = typeof isStudentSfuHealthy === "function" && isStudentSfuHealthy();
+
+    if (sfuConnected && sfuHealthy) {
+      console.info("[Resync] Student is already connected and healthy on LiveKit SFU.");
+      if (typeof teacherSfuVideoStream !== "undefined" && teacherSfuVideoStream && elements.remoteVideo) {
+        if (elements.remoteVideo.srcObject !== teacherSfuVideoStream) {
+          elements.remoteVideo.srcObject = teacherSfuVideoStream;
+        }
+        if (elements.remoteVideo.paused) {
+          elements.remoteVideo.play().catch(() => {});
+        }
+      }
+      hideConnectionOverlay();
+      setViewerStatus("البث المباشر مستمر", "live");
+      return;
+    }
+
+    // If not connected or not healthy on SFU, attempt background LiveKit connect first
+    const roomToJoin = (typeof activeLevel !== "undefined" ? activeLevel : "") || (typeof level !== "undefined" ? level : "") || "";
+    if (roomToJoin && typeof connectStudentSfu === "function") {
+      console.info("[Resync] Attempting LiveKit SFU connection in background...");
+      const sfuResult = await connectStudentSfu(roomToJoin, { backgroundRetry: true }).catch(() => false);
+      if (sfuResult && typeof isStudentSfuHealthy === "function" && isStudentSfuHealthy()) {
+        console.info("[Resync] LiveKit SFU connected and healthy in background.");
+        if (typeof teacherSfuVideoStream !== "undefined" && teacherSfuVideoStream && elements.remoteVideo) {
+          elements.remoteVideo.srcObject = teacherSfuVideoStream;
+          elements.remoteVideo.play().catch(() => {});
+        }
+        hideConnectionOverlay();
+        setViewerStatus("البث المباشر مستمر", "live");
+        return;
+      }
+    }
+
+    // If LiveKit is unavailable or unhealthy, smoothly fall back to P2P in the background
+    console.info("[Resync] Falling back to targeted P2P stream in background...");
+    if (typeof requestTargetedP2pFallback === "function") {
+      requestTargetedP2pFallback("teacher_implicit_resync", { holdSfu: false });
+    }
+
+    const p2pStream = (typeof remoteMediaStream !== "undefined" && remoteMediaStream) ? remoteMediaStream : (typeof remoteStream !== "undefined" ? remoteStream : null);
+    if (elements.remoteVideo && p2pStream) {
+      if (elements.remoteVideo.srcObject !== p2pStream) {
+        elements.remoteVideo.srcObject = p2pStream;
+      }
+      if (elements.remoteVideo.paused) {
+        elements.remoteVideo.play().catch(() => {});
+      }
+    }
+    hideConnectionOverlay();
+    setViewerStatus("البث المباشر مستمر", "live");
+  } catch (mediaErr) {
+    console.warn("[Resync] Media resync warning:", mediaErr);
+  }
+}
+
 socket.on("classroom_force_reload", () => {
+  // Never reload or disconnect an active learner session; resync silently in background!
+  if (joinedClass) {
+    console.info("[Resync] Intercepted force reload for active class; performing silent background media resync instead.");
+    void handleImplicitMediaResync("classroom_force_reload");
+    return;
+  }
   console.info("Teacher requested full page reload.");
   window.location.reload();
 });
 
 socket.on("classroom_force_resync", async (data = {}) => {
-  if (data && (data.reload || data.hardReload)) {
+  if (data && (data.reload || data.hardReload) && !joinedClass) {
     console.info("Teacher requested hard resync/reload of student page.");
     window.location.reload();
     return;
   }
-  try {
-    if (elements.remoteVideo) {
-      if (remoteStream && elements.remoteVideo.srcObject !== remoteStream) {
-        elements.remoteVideo.srcObject = remoteStream;
-      }
-      void elements.remoteVideo.play().catch(() => { });
-    }
-
-    if (!pc || pc.connectionState === "failed" || pc.connectionState === "closed") {
-      beginStreamRecovery("طلب الأستاذ تحديث ومزامنة البث والصوت…");
-    } else {
-      setViewerStatus("تم تحديث ومزامنة البث والصوت بنجاح.", "live");
-    }
-  } catch (err) {
-    console.warn("classroom_force_resync handler warning:", err);
-  }
+  console.info("[Resync] Teacher requested background audio and stream resync for student.");
+  void handleImplicitMediaResync("teacher_force_resync");
 });
 
 socket.on("teacher_reconnecting", () => {
