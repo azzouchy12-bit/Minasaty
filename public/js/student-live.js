@@ -1767,6 +1767,12 @@ function refreshAudioVideo({ automatic = false } = {}) {
     return;
   }
 
+  // ── Check if video is actually healthy before tearing everything down ──
+  const video = elements.remoteVideo;
+  const videoTracks = video?.srcObject?.getVideoTracks?.() || [];
+  const videoHealthy = videoTracks.some(t => t.readyState === "live" && !t.muted)
+    && video && video.readyState >= 2 && video.videoWidth > 0 && !video.paused;
+
   const button = elements.refreshMediaButton;
   let label = null;
   if (!automatic) {
@@ -1774,6 +1780,34 @@ function refreshAudioVideo({ automatic = false } = {}) {
     if (button) button.disabled = true;
     button?.classList.add("is-refreshing");
     label = button?.querySelector(".refresh-media-label");
+  }
+
+  // If video is healthy, the user most likely just lost audio (autoplay block,
+  // audio focus switch, mobile background return). A lightweight audio-only
+  // refresh avoids tearing down the SFU/P2P pipeline and the dreaded black screen.
+  if (videoHealthy) {
+    if (!automatic) {
+      if (label) label.textContent = "جارٍ تحديث الصوت…";
+      showMobileControlToast("جارٍ تحديث الصوت دون قطع الصورة…");
+    }
+    if (automatic) recordStudentDiagnosticEvent("automatic_audio_only_refresh", "Video healthy; refreshing audio only without tearing down media pipeline");
+    void refreshClassroomAudioOnly({ sourceHint: automatic ? "automatic_audio_refresh" : "manual_audio_refresh" }).then((result) => {
+      if (!automatic) {
+        const msg = result?.ok ? "تم تحديث الصوت بنجاح" : "تعذّر تحديث الصوت. جرّب الضغط مرة أخرى.";
+        showMobileControlToast(msg);
+      }
+    }).catch(() => {}).finally(() => {
+      if (!automatic) {
+        if (button) button.disabled = false;
+        button?.classList.remove("is-refreshing");
+        if (label) label.textContent = "تحديث الصوت والصورة";
+      }
+    });
+    return;
+  }
+
+  // Video is broken — full stream recovery is unavoidable.
+  if (!automatic) {
     if (label) label.textContent = "جارٍ تحديث الصوت والصورة…";
     showMobileControlToast("جارٍ تحديث الصوت والصورة دون مغادرة الحصة…");
   }
@@ -1989,6 +2023,23 @@ function initializeRefreshFab() {
 
   button.addEventListener("click", () => {
     if (ignoreNextRefreshClick) return;
+    // Try audio-only recovery first to avoid a full page reload black screen.
+    // If the student is in a live class and video is healthy, a lightweight
+    // audio kickstart is all that's needed (e.g. autoplay block, audio focus loss).
+    if (joinedClass && !isJoining && !isRecoveringStream) {
+      const video = elements.remoteVideo;
+      const vTracks = video?.srcObject?.getVideoTracks?.() || [];
+      const vOk = vTracks.some(t => t.readyState === "live" && !t.muted)
+        && video && video.readyState >= 2 && video.videoWidth > 0 && !video.paused;
+      if (vOk) {
+        showMobileControlToast("جارٍ تحديث الصوت…");
+        void refreshClassroomAudioOnly({ sourceHint: "fab_audio_refresh" }).then((r) => {
+          showMobileControlToast(r?.ok ? "تم تحديث الصوت بنجاح" : "جارٍ إعادة تحميل الصفحة…");
+          if (!r?.ok) window.setTimeout(() => window.location.reload(), 600);
+        }).catch(() => window.location.reload());
+        return;
+      }
+    }
     window.location.reload();
   });
 }
