@@ -220,8 +220,8 @@ function openVideo(item) {
       if (iframe) iframe.src = "";
       viewer.remove();
       document.body.style.overflow = "";
-      if (screen.orientation && screen.orientation.unlock) {
-        try { screen.orientation.unlock(); } catch (e) {}
+      if (typeof window !== "undefined" && window.screen?.orientation?.unlock) {
+        try { window.screen.orientation.unlock(); } catch (e) {}
       }
     };
 
@@ -247,8 +247,8 @@ function openVideo(item) {
         box.style.width = "100vw";
 
         // قلب الهاتف أفقياً (Landscape)
-        if (screen.orientation && screen.orientation.lock) {
-          await screen.orientation.lock("landscape").catch(() => {});
+        if (typeof window !== "undefined" && window.screen?.orientation?.lock) {
+          await window.screen.orientation.lock("landscape").catch(() => {});
         }
       } catch (err) {
         console.log("Orientation lock:", err);
@@ -264,8 +264,8 @@ function openVideo(item) {
           box.style.height = "";
           box.style.width = "100%";
         }
-        if (screen.orientation && screen.orientation.unlock) {
-          try { screen.orientation.unlock(); } catch (e) {}
+        if (typeof window !== "undefined" && window.screen?.orientation?.unlock) {
+          try { window.screen.orientation.unlock(); } catch (e) {}
         }
       }
     };

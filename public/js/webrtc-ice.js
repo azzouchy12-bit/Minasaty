@@ -15,10 +15,17 @@
   function getToken(tokenOverride = "") {
     if (typeof tokenOverride === "string" && tokenOverride.trim()) return tokenOverride.trim();
     try {
-      return sessionStorage.getItem("teacherToken")
-        || sessionStorage.getItem("parentToken")
-        || sessionStorage.getItem("studentToken")
-        || "";
+      const sess = typeof sessionStorage !== "undefined" ? sessionStorage : null;
+      const loc = typeof localStorage !== "undefined" ? localStorage : null;
+      return (
+        sess?.getItem?.("teacherToken") ||
+        loc?.getItem?.("teacherToken") ||
+        sess?.getItem?.("parentToken") ||
+        loc?.getItem?.("parentToken") ||
+        sess?.getItem?.("studentToken") ||
+        loc?.getItem?.("studentToken") ||
+        ""
+      );
     } catch {
       return "";
     }

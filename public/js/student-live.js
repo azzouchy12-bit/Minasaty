@@ -2028,6 +2028,11 @@ function isPhysicalLandscapeMode() {
   );
 }
 
+function getScreenOrientationSafe() {
+  const sc = typeof window !== "undefined" && window.screen ? window.screen : (typeof screen !== "undefined" ? screen : null);
+  return sc?.orientation || null;
+}
+
 function updateRotationControls() {
   // The phone sensor must not change this page by itself. The in-app rotate
   // button is the only control that enables the landscape interface.
@@ -2436,7 +2441,7 @@ async function lockStudentOrientation(orientation) {
   // 3. Try standard W3C screen orientation lock (supported in mobile Chrome)
   let nativeLockSucceeded = false;
   try {
-    const orientationController = screen.orientation;
+    const orientationController = getScreenOrientationSafe();
     if (orientationController && typeof orientationController.lock === "function") {
       await orientationController.lock("landscape");
       nativeLockSucceeded = true;
@@ -2473,9 +2478,10 @@ async function unrotateStudentScreen() {
     document.body.classList.remove("hide-ui-for-rotation");
 
     // Unlock native orientation if supported
-    if (screen.orientation?.unlock) {
+    const orientationController = getScreenOrientationSafe();
+    if (orientationController?.unlock) {
       try {
-        screen.orientation.unlock();
+        orientationController.unlock();
       } catch (unlockErr) {
         console.info("Screen orientation unlock skipped:", unlockErr);
       }
@@ -2555,7 +2561,7 @@ function initializeMobileControls() {
   elements.unrotateButton?.addEventListener("click", () => { void unrotateStudentScreen(); });
   elements.centerRotateButton?.addEventListener("click", () => { void rotateStudentScreen(); });
   elements.centerUnrotateButton?.addEventListener("click", () => { void unrotateStudentScreen(); });
-  screen.orientation?.addEventListener?.("change", updateRotationControls);
+  getScreenOrientationSafe()?.addEventListener?.("change", updateRotationControls);
   window.addEventListener("orientationchange", updateRotationControls);
   window.addEventListener("resize", () => {
     if (elements.refreshFab?.style.left) {

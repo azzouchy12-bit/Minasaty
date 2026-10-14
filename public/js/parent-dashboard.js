@@ -2119,7 +2119,7 @@ async function toggleLessonFullscreen() {
   try {
     if (document.fullscreenElement === shell) {
       await document.exitFullscreen?.();
-      screen.orientation?.unlock?.();
+      window.screen?.orientation?.unlock?.();
       resetLessonZoom();
     } else if (shell.requestFullscreen) {
       await shell.requestFullscreen();
@@ -2139,11 +2139,11 @@ async function rotateLessonScreen() {
     if (document.fullscreenElement !== shell && shell.requestFullscreen) {
       await shell.requestFullscreen();
     }
-    const currentType = screen.orientation?.type || "portrait-primary";
+    const currentType = window.screen?.orientation?.type || "portrait-primary";
     const targetType = currentType.startsWith("landscape") ? "portrait-primary" : "landscape-primary";
     activateLessonZoomLayer();
-    if (screen.orientation?.lock) {
-      await screen.orientation.lock(targetType);
+    if (window.screen?.orientation?.lock) {
+      await window.screen.orientation.lock(targetType);
     }
   } catch (error) {
     console.warn("Unable to rotate lesson video:", error);
@@ -2156,7 +2156,7 @@ function closeLessonVideo() {
   if (document.fullscreenElement === elements.lessonVideoPlayerShell) {
     void document.exitFullscreen?.().catch?.(() => {});
   }
-  screen.orientation?.unlock?.();
+  window.screen?.orientation?.unlock?.();
   resetLessonZoom();
   if (elements.lessonVideoModal) elements.lessonVideoModal.hidden = true;
   if (elements.lessonVideoFrame) elements.lessonVideoFrame.removeAttribute("src");
