@@ -1,0 +1,46 @@
+Classroom session redesign — preview validation
+
+Known-good release: ec4b449
+Remote backup tag: backup/pre-classroom-sessions-20261014
+Development branch: codex/classroom-session-management
+
+Design references (independent implementation; no upstream source copied):
+https://github.com/livekit-examples/meet/blob/main/app/api/connection-details/route.ts
+https://docs.livekit.io/intro/basics/rooms-participants-tracks/
+
+The server creates one opaque media room per live class, retains it during
+teacher reconnection, and discards its mapping on class end. Academic level
+still routes Socket.IO events and performs enrollment checks. Recovery secrets
+are never used as public session IDs. Students retain their own identities
+even when they share a parent account. Microphone updates use the media room.
+The teacher reconciles attendance every 15 seconds without restarting media;
+stale responses overtaken by roster events or another session are ignored.
+Repeated joins do not reset known media reception. Presence and media reception
+are displayed separately.
+
+Constraints:
+- Session registry follows the application's existing single-process room
+  state. It does not add multi-instance coordination or survive a process restart.
+- Old already-issued media tokens are not revoked by this registry; a new
+  class uses a different room. Normal class-end handling disconnects clients.
+- This does not change ICE/TURN routing or promise to eliminate carrier outages.
+- No schema migration, dependency upgrade or production settings change.
+
+Before production rollout, on an isolated preview with test accounts:
+1. Teacher opens class and shares audio/screen. Student joins on Wi-Fi then
+   mobile data; record click-to-first-media time for both.
+2. Briefly disconnect/reconnect the teacher; sessionId must stay constant.
+3. Reconnect student; teacher must show one row and retain the correct target.
+4. Two siblings join with the same parent account; neither replaces the other.
+5. Grant/revoke microphone, including after reconnect; verify actual media.
+6. End class and start another at the same level: roomName must change.
+7. Verify P2P preview continues until SFU receipt is confirmed.
+
+Do not attach a preview to production persistence or deploy during an active
+class. The media-room naming change requires clients to reload after rollout.
+
+Rollback:
+Select the previous Railway deployment for commit ec4b449, or create a new
+revert commit for the eventual merge on main. Preserve unrelated later commits.
+The remote backup tag can also be checked out in a separate worktree for
+comparison. No database rollback is required for these changes.

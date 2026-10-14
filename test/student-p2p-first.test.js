@@ -34,7 +34,7 @@ test("student requests an immediate P2P preview once without placing LiveKit on 
 
 test("room join requests P2P before starting LiveKit in the background", () => {
   const handler = source.slice(source.indexOf('socket.on("room_joined"'), source.indexOf("function clearScreenShareRefreshGuard"));
-  assert.ok(handler.indexOf("requestInitialP2pPreview()") < handler.indexOf("connectStudentSfu("));
+  assert.ok(handler.indexOf("requestInitialP2pPreview()") < handler.indexOf("void connectStudentSfu("));
   assert.match(handler, /connectStudentSfu\([^;]+\{ backgroundRetry: true \}\)/);
 });
 
@@ -144,11 +144,14 @@ test("Teacher attendee transport badge uses blue for P2P and red for LiveKit", (
   assert.ok(match, "renderAttendeeTransportStatus must exist");
   vm.runInNewContext(match[0], context);
   context.renderAttendeeTransportStatus("student");
-  assert.equal(badge.textContent, "P2P");
+  assert.equal(badge.textContent, "يستقبل عبر P2P");
   assert.equal(badge.style.color, "#bfdbfe");
   context.studentMediaTransports.set("student", { p2pActive: false, sfuReady: true });
   context.renderAttendeeTransportStatus("student");
-  assert.equal(badge.textContent, "LiveKit");
+  assert.equal(badge.textContent, "يستقبل عبر LiveKit");
   assert.equal(badge.style.color, "#fecaca");
+  context.studentMediaTransports.set("student", { p2pPending: true, p2pActive: false, sfuReady: false });
+  context.renderAttendeeTransportStatus("student");
+  assert.equal(badge.textContent, "حاضر — جارٍ تجهيز البث");
 });
 
