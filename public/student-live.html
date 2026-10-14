@@ -5957,6 +5957,7 @@
           cursor: pointer !important;
           box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4) !important;
           white-space: nowrap !important;
+          text-decoration: none !important;
           transition: background 0.15s ease, transform 0.1s ease !important;
           -webkit-tap-highlight-color: transparent !important;
         }
@@ -6574,14 +6575,14 @@
                 <span aria-hidden="true">✕</span>
               </button>
               <!-- زر تحميل الصورة إلى الهاتف بجانب زر X -->
-              <button id="download-image-modal-btn" class="student-image-download-btn" type="button" aria-label="تحميل الصورة إلى الهاتف" title="تحميل الصورة إلى الهاتف">
+              <a id="download-image-modal-btn" class="student-image-download-btn" href="#" download="" target="_blank" rel="noopener noreferrer" aria-label="تحميل الصورة إلى الهاتف" title="تحميل الصورة إلى الهاتف">
                 <svg class="download-icon-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="7 10 12 15 17 10"></polyline>
                   <line x1="12" y1="15" x2="12" y2="3"></line>
                 </svg>
                 <span class="student-image-download-text">تحميل الصورة</span>
-              </button>
+              </a>
             </div>
 
             <!-- أدوات تكبير وتصغير وإعادة ضبط حجم الصورة -->

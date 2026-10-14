@@ -64,3 +64,15 @@ test("student-live.js implements image modal lifecycle, zoom controls, download,
   assert.match(studentJs, /initializeStudentImageModal\(\);/, "initializeStudentImageModal must be called on setup");
   assert.match(studentJs, /closeStudentImageModal\(\);/, "closeStudentImageModal must be called on pagehide");
 });
+
+test("student-live image modal download button uses native anchor and supports Android app bridge", () => {
+  // Download button is an anchor tag for direct browser file saving
+  assert.match(studentHtml, /<a\s+id="download-image-modal-btn"[^>]*download=""/, "Download button must be an anchor tag with download attribute");
+
+  // openStudentImageModal pre-populates downloadBtn href and download attributes
+  assert.match(studentJs, /downloadBtn\.href\s*=\s*resolvedDirectUrl/, "openStudentImageModal must set downloadBtn.href");
+  assert.match(studentJs, /downloadBtn\.download\s*=\s*downloadName/, "openStudentImageModal must set downloadBtn.download");
+
+  // downloadStudentModalImage integrates with Android app native bridge (openExternalUrl)
+  assert.match(studentJs, /nativeBridge\.openExternalUrl\(directUrl\)/, "downloadStudentModalImage must call nativeBridge.openExternalUrl for Android app");
+});

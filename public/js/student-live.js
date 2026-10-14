@@ -4022,18 +4022,40 @@ function zoomOutStudentImage() {
 function openStudentImageModal({ imageUrl, imageId = null, imageName = "", directUrl = null, kind = "teacher" } = {}) {
   const modal = document.getElementById("student-image-modal");
   const modalImg = document.getElementById("student-image-modal-img");
+  const downloadBtn = document.getElementById("download-image-modal-btn");
   if (!modal || !modalImg || !imageUrl) return;
 
-  const token = sessionStorage.getItem("parentToken") || localStorage.getItem("parentToken") || "";
-  const resolvedDirectUrl = directUrl || (imageId?.startsWith("tci_")
-    ? (token
-        ? `/api/live-chat/teacher-image/${encodeURIComponent(imageId)}?token=${encodeURIComponent(token)}&download=1`
-        : `/api/live-chat/teacher-image/${encodeURIComponent(imageId)}?download=1`)
-    : imageUrl);
+  const token = sessionStorage.getItem("parentToken") || localStorage.getItem("parentToken") || sessionStorage.getItem("token") || localStorage.getItem("token") || "";
 
   let downloadName = imageName || "صورة-الأستاذ.jpg";
   if (!/\.[a-z0-9]{3,4}$/i.test(downloadName)) {
     downloadName += ".jpg";
+  }
+
+  // Construct absolute direct download URL
+  const hasValidTeacherImageId = typeof imageId === "string" && imageId.startsWith("tci_");
+  let resolvedDirectUrl = "";
+
+  if (hasValidTeacherImageId) {
+    const cleanId = encodeURIComponent(imageId.trim());
+    const query = new URLSearchParams({ download: "1" });
+    if (token) query.set("token", token);
+    resolvedDirectUrl = `${window.location.origin}/api/live-chat/teacher-image/${cleanId}?${query.toString()}`;
+  } else if (directUrl && (directUrl.startsWith("http://") || directUrl.startsWith("https://"))) {
+    resolvedDirectUrl = directUrl;
+  } else if (directUrl && directUrl.startsWith("/") && !directUrl.includes("/teacher-image/?")) {
+    resolvedDirectUrl = `${window.location.origin}${directUrl}`;
+  } else if (imageUrl && !imageUrl.startsWith("blob:") && !imageUrl.startsWith("data:")) {
+    try {
+      const u = new URL(imageUrl, window.location.origin);
+      u.searchParams.set("download", "1");
+      if (token && !u.searchParams.has("token")) u.searchParams.set("token", token);
+      resolvedDirectUrl = u.href;
+    } catch (_) {
+      resolvedDirectUrl = imageUrl;
+    }
+  } else {
+    resolvedDirectUrl = imageUrl;
   }
 
   currentModalImageData = {
@@ -4046,6 +4068,17 @@ function openStudentImageModal({ imageUrl, imageId = null, imageName = "", direc
 
   modalImg.src = imageUrl;
   resetStudentImageZoom();
+
+  // Pre-configure the anchor so it is immediately clickable without async lag
+  if (downloadBtn) {
+    downloadBtn.href = resolvedDirectUrl || "#";
+    downloadBtn.download = downloadName;
+    downloadBtn.setAttribute("download", downloadName);
+    downloadBtn.setAttribute("target", "_blank");
+    downloadBtn.setAttribute("rel", "noopener noreferrer");
+    const textEl = downloadBtn.querySelector(".student-image-download-text");
+    if (textEl) textEl.textContent = "تحميل الصورة";
+  }
 
   modal.hidden = false;
   modal.style.setProperty("display", "flex", "important");
@@ -4069,38 +4102,56 @@ function closeStudentImageModal(event) {
   currentModalImageData = null;
 }
 
-async function downloadStudentModalImage(event) {
-  if (event) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (typeof event.stopImmediatePropagation === "function") {
-      event.stopImmediatePropagation();
-    }
-  }
+function downloadStudentModalImage(event) {
   if (!currentModalImageData) return;
 
   const downloadBtn = document.getElementById("download-image-modal-btn");
   const textEl = downloadBtn?.querySelector(".student-image-download-text");
   const origText = textEl?.textContent || "تحميل الصورة";
-  if (textEl) textEl.textContent = "جاري التحميل...";
 
-  try {
-    await triggerOriginalImageDownload({
-      event,
-      imageId: currentModalImageData.imageId,
-      imageUrl: currentModalImageData.imageUrl,
-      preferredName: currentModalImageData.imageName,
-      directUrl: currentModalImageData.directUrl,
-    });
-    if (textEl) {
-      textEl.textContent = "تم التحميل ✓";
-      window.setTimeout(() => {
-        if (textEl) textEl.textContent = origText;
-      }, 2500);
+  const directUrl = currentModalImageData.directUrl || downloadBtn?.href || "";
+  const nativeBridge = window.MinasatyNative || window.Android || window.MinasatyApp;
+
+  // Immediate UI feedback for student
+  if (textEl) textEl.textContent = "جاري التحميل...";
+  window.setTimeout(() => {
+    if (textEl) textEl.textContent = "تم التحميل ✓";
+    window.setTimeout(() => {
+      if (textEl) textEl.textContent = origText;
+    }, 2500);
+  }, 700);
+
+  // 1. If running inside the Android Native App (Minasaty App / WebView)
+  if (nativeBridge && typeof nativeBridge.openExternalUrl === "function" && directUrl && directUrl.startsWith("http")) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
     }
-  } catch (err) {
-    console.error("Student modal image download failed:", err);
-    if (textEl) textEl.textContent = origText;
+    try {
+      nativeBridge.openExternalUrl(directUrl);
+      return;
+    } catch (bridgeErr) {
+      console.warn("Native bridge openExternalUrl failed:", bridgeErr);
+    }
+  }
+
+  // 2. In Mobile Chrome, Safari, Samsung Internet, or standard browser:
+  // If the link has an HTTP/HTTPS URL, DO NOT preventDefault!
+  // Allowing the native link click with valid transient user gesture makes the browser
+  // handle the Content-Disposition: attachment header directly and save the image immediately!
+  if (directUrl && directUrl.startsWith("http")) {
+    if (event) {
+      event.stopPropagation();
+    }
+    return;
+  }
+
+  // 3. Fallback for local blob: or data: URLs (if directUrl is not http)
+  if (event) {
+    event.stopPropagation();
   }
 }
 
