@@ -79,6 +79,9 @@ let teacherNoiseSuppression = localStorage.getItem("minasaty_teacher_noise_suppr
 const iceDisconnectTimers = Object.create(null);
 const ICE_DISCONNECT_GRACE_MS = 15_000;
 let activeLevel = null;
+let activeClassroomSessionId = null;
+let rosterSyncPending = false;
+let rosterEventRevision = 0;
 let activeSubject = null;
 let classActive = false;
 
@@ -4978,7 +4981,7 @@ function renderAttendeeTransportStatus(socketId) {
   const state = studentMediaTransports.get(socketId) || {};
   const isP2p = state.p2pActive || state.p2pPending;
   const isSfu = state.sfuReady;
-  badge.textContent = state.recoveryExhausted ? "البث يحتاج تحديثًا" : (isSfu ? "LiveKit" : (isP2p ? "P2P" : "LiveKit جارٍ الاتصال"));
+  badge.textContent = state.recoveryExhausted ? "البث يحتاج تحديثًا" : (isSfu ? "يستقبل عبر LiveKit" : (state.p2pActive ? "يستقبل عبر P2P" : "حاضر — جارٍ تجهيز البث"));
   badge.title = isSfu
     ? "الصوت والصورة يصلان عبر LiveKit"
     : (isP2p ? (state.p2pActive ? "الصوت أو الصورة يصلان عبر P2P؛ يجري تجهيز LiveKit بالخلفية" : "جارٍ تجهيز بث P2P مع محاولة LiveKit بالخلفية") : "جارٍ الاتصال بـLiveKit؛ سيعمل P2P كمسار احتياطي عند الحاجة");
@@ -7440,6 +7443,12 @@ socket.on("connect_error", () => {
 
 
 socket.on("room_ready", (data) => {
+  if (data?.sessionId && activeClassroomSessionId && data.sessionId !== activeClassroomSessionId) {
+    closeTeacherSfuSession();
+  }
+  activeClassroomSessionId = data?.sessionId || null;
+  window.minasatyClassroomSession = { level: data?.level, sessionId: activeClassroomSessionId };
+  syncClassroomRoster();
   if (data?.role === "teacher" && classActive) {
     const statusMessage = data.globalFree
       ? "الحصة المجانية مفتوحة لجميع الحسابات المسجلة"
@@ -7448,8 +7457,32 @@ socket.on("room_ready", (data) => {
   }
 });
 
+function syncClassroomRoster() {
+  if (!classActive || !socket.connected || !activeClassroomSessionId || rosterSyncPending) return;
+  rosterSyncPending = true;
+  const requestedSession = activeClassroomSessionId;
+  const requestedRevision = rosterEventRevision;
+  socket.timeout(5000).emit("classroom_roster_request", {}, (error, data) => {
+    rosterSyncPending = false;
+    if (error || !classActive || !data?.ok || data.sessionId !== requestedSession || activeClassroomSessionId !== requestedSession || rosterEventRevision !== requestedRevision || !Array.isArray(data.students)) return;
+    const present = new Set(data.students.map((student) => student.socketId));
+    for (const socketId of attendeeElements.keys()) {
+      if (!present.has(socketId)) removeStudentConnection(socketId);
+    }
+    for (const student of data.students) {
+      const attendee = upsertAttendee(student.socketId, student.studentId, student.studentName, student.participationCount);
+      syncStudentMicButton(attendee, student.socketId, Boolean(student.micEnabled));
+    }
+    refreshAbsenteesBadge();
+  });
+}
+
+window.setInterval(syncClassroomRoster, 15000);
+
 
 socket.on("student_joined", async (data = {}) => {
+  rosterEventRevision += 1;
+  if (data.sessionId && activeClassroomSessionId && data.sessionId !== activeClassroomSessionId) return;
   const { socketId, studentId, studentName, participationCount } = data;
 
   if (!classActive || !socketId) {
@@ -7462,7 +7495,7 @@ socket.on("student_joined", async (data = {}) => {
 
   const attendee = upsertAttendee(socketId, studentId, studentName || "تلميذ", participationCount);
   const wantsP2p = Boolean(data.recovering || data.preferredTransport === "p2p");
-  studentMediaTransports.set(socketId, {
+  if (!studentMediaTransports.has(socketId)) studentMediaTransports.set(socketId, {
     transport: wantsP2p ? "p2p" : (isTeacherSfuHealthy() ? "sfu" : "p2p"),
     p2pPending: wantsP2p || !isTeacherSfuHealthy(),
     p2pActive: false,
@@ -7867,6 +7900,7 @@ socket.on("classroom_chat_reaction_updated", (data = {}) => {
 
 
 socket.on("student_left", (data = {}) => {
+  rosterEventRevision += 1;
   const socketId = data.socketId || attendeeSocketByStudentId.get(String(data.studentId || "").trim());
   if (socketId) {
     removeStudentConnection(socketId);
@@ -7879,6 +7913,8 @@ socket.on("student_left", (data = {}) => {
 
 
 socket.on("class_ended", (data = {}) => {
+  activeClassroomSessionId = null;
+  window.minasatyClassroomSession = null;
   if (!classActive || isEnding) {
     return;
   }

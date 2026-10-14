@@ -125,7 +125,9 @@
       ""
     ).trim();
 
-    const inFlightKey = `${roomName}_${Boolean(allowMic)}_${resolvedStudentId}`;
+    const sessionId = window.minasatyClassroomSession?.level === roomName
+      ? window.minasatyClassroomSession.sessionId : null;
+    const inFlightKey = `${roomName}_${sessionId || ""}_${Boolean(allowMic)}_${resolvedStudentId}`;
     if (sfuInFlightMap.has(inFlightKey)) {
       return sfuInFlightMap.get(inFlightKey);
     }
@@ -133,6 +135,7 @@
     const sfuPromise = (async () => {
       try {
         const payload = { roomName, allowMic };
+        if (sessionId) payload.sessionId = sessionId;
         if (resolvedStudentId) {
           payload.studentId = resolvedStudentId;
         }

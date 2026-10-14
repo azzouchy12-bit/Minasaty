@@ -6617,6 +6617,10 @@ socket.on("connect_error", () => {
 
 socket.on("room_joined", (data = {}) => {
   if (data.role === "student") {
+    if (data.sessionId && window.minasatyClassroomSession?.sessionId && data.sessionId !== window.minasatyClassroomSession.sessionId) {
+      disconnectStudentSfu({ notify: false });
+    }
+    window.minasatyClassroomSession = { level: data.classroomLevel || data.level, sessionId: data.sessionId || null };
     if (!microphonePermissionGranted) {
       if (localAudioStream) {
         localAudioStream.getAudioTracks().forEach((track) => {
@@ -7269,6 +7273,7 @@ socket.on("teacher_disconnected", () => {
 });
 
 socket.on("class_ended", (data = {}) => {
+  window.minasatyClassroomSession = null;
   notifyNativeLiveService("stop");
   hideLiveStartNotice();
   const teacherDisconnected = data.reason === "teacher_disconnected";

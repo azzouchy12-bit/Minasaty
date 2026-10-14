@@ -12,6 +12,8 @@ const cors = require("cors");
 const helmet = require("helmet");
 const path = require("path");
 const crypto = require("crypto");
+const { ClassroomSessions } = require("./utils/classroomSessions");
+const classroomSessions = new ClassroomSessions();
 const jwt = require("jsonwebtoken");
 const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/redis-adapter");
@@ -949,6 +951,7 @@ if (typeof webrtcRoutes?.setStudentMicChecker === "function") {
     return isStudentMicrophoneOpen(level, null, studentId);
   });
 }
+webrtcRoutes.resolveClassroomSession = (level) => classroomSessions.get(canonicalLevel(level));
 if (typeof webrtcRoutes?.setClassroomAuthorizer === "function") {
   webrtcRoutes.setClassroomAuthorizer(async (level, studentId, reqUser) => {
     if (!studentId && reqUser?.role === "parent" && reqUser?.phone) {
@@ -1168,6 +1171,7 @@ async function closeClassroom(level, reason) {
   // room is being cleaned up asynchronously.
   clearPendingTeacherRecovery(level);
   activeTeachersByLevel.delete(level);
+  classroomSessions.end(level);
   activeCompanionsByLevel.delete(level);
   activeSubjectByLevel.delete(level);
   activeScheduledClassByLevel.delete(level);
@@ -1203,6 +1207,28 @@ async function closeClassroom(level, reason) {
 
 io.on("connection", (socket) => {
   socketConnected();
+  socket.on("classroom_roster_request", (_data, acknowledgeRoster) => {
+    if (typeof acknowledgeRoster !== "function") return;
+    const level = socket.data.roomLevel;
+    if (socket.data.role !== "teacher" || activeTeachersByLevel.get(level) !== socket.id) {
+      return acknowledgeRoster({ ok: false });
+    }
+    const session = classroomSessions.get(level);
+    if (!session) return acknowledgeRoster({ ok: false });
+    const students = new Map();
+    for (const peer of io.sockets.sockets.values()) {
+      if (!peer.connected || peer.data.role !== "student" || peer.data.roomLevel !== level || !peer.data.studentId) continue;
+      if (peer.data.classroomSessionId !== session.id) continue;
+      const previous = students.get(peer.data.studentId);
+      if (previous && previous.joinedAt > (peer.data.joinedAt || 0)) continue;
+      students.set(peer.data.studentId, {
+        socketId: peer.id, studentId: peer.data.studentId, studentName: peer.data.studentName,
+        joinedAt: peer.data.joinedAt || 0, participationCount: peer.data.participationCount || 0,
+        micEnabled: isStudentMicrophoneOpen(level, peer.id, peer.data.studentId),
+      });
+    }
+    acknowledgeRoster({ ok: true, ...classroomSessions.publicInfo(level), students: [...students.values()] });
+  });
   console.info(`[Socket.io] Client connected: ${socket.id}`);
 
   // Socket data is server-owned after room entry and is used for authorization.
@@ -1686,6 +1712,10 @@ io.on("connection", (socket) => {
       }
 
       const pendingRecovery = pendingTeacherRecoveryByLevel.get(level);
+      const existingSession = classroomSessions.get(level);
+      if (existingSession && (existingSession.teacherId !== String(authenticatedTeacher.id || "teacher") || existingSession.subject !== subject)) {
+        return emitClassroomError(socket, "teacher_start_room", "هذه الحصة تخص أستاذًا أو مادة أخرى. أنهِ الحصة الأصلية أولًا.", acknowledgement);
+      }
       const recoveryRequested = Boolean(data.isRecovery || data.forceResume || !resumeToken);
       if (!isValidRecoveryToken(resumeToken) && !(pendingRecovery && recoveryRequested)) {
         return emitClassroomError(
@@ -1792,6 +1822,7 @@ io.on("connection", (socket) => {
       const effectiveResumeToken = isValidRecoveryToken(resumeToken)
         ? resumeToken
         : pendingRecovery?.resumeToken;
+      const classroomSession = classroomSessions.start(level, authenticatedTeacher.id || "teacher", subject);
       await socket.join(level);
       if (rawLevel && rawLevel !== level) {
         await socket.join(rawLevel);
@@ -1802,6 +1833,7 @@ io.on("connection", (socket) => {
       socket.data.studentName = null;
       socket.data.classResumeToken = effectiveResumeToken;
       socket.data.teacherId = authenticatedTeacher?.id || null;
+      socket.data.classroomSessionId = classroomSession.id;
       activeTeachersByLevel.set(level, socket.id);
       activeSubjectByLevel.set(level, subject);
       if (rawLevel && rawLevel !== level) {
@@ -1884,8 +1916,8 @@ io.on("connection", (socket) => {
       }
 
       emitClassroomChatHistory(socket, level);
-      socket.emit("room_ready", { level, subject, scheduledClassId: scheduledClass?.id || null, youtubeVideoId: scheduledClass?.youtubeVideoId || null, role: "teacher", resumed: isResuming, globalFree: isGlobalFreeClass });
-      acknowledge(acknowledgement, { ok: true, level, subject, scheduledClassId: scheduledClass?.id || null, youtubeVideoId: scheduledClass?.youtubeVideoId || null, role: "teacher", resumed: isResuming, globalFree: isGlobalFreeClass });
+      socket.emit("room_ready", { ...classroomSessions.publicInfo(level), level, subject, scheduledClassId: scheduledClass?.id || null, youtubeVideoId: scheduledClass?.youtubeVideoId || null, role: "teacher", resumed: isResuming, globalFree: isGlobalFreeClass });
+      acknowledge(acknowledgement, { ...classroomSessions.publicInfo(level), ok: true, level, subject, scheduledClassId: scheduledClass?.id || null, youtubeVideoId: scheduledClass?.youtubeVideoId || null, role: "teacher", resumed: isResuming, globalFree: isGlobalFreeClass });
       console.info(`[Socket.io] Teacher ${socket.id} ${isResuming ? "resumed" : "started"} room: ${level} (${subject})`);
     } catch (error) {
       console.error("[Socket.io] teacher_start_room failed:", error);
@@ -2310,6 +2342,7 @@ io.on("connection", (socket) => {
       socket.data.studentAcademicLevel = student.level;
       socket.data.studentName = studentName;
       socket.data.studentId = student.id;
+      socket.data.classroomSessionId = classroomSessions.get(classroomLevel)?.id;
       users.set(socket.id, { role: "student", level: student.level, classroomLevel, name: studentName, studentId: student.id });
       joinTiming.beforeConfirmationMs = Date.now() - joinStartedAt;
       // Attendance history and the participation badge are useful, but neither
@@ -2318,6 +2351,7 @@ io.on("connection", (socket) => {
       socket.data.participationCount = participationCount;
 
       socket.emit("room_joined", {
+        ...classroomSessions.publicInfo(classroomLevel),
         level: student.level,
         classroomLevel,
         globalFree: isGlobalFreeActive,
@@ -2345,6 +2379,7 @@ io.on("connection", (socket) => {
       if (!isAlreadyJoined || data.rejoin === true) {
         const isRecoveringStudent = Boolean(data.rejoin === true || data.preferredTransport === "p2p");
         const studentJoinedPayload = {
+          ...classroomSessions.publicInfo(classroomLevel),
           socketId: socket.id,
           studentId: student.id,
           studentName,

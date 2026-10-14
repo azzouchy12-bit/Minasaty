@@ -106,6 +106,16 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
     }
 
     const isTeacher = req.user?.role === "teacher";
+    const classroomSession = router.resolveClassroomSession?.(roomName);
+    if (typeof router.resolveClassroomSession === "function" && !classroomSession) {
+      return res.status(409).json({ error: "الحصة غير نشطة. انتظر بدء الأستاذ للحصة." });
+    }
+    if (classroomSession && (req.body.sessionId && req.body.sessionId !== classroomSession.id)) {
+      return res.status(409).json({ error: "انتهت جلسة الحصة السابقة. أعد الانضمام." });
+    }
+    if (isTeacher && classroomSession && classroomSession.teacherId !== String(req.user.id || "teacher")) {
+      return res.status(403).json({ error: "هذه الحصة تخص أستاذًا آخر." });
+    }
     let studentId = String(req.body?.studentId || req.query?.studentId || req.user?.id || req.user?.studentId || "").trim();
     if (!isTeacher && !studentId && req.user?.role === "parent" && req.user?.phone && prismaClient) {
       try {
@@ -136,7 +146,13 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
       isMicApproved = Boolean(router.studentMicChecker(roomName, studentId));
     }
 
-    const participantId = String(req.user?.id || (isTeacher ? "teacher" : (studentId || `student_${Date.now()}`)));
+    if (classroomSession && router.resolveClassroomSession(roomName)?.id !== classroomSession.id) {
+      return res.status(409).json({ error: "تغيرت الحصة أثناء الانضمام. أعد المحاولة." });
+    }
+    const mediaRoomName = classroomSession?.roomName || roomName;
+    // A parent may have multiple learners. Never use the parent's identity for
+    // every child: LiveKit would replace one child when another connects.
+    const participantId = String(isTeacher ? (req.user?.id || "teacher") : studentId);
     const participantName = String(req.user?.fullName || req.user?.name || req.body?.studentName || (isTeacher ? "الأستاذ" : "تلميذ"));
 
     const at = new AccessToken(config.key, config.secret, {
@@ -147,12 +163,13 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
         classroomRole: isTeacher ? "teacher" : "student",
         role: isTeacher ? "teacher" : "student",
         micApproved: isMicApproved,
+        sessionId: classroomSession?.id || null,
       }),
       ttl: 6 * 60 * 60, // 6 hours
     });
 
     at.addGrant({
-      room: roomName,
+      room: mediaRoomName,
       roomJoin: true,
       canPublish: isMicApproved,
       ...(isTeacher ? {} : { canPublishSources: [TrackSource?.MICROPHONE ?? 2] }),
@@ -170,7 +187,8 @@ router.post("/sfu-token", verifyToken, async (req, res) => {
       serverUrl: config.url,
       token,
       identity: participantId,
-      roomName,
+      roomName: mediaRoomName,
+      sessionId: classroomSession?.id || null,
       isTeacher,
       allowMic: isMicApproved,
     });
@@ -193,6 +211,9 @@ const microphonePermissionUpdates = new Map();
 // Update already-connected students; changing the next token alone is insufficient.
 router.syncStudentMicrophonePermission = async function(roomName, studentId, enabled) {
   if (!studentId) return;
+  const session = router.resolveClassroomSession?.(roomName);
+  if (typeof router.resolveClassroomSession === "function" && !session) return;
+  roomName = session?.roomName || roomName;
   const config = getLivekitConfig();
   if (!config.enabled || !config.isConfigured) return;
   const serviceUrl = config.url.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
