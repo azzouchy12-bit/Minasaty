@@ -1239,6 +1239,7 @@ let waitingForNextClass = false;
 let participationCount = 0;
 let prejoinCompleted = false;
 let prejoinCameraReady = false;
+let studentClassJoinedAt = 0;
 
 const elements = {
   videoFrame: document.querySelector(".video-frame"),
@@ -1696,6 +1697,7 @@ function exitLiveClass() {
   } catch (_) {}
   waitingForNextClass = true;
   joinedClass = false;
+  studentClassJoinedAt = 0;
   initialP2pPreviewRequested = false;
   setStudentSessionActive(false);
   sessionStorage.removeItem("joinLiveClassImmediately");
@@ -1741,37 +1743,41 @@ function continueWatchingClass() {
 
 function refreshAudioVideo({ automatic = false } = {}) {
   if (!joinedClass) {
-    showMobileControlToast("يعمل تحديث الصوت والصورة بعد الانضمام إلى الحصة.");
+    if (!automatic) showMobileControlToast("يعمل تحديث الصوت والصورة بعد الانضمام إلى الحصة.");
     return;
   }
   if (isJoining || isRecoveringStream) {
-    showMobileControlToast("جارٍ استعادة الحصة، انتظر لحظة ثم حاول مرة أخرى.");
+    if (!automatic) showMobileControlToast("جارٍ استعادة الحصة، انتظر لحظة ثم حاول مرة أخرى.");
     return;
   }
   if (!socket.connected) {
-    showMobileControlToast("الاتصال بالخادم غير متاح حالياً.");
+    if (!automatic) showMobileControlToast("الاتصال بالخادم غير متاح حالياً.");
     return;
   }
 
   const button = elements.refreshMediaButton;
-  if (button?.disabled) return;
-
-  if (button) button.disabled = true;
-  button?.classList.add("is-refreshing");
-  const label = button?.querySelector(".refresh-media-label");
-  if (label) label.textContent = "جارٍ تحديث الصوت والصورة…";
-  showMobileControlToast("جارٍ تحديث الصوت والصورة دون مغادرة الحصة…");
+  let label = null;
+  if (!automatic) {
+    if (button?.disabled) return;
+    if (button) button.disabled = true;
+    button?.classList.add("is-refreshing");
+    label = button?.querySelector(".refresh-media-label");
+    if (label) label.textContent = "جارٍ تحديث الصوت والصورة…";
+    showMobileControlToast("جارٍ تحديث الصوت والصورة دون مغادرة الحصة…");
+  }
 
   // Rebuild only the peer connection and request a fresh offer. Avoiding a
   // full-page reload prevents the mobile browser from showing a black screen.
   if (typeof holdStudentSfuDuringRecovery === "function") holdStudentSfuDuringRecovery();
   if (automatic) recordStudentDiagnosticEvent("automatic_media_refresh", "Shared screen has not rendered; refreshing audio/video automatically");
   beginStreamRecovery("جارٍ استعادة الصوت والصورة دون تحديث الصفحة…", { force: true });
-  window.setTimeout(() => {
-    if (button) button.disabled = false;
-    button?.classList.remove("is-refreshing");
-    if (label) label.textContent = "تحديث الصوت والصورة";
-  }, 1_500);
+  if (!automatic) {
+    window.setTimeout(() => {
+      if (button) button.disabled = false;
+      button?.classList.remove("is-refreshing");
+      if (label) label.textContent = "تحديث الصوت والصورة";
+    }, 1_500);
+  }
 }
 
 
@@ -1783,6 +1789,27 @@ function checkAutomaticMediaRefresh() {
     state.missingSince = null;
     state.lastAttempt = null;
     state.attempts = 0;
+    return;
+  }
+  // During initial class entry (first 25 seconds), allow media negotiations and keyframes to arrive seamlessly without disruption.
+  const joinedAt = typeof studentClassJoinedAt !== "undefined" ? studentClassJoinedAt : 0;
+  if (joinedAt && (Date.now() - joinedAt < 25_000)) {
+    state.missingSince = null;
+    return;
+  }
+  // If LiveKit SFU is connected and healthy or actively connecting, media is managed smoothly without tearing down connection.
+  if (typeof isStudentSfuConnected === "function" && isStudentSfuConnected()) {
+    if (typeof isStudentSfuHealthy === "function" && isStudentSfuHealthy()) {
+      state.missingSince = null;
+      return;
+    }
+  }
+  if (typeof isStudentSfuConnecting !== "undefined" && isStudentSfuConnecting) {
+    state.missingSince = null;
+    return;
+  }
+  if (typeof studentSfuRoom !== "undefined" && studentSfuRoom && studentSfuRoom.state === "connecting") {
+    state.missingSince = null;
     return;
   }
   // Background tabs intentionally pause video; never rebuild their connection.
@@ -5433,6 +5460,7 @@ function resetViewerState({ message, mode = "neutral", showJoin = true } = {}) {
   disconnectStudentSfu();
   stopLocalAudio();
   joinedClass = false;
+  studentClassJoinedAt = 0;
   isJoining = false;
   studentSfuRecoveryHoldUntil = 0;
   studentSfuRetryAttempt = 0;
@@ -5909,6 +5937,7 @@ async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
   // returns to this browser.
   joinedClass = true;
   isJoining = true;
+  studentClassJoinedAt = Date.now();
   // Once joining starts, the pre-join layer must stop intercepting controls.
   setStudentSessionActive(true);
   if (!rejoin) {
@@ -6117,6 +6146,7 @@ socket.on("room_joined", (data = {}) => {
     }
     globalFreeClass = Boolean(data.globalFree);
     waitingForNextClass = false;
+    studentClassJoinedAt = Date.now();
     teacherSocketId = data.teacherSocketId || teacherSocketId;
     if (data.teacherId) {
       knownTeacherIdentity = String(data.teacherId);
