@@ -8,12 +8,16 @@ const multer = require("multer");
 const { verifyToken } = require("../middleware/authMiddleware");
 const {
   imageUploadDirectory,
+  teacherChatImageDirectory,
   uploadQuestionImage,
   getQuestionImage,
+  uploadTeacherChatImage,
+  getTeacherChatImage,
 } = require("../controllers/liveChatController");
 
 const router = express.Router();
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_TEACHER_IMAGE_SIZE_BYTES = 20 * 1024 * 1024;
 const acceptedImages = new Map([
   [".jpg", "image/jpeg"],
   [".jpeg", "image/jpeg"],
@@ -22,6 +26,7 @@ const acceptedImages = new Map([
 ]);
 
 fs.mkdirSync(imageUploadDirectory, { recursive: true });
+fs.mkdirSync(teacherChatImageDirectory, { recursive: true });
 
 const imageStorage = multer.diskStorage({
   destination: (_req, _file, callback) => callback(null, imageUploadDirectory),
@@ -48,15 +53,28 @@ const imageUpload = multer({
   limits: { files: 1, fileSize: MAX_IMAGE_SIZE_BYTES },
 });
 
+const teacherImageStorage = multer.diskStorage({
+  destination: (_req, _file, callback) => callback(null, teacherChatImageDirectory),
+  filename: (_req, file, callback) => callback(null, `${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
+});
+const teacherImageUpload = multer({
+  storage: teacherImageStorage,
+  fileFilter: imageFileFilter,
+  limits: { files: 1, fileSize: MAX_TEACHER_IMAGE_SIZE_BYTES },
+});
+
 router.post("/question-image", verifyToken, imageUpload.single("image"), uploadQuestionImage);
 router.get("/question-image/:id", verifyToken, getQuestionImage);
+router.post("/teacher-image", verifyToken, teacherImageUpload.single("image"), uploadTeacherChatImage);
+router.get("/teacher-image/:id", verifyToken, getTeacherChatImage);
 
 router.use((error, _req, res, next) => {
   if (!error) return next();
 
   if (error instanceof multer.MulterError) {
     if (error.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({ error: "الحد الأقصى لصورة السؤال هو 5 ميغابايت." });
+      const maxSize = _req.path.includes("teacher-image") ? "20 ميغابايت" : "5 ميغابايت";
+      return res.status(400).json({ error: `الحد الأقصى لحجم الصورة هو ${maxSize}.` });
     }
     return res.status(400).json({ error: "تعذر معالجة صورة السؤال المرفوعة." });
   }

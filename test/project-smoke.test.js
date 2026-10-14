@@ -283,7 +283,9 @@ test("teacher live chat supports pasted image messages safely", () => {
   assert.match(teacherHtml, /id="chat-image-preview"/);
   assert.match(teacherHtml, /id="chat-image-remove-btn"/);
   assert.match(studentLive, /const imageData = data\?\.imageData/);
-  assert.match(studentLive, /imageUrl: imageData/);
+  assert.match(studentLive, /imageId \? await loadTeacherAnswerImage/);
+  assert.match(studentLive, /imageId: data\.imageId/);
+  assert.match(studentLive, /student-chat-image-download/);
   assert.match(studentLive, /loadStudentQuestionImage/);
   assert.match(server, /classroomChatHistoryByLevel/);
   assert.match(server, /MAX_CLASSROOM_CHAT_HISTORY/);

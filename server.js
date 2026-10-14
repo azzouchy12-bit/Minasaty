@@ -25,6 +25,7 @@ const { createRateLimiter } = require("./middleware/rateLimit");
 const { startBackgroundJobs } = require("./utils/backgroundJobs");
 const { ensurePublicArchive, recordPublicAttendance, finishPublicArchive, appendPublicChat } = require("./utils/publicArchive");
 const { verifySessionToken, setSessionTakeoverNotifier } = require("./utils/sessionAuth");
+const { readTeacherChatImageMetadata } = require("./controllers/liveChatController");
 const { sendPushToSession } = require("./utils/push");
 const { sendTelegramNotification, configureTelegramWebhook } = require("./services/telegramService");
 const { sendVerifiedParentEmail } = require("./services/parentEmailEvents");
@@ -3356,10 +3357,11 @@ io.on("connection", (socket) => {
   });
 
   /** Broadcast an active teacher's reply to only the students in that level. */
-  socket.on("teacher_send_message", (data = {}, acknowledgement) => {
+  socket.on("teacher_send_message", async (data = {}, acknowledgement) => {
     const level = socket.data.roomLevel;
     const message = normalizeChatMessage(data.message);
     const imageData = normalizeTeacherChatImageData(data.imageData);
+    const imageId = typeof data.imageId === "string" ? data.imageId.trim() : "";
     const hasInvalidImage = Boolean(data.imageData) && !imageData;
 
     const isTeacherBroadcaster = socket.data.role === "teacher" && activeTeachersByLevel.get(level) === socket.id;
@@ -3368,7 +3370,7 @@ io.on("connection", (socket) => {
     if (
       (!isTeacherBroadcaster && !isTeacherCompanion) ||
       !isValidLevel(level || "") ||
-      (!message && !imageData) ||
+      (!message && !imageData && !imageId) ||
       hasInvalidImage ||
       !isInLevelRoom(socket, level)
     ) {
@@ -3380,12 +3382,25 @@ io.on("connection", (socket) => {
       );
     }
 
+    let originalImage = null;
+    if (imageId) {
+      originalImage = await readTeacherChatImageMetadata(imageId);
+      if (!originalImage || originalImage.level !== level) {
+        return emitClassroomError(socket, "teacher_send_message", "الصورة الأصلية غير صالحة أو لا تخص هذا المستوى.", acknowledgement);
+      }
+    }
+    if (data.imageId && !imageId) {
+      return emitClassroomError(socket, "teacher_send_message", "معرّف الصورة غير صالح.", acknowledgement);
+    }
+
     const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const chatEntry = {
       id: messageId,
       kind: "teacher",
       level,
       message,
+      imageId: imageId || null,
+      imageName: originalImage?.originalName || null,
       imageData: imageData || null,
       reactions: { love: 0, like: 0, cry: 0, dislike: 0, fire: 0, teacherReacted: {} },
     };
@@ -3395,7 +3410,7 @@ io.on("connection", (socket) => {
       const primaryTeacherId = activeTeachersByLevel.get(level);
       if (primaryTeacherId) io.to(primaryTeacherId).emit("teacher_message_received", chatEntry);
     }
-    acknowledge(acknowledgement, { ok: true, imageSent: Boolean(imageData), messageId });
+    acknowledge(acknowledgement, { ok: true, imageSent: Boolean(imageData || imageId), messageId });
   });
 
   /** Handle chat message reactions (Like 👍 and Love ❤️) from teacher or students */

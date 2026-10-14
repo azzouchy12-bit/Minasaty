@@ -3806,7 +3806,7 @@ const STUDENT_REACTIONS_CONFIG = [
 
 const myActiveChatReactions = new Map();
 
-function appendStudentChatMessage({ id, sender, message = "", kind, imageUrl = null, reactions = null }) {
+function appendStudentChatMessage({ id, sender, message = "", kind, imageUrl = null, imageId = null, imageName = "", reactions = null }) {
   const safeMessage = normalizeChatMessage(message);
   if ((!safeMessage && !imageUrl) || !elements.chatBox) {
     return;
@@ -3865,13 +3865,25 @@ function appendStudentChatMessage({ id, sender, message = "", kind, imageUrl = n
   }
 
   if (imageUrl) {
+    const imageCard = document.createElement("div");
+    imageCard.className = "student-chat-image-card";
     const image = document.createElement("img");
     image.className = "student-chat-image";
     image.src = imageUrl;
     image.alt = "صورة سؤال أو واجب مرفقة";
     image.loading = "lazy";
     image.addEventListener("click", () => openChatLinkInSeparateView({ preventDefault() { } }, imageUrl));
-    bubble.append(image);
+    imageCard.append(image);
+    if (kind === "teacher" && imageId?.startsWith("tci_")) {
+      const download = document.createElement("a");
+      download.className = "student-chat-image-download";
+      download.href = imageUrl;
+      download.download = imageName || "صورة-الأستاذ-الأصلية";
+      download.textContent = "تنزيل الصورة الأصلية";
+      download.setAttribute("aria-label", "تنزيل الصورة المرسلة من الأستاذ بجودتها الأصلية");
+      imageCard.append(download);
+    }
+    bubble.append(imageCard);
   }
 
   // Reactions container (pills will appear here only when reactions exist)
@@ -4037,6 +4049,18 @@ async function loadStudentQuestionImage(imageId) {
   return imageUrl;
 }
 
+async function loadTeacherAnswerImage(imageId) {
+  const token = sessionStorage.getItem("parentToken") || localStorage.getItem("parentToken");
+  if (!token || !imageId) return null;
+  const response = await fetch(`/api/live-chat/teacher-image/${encodeURIComponent(imageId)}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "image/*" },
+  });
+  if (!response.ok) return null;
+  const imageUrl = URL.createObjectURL(await response.blob());
+  renderedQuestionImageUrls.add(imageUrl);
+  return imageUrl;
+}
+
 async function restoreStudentChatHistory(messages = []) {
   clearStudentChat();
   for (const entry of Array.isArray(messages) ? messages : []) {
@@ -4044,7 +4068,9 @@ async function restoreStudentChatHistory(messages = []) {
 
     let imageUrl = entry.imageData || null;
     if (!imageUrl && entry.imageId) {
-      imageUrl = await loadStudentQuestionImage(entry.imageId).catch(() => null);
+      imageUrl = entry.kind === "teacher"
+        ? await loadTeacherAnswerImage(entry.imageId).catch(() => null)
+        : await loadStudentQuestionImage(entry.imageId).catch(() => null);
     }
 
     appendStudentChatMessage({
@@ -4053,6 +4079,8 @@ async function restoreStudentChatHistory(messages = []) {
       message: entry.message || "",
       kind: entry.kind === "teacher" ? "teacher" : "student",
       imageUrl,
+      imageId: entry.imageId || null,
+      imageName: entry.imageName || "",
       reactions: entry.reactions || null,
     });
   }
@@ -6056,18 +6084,25 @@ socket.on("classroom_chat_history", (data = {}) => {
   void restoreStudentChatHistory(data.messages);
 });
 
-socket.on("teacher_message_received", (data = {}) => {
+socket.on("teacher_message_received", async (data = {}) => {
   const imageData = data?.imageData || data?.imageUrl || null;
-  if (!joinedClass || (!data?.message && !imageData)) {
+  if (!joinedClass || (!data?.message && !imageData && !data?.imageId)) {
     return;
   }
+
+  const imageUrl = imageData || (data.imageId ? await loadTeacherAnswerImage(data.imageId).catch(() => null) : null);
+  if (!joinedClass) return;
 
   appendStudentChatMessage({
     id: data.id,
     sender: "الأستاذ",
-    message: data.message || "",
     kind: "teacher",
-    imageUrl: imageData,
+    imageUrl,
+    imageId: data.imageId || null,
+    imageName: data.imageName || "",
+    message: !imageData && data.imageId && !imageUrl && !data.message
+      ? "تعذر تحميل الصورة المرفقة. حاول فتح الحصة من جديد."
+      : (data.message || ""),
     reactions: data.reactions || null,
   });
 });

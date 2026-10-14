@@ -810,6 +810,7 @@ const QUESTION_IMAGE_ZOOM_STEP = 0.25;
 const studentMicStates = new Map();
 let activeStudentChatMicMenu = null;
 let pendingTeacherChatImageData = "";
+let pendingTeacherChatImageFile = null;
 const MAX_TEACHER_CHAT_IMAGE_DATA_URL_LENGTH = 1_100_000;
 const SUPPORTED_TEACHER_CHAT_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const TEACHER_LIVE_RECOVERY_KEY = "teacherLiveClassRecovery";
@@ -1726,6 +1727,7 @@ function updateTeacherChatImagePreview() {
 
 function clearTeacherChatImage() {
   pendingTeacherChatImageData = "";
+  pendingTeacherChatImageFile = null;
   updateTeacherChatImagePreview();
 }
 
@@ -1792,6 +1794,7 @@ async function handleTeacherChatPaste(event) {
 
   event.preventDefault();
   try {
+    pendingTeacherChatImageFile = file;
     pendingTeacherChatImageData = await imageFileToTeacherChatDataUrl(file);
     updateTeacherChatImagePreview();
     setStudioStatus("تمت إضافة الصورة. اضغط إرسال لإرسالها للتلاميذ.", "success");
@@ -1799,6 +1802,28 @@ async function handleTeacherChatPaste(event) {
     clearTeacherChatImage();
     setStudioStatus(error.message || "تعذر تجهيز الصورة الملصوقة.", "error");
   }
+}
+
+
+async function uploadTeacherChatOriginalImage(file, level) {
+  const token = sessionStorage.getItem("teacherToken") || localStorage.getItem("teacherToken");
+  if (!token || !file) throw new Error("تعذر التحقق من دخول الأستاذ لرفع الصورة الأصلية.");
+  const extension = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
+  const originalName = file.name || `teacher-image${extension}`;
+  const formData = new FormData();
+  formData.append("image", file, originalName);
+  formData.append("level", level);
+  formData.append("originalName", originalName);
+  const response = await fetch("/api/live-chat/teacher-image", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload?.data?.imageId) {
+    throw new Error(payload.error || "تعذر رفع الصورة الأصلية.");
+  }
+  return payload.data.imageId;
 }
 
 
@@ -1818,6 +1843,19 @@ async function loadQuestionImage(imageId) {
   }
 
 
+  const imageUrl = URL.createObjectURL(await response.blob());
+  renderedQuestionImageUrls.add(imageUrl);
+  return imageUrl;
+}
+
+
+async function loadTeacherSharedImage(imageId, level = activeLevel) {
+  const token = sessionStorage.getItem("teacherToken") || localStorage.getItem("teacherToken");
+  if (!token || !imageId || !level) throw new Error("تعذر التحقق من صلاحية الصورة الأصلية.");
+  const response = await fetch(`/api/live-chat/teacher-image/${encodeURIComponent(imageId)}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "image/*" },
+  });
+  if (!response.ok) throw new Error("تعذر تحميل الصورة الأصلية من سجل الحصة.");
   const imageUrl = URL.createObjectURL(await response.blob());
   renderedQuestionImageUrls.add(imageUrl);
   return imageUrl;
@@ -1852,7 +1890,9 @@ async function restoreTeacherChatHistory(messages = []) {
     let imageUrl = entry.imageData || null;
     if (!imageUrl && entry.imageId) {
       try {
-        imageUrl = await loadQuestionImage(entry.imageId);
+        imageUrl = entry.kind === "teacher"
+          ? await loadTeacherSharedImage(entry.imageId, entry.level)
+          : await loadQuestionImage(entry.imageId);
       } catch (error) {
         console.warn("Unable to restore a student chat image:", error);
       }
@@ -1879,7 +1919,8 @@ async function sendTeacherChatMessage(event) {
 
   const message = normalizeChatMessage(elements.chatInput.value);
   const imageData = pendingTeacherChatImageData;
-  if (!classActive || !activeLevel || (!message && !imageData)) {
+  const imageFile = pendingTeacherChatImageFile;
+  if (!classActive || !activeLevel || (!message && !imageData && !imageFile)) {
     return;
   }
 
@@ -1888,10 +1929,12 @@ async function sendTeacherChatMessage(event) {
 
 
   try {
+    const imageId = imageFile ? await uploadTeacherChatOriginalImage(imageFile, activeLevel) : null;
     const ack = await emitWithAcknowledgement("teacher_send_message", {
       level: activeLevel,
       message,
-      imageData,
+      imageId,
+      imageData: imageId ? null : imageData,
     });
 
 
