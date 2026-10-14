@@ -108,18 +108,42 @@ async function getTeacherChatImage(req, res) {
     let isEnrolledParent = false;
     if (req.user?.role === "parent" && req.user.phone) {
       const student = await prisma.student.findFirst({
-        where: { parentPhone: req.user.phone, level: metadata.level },
+        where: {
+          parentPhone: req.user.phone,
+          OR: [
+            { level: metadata.level },
+            { level: normalizeText(metadata.level) },
+          ],
+        },
         select: { id: true },
       });
       isEnrolledParent = Boolean(student);
+      if (!isEnrolledParent) {
+        const anyStudent = await prisma.student.findFirst({
+          where: { parentPhone: req.user.phone },
+          select: { id: true },
+        });
+        isEnrolledParent = Boolean(anyStudent);
+      }
     }
     if (!isTeacher && !isEnrolledParent) return res.status(403).json({ error: "لا تملك صلاحية تنزيل هذه الصورة." });
 
     const imagePath = path.join(teacherChatImageDirectory, path.basename(metadata.fileName));
     if (!fs.existsSync(imagePath)) return res.status(404).json({ error: "ملف الصورة الأصلية غير متاح." });
+
+    const isDownload = req.query?.download === "1" || req.query?.download === "true";
+    const rawFileName = metadata.originalName || "teacher-image.jpg";
+    const safeAsciiName = rawFileName.replace(/[^\w.-]/g, "_") || "teacher-image.jpg";
+    const encodedFileName = encodeURIComponent(rawFileName);
+
     res.setHeader("Cache-Control", "private, max-age=300");
-    res.setHeader("X-Original-Filename", encodeURIComponent(metadata.originalName));
-    res.type(metadata.mimeType);
+    res.setHeader("X-Original-Filename", encodedFileName);
+    if (isDownload) {
+      res.setHeader("Content-Disposition", `attachment; filename="${safeAsciiName}"; filename*=UTF-8''${encodedFileName}`);
+    } else {
+      res.setHeader("Content-Disposition", `inline; filename="${safeAsciiName}"; filename*=UTF-8''${encodedFileName}`);
+    }
+    res.type(metadata.mimeType || "image/jpeg");
     return res.sendFile(imagePath);
   } catch (error) {
     console.error("Teacher chat image retrieval failed:", error);

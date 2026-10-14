@@ -19,7 +19,7 @@ const teacherSocketToken = sessionStorage.getItem("teacherToken") || localStorag
 const socket = io({
   auth: { token: teacherSocketToken },
   autoConnect: true,
-  transports: ["polling", "websocket"],
+  transports: ["websocket", "polling"],
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 500,
@@ -5388,11 +5388,19 @@ async function ensureTeacherVideoSender(peerConnection) {
   const sender = peerConnection.getSenders?.().find((item) => item.__classroomVideoTrack === true || item.track === track);
   if (sender) {
     sender.__classroomVideoTrack = true;
-    if (sender.track !== track) await sender.replaceTrack(track);
+    if (sender.track !== track) {
+      await sender.replaceTrack(track);
+      if (typeof sender.generateKeyFrame === "function") {
+        try { void sender.generateKeyFrame(); } catch (_) {}
+      }
+    }
   } else {
     const nextSender = peerConnection.addTrack(track, screenStream);
     nextSender.__classroomVideoTrack = true;
     void tuneOutboundSender(nextSender, "video");
+    if (typeof nextSender.generateKeyFrame === "function") {
+      try { void nextSender.generateKeyFrame(); } catch (_) {}
+    }
   }
   return true;
 }
@@ -7397,7 +7405,15 @@ socket.on("student_joined", async (data = {}) => {
   }
 
   const attendee = upsertAttendee(socketId, studentId, studentName || "تلميذ", participationCount);
-  studentMediaTransports.set(socketId, { transport: "p2p", p2pPending: true, p2pActive: false, sfuReady: false, receiving: false, lastSeenAt: Date.now() });
+  const wantsP2p = Boolean(data.recovering || data.preferredTransport === "p2p");
+  studentMediaTransports.set(socketId, {
+    transport: wantsP2p ? "p2p" : (isTeacherSfuHealthy() ? "sfu" : "p2p"),
+    p2pPending: wantsP2p || !isTeacherSfuHealthy(),
+    p2pActive: false,
+    sfuReady: false,
+    receiving: false,
+    lastSeenAt: Date.now(),
+  });
   renderAttendeeTransportStatus(socketId);
   syncStudentMicButton(attendee, socketId, false);
 
@@ -7406,7 +7422,7 @@ socket.on("student_joined", async (data = {}) => {
     await createAndSendOffer(socketId);
   } else {
     recordLiveDiagnosticEvent("student_joined_sfu", `Student ${socketId} joined; served via central LiveKit SFU`);
-    if (data.recovering) {
+    if (wantsP2p) {
       transitionStudentToP2pFallback(socketId, { allowWhileSfuActive: true });
     }
   }
@@ -7531,8 +7547,16 @@ socket.on("student_transport_updated", handleStudentTransportUpdated);
 socket.on("student_needs_p2p", (data = {}) => {
   if (!classActive || !data?.socketId) return;
   const existing = studentMediaTransports.get(data.socketId) || {};
-  studentMediaTransports.set(data.socketId, { ...existing, transport: "p2p", p2pPending: true, sfuReady: false, lastSeenAt: Date.now() });
+  studentMediaTransports.set(data.socketId, {
+    ...existing,
+    transport: "p2p",
+    p2pPending: false,
+    p2pActive: true,
+    sfuReady: false,
+    lastSeenAt: Date.now(),
+  });
   renderAttendeeTransportStatus(data.socketId);
+
   console.info(`[Fallback] Student ${data.socketId} requested targeted P2P stream; delivering fallback offer.`);
   recordLiveDiagnosticEvent("student_requested_p2p", `Student ${data.socketId} requested targeted P2P (${data.reason || "network"}); sending offer`);
   transitionStudentToP2pFallback(data.socketId, { allowWhileSfuActive: true });
@@ -7594,6 +7618,10 @@ async function applyStudentWebRtcAnswer(data = {}) {
   try {
     await peerConnection.setRemoteDescription(sdp);
     if (peerConnections[fromSocketId] === peerConnection) await flushPendingIceCandidates(fromSocketId);
+    const videoSender = peerConnection.getSenders?.().find((item) => item.__classroomVideoTrack === true);
+    if (videoSender && typeof videoSender.generateKeyFrame === "function") {
+      try { void videoSender.generateKeyFrame(); } catch (_) {}
+    }
   } catch (error) {
     console.error("Unable to apply a student WebRTC answer:", error);
     if (peerConnections[fromSocketId] === peerConnection) closePeerConnection(fromSocketId);

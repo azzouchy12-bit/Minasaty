@@ -39,7 +39,7 @@ const parentSessionToken = sessionStorage.getItem("parentToken") || localStorage
 const socket = typeof window.io === "function"
   ? window.io({
     auth: parentSessionToken ? { token: parentSessionToken } : {},
-    transports: ["polling", "websocket"],
+    transports: ["websocket", "polling"],
   })
   : createUnavailableStudentSocket();
 
@@ -381,6 +381,9 @@ function hasLiveP2pTeacherMedia() {
 }
 
 function notifySfuTransportStatus(receiving = true) {
+  if (receiving) {
+    try { sessionStorage.setItem("studentMediaTransport", "sfu"); } catch (_) {}
+  }
   if (socket && socket.connected) {
     const reception = typeof getTeacherSfuReceptionState === "function"
       ? getTeacherSfuReceptionState()
@@ -395,6 +398,7 @@ function notifySfuTransportStatus(receiving = true) {
 }
 
 function notifyP2pTransportStatus() {
+  try { sessionStorage.setItem("studentMediaTransport", "p2p"); } catch (_) {}
   if (!socket?.connected) return;
   const tracks = [remoteMediaStream, teacherAudioStream]
     .filter((stream) => typeof stream?.getTracks === "function")
@@ -422,6 +426,7 @@ function requestTargetedP2pFallback(reason = "", { holdSfu = true } = {}) {
       level: typeof level !== "undefined" ? level : "",
       studentId: typeof studentId !== "undefined" ? studentId : "",
       reason: String(reason || "sfu_fallback"),
+      preferredTransport: "p2p",
     });
     setViewerStatus("جارٍ استقبال بث الأستاذ المباشر…", "warning");
   }
@@ -431,10 +436,14 @@ function requestInitialP2pPreview() {
   if (initialP2pPreviewRequested || !socket?.connected) return false;
   initialP2pPreviewRequested = true;
   recordStudentDiagnosticEvent("p2p_preview_requested", "Requesting immediate P2P preview while LiveKit connects in the background");
+  const storedTransport = (() => {
+    try { return sessionStorage.getItem("studentMediaTransport"); } catch (_) { return null; }
+  })();
   socket.emit("student_request_p2p_stream", {
     level: typeof level !== "undefined" ? level : "",
     studentId: typeof studentId !== "undefined" ? studentId : "",
     reason: "initial_p2p_preview",
+    preferredTransport: storedTransport || undefined,
   });
   return true;
 }
@@ -807,10 +816,16 @@ async function connectStudentSfu(roomName, { backgroundRetry = false } = {}) {
           console.info("[SFU-Student] SFU not enabled by server, staying on P2P.");
           recordStudentDiagnosticEvent("sfu_disabled", "SFU not enabled by server response");
           notifySfuTransportStatus(false);
+          if (typeof requestTargetedP2pFallback === "function") {
+            requestTargetedP2pFallback("SFU disabled on server", { holdSfu: false });
+          }
           return false;
         }
-        console.warn("[SFU-Student] SFU token temporarily unavailable, retrying LiveKit in 3s...");
-        recordStudentDiagnosticEvent("sfu_retry_pending", "SFU token temporarily unavailable; retrying");
+        console.warn("[SFU-Student] SFU token temporarily unavailable, requesting P2P fallback and retrying LiveKit in 3s...");
+        recordStudentDiagnosticEvent("sfu_retry_pending", "SFU token temporarily unavailable; requesting P2P fallback");
+        if (typeof requestTargetedP2pFallback === "function") {
+          requestTargetedP2pFallback("SFU token unavailable", { holdSfu: false });
+        }
         if (typeof scheduleStudentSfuRetry === "function") scheduleStudentSfuRetry(roomName, "token temporarily unavailable");
         return false;
       }
@@ -932,6 +947,27 @@ async function connectStudentSfu(roomName, { backgroundRetry = false } = {}) {
       if (typeof studentSfuRetryTimer !== "undefined" && studentSfuRetryTimer) window.clearTimeout(studentSfuRetryTimer);
       if (typeof studentSfuRetryTimer !== "undefined") studentSfuRetryTimer = null;
       if (typeof startSfuReceptionMonitor === "function") startSfuReceptionMonitor(studentSfuRoom);
+
+      // Immediately subscribe and attach existing teacher tracks without waiting
+      for (const participant of (studentSfuRoom.remoteParticipants?.values?.() || [])) {
+        const role = getSfuParticipantRole(participant);
+        const isTeacher = Boolean(
+          role === "teacher" ||
+          participant?.identity === "teacher" ||
+          (typeof knownTeacherIdentity !== "undefined" && knownTeacherIdentity && participant?.identity === knownTeacherIdentity) ||
+          (typeof teacherSocketId !== "undefined" && teacherSocketId && participant?.identity === teacherSocketId)
+        );
+        if (!isTeacher) continue;
+        for (const pub of (participant.trackPublications?.values?.() || [])) {
+          if (pub?.track?.mediaStreamTrack) {
+            pub.track.mediaStreamTrack.__fromSfu = true;
+            attachTeacherSfuPlaybackTrack(pub.track, participant);
+            notifySfuTransportStatus(true);
+            recordStudentDiagnosticEvent("teacher_track_received_immediate", `Subscribed immediately to existing teacher ${pub.track.kind} track`);
+          }
+        }
+      }
+
       console.info("[SFU-Student] Connected to LiveKit SFU room successfully:", roomName);
       recordStudentDiagnosticEvent("sfu_connected", "Connected to LiveKit SFU: " + roomName);
       notifySfuTransportStatus(true);
@@ -1456,6 +1492,9 @@ function markPermanentStudentPrejoinCompleted() {
 }
 
 function hasPermanentStudentPrejoinCompleted() {
+  if (directClassEntryRequested || Boolean(studentId && level)) {
+    return true;
+  }
   try {
     if (
       localStorage.getItem(STUDENT_PREJOIN_COMPLETED_KEY) === "true" ||
@@ -1485,9 +1524,16 @@ function hasPermanentStudentPrejoinCompleted() {
   return document.documentElement.classList.contains("student-prejoin-completed-user");
 }
 
-prejoinCompleted = hasPermanentStudentPrejoinCompleted();
-if (prejoinCompleted) {
+if (directClassEntryRequested) {
+  prejoinCompleted = true;
+  initialAutoJoinPending = true;
+  markPermanentStudentPrejoinCompleted();
   document.documentElement.classList.add("student-prejoin-completed-user");
+} else {
+  prejoinCompleted = hasPermanentStudentPrejoinCompleted();
+  if (prejoinCompleted) {
+    document.documentElement.classList.add("student-prejoin-completed-user");
+  }
 }
 
 const isStudentSubExpired = isStudentLiveSubscriptionExpired(currentStudent.subscriptionEndDate);
@@ -1497,7 +1543,7 @@ if (isStudentSubExpired) {
 } else {
   // The classroom is entered from the parent dashboard. Once identity is known,
   // keep the viewer hands-free even after a teacher ends and later restarts class.
-  initialAutoJoinPending = initialAutoJoinPending || Boolean(studentId && level) || prejoinCompleted;
+  initialAutoJoinPending = initialAutoJoinPending || Boolean(studentId && level) || prejoinCompleted || directClassEntryRequested;
 }
 
 /**
@@ -1634,13 +1680,17 @@ function exitLiveClass() {
   initialAutoJoinPending = false;
   clearScreenShareRefreshGuard();
   try {
+    const currentTransport = (() => {
+      try { return sessionStorage.getItem("studentMediaTransport") || (hasLiveP2pTeacherMedia() ? "p2p" : "sfu"); } catch (_) { return "p2p"; }
+    })();
     if (currentStudent?.level && (joinedClass || !waitingForNextClass)) {
       sessionStorage.setItem("lastLiveClassState", JSON.stringify({
         isClassLive: true,
         level: currentStudent.level,
         subject: currentSubject || "MATH",
         globalFree: Boolean(isGlobalFreeClass),
-        savedAt: Date.now()
+        savedAt: Date.now(),
+        preferredTransport: currentTransport,
       }));
     }
   } catch (_) {}
@@ -3728,6 +3778,21 @@ function isFacebookUrl(parsedUrl) {
 }
 
 function openChatLinkInSeparateView(event, url) {
+  if (typeof url === "string" && (url.startsWith("blob:") || url.startsWith("data:"))) {
+    event?.preventDefault?.();
+    const openedWindow = window.open(url, "_blank", "noopener,noreferrer");
+    if (!openedWindow) {
+      const temporaryLink = document.createElement("a");
+      temporaryLink.href = url;
+      temporaryLink.target = "_blank";
+      temporaryLink.rel = "noopener noreferrer";
+      document.body.append(temporaryLink);
+      temporaryLink.click();
+      temporaryLink.remove();
+    }
+    return;
+  }
+
   const parsedUrl = parseChatUrl(url);
   if (!parsedUrl) {
     return;
@@ -3806,6 +3871,72 @@ const STUDENT_REACTIONS_CONFIG = [
 
 const myActiveChatReactions = new Map();
 
+async function triggerOriginalImageDownload({ event, imageId, imageUrl, preferredName, directUrl }) {
+  const token = sessionStorage.getItem("parentToken") || localStorage.getItem("parentToken") || "";
+  let finalBlob = null;
+
+  // 1. If we already have a blob URL in memory, extract its blob
+  if (imageUrl && imageUrl.startsWith("blob:")) {
+    try {
+      const resp = await fetch(imageUrl);
+      if (resp.ok) finalBlob = await resp.blob();
+    } catch (_) {}
+  }
+
+  // 2. Otherwise fetch the original image bytes from server with Bearer auth
+  if (!finalBlob && imageId) {
+    try {
+      const resp = await fetch(`/api/live-chat/teacher-image/${encodeURIComponent(imageId)}`, {
+        headers: token ? { Authorization: `Bearer ${token}`, Accept: "image/*" } : { Accept: "image/*" },
+      });
+      if (resp.ok) finalBlob = await resp.blob();
+    } catch (_) {}
+  }
+
+  let finalName = preferredName || "teacher-original-image.jpg";
+  if (finalBlob) {
+    if (!/\.[a-z0-9]{3,4}$/i.test(finalName)) {
+      const ext = finalBlob.type === "image/png" ? ".png" : finalBlob.type === "image/webp" ? ".webp" : ".jpg";
+      finalName = (preferredName ? preferredName.replace(/\.[^.]+$/, "") : "teacher-original-image") + ext;
+    }
+
+    if (event) event.preventDefault();
+    const blobUrl = URL.createObjectURL(finalBlob);
+    const tempLink = document.createElement("a");
+    tempLink.href = blobUrl;
+    tempLink.download = finalName;
+    tempLink.rel = "noopener";
+    tempLink.style.display = "none";
+    document.body.append(tempLink);
+    tempLink.click();
+    window.setTimeout(() => {
+      tempLink.remove();
+      URL.revokeObjectURL(blobUrl);
+    }, 30_000);
+    return;
+  }
+
+  // 3. Fallback: navigate via direct URL with ?download=1
+  if (directUrl && directUrl !== "#") {
+    if (!event) {
+      const tempLink = document.createElement("a");
+      tempLink.href = directUrl;
+      tempLink.download = finalName;
+      tempLink.target = "_blank";
+      tempLink.rel = "noopener noreferrer";
+      document.body.append(tempLink);
+      tempLink.click();
+      window.setTimeout(() => tempLink.remove(), 1_000);
+    }
+    return;
+  }
+
+  if (imageUrl) {
+    if (event) event.preventDefault();
+    window.open(imageUrl, "_blank");
+  }
+}
+
 function appendStudentChatMessage({ id, sender, message = "", kind, imageUrl = null, imageId = null, imageName = "", reactions = null }) {
   const safeMessage = normalizeChatMessage(message);
   if ((!safeMessage && !imageUrl) || !elements.chatBox) {
@@ -3877,10 +4008,34 @@ function appendStudentChatMessage({ id, sender, message = "", kind, imageUrl = n
     if (kind === "teacher" && imageId?.startsWith("tci_")) {
       const download = document.createElement("a");
       download.className = "student-chat-image-download";
-      download.href = imageUrl;
-      download.download = imageName || "صورة-الأستاذ-الأصلية";
+      const token = sessionStorage.getItem("parentToken") || localStorage.getItem("parentToken") || "";
+      const directDownloadUrl = token
+        ? `/api/live-chat/teacher-image/${encodeURIComponent(imageId)}?token=${encodeURIComponent(token)}&download=1`
+        : `/api/live-chat/teacher-image/${encodeURIComponent(imageId)}?download=1`;
+      download.href = directDownloadUrl;
+      let downloadName = imageName || "صورة-الأستاذ-الأصلية.jpg";
+      if (!/\.[a-z0-9]{3,4}$/i.test(downloadName)) {
+        downloadName += ".jpg";
+      }
+      download.download = downloadName;
       download.textContent = "تنزيل الصورة الأصلية";
       download.setAttribute("aria-label", "تنزيل الصورة المرسلة من الأستاذ بجودتها الأصلية");
+      download.setAttribute("role", "button");
+
+      download.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        try {
+          await triggerOriginalImageDownload({
+            event,
+            imageId,
+            imageUrl,
+            preferredName: downloadName,
+            directUrl: directDownloadUrl,
+          });
+        } catch (downloadErr) {
+          console.warn("Direct image download handler failed:", downloadErr);
+        }
+      });
       imageCard.append(download);
     }
     bubble.append(imageCard);
@@ -4920,16 +5075,42 @@ function updateRemoteVideoPresentation() {
   );
   const showScreenShare = screenShareActive && hasLiveVideo;
   const shouldShowRemoteVideo = hasLiveVideo;
-  elements.remoteVideo.controls = showScreenShare;
-  elements.remoteVideo.classList.toggle("is-screen-share", showScreenShare);
-  elements.remoteVideo.classList.toggle("has-live-video", shouldShowRemoteVideo);
+  if (elements?.remoteVideo) {
+    elements.remoteVideo.controls = showScreenShare;
+    elements.remoteVideo.classList?.toggle?.("is-screen-share", showScreenShare);
+    elements.remoteVideo.classList?.toggle?.("has-live-video", shouldShowRemoteVideo);
+  }
   // The placeholder must disappear as soon as a live video track arrives. The
   // screen-share flag is a status signal and can arrive before the media track.
-  elements.placeholder.hidden = shouldShowRemoteVideo;
+  if (elements?.placeholder) {
+    elements.placeholder.hidden = shouldShowRemoteVideo;
+  }
 
   if (shouldShowRemoteVideo) {
-    hideConnectionOverlay();
-    void elements.remoteVideo.play().catch(() => { });
+    if (typeof hideScreenShareNotice === "function") hideScreenShareNotice();
+    if (typeof hideConnectionOverlay === "function") hideConnectionOverlay();
+    if (typeof elements?.remoteVideo?.play === "function") {
+      void elements.remoteVideo.play().catch(() => { });
+    }
+    if (typeof setViewerStatus === "function") {
+      setViewerStatus(
+        screenShareActive ? "مشاركة شاشة الأستاذ متصلة." : "بث الأستاذ المباشر متصل.",
+        "live"
+      );
+    }
+  } else {
+    const hasAudio = Boolean(
+      (teacherAudioStream && teacherAudioStream.getAudioTracks().some((t) => t.readyState === "live")) ||
+      (remoteMediaStream && remoteMediaStream.getAudioTracks().some((t) => t.readyState === "live"))
+    );
+    if (hasAudio && (typeof joinedClass === "undefined" || joinedClass)) {
+      if (typeof setPlaceholder === "function") {
+        setPlaceholder("صوت الأستاذ مباشر ومفعّل 🎙️", "الأستاذ يتحدث الآن مباشرة. ستظهر شاشة الحصة هنا فور بدئها.");
+      }
+      if (typeof setViewerStatus === "function") {
+        setViewerStatus("صوت الأستاذ متصل. بانتظار بدء مشاركة الشاشة…", "live");
+      }
+    }
   }
   // Do not pause the media element while waiting: the same element carries
   // the teacher's audio, which must remain audible before screen sharing.
@@ -5091,45 +5272,56 @@ function attachTeacherTrack(event) {
   if (!track.__fromSfu && typeof notifyP2pTransportStatus === "function") notifyP2pTransportStatus();
 
   if (track.kind === "video") {
-    clearRecoveryTimer();
+    if (typeof clearRecoveryTimer === "function") clearRecoveryTimer();
     recoveryAttempts = 0;
     isRecoveringStream = false;
-    updateChatControls();
-    setViewerStatus(
-      screenShareActive ? "مشاركة شاشة الأستاذ متصلة." : "صوت الأستاذ متصل. بانتظار مشاركة الشاشة…",
-      "live"
-    );
+    if (typeof updateChatControls === "function") updateChatControls();
+    if (typeof hideConnectionOverlay === "function") hideConnectionOverlay();
+    if (typeof setViewerStatus === "function") {
+      setViewerStatus(
+        screenShareActive ? "مشاركة شاشة الأستاذ متصلة." : "بث الأستاذ المباشر متصل.",
+        "live"
+      );
+    }
   } else {
-    setViewerStatus("صوت الأستاذ متصل. بانتظار مشاركة الشاشة…", "live");
+    if (typeof hideConnectionOverlay === "function") hideConnectionOverlay();
+    const hasVideo = Boolean(remoteMediaStream?.getVideoTracks?.().some((t) => t.readyState === "live"));
+    if (!hasVideo && typeof setViewerStatus === "function") {
+      setViewerStatus("صوت الأستاذ متصل. بانتظار بدء مشاركة الشاشة…", "live");
+    }
   }
 
-  updateRemoteVideoPresentation();
+  if (typeof updateRemoteVideoPresentation === "function") updateRemoteVideoPresentation();
 
   track.addEventListener("ended", () => {
     if (track.kind === "audio" && typeof teacherAudioStream !== "undefined" && teacherAudioStream) {
       try { teacherAudioStream.removeTrack(track); } catch (_) {}
     }
     remoteMediaStream?.removeTrack(track);
-    syncClassmateSfuAudioPlayback();
+    if (typeof syncClassmateSfuAudioPlayback === "function") syncClassmateSfuAudioPlayback();
     if (track.kind === "video") {
       screenShareActive = false;
-      setViewerStatus("توقفت مشاركة الشاشة. صوت الأستاذ ما زال متاحًا.", "live");
-      updateRemoteVideoPresentation();
+      if (typeof setViewerStatus === "function") {
+        setViewerStatus("توقفت مشاركة الشاشة. صوت الأستاذ ما زال متاحًا.", "live");
+      }
+      if (typeof updateRemoteVideoPresentation === "function") updateRemoteVideoPresentation();
     }
-    updateRemoteAudioControl();
+    if (typeof updateRemoteAudioControl === "function") updateRemoteAudioControl();
   }, { once: true });
   track.addEventListener("unmute", () => {
-    updateRemoteAudioControl();
-    updateRemoteVideoPresentation();
+    if (typeof updateRemoteAudioControl === "function") updateRemoteAudioControl();
+    if (typeof updateRemoteVideoPresentation === "function") updateRemoteVideoPresentation();
     if (track.kind === "audio" && typeof playTeacherInboundAudio === "function"
         && remoteMediaStream?.getAudioTracks?.().includes(track)) {
       playTeacherInboundAudio(track);
     }
-    if (track.kind === "video") void elements.remoteVideo.play().catch(() => { });
+    if (track.kind === "video" && typeof elements?.remoteVideo?.play === "function") {
+      void elements.remoteVideo.play().catch(() => { });
+    }
   });
 
-  updateRemoteAudioControl();
-  void startTeacherAudio();
+  if (typeof updateRemoteAudioControl === "function") updateRemoteAudioControl();
+  if (typeof startTeacherAudio === "function") void startTeacherAudio();
 }
 
 function clearRecoveryTimer() {
@@ -5654,8 +5846,28 @@ async function enableApprovedMicrophone() {
 }
 
 async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
-  if (!prejoinCompleted && !rejoin) {
+  const storedTransport = (() => {
+    try { return sessionStorage.getItem("studentMediaTransport"); } catch (_) { return null; }
+  })();
+  const hasRecentClassState = (() => {
+    try {
+      const state = sessionStorage.getItem("lastLiveClassState");
+      if (!state) return false;
+      const parsed = JSON.parse(state);
+      return Boolean(parsed?.savedAt && (Date.now() - parsed.savedAt) < 15 * 60 * 1000);
+    } catch (_) { return false; }
+  })();
+  if (hasRecentClassState || storedTransport) {
+    rejoin = true;
+  }
+
+  if (!prejoinCompleted && !rejoin && !directClassEntryRequested) {
     return;
+  }
+  if (directClassEntryRequested) {
+    prejoinCompleted = true;
+    setStudentPrejoinHidden(true);
+    setStudentSessionActive(true);
   }
 
   // A user-initiated click is the best moment to obtain browser mic permission.
@@ -5707,7 +5919,12 @@ async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
   setViewerStatus(rejoin ? "جارٍ استعادة اتصال البث…" : "بانتظار البث من الأستاذ…", "warning");
 
   try {
-    await emitWithAcknowledgement("student_join_room", { level, studentId, rejoin });
+    await emitWithAcknowledgement("student_join_room", {
+      level,
+      studentId,
+      rejoin,
+      preferredTransport: storedTransport || (rejoin ? "p2p" : undefined),
+    });
 
     isJoining = false;
     isRecoveringStream = false;
@@ -5866,7 +6083,7 @@ socket.on("connect", () => {
     return;
   }
 
-  if (initialAutoJoinPending && prejoinCompleted && !joinedClass && !isJoining) {
+  if ((initialAutoJoinPending || directClassEntryRequested) && !joinedClass && !isJoining) {
     elements.joinButton.hidden = true;
     setViewerStatus("جارٍ الدخول إلى الحصة مباشرة…", "warning");
     void joinClass();
@@ -5915,11 +6132,13 @@ socket.on("room_joined", (data = {}) => {
     requestInitialP2pPreview();
     void connectStudentSfu(data.classroomLevel || data.level, { backgroundRetry: true });
     window.setTimeout(() => {
-      if (joinedClass && !hasLiveP2pTeacherMedia() && !isStudentSfuConnected()) {
-        console.info("[SFU-Student] SFU not connected after initial grace period; requesting targeted P2P stream.");
-        requestTargetedP2pFallback("SFU connect grace timeout");
+      const hasP2p = hasLiveP2pTeacherMedia();
+      const hasSfu = isStudentSfuConnected() && (teacherSfuPlaybackTracks.size > 0 || (typeof getTeacherSfuReceptionState === "function" && getTeacherSfuReceptionState().receiving));
+      if (joinedClass && !hasP2p && !hasSfu) {
+        console.info("[SFU-Student] No media received after grace period (3.5s); requesting targeted P2P stream.");
+        requestTargetedP2pFallback("No media after initial grace period (3.5s)");
       }
-    }, 4500);
+    }, 3500);
   }
 });
 
@@ -5939,6 +6158,14 @@ function scheduleScreenSharePageRefresh() {
 
 function showScreenShareNotice(revision = 0) {
   if (!elements.screenShareNotice) return;
+  const hasLiveVideo = Boolean(
+    remoteMediaStream?.getVideoTracks?.().some((track) => track.readyState === "live")
+  );
+  if (hasLiveVideo || joinedClass) {
+    elements.screenShareNotice.hidden = true;
+    void elements.remoteVideo.play().catch(() => { });
+    return;
+  }
   if (revision > 0 && elements.screenShareNotice.dataset.revision === String(revision)) return;
   elements.screenShareNotice.dataset.revision = revision > 0 ? String(revision) : "";
   elements.screenShareNotice.hidden = false;
@@ -6606,7 +6833,7 @@ if (!studentId || !studentName || !level) {
   if (elements.classSubjectLabel) elements.classSubjectLabel.textContent = "المادة";
   elements.exitClassButton?.addEventListener("click", exitLiveClass);
   setLevelWelcomeImage();
-  if (prejoinCompleted) {
+  if (prejoinCompleted || directClassEntryRequested) {
     setPlaceholder("جاري الدخول إلى الحصة", "سيظهر بث الأستاذ تلقائياً عند توفر الحصة.");
     setViewerStatus("جارٍ الدخول إلى الحصة…", "warning");
   } else {
@@ -6616,6 +6843,9 @@ if (!studentId || !studentName || !level) {
   updateMicControl();
   updateChatControls();
   void initializeStudentPrejoin();
+  if (socket.connected && (directClassEntryRequested || initialAutoJoinPending) && !joinedClass && !isJoining) {
+    void joinClass();
+  }
 
   window.addEventListener("beforeunload", () => {
     notifyNativeLiveService("stop");

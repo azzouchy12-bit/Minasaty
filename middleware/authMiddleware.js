@@ -8,7 +8,12 @@ const ENFORCE_PARENT_MESSENGER_LINK = /^(1|true|yes)$/i.test(String(process.env.
  */
 async function verifyToken(req, res, next) {
   const authorizationHeader = req.get("authorization") || "";
-  const [scheme, token] = authorizationHeader.split(/\s+/);
+  let [scheme, token] = authorizationHeader.split(/\s+/);
+
+  if ((scheme?.toLowerCase() !== "bearer" || !token) && req.query?.token) {
+    scheme = "bearer";
+    token = String(req.query.token).trim();
+  }
 
   if (scheme?.toLowerCase() !== "bearer" || !token) {
     return res.status(401).json({

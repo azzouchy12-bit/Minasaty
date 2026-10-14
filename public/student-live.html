@@ -1296,16 +1296,30 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 2rem;
-        padding: 0.35rem 0.6rem;
+        min-height: 2.1rem;
+        padding: 0.38rem 0.75rem;
         color: #dbeafe;
-        background: rgba(37, 99, 235, 0.2);
-        border: 1px solid rgba(96, 165, 250, 0.45);
+        background: rgba(37, 99, 235, 0.28);
+        border: 1px solid rgba(96, 165, 250, 0.55);
         border-radius: 0.5rem;
-        font-size: 0.72rem;
+        font-size: 0.75rem;
         font-weight: 800;
         text-decoration: none;
         white-space: nowrap;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: rgba(37, 99, 235, 0.3);
+        transition: background 0.15s ease, transform 0.1s ease;
+      }
+
+      .student-chat-image-download:hover {
+        background: rgba(37, 99, 235, 0.45);
+        color: #ffffff;
+      }
+
+      .student-chat-image-download:active {
+        transform: scale(0.97);
+        background: rgba(37, 99, 235, 0.6);
       }
 
       @media (max-width: 68rem) {
@@ -5930,8 +5944,8 @@
 
       <main class="viewer-stage" aria-label="مشاهدة الحصة المباشرة">
         <div class="video-frame">
-          <video id="remote-video" autoplay muted playsinline aria-label="بث الأستاذ المباشر"></video>
-          <audio id="teacher-live-audio" autoplay playsinline aria-label="صوت الأستاذ المباشر"></audio>
+          <video id="remote-video" autoplay muted playsinline webkit-playsinline aria-label="بث الأستاذ المباشر"></video>
+          <audio id="teacher-live-audio" autoplay playsinline webkit-playsinline aria-label="صوت الأستاذ المباشر"></audio>
           <button id="enable-audio-btn" class="remote-audio-toggle" type="button" hidden style="display: none !important;">اضغط لتشغيل صوت الأستاذ</button>
 
           <!-- Floating Red Banner when Teacher Mutes Mic -->

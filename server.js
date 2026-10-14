@@ -2349,12 +2349,14 @@ io.on("connection", (socket) => {
       // Only the active teacher receives the student identity/socket ID.
       // Other students receive no attendee or signaling information.
       if (!isAlreadyJoined || data.rejoin === true) {
+        const isRecoveringStudent = Boolean(data.rejoin === true || data.preferredTransport === "p2p");
         const studentJoinedPayload = {
           socketId: socket.id,
           studentId: student.id,
           studentName,
           participationCount,
-          recovering: data.rejoin === true,
+          recovering: isRecoveringStudent,
+          preferredTransport: data.preferredTransport || (data.rejoin ? "p2p" : undefined),
         };
         io.to(teacherSocketId).emit("student_joined", studentJoinedPayload);
         const companions = activeCompanionsByLevel.get(classroomLevel);
@@ -2466,6 +2468,7 @@ io.on("connection", (socket) => {
         studentId: socket.data.studentId,
         level,
         reason: data?.reason || "sfu_failed",
+        preferredTransport: data?.preferredTransport,
       });
     }
     acknowledge(acknowledgement, { ok: true });
