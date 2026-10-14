@@ -33,6 +33,18 @@ test("server.js preserves approved student microphone state on soft rejoin / rec
   assert.match(studentJoinBlock, /isStudentMicrophoneOpen\(classroomLevel, socket\.id\)/, "Must check existing mic state");
 });
 
+test("student room entry is confirmed before attendance and participation database work", () => {
+  const studentJoinBlock = server.match(/socket\.on\("student_join_room"[\s\S]*?socket\.on\("disconnect"/)?.[0] || "";
+  const roomJoinedAt = studentJoinBlock.indexOf('socket.emit("room_joined"');
+  const attendanceAt = studentJoinBlock.indexOf("prisma.attendance.create(");
+  const participationAt = studentJoinBlock.indexOf("getStudent24HourParticipation(student.id)");
+
+  assert.notEqual(roomJoinedAt, -1, "student join must confirm room entry");
+  assert.ok(attendanceAt > roomJoinedAt, "attendance persistence must not block room entry");
+  assert.ok(participationAt > roomJoinedAt, "participation lookup must not block room entry");
+  assert.match(studentJoinBlock, /io\.to\(teacherSocketId\)\.emit\("student_joined"/, "teacher must be notified as part of the immediate join flow");
+});
+
 test("server.js handles teacher mic approvals and toggles without uncaught rejections", () => {
   assert.match(server, /socket\.on\("teacher_set_mic", async \(data = \{\}, acknowledgement\) => \{[\s\S]*?try \{/);
   assert.match(server, /socket\.on\("teacher_approve_mic", async \(data = \{\}, acknowledgement\) => \{[\s\S]*?try \{/);

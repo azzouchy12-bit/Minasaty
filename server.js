@@ -2127,10 +2127,13 @@ io.on("connection", (socket) => {
    * the database; a client-supplied name is never used for attendance logging.
    */
   socket.on("student_join_room", async (data = {}, acknowledgement) => {
+    const joinStartedAt = Date.now();
+    const joinTiming = {};
     try {
       const level = canonicalLevel(data.level);
       const studentId = normalizeText(data.studentId);
       if (!(await requireParentMessengerSocketSession(socket, "student_join_room", acknowledgement))) return;
+      joinTiming.sessionCheckMs = Date.now() - joinStartedAt;
 
       if (!isValidLevel(level) || !isValidStudentId(studentId)) {
         return emitClassroomError(
@@ -2158,6 +2161,7 @@ io.on("connection", (socket) => {
           physicsEnrollment: true,
         },
       });
+      joinTiming.studentLookupMs = Date.now() - joinStartedAt - joinTiming.sessionCheckMs;
 
       if (!student || canonicalLevel(student.level) !== level || !isValidStudentName(student.studentName)) {
         return emitClassroomError(
@@ -2298,29 +2302,19 @@ io.on("connection", (socket) => {
       const sessionKey = teacherSocket.data.classResumeToken || null;
       // A repeated join emit from the same socket must not inflate history.
       // A genuinely new connection creates a separate attendance visit.
-      if (!isAlreadyJoined) {
-        const attendance = await prisma.attendance.create({
-          data: { studentId: student.id, level: student.level, sessionKey },
-        });
-        socket.data.attendanceId = attendance.id;
-        void sendAttendanceEmail({
-          student,
-          subject: activeSubjectByLevel.get(classroomLevel),
-          status: "حضر التلميذ الحصة",
-          when: new Date().toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" }),
-        }).catch((error) => console.warn("Attendance email failed:", error.message));
-      }
-      socket.data.joinedAt = Date.now();
-
       await socket.join(classroomLevel);
+      const joinedAt = Date.now();
+      socket.data.joinedAt = joinedAt;
       socket.data.role = "student";
       socket.data.roomLevel = classroomLevel;
       socket.data.studentAcademicLevel = student.level;
       socket.data.studentName = studentName;
       socket.data.studentId = student.id;
       users.set(socket.id, { role: "student", level: student.level, classroomLevel, name: studentName, studentId: student.id });
-
-      const participationCount = await getStudent24HourParticipation(student.id);
+      joinTiming.beforeConfirmationMs = Date.now() - joinStartedAt;
+      // Attendance history and the participation badge are useful, but neither
+      // should hold up room entry or the teacher's first notification.
+      const participationCount = Number(socket.data.participationCount) || 0;
       socket.data.participationCount = participationCount;
 
       socket.emit("room_joined", {
@@ -2382,7 +2376,43 @@ io.on("connection", (socket) => {
         role: "student",
         teacherSocketId,
       });
-      console.info(`[Socket.io] Student ${socket.id} joined room: ${classroomLevel}${isGlobalFreeActive ? " (global free)" : ""}`);
+      console.info(`[Socket.io] Student joined room: ${classroomLevel}; entry=${Date.now() - joinStartedAt}ms; session-check=${joinTiming.sessionCheckMs}ms; student-lookup=${joinTiming.studentLookupMs}ms; pre-confirmation=${joinTiming.beforeConfirmationMs}ms`);
+
+      if (!isAlreadyJoined) {
+        void prisma.attendance.create({
+          data: { studentId: student.id, level: student.level, sessionKey },
+        }).then(async (attendance) => {
+          socket.data.attendanceId = attendance.id;
+          if (!socket.connected) {
+            const durationMinutes = Math.floor((Date.now() - joinedAt) / 60000);
+            if (durationMinutes > 0) {
+              await prisma.attendance.update({
+                where: { id: attendance.id },
+                data: { durationMinutes: { increment: durationMinutes } },
+              });
+            }
+          }
+          return sendAttendanceEmail({
+            student,
+            subject: activeSubjectByLevel.get(classroomLevel),
+            status: "حضر التلميذ الحصة",
+            when: new Date().toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" }),
+          });
+        }).catch((error) => console.warn("Background attendance save failed:", error.message));
+      }
+
+      void getStudent24HourParticipation(student.id).then((count) => {
+        socket.data.participationCount = count;
+        if (socket.connected && isInLevelRoom(socket, classroomLevel)) {
+          socket.emit("participation_count_updated", { level: student.level, count });
+        }
+        const update = { socketId: socket.id, count };
+        io.to(teacherSocketId).emit("student_participation_updated", update);
+        const companions = activeCompanionsByLevel.get(classroomLevel);
+        if (companions) {
+          for (const compId of companions) io.to(compId).emit("student_participation_updated", update);
+        }
+      }).catch((error) => console.warn("Background participation count lookup failed:", error.message));
     } catch (error) {
       console.error("[Socket.io] student_join_room failed:", error);
       emitClassroomError(
