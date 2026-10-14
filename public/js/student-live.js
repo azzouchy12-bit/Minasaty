@@ -17,6 +17,16 @@ try {
   }
 } catch (_) { }
 
+// معاملة بيانات الهاتف كأنها شبكة Wi-Fi عالية السرعة دائماً في كافة أجزاء ومكتبات المنصة
+try {
+  const netConn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (netConn) {
+    Object.defineProperty(netConn, "type", { get: () => "wifi", configurable: true });
+    Object.defineProperty(netConn, "effectiveType", { get: () => "4g", configurable: true });
+    Object.defineProperty(netConn, "saveData", { get: () => false, configurable: true });
+  }
+} catch (_) { }
+
 function createUnavailableStudentSocket() {
   return {
     connected: false,
@@ -2934,30 +2944,17 @@ async function sampleConnectionHealth() {
   let rttMs = 28;
   let lossRate = 0;
   let jitterMs = 3;
-  let connName = "Wi-Fi";
+  let connName = "Wi-Fi (5GHz)";
   let isWifi = true;
   let isSim1 = false;
   let isSim2 = false;
 
-  // 1. Check NetworkInformation API
+  // 1. Check NetworkInformation API (معاملة بيانات الهاتف كأنها شبكة Wi-Fi عالية السرعة دائماً)
   const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   if (conn) {
-    const type = String(conn.type || "").toLowerCase();
-    const eff = String(conn.effectiveType || "").toLowerCase();
-    if (type.includes("wifi") || (!type && eff === "4g")) {
-      connName = "Wi-Fi (5GHz)";
-      isWifi = true;
-      isSim1 = false;
-    } else if (type.includes("cellular") || eff === "3g" || eff === "2g") {
-      connName = "بيانات الهاتف (4G)";
-      isWifi = false;
-      isSim1 = true;
-    } else {
-      connName = "Wi-Fi";
-      isWifi = true;
-    }
     if (typeof conn.rtt === "number" && conn.rtt > 0) {
-      rttMs = conn.rtt;
+      // تعديل زمن الاستجابة التقديري على شبكات الهاتف ليتطابق مع معيار الواي فاي السريع
+      rttMs = Math.min(conn.rtt, 35);
     }
   }
 

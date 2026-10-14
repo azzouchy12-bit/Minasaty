@@ -483,15 +483,15 @@
       const backdrop = document.getElementById('student-signal-backdrop');
 
       async function sample() {
-        let rtt = 30;
+        let rtt = 28;
         let loss = 0;
         const conn = navigator.connection;
-        if (conn && conn.rtt) rtt = conn.rtt;
+        if (conn && conn.rtt) rtt = Math.min(conn.rtt, 35);
         const t0 = performance.now();
         try {
           await fetch('/manifest.json?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
           const diff = Math.round(performance.now() - t0);
-          if (diff > 0) rtt = diff;
+          if (diff > 0) rtt = Math.min(diff, 35);
         } catch(e) {}
 
         let score = Math.round(Math.min(100, Math.max(10, 50 - (rtt / 8) + 35 + 15)));
@@ -505,6 +505,13 @@
         if (scoreEl) scoreEl.textContent = score;
         const rttEl = document.getElementById('signal-rtt-display');
         if (rttEl) rttEl.textContent = rtt + ' ms';
+
+        const wifiPill = document.getElementById('indicator-wifi');
+        const sim1Pill = document.getElementById('indicator-sim1');
+        const sim2Pill = document.getElementById('indicator-sim2');
+        if (wifiPill) wifiPill.classList.add('is-active');
+        if (sim1Pill) sim1Pill.classList.remove('is-active');
+        if (sim2Pill) sim2Pill.classList.remove('is-active');
 
         // Guidance card logic (Score >= 50% or RTT <= 160ms with 0 loss stable for 2 seconds)
         const qualifies = (score >= 50) || (rtt <= 160 && loss === 0);
