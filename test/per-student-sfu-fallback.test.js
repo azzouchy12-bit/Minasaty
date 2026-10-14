@@ -117,6 +117,7 @@ test("Repeated no-media reports keep one recovery timer and still trigger target
     clearTimeout: (timer) => { timer.cleared = true; },
     transitionStudentToP2pFallback: (...args) => fallbacks.push(args),
     recordLiveDiagnosticEvent() {},
+    renderAttendeeTransportStatus() {},
     closePeerConnection() {},
     console: { info() {} },
   };

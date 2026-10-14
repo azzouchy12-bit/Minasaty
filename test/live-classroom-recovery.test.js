@@ -408,9 +408,11 @@ test("Student health: isStudentSfuHealthy does NOT treat classmate presence as t
       getAudioTracks: () => [],
       getTracks: () => [],
     },
+    sfuPacketsReceived: false,
   };
 
   studentCtx.isStudentSfuConnected = () => studentCtx.studentSfuRoom?.state === "connected";
+  studentCtx.getTeacherSfuReceptionState = () => ({ receiving: studentCtx.sfuPacketsReceived });
 
   const isHealthyFn = extractFunction(studentSource, "isStudentSfuHealthy");
   vm.runInNewContext(isHealthyFn, studentCtx);
@@ -428,10 +430,12 @@ test("Student health: isStudentSfuHealthy does NOT treat classmate presence as t
   studentCtx.studentSfuConnectedAt = Date.now() - 5_000;
   assert.equal(studentCtx.isStudentSfuHealthy(), true, "Must return true during startup grace period");
 
-  // Expired grace period, but live teacher audio arrives with __fromSfu:
+  // A live track object alone is not proof of incoming media packets:
   studentCtx.studentSfuConnectedAt = Date.now() - 20_000;
   studentCtx.remoteMediaStream.getAudioTracks = () => [{ readyState: "live", __fromSfu: true }];
-  assert.equal(studentCtx.isStudentSfuHealthy(), true, "Must return true when teacher media is live");
+  assert.equal(studentCtx.isStudentSfuHealthy(), false, "Must wait until teacher media packets arrive");
+  studentCtx.sfuPacketsReceived = true;
+  assert.equal(studentCtx.isStudentSfuHealthy(), true, "Must return true when teacher media is actually arriving");
 });
 
 // -------------------------------------------------------------

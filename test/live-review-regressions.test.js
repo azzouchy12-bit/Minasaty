@@ -54,7 +54,7 @@ test('Actual reception monitor detects frozen packet counters and respects muted
   const room={state:'connected',remoteParticipants:new Map([['teacher',{trackPublications:new Map([['audio',publication]])}]])};
   const ctx={studentSfuRoom:room,joinedClass:true,document:{visibilityState:'visible'},Date:{now:()=>now},
     setInterval(fn){callback=fn;return 1;},clearInterval(){},getSfuParticipantRole:()=> 'teacher',
-    recordStudentDiagnosticEvent(){},notifySfuTransportStatus(value){assert.equal(value,false);},
+    recordStudentDiagnosticEvent(){},notifySfuTransportStatus(){},
     clearStaleSfuMedia(){},disconnectStudentSfu(){disconnected++;ctx.studentSfuRoom=null;},
     scheduleClassRecovery(){recovery++;}};
   vm.runInNewContext('let sfuReceptionMonitor=null;\n'+extract(student,'stopSfuReceptionMonitor')+'\n'

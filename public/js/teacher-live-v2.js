@@ -4890,6 +4890,29 @@ function refreshChatStudentSocketTarget(studentId, socketId) {
 }
 
 
+function renderAttendeeTransportStatus(socketId) {
+  const attendee = attendeeElements.get(socketId);
+  if (!attendee) return;
+  let badge = attendee.querySelector(".attendee-transport-status");
+  if (!badge) {
+    badge = document.createElement("small");
+    badge.className = "attendee-transport-status";
+    badge.style.cssText = "display:inline-flex;align-items:center;border-radius:999px;padding:1px 7px;font-size:.68rem;font-weight:800;line-height:1.5;width:max-content";
+    attendee.querySelector(".attendee-details")?.appendChild(badge);
+  }
+  const state = studentMediaTransports.get(socketId) || {};
+  const isP2p = state.p2pActive || state.p2pPending;
+  const isSfu = state.sfuReady;
+  badge.textContent = isSfu ? "LiveKit" : (isP2p ? "P2P" : "LiveKit جارٍ الاتصال");
+  badge.title = isSfu
+    ? "الصوت والصورة يصلان عبر LiveKit"
+    : (isP2p ? (state.p2pActive ? "الصوت أو الصورة يصلان عبر P2P؛ يجري تجهيز LiveKit بالخلفية" : "جارٍ تجهيز بث P2P مع محاولة LiveKit بالخلفية") : "جارٍ الاتصال بـLiveKit؛ سيعمل P2P كمسار احتياطي عند الحاجة");
+  badge.style.color = isSfu ? "#fecaca" : (isP2p ? "#bfdbfe" : "#cbd5e1");
+  badge.style.background = isSfu ? "rgba(220,38,38,.24)" : (isP2p ? "rgba(37,99,235,.24)" : "rgba(148,163,184,.14)");
+  badge.style.border = isSfu ? "1px solid rgba(248,113,113,.55)" : (isP2p ? "1px solid rgba(96,165,250,.55)" : "1px solid rgba(148,163,184,.35)");
+}
+
+
 function upsertAttendee(socketId, studentId, studentName = "تلميذ", participationCount = 0) {
   const stableStudentId = String(studentId || "").trim();
   const previousSocketId = stableStudentId ? attendeeSocketByStudentId.get(stableStudentId) : null;
@@ -4912,6 +4935,7 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
     const participation = item.querySelector(".attendee-participation");
     if (participation && Number.isFinite(Number(participationCount))) participation.textContent = `المشاركات: ${Math.max(0, Number(participationCount))}`;
     syncStudentResyncButton(item, socketId);
+    renderAttendeeTransportStatus(socketId);
     return item;
   }
 
@@ -4976,6 +5000,7 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
 
   elements.attendeesList.append(item);
   attendeeElements.set(socketId, item);
+  renderAttendeeTransportStatus(socketId);
   if (stableStudentId) {
     attendeeSocketByStudentId.set(stableStudentId, socketId);
     refreshChatStudentSocketTarget(stableStudentId, socketId);
@@ -4989,6 +5014,13 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
 
 
 function removeAttendee(socketId) {
+  studentMediaTransports.delete(socketId);
+  const fallbackTimer = studentSfuFallbackTimers.get(socketId);
+  if (fallbackTimer) clearTimeout(fallbackTimer);
+  studentSfuFallbackTimers.delete(socketId);
+  const returnTimer = studentSfuReturnTimers.get(socketId);
+  if (returnTimer) clearTimeout(returnTimer);
+  studentSfuReturnTimers.delete(socketId);
   const item = attendeeElements.get(socketId);
   if (item) {
     const studentId = item.dataset.studentId;
@@ -5012,6 +5044,11 @@ function clearAttendees() {
   attendeeElements.forEach((item) => item.remove());
   attendeeElements.clear();
   attendeeSocketByStudentId.clear();
+  studentMediaTransports.clear();
+  for (const timer of studentSfuFallbackTimers.values()) clearTimeout(timer);
+  for (const timer of studentSfuReturnTimers.values()) clearTimeout(timer);
+  studentSfuFallbackTimers.clear();
+  studentSfuReturnTimers.clear();
   updateAttendeeCount();
 }
 
@@ -7317,6 +7354,8 @@ socket.on("student_joined", async (data = {}) => {
   }
 
   const attendee = upsertAttendee(socketId, studentId, studentName || "تلميذ", participationCount);
+  studentMediaTransports.set(socketId, { transport: "p2p", p2pPending: true, p2pActive: false, sfuReady: false, receiving: false, lastSeenAt: Date.now() });
+  renderAttendeeTransportStatus(socketId);
   syncStudentMicButton(attendee, socketId, false);
 
   if (!isTeacherSfuHealthy()) {
@@ -7389,6 +7428,7 @@ function handleStudentTransportUpdated(data = {}) {
   const receivesExpectedMedia = hasKindTelemetry
     ? (!expectsAudio || data.receivingAudio === true) && (!expectsVideo || data.receivingVideo === true)
     : Boolean(data.receiving && expectsMedia);
+  const p2pReceiving = Boolean(data.transport === "p2p" && data.receiving && (data.receivingAudio || data.receivingVideo));
   const receiving = Boolean(data.transport === "sfu" && data.receiving && expectsMedia && receivesExpectedMedia);
   if (receiving) {
     const fallbackTimer = studentSfuFallbackTimers.get(data.socketId);
@@ -7399,14 +7439,19 @@ function handleStudentTransportUpdated(data = {}) {
     if (returnTimer) clearTimeout(returnTimer);
     studentSfuReturnTimers.delete(data.socketId);
   }
+  const previousTransport = studentMediaTransports.get(data.socketId) || {};
   studentMediaTransports.set(data.socketId, {
     transport: data.transport || "unknown",
     receiving,
     receivingAudio: Boolean(data.receivingAudio),
     receivingVideo: Boolean(data.receivingVideo),
+    p2pPending: data.transport === "p2p" ? false : Boolean(previousTransport.p2pPending),
+    p2pActive: p2pReceiving ? true : (receiving ? false : Boolean(previousTransport.p2pActive)),
+    sfuReady: receiving,
     lastSeenAt: Date.now(),
   });
-  if (receiving) {
+  renderAttendeeTransportStatus(data.socketId);
+  if (receiving && data.transport === "sfu") {
     const peerConnection = peerConnections[data.socketId];
     if (peerConnection?.__teacherP2pFallback && !studentSfuReturnTimers.has(data.socketId)) {
       const timer = setTimeout(() => {
@@ -7442,6 +7487,9 @@ socket.on("student_transport_updated", handleStudentTransportUpdated);
 
 socket.on("student_needs_p2p", (data = {}) => {
   if (!classActive || !data?.socketId) return;
+  const existing = studentMediaTransports.get(data.socketId) || {};
+  studentMediaTransports.set(data.socketId, { ...existing, transport: "p2p", p2pPending: true, sfuReady: false, lastSeenAt: Date.now() });
+  renderAttendeeTransportStatus(data.socketId);
   console.info(`[Fallback] Student ${data.socketId} requested targeted P2P stream; delivering fallback offer.`);
   recordLiveDiagnosticEvent("student_requested_p2p", `Student ${data.socketId} requested targeted P2P (${data.reason || "network"}); sending offer`);
   transitionStudentToP2pFallback(data.socketId, { allowWhileSfuActive: true });
