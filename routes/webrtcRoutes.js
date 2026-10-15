@@ -13,15 +13,17 @@ const DEFAULT_STUN_URLS = [
 ];
 const DEFAULT_TURN_HOST = "192.236.187.151";
 const DEFAULT_TURN_PORT = "3478";
+const DEFAULT_TURN_TLS_PORT = "443";
 const DEFAULT_TURN_REALM = "minasaty.com";
 
 function getTurnConfig() {
   const secret = String(process.env.COTURN_SECRET || process.env.TURN_SECRET || "").trim();
   const host = String(process.env.COTURN_HOST || DEFAULT_TURN_HOST).trim();
   const port = String(process.env.COTURN_PORT || DEFAULT_TURN_PORT).trim();
+  const tlsPort = String(process.env.COTURN_TLS_PORT || DEFAULT_TURN_TLS_PORT).trim();
   const realm = String(process.env.COTURN_REALM || DEFAULT_TURN_REALM).trim();
   if (!secret || !host || !port || !realm) return null;
-  return { secret, host, port, realm };
+  return { secret, host, port, tlsPort, realm };
 }
 
 router.get("/ice-servers", verifyToken, (req, res) => {
@@ -39,6 +41,7 @@ router.get("/ice-servers", verifyToken, (req, res) => {
   const username = `${expiry}:minasaty_user`;
   const credential = crypto.createHmac("sha1", turn.secret).update(username).digest("base64");
   const endpoint = `${turn.host}:${turn.port}`;
+  const tlsEndpoint = `${turn.host}:${turn.tlsPort}`;
 
   return res.status(200).json({
     status: "success",
@@ -50,6 +53,8 @@ router.get("/ice-servers", verifyToken, (req, res) => {
         urls: [
           `turn:${endpoint}?transport=udp`,
           `turn:${endpoint}?transport=tcp`,
+          `turns:${tlsEndpoint}?transport=tcp`,
+          `turns:${turn.host}:5349?transport=tcp`,
         ],
         username,
         credential,

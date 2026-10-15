@@ -745,8 +745,9 @@ async function executeTeacherSfuMediaSync() {
               teacherSfuAudioPub = await teacherSfuRoom.localParticipant.publishTrack(audioTrack, {
                 name: "teacher-audio",
                 source: window.LivekitClient?.Track?.Source?.Microphone || "microphone",
-                dtx: true,
+                dtx: false,
                 red: true,
+                audioBitrate: 48000,
                 stopOnUnpublish: false,
               });
             }
@@ -755,8 +756,9 @@ async function executeTeacherSfuMediaSync() {
             teacherSfuAudioPub = await teacherSfuRoom.localParticipant.publishTrack(audioTrack, {
               name: "teacher-audio",
               source: window.LivekitClient?.Track?.Source?.Microphone || "microphone",
-              dtx: true,
+              dtx: false,
               red: true,
+              audioBitrate: 48000,
               stopOnUnpublish: false,
             });
           }
@@ -765,8 +767,9 @@ async function executeTeacherSfuMediaSync() {
         teacherSfuAudioPub = await teacherSfuRoom.localParticipant.publishTrack(audioTrack, {
           name: "teacher-audio",
           source: window.LivekitClient?.Track?.Source?.Microphone || "microphone",
-          dtx: true,
+          dtx: false,
           red: true,
+          audioBitrate: 48000,
           stopOnUnpublish: false,
         });
       }
@@ -5504,7 +5507,28 @@ function addClassroomAudioSource(sourceKey, stream, { enabled = true } = {}) {
   try {
     const node = classroomAudioContext.createMediaStreamSource(stream);
     const gainNode = classroomAudioContext.createGain();
+    let intermediateNode = node;
     if (sourceKey === "__teacher_microphone__") {
+      try {
+        const hp = classroomAudioContext.createBiquadFilter();
+        hp.type = "highpass";
+        hp.frequency.value = 85;
+        hp.Q.value = 0.707;
+
+        const comp = classroomAudioContext.createDynamicsCompressor();
+        comp.threshold.value = -24;
+        comp.knee.value = 12;
+        comp.ratio.value = 4.0;
+        comp.attack.value = 0.003;
+        comp.release.value = 0.25;
+
+        intermediateNode.connect(hp);
+        hp.connect(comp);
+        intermediateNode = comp;
+      } catch (err) {
+        console.warn("[Teacher Audio] Built-in dynamics processing fallback:", err);
+      }
+
       gainNode.gain.value = teacherMicGainLevel;
       teacherMicGainNode = gainNode;
       setupLiveMicMeter(gainNode);
@@ -5531,7 +5555,7 @@ function addClassroomAudioSource(sourceKey, stream, { enabled = true } = {}) {
     } else {
       gainNode.gain.value = 1.0;
     }
-    node.connect(gainNode);
+    intermediateNode.connect(gainNode);
     classroomAudioSources.set(sourceKey, { node, gainNode, stream, enabled: Boolean(enabled) });
     rebuildClassroomAudioGraph();
     syncLocalRecordingAudioSources();
@@ -5801,6 +5825,9 @@ async function applyAudioAdvancedSettings() {
         cameraStream.getAudioTracks().forEach((t) => t.stop());
       }
       cameraStream = await navigator.mediaDevices.getUserMedia(getTeacherMicrophoneConstraints());
+      if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.enhanceStream) {
+        cameraStream = window.MinasatyAudioEnhancer.enhanceStream(cameraStream);
+      }
       addClassroomAudioSource("__teacher_microphone__", cameraStream, { enabled: true });
       syncMixMinusAudioToAllPeers();
       setStudioStatus("تم تطبيق إعدادات الصوت وتحديث المايكروفون بنجاح.", "live");
@@ -5817,8 +5844,11 @@ async function ensureTeacherMicrophoneActive() {
 
   if (!micTrack && navigator.mediaDevices?.getUserMedia) {
     try {
-      const freshMicStream = await navigator.mediaDevices.getUserMedia(getTeacherMicrophoneConstraints());
+      let freshMicStream = await navigator.mediaDevices.getUserMedia(getTeacherMicrophoneConstraints());
       if (freshMicStream?.getAudioTracks?.().length) {
+        if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.enhanceStream) {
+          freshMicStream = window.MinasatyAudioEnhancer.enhanceStream(freshMicStream);
+        }
         if (cameraStream) {
           try {
             cameraStream.getAudioTracks().forEach((t) => t.stop());
@@ -5872,6 +5902,16 @@ function attachStudentAudio(peerConnection, studentSocketId) {
   peerConnection.ontrack = (event) => {
     if (event.track?.kind !== 'audio') {
       return;
+    }
+
+    if (event.receiver) {
+      try {
+        if ("jitterBufferTarget" in event.receiver) {
+          event.receiver.jitterBufferTarget = 80;
+        } else if ("playoutDelayHint" in event.receiver) {
+          event.receiver.playoutDelayHint = 0.08;
+        }
+      } catch (_) {}
     }
 
 
@@ -6427,12 +6467,14 @@ function optimizeOpusSdp(sdp) {
         if (k) paramMap.set(k.toLowerCase(), v ?? "");
       });
       paramMap.set("useinbandfec", "1");
+      paramMap.set("usedtx", "0");
       paramMap.set("stereo", "0");
       paramMap.set("sprop-stereo", "0");
       paramMap.set("cbr", "1");
-      if (!paramMap.has("maxaveragebitrate")) {
-        paramMap.set("maxaveragebitrate", "32000");
-      }
+      paramMap.set("maxaveragebitrate", "48000");
+      paramMap.set("ptime", "20");
+      paramMap.set("minptime", "10");
+      paramMap.set("maxptime", "40");
       const newParams = Array.from(paramMap.entries())
         .map(([k, v]) => (v ? `${k}=${v}` : k))
         .join(";");
@@ -6442,7 +6484,7 @@ function optimizeOpusSdp(sdp) {
       if (line.startsWith(`a=rtpmap:${opusPayload} `) && !fmtpFound) {
         const nextLine = lines[i + 1] || "";
         if (!nextLine.startsWith(`a=fmtp:${opusPayload}`)) {
-          modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;useinbandfec=1;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=32000`);
+          modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;ptime=20;maxptime=40;useinbandfec=1;usedtx=0;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=48000`);
           fmtpFound = true;
         }
       }
@@ -7030,6 +7072,9 @@ async function startLiveClass() {
     if (navigator.mediaDevices?.getUserMedia) {
       try {
         cameraStream = await navigator.mediaDevices.getUserMedia(getTeacherMicrophoneConstraints());
+        if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.enhanceStream) {
+          cameraStream = window.MinasatyAudioEnhancer.enhanceStream(cameraStream);
+        }
       } catch (error) {
         microphoneUnavailableMessage = getMediaErrorMessage(error, "المايك");
         console.warn("Teacher microphone is unavailable:", error);

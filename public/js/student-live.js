@@ -1152,7 +1152,9 @@ async function publishStudentSfuMic(audioStream) {
     const publication = await room.localParticipant.publishTrack(track, {
       name: "student-mic",
       source: window.LivekitClient?.Track?.Source?.Microphone || "microphone",
-      dtx: true,
+      dtx: false,
+      red: true,
+      audioBitrate: 48000,
       stopOnUnpublish: false,
     });
     if (!microphonePermissionGranted || !joinedClass || studentSfuRoom !== room || track.enabled === false) {
@@ -5262,6 +5264,9 @@ async function prepareStudentMicrophone() {
         channelCount: 1,
       },
     });
+    if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.enhanceStream) {
+      localAudioStream = window.MinasatyAudioEnhancer.enhanceStream(localAudioStream);
+    }
     localAudioStream.getAudioTracks().forEach((track) => {
       track.enabled = false;
       if ("contentHint" in track) track.contentHint = "speech";
@@ -6057,12 +6062,14 @@ function optimizeOpusSdp(sdp) {
         if (k) paramMap.set(k.toLowerCase(), v ?? "");
       });
       paramMap.set("useinbandfec", "1");
+      paramMap.set("usedtx", "0");
       paramMap.set("stereo", "0");
       paramMap.set("sprop-stereo", "0");
       paramMap.set("cbr", "1");
-      if (!paramMap.has("maxaveragebitrate")) {
-        paramMap.set("maxaveragebitrate", "32000");
-      }
+      paramMap.set("maxaveragebitrate", "48000");
+      paramMap.set("ptime", "20");
+      paramMap.set("minptime", "10");
+      paramMap.set("maxptime", "40");
       const newParams = Array.from(paramMap.entries())
         .map(([k, v]) => (v ? `${k}=${v}` : k))
         .join(";");
@@ -6072,7 +6079,7 @@ function optimizeOpusSdp(sdp) {
       if (line.startsWith(`a=rtpmap:${opusPayload} `) && !fmtpFound) {
         const nextLine = lines[i + 1] || "";
         if (!nextLine.startsWith(`a=fmtp:${opusPayload}`)) {
-          modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;useinbandfec=1;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=32000`);
+          modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;ptime=20;maxptime=40;useinbandfec=1;usedtx=0;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=48000`);
           fmtpFound = true;
         }
       }
@@ -6325,6 +6332,9 @@ async function enableApprovedMicrophone() {
         channelCount: 1,
       },
     });
+    if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.enhanceStream) {
+      localAudioStream = window.MinasatyAudioEnhancer.enhanceStream(localAudioStream);
+    }
     // Approval may be revoked while the browser permission dialog is open.
     if (!microphonePermissionGranted || !joinedClass) {
       stopLocalAudio();

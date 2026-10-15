@@ -456,6 +456,16 @@
     peerConnection.ontrack = (event) => {
       if (event.track?.kind !== "audio") return;
 
+      if (event.receiver) {
+        try {
+          if ("jitterBufferTarget" in event.receiver) {
+            event.receiver.jitterBufferTarget = 80;
+          } else if ("playoutDelayHint" in event.receiver) {
+            event.receiver.playoutDelayHint = 0.08;
+          }
+        } catch (_) {}
+      }
+
       let audio = studentAudioElements.get(studentSocketId);
       if (!audio) {
         audio = document.createElement("audio");
@@ -552,12 +562,14 @@
           if (k) paramMap.set(k.toLowerCase(), v ?? "");
         });
         paramMap.set("useinbandfec", "1");
+        paramMap.set("usedtx", "0");
         paramMap.set("stereo", "0");
         paramMap.set("sprop-stereo", "0");
         paramMap.set("cbr", "1");
-        if (!paramMap.has("maxaveragebitrate")) {
-          paramMap.set("maxaveragebitrate", "32000");
-        }
+        paramMap.set("maxaveragebitrate", "48000");
+        paramMap.set("ptime", "20");
+        paramMap.set("minptime", "10");
+        paramMap.set("maxptime", "40");
         const newParams = Array.from(paramMap.entries())
           .map(([k, v]) => (v ? `${k}=${v}` : k))
           .join(";");
@@ -567,7 +579,7 @@
         if (line.startsWith(`a=rtpmap:${opusPayload} `) && !fmtpFound) {
           const nextLine = lines[i + 1] || "";
           if (!nextLine.startsWith(`a=fmtp:${opusPayload}`)) {
-            modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;useinbandfec=1;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=32000`);
+            modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;ptime=20;maxptime=40;useinbandfec=1;usedtx=0;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=48000`);
             fmtpFound = true;
           }
         }
