@@ -230,7 +230,7 @@ router.syncStudentMicrophonePermission = async function(roomName, studentId, ena
     await client.updateParticipant(roomName, String(studentId), {
       permission: {
         canPublish: Boolean(enabled), canSubscribe: true, canPublishData: true,
-        canPublishSources: [TrackSource.MICROPHONE], canUpdateMetadata: false,
+        canPublishSources: [TrackSource?.MICROPHONE ?? 2], canUpdateMetadata: false,
       },
       metadata: JSON.stringify({
         classroomRole: "student",

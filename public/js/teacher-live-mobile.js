@@ -482,7 +482,13 @@
         enabled: approvedStudentMicrophones.has(studentSocketId),
       });
 
-      audio.play().catch(() => {});
+      audio.play().catch(() => {
+        if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.armAutoplayUnlock) {
+          window.MinasatyAudioEnhancer.armAutoplayUnlock(() => {
+            audio.play().catch(() => {});
+          });
+        }
+      });
 
       event.track.addEventListener("ended", () => {
         approvedStudentMicrophones.delete(studentSocketId);

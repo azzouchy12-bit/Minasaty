@@ -272,9 +272,17 @@ function attachSfuStudentAudio(identity, track) {
   }
   const stream = new MediaStream([mediaStreamTrack]);
   audio.srcObject = stream;
+  if (typeof track.attach === "function") {
+    try { track.attach(audio); } catch (_) {}
+  }
   audio.play().catch((err) => {
     window.LiveDoctor?.report("student_audio_playback_failed", { target: identity, errorName: err?.name || "Error" });
     console.debug("SFU student audio play hint:", err);
+    if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.armAutoplayUnlock) {
+      window.MinasatyAudioEnhancer.armAutoplayUnlock(() => {
+        audio.play().catch(() => {});
+      });
+    }
   });
 
   sfuStudentAudioStreams.set(identity, { stream, track: mediaStreamTrack });
@@ -5437,6 +5445,12 @@ function applyStudentMicrophoneState(studentSocketId, enabled) {
   const source = classroomAudioSources.get(studentSocketId);
   if (source) {
     source.enabled = Boolean(enabled);
+  }
+  if (studentId) {
+    const sfuSource = classroomAudioSources.get("sfu_" + studentId);
+    if (sfuSource) {
+      sfuSource.enabled = Boolean(enabled);
+    }
   }
   rebuildClassroomAudioGraph();
   syncLocalRecordingAudioSources();

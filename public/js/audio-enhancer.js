@@ -34,7 +34,18 @@
       }
     }
 
-    if (sharedAudioContext.state === "suspended") {
+    if (sharedAudioContext && !sharedAudioContext.__stateChangeBound && typeof sharedAudioContext.addEventListener === "function") {
+      sharedAudioContext.__stateChangeBound = true;
+      try {
+        sharedAudioContext.addEventListener("statechange", () => {
+          if (sharedAudioContext?.state === "suspended" || sharedAudioContext?.state === "interrupted") {
+            sharedAudioContext.resume().catch(() => {});
+          }
+        });
+      } catch (_) {}
+    }
+
+    if (sharedAudioContext.state === "suspended" || sharedAudioContext.state === "interrupted") {
       sharedAudioContext.resume().catch(() => {});
     }
 
