@@ -543,6 +543,16 @@ async function initTeacherSfuSession(roomName) {
           }
         });
 
+        if (window.LivekitClient?.RoomEvent?.TrackPublished) {
+          teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackPublished, (publication, participant) => {
+            if (sessionId !== teacherSfuSessionId) return;
+            if (publication?.kind === "audio" && publication?.track) {
+              console.info("[SFU] Teacher detected published audio track from student participant:", participant?.identity);
+              attachSfuStudentAudio(participant?.identity, publication.track);
+            }
+          });
+        }
+
         teacherSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
           if (sessionId !== teacherSfuSessionId) return;
           removeSfuStudentAudio(participant.identity, track);
@@ -569,6 +579,13 @@ async function initTeacherSfuSession(roomName) {
           recordLiveDiagnosticEvent("sfu_reconnected", "LiveKit SFU room reconnected successfully");
           sfuActiveForClass = true;
           mediaTransportState = "sfu_active";
+          for (const participant of (teacherSfuRoom.remoteParticipants?.values?.() || [])) {
+            for (const pub of (participant.trackPublications?.values?.() || [])) {
+              if (pub?.track && (pub.track.kind === "audio" || pub.kind === "audio")) {
+                attachSfuStudentAudio(participant.identity, pub.track);
+              }
+            }
+          }
           try {
             await syncTeacherSfuMedia();
           } catch (_) {}
@@ -593,6 +610,16 @@ async function initTeacherSfuSession(roomName) {
       }
 
       if (sessionId !== teacherSfuSessionId) return false;
+
+      // Immediately subscribe and attach any students already speaking upon teacher connection
+      for (const participant of (teacherSfuRoom.remoteParticipants?.values?.() || [])) {
+        for (const pub of (participant.trackPublications?.values?.() || [])) {
+          if (pub?.track && (pub.track.kind === "audio" || pub.kind === "audio")) {
+            console.info("[SFU] Attaching existing student audio track from:", participant.identity);
+            attachSfuStudentAudio(participant.identity, pub.track);
+          }
+        }
+      }
 
       sfuActiveForClass = true;
       mediaTransportState = "sfu_active";

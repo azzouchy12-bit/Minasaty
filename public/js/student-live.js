@@ -598,6 +598,11 @@ function playClassmateSfuAudio(participantId, track) {
     playPromise.catch((err) => {
       console.debug("Classmate audio autoplay hint:", err);
       if (typeof armAutoUnmuteOnFirstInteraction === "function") armAutoUnmuteOnFirstInteraction();
+      if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.armAutoplayUnlock) {
+        window.MinasatyAudioEnhancer.armAutoplayUnlock(() => {
+          audio.play().catch(() => {});
+        });
+      }
     });
   }
 }
@@ -966,6 +971,36 @@ async function connectStudentSfu(roomName, { backgroundRetry = false } = {}) {
           }
         });
 
+        if (window.LivekitClient?.RoomEvent?.TrackPublished) {
+          studentSfuRoom.on(window.LivekitClient.RoomEvent.TrackPublished, (publication, participant) => {
+            if (sessionId !== getCurrentSessionId()) return;
+            const isSelf = Boolean(
+              participant?.isLocal ||
+              participant?.identity === studentSfuRoom?.localParticipant?.identity ||
+              (typeof studentId !== "undefined" && studentId && String(participant?.identity) === String(studentId))
+            );
+            if (isSelf) return;
+
+            const role = getSfuParticipantRole(participant);
+            const isTeacher = Boolean(
+              role === "teacher" ||
+              participant?.identity === "teacher" ||
+              (typeof knownTeacherIdentity !== "undefined" && knownTeacherIdentity && participant?.identity === knownTeacherIdentity) ||
+              (typeof teacherSocketId !== "undefined" && teacherSocketId && participant?.identity === teacherSocketId)
+            );
+
+            if (!isTeacher && role === "student" && publication?.kind === "audio") {
+              if (publication.isSubscribed === false && typeof publication.setSubscribed === "function") {
+                try { publication.setSubscribed(true); } catch (_) {}
+              }
+              if (publication.track) {
+                console.info("[SFU-Student] Attaching published classmate audio track from:", participant?.identity);
+                playClassmateSfuAudio(participant.identity, publication.track);
+              }
+            }
+          });
+        }
+
         studentSfuRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
           if (sessionId !== getCurrentSessionId()) return;
           detachTeacherSfuPlaybackTrack(track.kind, track);
@@ -1005,6 +1040,16 @@ async function connectStudentSfu(roomName, { backgroundRetry = false } = {}) {
           console.info("[SFU-Student] LiveKit room reconnected successfully.");
           recordStudentDiagnosticEvent("sfu_reconnected", "LiveKit SFU room reconnected successfully");
           notifySfuTransportStatus(true);
+          for (const participant of (studentSfuRoom.remoteParticipants?.values?.() || [])) {
+            const role = getSfuParticipantRole(participant);
+            if (role === "student") {
+              for (const pub of (participant.trackPublications?.values?.() || [])) {
+                if (pub?.track && (pub.track.kind === "audio" || pub.kind === "audio")) {
+                  playClassmateSfuAudio(participant.identity, pub.track);
+                }
+              }
+            }
+          }
         });
 
         studentSfuRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
@@ -1058,9 +1103,14 @@ async function connectStudentSfu(roomName, { backgroundRetry = false } = {}) {
           }
         } else if (role === "student") {
           for (const pub of (participant.trackPublications?.values?.() || [])) {
-            if (pub?.track && (pub.track.kind === "audio" || pub.kind === "audio")) {
-              console.info("[SFU-Student] Attaching existing classmate audio track from:", participant.identity);
-              playClassmateSfuAudio(participant.identity, pub.track);
+            if (pub?.kind === "audio" || pub?.track?.kind === "audio") {
+              if (pub.isSubscribed === false && typeof pub.setSubscribed === "function") {
+                try { pub.setSubscribed(true); } catch (_) {}
+              }
+              if (pub?.track) {
+                console.info("[SFU-Student] Attaching existing classmate audio track from:", participant.identity);
+                playClassmateSfuAudio(participant.identity, pub.track);
+              }
             }
           }
         }
@@ -5539,6 +5589,9 @@ function armAutoUnmuteOnFirstInteraction() {
             el.play().catch(() => {});
           }
         });
+      }
+      if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.unlockAudioContext) {
+        window.MinasatyAudioEnhancer.unlockAudioContext();
       }
       autoUnmuteArmed = false;
       const events = ["touchstart", "touchend", "pointerdown", "click", "keydown", "scroll"];

@@ -137,11 +137,46 @@
     return rawStream;
   }
 
+  function unlockAudioContext(ctx) {
+    if (!ctx) ctx = getAudioContext();
+    if (!ctx) return Promise.resolve(false);
+    if (ctx.state === "running") return Promise.resolve(true);
+    return ctx.resume().then(() => ctx.state === "running").catch(() => false);
+  }
+
+  function armAutoplayUnlock(callback) {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    const trigger = () => {
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      if (typeof callback === "function") {
+        try { callback(); } catch (_) {}
+      }
+      events.forEach((ev) => {
+        try {
+          window.removeEventListener(ev, trigger, true);
+          document.removeEventListener(ev, trigger, true);
+        } catch (_) {}
+      });
+    };
+    const events = ["touchstart", "touchend", "pointerdown", "click", "keydown"];
+    events.forEach((ev) => {
+      try {
+        window.addEventListener(ev, trigger, { capture: true, passive: true });
+        document.addEventListener(ev, trigger, { capture: true, passive: true });
+      } catch (_) {}
+    });
+  }
+
   const enhancer = {
     isSupported: () => Boolean(typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext)),
     getAudioContext,
     enhanceStream: enhanceMicrophoneStream,
     enhanceMicrophoneStream,
+    unlockAudioContext,
+    armAutoplayUnlock,
   };
 
   if (typeof window !== "undefined") {
