@@ -227,6 +227,12 @@ router.syncStudentMicrophonePermission = async function(roomName, studentId, ena
         canPublish: Boolean(enabled), canSubscribe: true, canPublishData: true,
         canPublishSources: [TrackSource.MICROPHONE], canUpdateMetadata: false,
       },
+      metadata: JSON.stringify({
+        classroomRole: "student",
+        role: "student",
+        micApproved: Boolean(enabled),
+        sessionId: session?.id || null,
+      }),
     });
   } catch (err) {
     // An absent participant will obtain the current permissions on their next join.

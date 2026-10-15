@@ -14,6 +14,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { ClassroomSessions } = require("./utils/classroomSessions");
 const classroomSessions = new ClassroomSessions();
+const liveDiagnostics = require("./utils/liveDiagnostics");
 const jwt = require("jsonwebtoken");
 const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/redis-adapter");
@@ -190,6 +191,7 @@ function captureMessengerRawBody(req, _res, buffer) {
 app.use(express.json({ limit: "100kb", verify: captureMessengerRawBody }));
 app.use(express.urlencoded({ extended: true, limit: "100kb" }));
 app.use(requestMetrics);
+app.use(liveDiagnostics.requestDiagnostics);
 
 // Never log request bodies: registration and payment payloads contain secrets and identity data.
 app.use((req, _res, next) => {
@@ -900,6 +902,10 @@ function isStudentMicrophoneOpen(level, socketId, studentId = null) {
 }
 
 function setStudentMicrophoneOpen(level, socketId, enabled, studentId = null) {
+  if (Boolean(enabled) !== Boolean(isStudentMicrophoneOpen(level, socketId, studentId))) {
+    liveDiagnostics.logServer("microphone_permission_changed", { sessionId: classroomSessions.get(level)?.id || null,
+      targetSocketId: socketId, participantId: studentId, enabled: Boolean(enabled) });
+  }
   if (enabled) {
     const openMics = openStudentMicsByLevel.get(level) || new Set();
     openMics.add(socketId);
@@ -1207,6 +1213,7 @@ async function closeClassroom(level, reason) {
 
 io.on("connection", (socket) => {
   socketConnected();
+  liveDiagnostics.attachClientDiagnostics(socket);
   socket.on("classroom_roster_request", (_data, acknowledgeRoster) => {
     if (typeof acknowledgeRoster !== "function") return;
     const level = socket.data.roomLevel;
@@ -3900,6 +3907,7 @@ async function configureSocketScaling() {
 }
 
 async function shutdown(signal) {
+  liveDiagnostics.logServer("shutdown_requested", { signal });
   console.info(`Received ${signal}; closing HTTP server and Prisma connection.`);
   stopBackgroundJobs?.();
   await Promise.allSettled(redisClients.map((client) => client.quit()));
@@ -3921,6 +3929,7 @@ async function shutdown(signal) {
 }
 
 if (require.main === module) {
+  liveDiagnostics.startRuntimeDiagnostics();
   void (async () => {
     assertProductionConfiguration();
     await configureSocketScaling();
@@ -3935,11 +3944,13 @@ if (require.main === module) {
         .catch((error) => console.warn("Telegram webhook setup failed:", error.message));
     });
   })().catch((error) => {
+    liveDiagnostics.logServer("startup_failed", { errorName: String(error?.name || "Error").slice(0, 60) });
     console.error("Unable to start server:", error);
     process.exit(1);
   });
 
   process.on("unhandledRejection", (reason, promise) => {
+    liveDiagnostics.logServer("unhandled_rejection", { errorName: String(reason?.name || "UnknownError").slice(0, 60) });
     console.error("[Process Protection] Unhandled Rejection at:", promise, "reason:", reason);
   });
 
