@@ -178,6 +178,7 @@ socket.on("student_audio_reception_report", (data = {}) => {
 window.setInterval(() => { if (classActive) renderStudentAudioDeliveryStatus(); else audioReceptionReports.clear(); }, 3000);
 
 function recordLiveDiagnosticEvent(type, message) {
+  window.LiveDoctor?.report(type);
   const sanitizedMessage = String(message || "")
     .replace(/token=[^&\s]+/gi, "token=***")
     .replace(/bearer\s+[a-z0-9._-]+/gi, "bearer ***")
@@ -271,9 +272,16 @@ function attachSfuStudentAudio(identity, track) {
   }
   const stream = new MediaStream([mediaStreamTrack]);
   audio.srcObject = stream;
-  audio.play().catch((err) => console.debug("SFU student audio play hint:", err));
+  audio.play().catch((err) => {
+    window.LiveDoctor?.report("student_audio_playback_failed", { target: identity, errorName: err?.name || "Error" });
+    console.debug("SFU student audio play hint:", err);
+  });
 
   sfuStudentAudioStreams.set(identity, { stream, track: mediaStreamTrack });
+
+  if (typeof addClassroomAudioSource === "function") {
+    addClassroomAudioSource("sfu_" + identity, stream, { enabled: true });
+  }
 
   if (typeof mediaStreamTrack.addEventListener === "function") {
     mediaStreamTrack.addEventListener("ended", () => {
@@ -297,6 +305,9 @@ function removeSfuStudentAudio(identity, track = null) {
   // Delayed end/unsubscribe events belong to the old publication, not its replacement.
   if (mediaTrack && currentTrack !== mediaTrack && currentTrack?.id !== mediaTrack.id) return;
   sfuStudentAudioStreams.delete(identity);
+  if (typeof removeClassroomAudioSource === "function") {
+    removeClassroomAudioSource("sfu_" + identity);
+  }
   const audio = sfuStudentAudioElements.get(identity);
   if (audio) {
     try {
@@ -310,6 +321,11 @@ function removeSfuStudentAudio(identity, track = null) {
 }
 
 function clearAllSfuStudentAudio() {
+  for (const identity of sfuStudentAudioStreams.keys()) {
+    if (typeof removeClassroomAudioSource === "function") {
+      removeClassroomAudioSource("sfu_" + identity);
+    }
+  }
   sfuStudentAudioStreams.clear();
   sfuStudentAudioElements.forEach((audio) => {
     try {
@@ -5186,6 +5202,12 @@ function rebuildClassroomAudioGraph() {
         sourceKey !== destinationSocketId &&
         source.enabled
       ) {
+        if (sourceKey.startsWith("sfu_")) {
+          const sfuId = sourceKey.slice(4);
+          if (destinationSocketId === sfuId || destinationSocketId === attendeeSocketByStudentId.get(sfuId)) {
+            return;
+          }
+        }
         const outNode = source.gainNode || source.node;
         try {
           outNode.connect(destination);
@@ -5872,6 +5894,7 @@ function attachStudentAudio(peerConnection, studentSocketId) {
       enabled: approvedStudentMicrophones.has(studentSocketId),
     });
     audio.play().catch((error) => {
+      window.LiveDoctor?.report("student_audio_playback_failed", { target: studentSocketId, source: "p2p", errorName: error?.name || "Error" });
       console.warn('Unable to play approved student microphone:', error);
     });
 
@@ -8287,4 +8310,35 @@ function installPullToRefreshBlocker() {
 }
 installPullToRefreshBlocker();
 updateAudioUi();
+
+window.LiveDoctor?.start({
+  socket, active: () => classActive,
+  snapshot: () => ({ signal: socket.connected, sfu: teacherSfuRoom?.state || "absent", state: classroomAudioContext?.state || "absent" }),
+  sources: () => {
+    const sources = [];
+    for (const [id, peer] of Object.entries(peerConnections)) {
+      if (peer?.getStats) sources.push({ id: "p2p_" + id, target: id, stats: () => peer.getStats() });
+    }
+    for (const participant of teacherSfuRoom?.remoteParticipants?.values() || []) {
+      for (const publication of participant.trackPublications.values()) {
+        if (publication.track?.getRTCStatsReport) sources.push({ id: "sfu_" + publication.trackSid, target: participant.identity, stats: () => publication.track.getRTCStatsReport() });
+      }
+    }
+    for (const [identity, audio] of sfuStudentAudioElements) {
+      window.LiveDoctor?.report("student_audio_playback_state", { target: identity, paused: audio.paused, muted: audio.muted, readyState: audio.readyState });
+    }
+    for (const [identity, audio] of studentAudioElements) {
+      window.LiveDoctor?.report("student_audio_playback_state", { target: identity, source: "p2p", paused: audio.paused, muted: audio.muted, readyState: audio.readyState });
+    }
+    for (const socketId of approvedStudentMicrophones) {
+      const identity = attendeeElements.get(socketId)?.dataset.studentId;
+      const participant = identity && teacherSfuRoom?.remoteParticipants?.get(identity);
+      const audioPublications = [...(participant?.trackPublications?.values() || [])].filter(pub => pub.kind === "audio");
+      window.LiveDoctor?.report("approved_microphone_state", { target: identity || socketId, micApproved: true,
+        micPublished: audioPublications.length > 0, micPresent: audioPublications.some(pub => Boolean(pub.track)),
+        state: peerConnections[socketId]?.connectionState || "no_p2p" });
+    }
+    return sources;
+  },
+});
 

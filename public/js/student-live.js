@@ -365,6 +365,7 @@ async function reportClassroomAudioReception() {
 }
 
 function recordStudentDiagnosticEvent(type, message) {
+  window.LiveDoctor?.report(type);
   const sanitized = String(message || "")
     .replace(/token=[^&\s]+/gi, "token=***")
     .replace(/bearer\s+[a-z0-9._-]+/gi, "bearer ***")
@@ -587,9 +588,18 @@ function playClassmateSfuAudio(participantId, track) {
     return;
   }
   audio.srcObject = new MediaStream([mediaTrack]);
+  if (typeof track.attach === "function") {
+    try { track.attach(audio); } catch (_) {}
+  }
   syncClassmateSfuAudioPlayback();
   mediaTrack.addEventListener?.("ended", () => stopClassmateSfuAudio(participantId, mediaTrack), { once: true });
-  audio.play().catch((err) => console.debug("Classmate audio autoplay hint:", err));
+  const playPromise = audio.play();
+  if (playPromise && typeof playPromise.catch === "function") {
+    playPromise.catch((err) => {
+      console.debug("Classmate audio autoplay hint:", err);
+      if (typeof armAutoUnmuteOnFirstInteraction === "function") armAutoUnmuteOnFirstInteraction();
+    });
+  }
 }
 
 function stopClassmateSfuAudio(participantId, track = null) {
@@ -1037,13 +1047,21 @@ async function connectStudentSfu(roomName, { backgroundRetry = false } = {}) {
           (typeof knownTeacherIdentity !== "undefined" && knownTeacherIdentity && participant?.identity === knownTeacherIdentity) ||
           (typeof teacherSocketId !== "undefined" && teacherSocketId && participant?.identity === teacherSocketId)
         );
-        if (!isTeacher) continue;
-        for (const pub of (participant.trackPublications?.values?.() || [])) {
-          if (pub?.track?.mediaStreamTrack) {
-            pub.track.mediaStreamTrack.__fromSfu = true;
-            attachTeacherSfuPlaybackTrack(pub.track, participant);
-            notifySfuTransportStatus(true);
-            recordStudentDiagnosticEvent("teacher_track_received_immediate", `Subscribed immediately to existing teacher ${pub.track.kind} track`);
+        if (isTeacher) {
+          for (const pub of (participant.trackPublications?.values?.() || [])) {
+            if (pub?.track?.mediaStreamTrack) {
+              pub.track.mediaStreamTrack.__fromSfu = true;
+              attachTeacherSfuPlaybackTrack(pub.track, participant);
+              notifySfuTransportStatus(true);
+              recordStudentDiagnosticEvent("teacher_track_received_immediate", `Subscribed immediately to existing teacher ${pub.track.kind} track`);
+            }
+          }
+        } else if (role === "student") {
+          for (const pub of (participant.trackPublications?.values?.() || [])) {
+            if (pub?.track && (pub.track.kind === "audio" || pub.kind === "audio")) {
+              console.info("[SFU-Student] Attaching existing classmate audio track from:", participant.identity);
+              playClassmateSfuAudio(participant.identity, pub.track);
+            }
           }
         }
       }
@@ -1147,6 +1165,7 @@ async function publishStudentSfuMic(audioStream) {
     return true;
   } catch (err) {
     console.warn("[SFU-Student] Failed to publish student mic to SFU:", err);
+    window.LiveDoctor?.report("microphone_publish_failed", { source: "sfu", errorName: err?.name || "Error" });
     recordStudentDiagnosticEvent("student_mic_publish_error", err.message || "SFU mic publish failed");
     return false;
   } finally {
@@ -1173,7 +1192,9 @@ async function publishStudentP2pMic(track, stream) {
     studentP2pMicSender = existingSender;
     try {
       await existingSender.replaceTrack(track);
-    } catch (_) {}
+    } catch (error) {
+      window.LiveDoctor?.report("microphone_replace_track_failed", { source: "p2p", errorName: error?.name || "Error" });
+    }
     microphoneOfferSent = false;
     microphoneNegotiated = false;
     await negotiateStudentMicrophone();
@@ -1190,6 +1211,7 @@ async function publishStudentP2pMic(track, stream) {
     return true;
   } catch (err) {
     console.warn("[P2P-Student] addTrack for mic failed:", err);
+    window.LiveDoctor?.report("microphone_publish_failed", { source: "p2p", errorName: err?.name || "Error" });
     return false;
   }
 }
@@ -5504,6 +5526,15 @@ function armAutoUnmuteOnFirstInteraction() {
         elements.remoteVideo.volume = 1.0;
         await elements.remoteVideo.play().catch(() => {});
       }
+      if (typeof classmateAudioElements !== "undefined" && classmateAudioElements) {
+        classmateAudioElements.forEach((el) => {
+          if (el && (el.paused || el.muted)) {
+            el.muted = false;
+            el.volume = 1.0;
+            el.play().catch(() => {});
+          }
+        });
+      }
       autoUnmuteArmed = false;
       const events = ["touchstart", "touchend", "pointerdown", "click", "keydown", "scroll"];
       events.forEach((ev) => {
@@ -6086,6 +6117,7 @@ async function negotiateStudentMicrophone() {
     setViewerStatus("جارٍ ربط مايكك بالأستاذ…", "warning");
   } catch (error) {
     console.error("Unable to negotiate the approved microphone track:", error);
+    window.LiveDoctor?.report("microphone_negotiation_failed", { errorName: error?.name || "Error" });
     microphoneOfferSent = false;
     setViewerStatus("تعذر تشغيل المايك مع الحصة. حاول رفع اليد مرة أخرى.", "error");
   } finally {
@@ -6342,6 +6374,7 @@ async function enableApprovedMicrophone() {
     }
   } catch (error) {
     console.error("Unable to access student microphone:", error);
+    window.LiveDoctor?.report("microphone_acquisition_failed", { errorName: error?.name || "Error" });
     microphonePermissionGranted = false;
     setRaisedHandState({ waiting: false });
     updateMicControl();
@@ -7054,6 +7087,7 @@ socket.on("webrtc_renegotiation_answer", async (data = {}) => {
 });
 
 socket.on("permission_granted", async () => {
+  window.LiveDoctor?.report("microphone_permission_received");
   if (!joinedClass) {
     return;
   }
@@ -7082,6 +7116,7 @@ socket.on("permission_granted", async () => {
 });
 
 socket.on("microphone_revoked", (data = {}) => {
+  window.LiveDoctor?.report("microphone_revoked");
   clearHandResetTimer();
   microphonePermissionGranted = false;
   isMakingRenegotiationOffer = false;
@@ -7485,3 +7520,31 @@ window.setInterval(() => {
   flushClassContinueRefresh();
   checkAutomaticMediaRefresh();
 }, 2000);
+
+window.LiveDoctor?.start({
+  socket, active: () => joinedClass,
+  snapshot: () => {
+    const mic = localAudioStream?.getAudioTracks?.()[0];
+    const sfu = getTeacherSfuReceptionState(), p2p = getTeacherP2pReceptionState();
+    if (teacherAudioElement) window.LiveDoctor?.report("teacher_audio_playback_state", {
+      paused: teacherAudioElement.paused, muted: teacherAudioElement.muted, readyState: teacherAudioElement.readyState,
+    });
+    return { signal: socket.connected, sfu: studentSfuRoom?.state || "absent",
+      micApproved: microphonePermissionGranted, micPresent: Boolean(mic), micEnabled: Boolean(mic?.enabled),
+      micMuted: Boolean(mic?.muted), micEnded: mic?.readyState === "ended", micPublished: Boolean(microphonePermissionGranted && mic?.readyState === "live" && mic.enabled && (studentSfuMicPub || studentP2pMicSender?.track === mic)),
+      audioReceiving: sfu.receivingAudio || p2p.receivingAudio, videoReceiving: sfu.receivingVideo || p2p.receivingVideo,
+      paused: Boolean(elements.remoteVideo?.paused), muted: Boolean(elements.remoteVideo?.muted), readyState: elements.remoteVideo?.readyState };
+  },
+  sources: () => {
+    const sources = [];
+    if (pc?.getStats) sources.push({ id: "p2p_teacher", stats: () => pc.getStats() });
+    for (const participant of studentSfuRoom?.remoteParticipants?.values() || []) {
+      if (getSfuParticipantRole(participant) !== "teacher") continue;
+      for (const publication of participant.trackPublications.values()) {
+        if (publication.track?.getRTCStatsReport) sources.push({ id: "sfu_" + publication.trackSid, stats: () => publication.track.getRTCStatsReport() });
+      }
+    }
+    if (studentSfuMicPub?.track?.getRTCStatsReport) sources.push({ id: "sfu_microphone", stats: () => studentSfuMicPub.track.getRTCStatsReport() });
+    return sources;
+  },
+});
