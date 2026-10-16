@@ -7627,13 +7627,21 @@ function handleStudentTransportUpdated(data = {}) {
   const expectsVideo = Boolean(videoTrack?.readyState === "live" && videoTrack.enabled !== false);
   const expectsMedia = expectsAudio || expectsVideo;
   const hasKindTelemetry = typeof data.receivingAudio === "boolean" || typeof data.receivingVideo === "boolean";
-  const receivesExpectedMedia = hasKindTelemetry
-    ? (!expectsAudio || data.receivingAudio === true) && (!expectsVideo || data.receivingVideo === true)
-    : Boolean(data.receiving && expectsMedia);
   const p2p = data.transport === "p2p" ? data : (data.p2p || {});
+  const audioReceiving = !expectsAudio || Boolean(data.receivingAudio || p2p.receivingAudio);
+  const sfuVideoReceiving = hasKindTelemetry
+    ? (!expectsVideo || Boolean(data.receivingVideo))
+    : Boolean(data.receiving && expectsMedia);
+  const receivesExpectedMedia = (!expectsAudio || audioReceiving) && (!expectsVideo || sfuVideoReceiving);
   const p2pReceiving = Boolean(expectsMedia && p2p.receiving &&
     (!expectsAudio || p2p.receivingAudio === true) && (!expectsVideo || p2p.receivingVideo === true));
-  const sfuReceiving = Boolean(data.transport === "sfu" && data.receiving && expectsMedia && receivesExpectedMedia);
+  const sfuReceiving = Boolean(
+    data.transport === "sfu" &&
+    expectsMedia &&
+    sfuVideoReceiving &&
+    audioReceiving &&
+    (!expectsVideo || Boolean(data.receivingVideo || (!hasKindTelemetry && data.receiving)))
+  );
   const receiving = sfuReceiving || p2pReceiving;
   if (receiving || !expectsMedia) {
     const fallbackTimer = studentSfuFallbackTimers.get(data.socketId);

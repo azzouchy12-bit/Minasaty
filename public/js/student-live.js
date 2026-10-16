@@ -469,6 +469,9 @@ function notifySfuTransportStatus(receiving = true) {
     const reception = typeof getTeacherSfuReceptionState === "function"
       ? getTeacherSfuReceptionState()
       : { receiving: Boolean(receiving), receivingAudio: false, receivingVideo: false };
+    const p2p = typeof getTeacherP2pReceptionState === "function"
+      ? getTeacherP2pReceptionState()
+      : { receiving: false, receivingAudio: false, receivingVideo: false };
     if (receiving && reception.receivingVideo) {
       try { sessionStorage.setItem("studentMediaTransport", "sfu"); } catch (_) {}
     }
@@ -477,7 +480,7 @@ function notifySfuTransportStatus(receiving = true) {
       receiving: Boolean(receiving && reception.receiving),
       receivingAudio: Boolean(receiving && reception.receivingAudio),
       receivingVideo: Boolean(receiving && reception.receivingVideo),
-      p2p: typeof getTeacherP2pReceptionState === "function" ? getTeacherP2pReceptionState() : { receiving: false, receivingAudio: false, receivingVideo: false },
+      p2p,
     });
   }
 }
@@ -486,6 +489,13 @@ function notifyP2pTransportStatus() {
   if (!socket?.connected) return;
   const p2p = getTeacherP2pReceptionState();
   if (!p2p.receiving) { void sampleTeacherP2pReception(); return; }
+  const sfuReception = typeof getTeacherSfuReceptionState === "function"
+    ? getTeacherSfuReceptionState()
+    : { receiving: false, receivingVideo: false };
+  if (typeof isStudentSfuHealthy === "function" && isStudentSfuHealthy() && sfuReception.receivingVideo) {
+    notifySfuTransportStatus(true);
+    return;
+  }
   try { sessionStorage.setItem("studentMediaTransport", "p2p"); } catch (_) {}
   socket.emit("student_media_transport_status", {
     transport: "p2p",
