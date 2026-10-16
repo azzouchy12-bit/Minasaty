@@ -723,6 +723,9 @@ function syncLocalRecordingAudioSources() {
   if (!localRecordingAudioContext || !localRecordingAudioDestination) {
     return;
   }
+  if (localRecordingAudioContext.state === "suspended") {
+    localRecordingAudioContext.resume().catch(() => {});
+  }
 
   const activeSources = new Map(
     Array.from(classroomAudioSources.entries())
@@ -805,15 +808,13 @@ function buildLocalRecordingStream() {
     .flatMap((stream) => stream.getAudioTracks())
     .filter((track) => track.readyState === "live");
 
-  if (!liveAudioTracks.length) {
-    return recordingStream;
-  }
-
   const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextConstructor) {
     // This is only a legacy fallback for browsers without Web Audio. Browsers
     // supporting the live classroom should use the mixed recording path below.
-    recordingStream.addTrack(liveAudioTracks[0]);
+    if (liveAudioTracks.length > 0) {
+      recordingStream.addTrack(liveAudioTracks[0]);
+    }
     return recordingStream;
   }
 

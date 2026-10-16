@@ -2309,6 +2309,9 @@ function syncLocalRecordingAudioSources() {
   if (!localRecordingAudioContext || !localRecordingAudioDestination) {
     return;
   }
+  if (localRecordingAudioContext.state === "suspended") {
+    localRecordingAudioContext.resume().catch(() => {});
+  }
 
 
   const activeSources = new Map(
@@ -2544,14 +2547,11 @@ function buildLocalRecordingStream() {
     .filter((track) => track.readyState === "live");
 
 
-  if (!liveAudioTracks.length) {
-    return recordingStream;
-  }
-
-
   const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextConstructor) {
-    recordingStream.addTrack(liveAudioTracks[0]);
+    if (liveAudioTracks[0]) {
+      recordingStream.addTrack(liveAudioTracks[0]);
+    }
     return recordingStream;
   }
 
@@ -4683,6 +4683,9 @@ function startLocalRecording() {
   try {
     void clearRecordingDb();
     localRecordingStream = buildLocalRecordingStream();
+    if (localRecordingAudioContext && localRecordingAudioContext.state === "suspended") {
+      void localRecordingAudioContext.resume().catch(() => {});
+    }
     const mimeType = getLocalRecordingMimeType();
     const targetVideoBitrate = OPTIMAL_RECORDING_VIDEO_BITRATE;
     const options = mimeType
