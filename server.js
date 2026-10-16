@@ -2387,6 +2387,7 @@ io.on("connection", (socket) => {
         const isRecoveringStudent = Boolean(data.rejoin === true || data.preferredTransport === "p2p");
         const studentJoinedPayload = {
           ...classroomSessions.publicInfo(classroomLevel),
+          micEnabled: wasMicOpen,
           socketId: socket.id,
           studentId: student.id,
           studentName,

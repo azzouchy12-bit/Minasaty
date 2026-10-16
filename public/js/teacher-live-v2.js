@@ -7487,16 +7487,18 @@ async function resyncSingleStudent(socketId, button) {
       console.warn("teacher_force_resync_student warning:", e);
     }
 
-    // 5. Ensure targeted P2P peer connection is ready with audio & video as fallback
-    let pc = peerConnections[socketId];
-    if (!pc || pc.connectionState === "closed" || pc.signalingState !== "stable") {
-      closePeerConnection(socketId);
-      pc = createPeerConnection(socketId);
+    // Preserve a confirmed SFU route. A refresh is not a request to switch
+    // transport or tear down the student's active microphone receiver.
+    if (!isTeacherSfuHealthy() || !studentMediaTransports.get(socketId)?.sfuReady) {
+      const peer = peerConnections[socketId];
+      const needsNewPeer = !peer || peer.connectionState === "closed";
+      if (peer && !needsNewPeer) peer.__teacherP2pFallback = true;
+      await createAndSendOffer(socketId, {
+        iceRestart: Boolean(peer && ["failed", "disconnected"].includes(peer.connectionState)),
+        force: needsNewPeer,
+        renegotiate: true,
+      });
     }
-
-    ensureStudentAudioSender(pc, socketId, { renegotiate: false });
-    await ensureTeacherVideoSender(pc);
-    await createAndSendOffer(socketId, { iceRestart: true, force: true });
 
     setStudioStatus("تم تحديث ومزامنة صوت وبث التلميذ في الخلفية بنجاح.", "live");
   } catch (err) {
@@ -7613,7 +7615,8 @@ socket.on("student_joined", async (data = {}) => {
     lastSeenAt: Date.now(),
   });
   renderAttendeeTransportStatus(socketId);
-  syncStudentMicButton(attendee, socketId, false);
+  syncStudentMicButton(attendee, socketId, typeof data.micEnabled === "boolean"
+    ? data.micEnabled : (approvedStudentMicrophones.has(socketId) || approvedStudentMicrophones.has(String(studentId || ""))));
 
   if (!isTeacherSfuHealthy()) {
     recordLiveDiagnosticEvent("student_joined_p2p", `Student ${socketId} joined; served via P2P fallback`);
