@@ -305,7 +305,6 @@ async function getAttendanceForStudent(req, res) {
           id: true,
           level: true,
           fileName: true,
-          originalName: true,
           createdAt: true,
         },
       }),

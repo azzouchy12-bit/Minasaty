@@ -204,7 +204,6 @@ async function listAssignments(req, res) {
         id: true,
         level: true,
         fileName: true,
-        originalName: true,
         createdAt: true,
       },
     }),
@@ -348,7 +347,7 @@ async function getProgress(req, res) {
     prisma.studentBadge.findMany({ where: { studentId: student.id }, orderBy: { awardedAt: "desc" } }),
     prisma.learningPathItem.findMany({ where: { studentId: student.id }, orderBy: { position: "asc" } }),
     prisma.classParticipation.findMany({ where: { studentId: student.id }, orderBy: { lastParticipatedAt: "desc" }, take: 100 }),
-    prisma.liveQuestionImage.findMany({ where: { studentId: student.id }, orderBy: { createdAt: "desc" }, select: { id: true, level: true, fileName: true, originalName: true, createdAt: true }, take: 100 }),
+    prisma.liveQuestionImage.findMany({ where: { studentId: student.id }, orderBy: { createdAt: "desc" }, select: { id: true, level: true, fileName: true, createdAt: true }, take: 100 }),
   ]);
   const participationTotal = participations.reduce((sum, item) => sum + item.count, 0);
   const liveQuestionImagesCount = questionImages.length;

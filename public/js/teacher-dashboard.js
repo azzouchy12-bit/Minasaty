@@ -4168,9 +4168,16 @@ async function fetchStudentStats(studentId) {
       if (elements.studentActionsExercisesVal) {
         elements.studentActionsExercisesVal.textContent = String(exTotal);
       }
+    } else {
+      if (elements.studentActionsAttendanceVal) elements.studentActionsAttendanceVal.textContent = "0";
+      if (elements.studentActionsParticipationVal) elements.studentActionsParticipationVal.textContent = "0";
+      if (elements.studentActionsExercisesVal) elements.studentActionsExercisesVal.textContent = "0";
     }
   } catch (err) {
     console.warn("Unable to fetch student stats:", err);
+    if (elements.studentActionsAttendanceVal) elements.studentActionsAttendanceVal.textContent = "0";
+    if (elements.studentActionsParticipationVal) elements.studentActionsParticipationVal.textContent = "0";
+    if (elements.studentActionsExercisesVal) elements.studentActionsExercisesVal.textContent = "0";
   }
 }
 
