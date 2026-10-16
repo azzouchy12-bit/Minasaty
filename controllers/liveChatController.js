@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { Prisma } = require("@prisma/client");
 const prisma = require("../lib/prisma");
+const { sendTelegramPhoto } = require("../services/telegramService");
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const imageUploadDirectory = path.join(
@@ -171,7 +172,7 @@ async function uploadQuestionImage(req, res) {
 
     const student = await prisma.student.findUnique({
       where: { id: studentId },
-      select: { id: true, parentPhone: true, level: true },
+      select: { id: true, parentPhone: true, level: true, studentName: true },
     });
 
     if (!student || student.parentPhone !== req.user.phone || student.level !== level) {
@@ -189,9 +190,42 @@ async function uploadQuestionImage(req, res) {
       select: { id: true, createdAt: true },
     });
 
+    // Forward image directly to teacher's Telegram Bot
+    let telegramSent = false;
+    try {
+      const imagePath = path.join(imageUploadDirectory, path.basename(uploadedFile.filename));
+      if (fs.existsSync(imagePath)) {
+        const photoBuffer = fs.readFileSync(imagePath);
+        const dateStr = new Intl.DateTimeFormat("ar-DZ", {
+          dateStyle: "medium",
+          timeStyle: "short",
+          timeZone: "Africa/Algiers",
+        }).format(new Date());
+
+        const caption = [
+          "📸 صورة سؤال جديدة من الحصة المباشرة",
+          `👤 التلميذ: ${student.studentName || "غير معروف"}`,
+          `📚 المستوى: ${student.level || level}`,
+          `📞 هاتف الولي: ${student.parentPhone || "غير مسجل"}`,
+          `⏰ الوقت: ${dateStr}`,
+        ].join("\n");
+
+        const tgResult = await sendTelegramPhoto({
+          photoBuffer,
+          filename: uploadedFile.originalname || uploadedFile.filename,
+          mimeType: uploadedFile.mimetype,
+          caption,
+        });
+        telegramSent = tgResult?.sent === true;
+      }
+    } catch (telegramErr) {
+      console.warn("Failed to dispatch live question photo to Telegram bot:", telegramErr.message);
+    }
+
     return res.status(201).json({
       status: "success",
-      data: { imageId: image.id, createdAt: image.createdAt },
+      data: { imageId: image.id, createdAt: image.createdAt, telegramSent },
+      message: "تم إرسال الصورة إلى أستاذك عبر التيليجرام بنجاح.",
     });
   } catch (error) {
     if (uploadedFile?.filename) await removeImageFile(uploadedFile.filename);

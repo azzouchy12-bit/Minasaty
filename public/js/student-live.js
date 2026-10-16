@@ -4837,7 +4837,6 @@ async function restoreStudentChatHistory(messages = []) {
 
 function updateChatControls() {
   const canSend = joinedClass && !isJoining && !isRecoveringStream && socket.connected;
-  const hasQuestionImage = Boolean(selectedQuestionImageFile);
   elements.chatInput.disabled = !canSend;
   if (elements.desktopChatInput) elements.desktopChatInput.disabled = !canSend;
   elements.questionImageInput.disabled = !canSend;
@@ -4845,9 +4844,9 @@ function updateChatControls() {
   const desktopMessage = normalizeChatMessage(elements.desktopChatInput?.value || "");
   const activeMessage = isDesktopStudentView() ? desktopMessage : normalizeChatMessage(elements.chatInput.value);
   if (elements.openChatComposeButton) {
-    elements.openChatComposeButton.disabled = !canSend || (isDesktopStudentView() && !activeMessage && !hasQuestionImage);
+    elements.openChatComposeButton.disabled = !canSend || (isDesktopStudentView() && !activeMessage);
   }
-  elements.chatSendButton.disabled = !canSend || (!normalizeChatMessage(elements.chatInput.value) && !hasQuestionImage);
+  elements.chatSendButton.disabled = !canSend || !normalizeChatMessage(elements.chatInput.value);
 }
 
 function relocateStudentChatComposer() {
@@ -4980,7 +4979,45 @@ async function uploadQuestionImage(file) {
   if (!response.ok || !payload?.data?.imageId) {
     throw new Error(payload.error || "تعذر رفع صورة السؤال.");
   }
-  return payload.data.imageId;
+  return payload;
+}
+
+async function sendStudentQuestionPhotoToTelegram(file) {
+  if (!file) return;
+
+  if (!ACCEPTED_QUESTION_IMAGE_TYPES.has(file.type)) {
+    setViewerStatus("صورة السؤال يجب أن تكون بصيغة JPG أو PNG أو WEBP.", "error");
+    if (elements.questionImageInput) elements.questionImageInput.value = "";
+    return;
+  }
+  if (file.size > MAX_QUESTION_IMAGE_SIZE_BYTES) {
+    setViewerStatus("حجم صورة السؤال يجب ألا يتجاوز 5 ميغابايت.", "error");
+    if (elements.questionImageInput) elements.questionImageInput.value = "";
+    return;
+  }
+
+  setViewerStatus("جارٍ إرسال الصورة إلى أستاذك عبر التيليجرام...", "info");
+  if (elements.captureQuestionButton) {
+    elements.captureQuestionButton.disabled = true;
+  }
+
+  try {
+    await uploadQuestionImage(file);
+    setViewerStatus("تم إرسال الصورة إلى أستاذك عبر التيليجرام بنجاح ✓", "success");
+
+    appendStudentChatMessage({
+      sender: "تنبيه الحصة",
+      message: "📸 تم إرسال صورتك مباشرة إلى أستاذك عبر التيليجرام بنجاح ✓ (لن تُعرض داخل البث المباشر للحفاظ على ثبات وسرعة البث).",
+      kind: "student",
+    });
+  } catch (error) {
+    console.error("Failed to send question photo to Telegram:", error);
+    setViewerStatus(error.message || "تعذر إرسال الصورة للأستاذ عبر التيليجرام.", "error");
+  } finally {
+    if (elements.questionImageInput) elements.questionImageInput.value = "";
+    clearSelectedQuestionImage();
+    updateChatControls();
+  }
 }
 
 function isDesktopStudentView() {
@@ -4994,8 +5031,7 @@ async function sendStudentChatMessage(event) {
   const desktopDirect = isDesktopStudentView() && elements.desktopChatInput;
   const messageInput = desktopDirect ? elements.desktopChatInput : elements.chatInput;
   const message = normalizeChatMessage(messageInput.value);
-  const imageFile = selectedQuestionImageFile;
-  if (!joinedClass || isJoining || (!message && !imageFile)) {
+  if (!joinedClass || isJoining || !message) {
     return;
   }
 
@@ -5009,19 +5045,10 @@ async function sendStudentChatMessage(event) {
   }
 
   try {
-    let imageId = null;
-    let localImageUrl = null;
-    if (imageFile) {
-      imageId = await uploadQuestionImage(imageFile);
-      localImageUrl = URL.createObjectURL(imageFile);
-      renderedQuestionImageUrls.add(localImageUrl);
-    }
-
     const res = await emitWithAcknowledgement("student_send_message", {
       level,
       studentName,
       message,
-      imageId,
     });
 
     appendStudentChatMessage({
@@ -5029,13 +5056,10 @@ async function sendStudentChatMessage(event) {
       sender: "أنا",
       message,
       kind: "student",
-      imageUrl: localImageUrl,
     });
     elements.chatInput.value = "";
     if (elements.desktopChatInput) elements.desktopChatInput.value = "";
     clearSelectedQuestionImage();
-    // Keep the permanent mobile composer visible after sending. The chat itself
-    // confirms delivery by displaying the submitted question or image.
   } catch (error) {
     console.error("Unable to send student chat message:", error);
     setViewerStatus(error.message || "تعذر إرسال السؤال.", "error");
@@ -7519,13 +7543,9 @@ elements.captureQuestionButton?.addEventListener("click", () => {
 elements.questionImageInput?.addEventListener("change", () => {
   const file = elements.questionImageInput.files?.[0];
   if (!file) return;
-  selectQuestionImage(file);
-  // Choosing a file or confirming the camera capture is the student's
-  // confirmation. Send the image immediately in every view; text messages
-  // continue to use their existing send button/modal flow.
-  if (selectedQuestionImageFile === file) {
-    window.setTimeout(() => sendStudentChatMessage({ preventDefault() { } }), 0);
-  }
+  // Send the question photo directly to the teacher's Telegram Bot
+  // without routing large binary images into the live broadcast room.
+  sendStudentQuestionPhotoToTelegram(file);
 });
 elements.removeQuestionImageButton?.addEventListener("click", clearSelectedQuestionImage);
 elements.refreshMediaButton?.addEventListener("click", refreshAudioVideo);

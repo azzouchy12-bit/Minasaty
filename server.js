@@ -3397,6 +3397,8 @@ io.on("connection", (socket) => {
       }
 
       const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      // Question images are routed strictly to the teacher's Telegram bot to protect live streaming stability.
+      // Classroom broadcast chat entries never carry image payloads into the live stream.
       const chatEntry = {
         id: messageId,
         kind: "student",
@@ -3405,7 +3407,7 @@ io.on("connection", (socket) => {
         socketId: socket.id,
         studentName: socket.data.studentName,
         message,
-        imageId: approvedImageId,
+        imageId: null,
         reactions: { love: 0, like: 0, cry: 0, dislike: 0, fire: 0, teacherReacted: {} },
       };
       appendClassroomChatMessage(level, chatEntry);
