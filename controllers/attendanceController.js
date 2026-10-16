@@ -271,7 +271,7 @@ async function getAttendanceForStudent(req, res) {
       });
     }
 
-    const [attendances, participations, questionImages] = await Promise.all([
+    const [attendances, participations, questionImages, reactionPoints] = await Promise.all([
       prisma.attendance.findMany({
         where: { studentId: student.id },
         orderBy: { joinedAt: "desc" },
@@ -308,6 +308,16 @@ async function getAttendanceForStudent(req, res) {
           createdAt: true,
         },
       }),
+      prisma.studentReactionPoint.findMany({
+        where: { studentId: student.id },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          reaction: true,
+          points: true,
+          createdAt: true,
+        },
+      }),
     ]);
 
     const attendanceSummary = summarizeAttendances(attendances);
@@ -316,6 +326,16 @@ async function getAttendanceForStudent(req, res) {
       totalCount: questionImages.length,
       items: questionImages,
     };
+    const reactionPointsSummary = {
+      totalPoints: reactionPoints.reduce((sum, item) => sum + item.points, 0),
+      fireCount: reactionPoints.filter((r) => r.reaction === "fire").length,
+      loveCount: reactionPoints.filter((r) => r.reaction === "love").length,
+      likeCount: reactionPoints.filter((r) => r.reaction === "like").length,
+      dislikeCount: reactionPoints.filter((r) => r.reaction === "dislike").length,
+      cryCount: reactionPoints.filter((r) => r.reaction === "cry").length,
+      totalReactions: reactionPoints.length,
+      items: reactionPoints,
+    };
 
     return res.status(200).json({
       status: "success",
@@ -323,6 +343,8 @@ async function getAttendanceForStudent(req, res) {
       attendanceSummary,
       participationSummary,
       exercisesSummary,
+      reactionPointsSummary,
+      pointsSummary: reactionPointsSummary,
     });
   } catch (error) {
     console.error("Attendance retrieval failed:", error);

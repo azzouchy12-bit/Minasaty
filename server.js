@@ -2461,6 +2461,16 @@ io.on("connection", (socket) => {
           for (const compId of companions) io.to(compId).emit("student_participation_updated", update);
         }
       }).catch((error) => console.warn("Background participation count lookup failed:", error.message));
+
+      void prisma.studentReactionPoint.aggregate({
+        where: { studentId: student.id },
+        _sum: { points: true },
+      }).then((agg) => {
+        const points = agg?._sum?.points ?? 0;
+        if (socket.connected && isInLevelRoom(socket, classroomLevel)) {
+          socket.emit("reaction_points_updated", { level: student.level, points });
+        }
+      }).catch((error) => console.warn("Background reaction points lookup failed:", error.message));
     } catch (error) {
       console.error("[Socket.io] student_join_room failed:", error);
       emitClassroomError(
@@ -3606,11 +3616,73 @@ io.on("connection", (socket) => {
         }
       }
 
-      // If teacher reacted to a student's message (toggledOn), notify that student directly
-      if (isTeacher && toggledOn && targetMsg && targetMsg.kind === "student" && targetMsg.socketId) {
+      const TEACHER_REACTION_POINTS = Object.freeze({
+        fire: 5,
+        love: 3,
+        like: 2,
+        cry: 0,
+        dislike: -1,
+      });
+
+      // If teacher reacted to a student's message, record/update points in database
+      if (isTeacher && targetMsg && targetMsg.kind === "student" && targetMsg.studentId) {
+        const pointDelta = TEACHER_REACTION_POINTS[reaction] ?? 0;
+        try {
+          if (toggledOn) {
+            await prisma.studentReactionPoint.upsert({
+              where: {
+                messageId_reaction: {
+                  messageId,
+                  reaction,
+                },
+              },
+              create: {
+                studentId: targetMsg.studentId,
+                level: targetMsg.level || level,
+                messageId,
+                reaction,
+                points: pointDelta,
+              },
+              update: {
+                points: pointDelta,
+              },
+            });
+          } else {
+            await prisma.studentReactionPoint.deleteMany({
+              where: {
+                messageId,
+                reaction,
+              },
+            });
+          }
+
+          // Calculate student's total points across all reactions
+          const agg = await prisma.studentReactionPoint.aggregate({
+            where: { studentId: targetMsg.studentId },
+            _sum: { points: true },
+          });
+          const totalPoints = agg?._sum?.points ?? 0;
+
+          if (targetMsg.socketId) {
+            io.to(targetMsg.socketId).emit("teacher_reacted_to_message", {
+              messageId,
+              reaction,
+              points: toggledOn ? pointDelta : -pointDelta,
+              toggledOn,
+              totalPoints,
+              messageText: targetMsg.message || "",
+            });
+          }
+        } catch (dbErr) {
+          console.warn("Unable to persist student reaction points:", dbErr.message);
+        }
+      } else if (isTeacher && toggledOn && targetMsg && targetMsg.kind === "student" && targetMsg.socketId) {
         io.to(targetMsg.socketId).emit("teacher_reacted_to_message", {
           messageId,
-          reaction, // "love", "like", "cry", "dislike", "fire"
+          reaction,
+          points: TEACHER_REACTION_POINTS[reaction] ?? 0,
+          toggledOn: true,
+          totalPoints: 0,
           messageText: targetMsg.message || "",
         });
       }

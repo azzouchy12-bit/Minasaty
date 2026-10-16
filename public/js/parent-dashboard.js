@@ -116,6 +116,8 @@ const elements = {
   attendanceCount: document.getElementById("attendance-count"),
   participationCount: document.getElementById("participation-count"),
   homeworkCount: document.getElementById("homework-count"),
+  reactionPointsCount: document.getElementById("reaction-points-count"),
+  reactionPointsSubtitle: document.getElementById("reaction-points-subtitle"),
   studentSwitcher: document.getElementById("student-switcher"),
   studentSwitcherList: document.getElementById("student-switcher-list"),
   studentSwitcherClose: document.getElementById("student-switcher-close"),
@@ -2401,12 +2403,17 @@ async function loadActivityStats(studentId) {
     setActivityStat(elements.attendanceCount, 0);
     setActivityStat(elements.participationCount, 0);
     setActivityStat(elements.homeworkCount, 0);
+    setActivityStat(elements.reactionPointsCount, 0);
+    if (elements.reactionPointsSubtitle) {
+      elements.reactionPointsSubtitle.textContent = "لا توجد نقاط مسجلة بعد";
+    }
     return;
   }
 
   setActivityStat(elements.attendanceCount, "…");
   setActivityStat(elements.participationCount, "…");
   setActivityStat(elements.homeworkCount, "…");
+  setActivityStat(elements.reactionPointsCount, "…");
 
   try {
     const encodedStudentId = encodeURIComponent(studentId);
@@ -2441,9 +2448,35 @@ async function loadActivityStats(studentId) {
       0
     );
 
+    // Points from teacher reactions in live chat
+    const reactionSummary = attendancePayload?.reactionPointsSummary || progressPayload?.data?.reactionPointsSummary || {};
+    const reactionPointsTotal = Number(
+      reactionSummary.totalPoints ??
+      progressPayload?.data?.reactionPointsTotal ??
+      0
+    );
+
     setActivityStat(elements.attendanceCount, qualifyingAttendance);
     setActivityStat(elements.participationCount, participationTotal);
     setActivityStat(elements.homeworkCount, exercisesTotal);
+    setActivityStat(elements.reactionPointsCount, reactionPointsTotal);
+
+    if (elements.reactionPointsSubtitle) {
+      const parts = [];
+      if (Number(reactionSummary.fireCount) > 0) parts.push(`🔥 ×${reactionSummary.fireCount}`);
+      if (Number(reactionSummary.loveCount) > 0) parts.push(`❤️ ×${reactionSummary.loveCount}`);
+      if (Number(reactionSummary.likeCount) > 0) parts.push(`👍 ×${reactionSummary.likeCount}`);
+      if (Number(reactionSummary.dislikeCount) > 0) parts.push(`👎 ×${reactionSummary.dislikeCount}`);
+      if (Number(reactionSummary.cryCount) > 0) parts.push(`😭 ×${reactionSummary.cryCount}`);
+
+      if (parts.length > 0) {
+        elements.reactionPointsSubtitle.textContent = parts.join(" • ");
+      } else if (reactionPointsTotal === 0) {
+        elements.reactionPointsSubtitle.textContent = "بانتظار تفاعلات المعلم في الحصص القادمة";
+      } else {
+        elements.reactionPointsSubtitle.textContent = "مكافآت وتفاعلات المعلم المباشرة";
+      }
+    }
   } catch (error) {
     if (/انتهت الجلسة/.test(error.message)) return;
     console.error("Unable to load activity stats:", error);
@@ -2451,6 +2484,7 @@ async function loadActivityStats(studentId) {
     setActivityStat(elements.attendanceCount, "—");
     setActivityStat(elements.participationCount, "—");
     setActivityStat(elements.homeworkCount, "—");
+    setActivityStat(elements.reactionPointsCount, "—");
   }
 }
 

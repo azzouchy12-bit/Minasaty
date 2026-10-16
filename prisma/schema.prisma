@@ -51,6 +51,7 @@ model Student {
   learningPathItems LearningPathItem[]
   badges StudentBadge[]
   classParticipations ClassParticipation[]
+  reactionPoints StudentReactionPoint[]
 
   @@index([level, createdAt(sort: Desc)])
   @@index([parentPhone])
@@ -757,4 +758,21 @@ model YouTubeCredential {
   refreshToken String   @db.Text
   expiryDate   BigInt
   updatedAt    DateTime @updatedAt
+}
+
+model StudentReactionPoint {
+  id        String   @id @default(uuid()) @db.Uuid
+  studentId String   @db.Uuid
+  level     String
+  messageId String
+  reaction  String   // "love", "like", "cry", "dislike", "fire"
+  points    Int      // 3, 2, 0, -1, 5
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, reaction])
+  @@index([studentId, createdAt(sort: Desc)])
+  @@index([level, createdAt(sort: Desc)])
 }

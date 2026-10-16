@@ -1418,6 +1418,7 @@ const elements = {
   screenShareNotice: document.getElementById("screen-share-notice"),
   screenShareWatchButton: document.getElementById("screen-share-watch-btn"),
   participationCount: document.getElementById("student-participation-count"),
+  pointsCount: document.getElementById("student-points-count"),
   qualityWrapper: document.getElementById("student-quality-wrapper"),
   qualityButton: document.getElementById("student-quality-btn"),
   qualityLabel: document.getElementById("student-quality-label"),
@@ -2867,6 +2868,15 @@ function setParticipationCount(value) {
   participationCount = Math.max(0, Number.parseInt(value, 10) || 0);
   if (elements.participationCount) {
     elements.participationCount.textContent = `مشاركاتي: ${participationCount}`;
+  }
+}
+
+let studentPointsTotal = 0;
+
+function setStudentPointsCount(value) {
+  studentPointsTotal = Math.max(0, Number.parseInt(value, 10) || 0);
+  if (elements.pointsCount) {
+    elements.pointsCount.textContent = `⭐ نقاطي: ${studentPointsTotal}`;
   }
 }
 
@@ -6989,6 +6999,12 @@ socket.on("participation_count_updated", (data = {}) => {
   }
 });
 
+socket.on("reaction_points_updated", (data = {}) => {
+  if (joinedClass || globalFreeClass || data.level === level) {
+    setStudentPointsCount(data.points);
+  }
+});
+
 socket.on("classroom_chat_history", (data = {}) => {
   if (!joinedClass || data.level !== level) return;
   void restoreStudentChatHistory(data.messages);
@@ -7024,14 +7040,20 @@ socket.on("classroom_chat_reaction_updated", (data = {}) => {
 
 socket.on("teacher_reacted_to_message", (data = {}) => {
   if (!joinedClass) return;
-  const emojiMap = {
-    love: "❤️",
-    like: "🔥",
-    cry: "🤨",
-    dislike: "👍",
-    fire: "👎",
+  const reactionConfig = {
+    fire: { emoji: "🔥", label: "نار وتميز", points: 5 },
+    love: { emoji: "❤️", label: "إعجاب وتشجيع", points: 3 },
+    like: { emoji: "👍", label: "أحسنت", points: 2 },
+    cry: { emoji: "😭", label: "بكاء", points: 0 },
+    dislike: { emoji: "👎", label: "تنبيه", points: -1 },
   };
-  const emoji = emojiMap[data.reaction] || "❤️";
+
+  const info = reactionConfig[data.reaction] || { emoji: "⭐", label: "تفاعل", points: data.points || 0 };
+  const emoji = info.emoji;
+
+  if (typeof data.totalPoints === "number") {
+    setStudentPointsCount(data.totalPoints);
+  }
 
   const targetBubble = data.messageId ? document.querySelector(`.student-chat-message[data-message-id="${data.messageId}"]`) : null;
   if (targetBubble) {
@@ -7039,7 +7061,7 @@ socket.on("teacher_reacted_to_message", (data = {}) => {
     const pillsWrap = targetBubble.querySelector(`.student-chat-reactions-pills`);
     if (pillsWrap && data.reaction) {
       const teacherReactedObj = {};
-      teacherReactedObj[data.reaction] = true;
+      teacherReactedObj[data.reaction] = Boolean(data.toggledOn !== false);
       renderStudentReactionPills(pillsWrap, {
         [data.reaction]: 1,
         teacherReacted: teacherReactedObj,
@@ -7049,7 +7071,26 @@ socket.on("teacher_reacted_to_message", (data = {}) => {
   } else if (elements.chatBox) {
     showStudentFloatingReaction(elements.chatBox, emoji);
   }
-  setViewerStatus(`${emoji} تفاعل الأستاذ مع رسالتك!`, "live");
+
+  const delta = Number(data.points) || 0;
+  const isToggledOn = data.toggledOn !== false;
+  let toastMsg = "";
+
+  if (isToggledOn) {
+    if (delta > 0) {
+      toastMsg = `${emoji} تفاعل المعلم مع إجابتك: +${delta} نقاط! (مجموع نقاطك: ${data.totalPoints ?? studentPointsTotal})`;
+    } else if (delta < 0) {
+      toastMsg = `${emoji} تفاعل المعلم مع إجابتك: ${delta} نقطة (مجموع نقاطك: ${data.totalPoints ?? studentPointsTotal})`;
+    } else {
+      toastMsg = `${emoji} تفاعل المعلم مع إجابتك (مجموع نقاطك: ${data.totalPoints ?? studentPointsTotal})`;
+    }
+  } else {
+    toastMsg = `تم إلغاء تفاعل المعلم (${emoji}) • مجموع نقاطك: ${data.totalPoints ?? studentPointsTotal}`;
+  }
+
+  if (typeof showMobileControlToast === "function") {
+    showMobileControlToast(toastMsg);
+  }
 });
 
 socket.on("room_unavailable", (data = {}) => {

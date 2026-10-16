@@ -340,7 +340,7 @@ async function submitAssessment(req, res) {
 async function getProgress(req, res) {
   const student = await getStudentForUser(req, text(req.params.studentId, 80));
   if (!student) return res.status(403).json({ error: "لا تملك صلاحية هذه البيانات." });
-  const [progress, grades, assignments, badges, path, participations, questionImages] = await Promise.all([
+  const [progress, grades, assignments, badges, path, participations, questionImages, reactionPoints] = await Promise.all([
     prisma.lessonProgress.findMany({ where: { studentId: student.id }, include: { lessonVideo: true }, orderBy: { updatedAt: "desc" }, take: 100 }),
     prisma.grade.findMany({ where: { studentId: student.id }, orderBy: { gradedAt: "desc" }, take: 100 }),
     prisma.assignmentSubmission.findMany({ where: { studentId: student.id }, include: { assignment: true }, orderBy: { submittedAt: "desc" }, take: 100 }),
@@ -348,10 +348,35 @@ async function getProgress(req, res) {
     prisma.learningPathItem.findMany({ where: { studentId: student.id }, orderBy: { position: "asc" } }),
     prisma.classParticipation.findMany({ where: { studentId: student.id }, orderBy: { lastParticipatedAt: "desc" }, take: 100 }),
     prisma.liveQuestionImage.findMany({ where: { studentId: student.id }, orderBy: { createdAt: "desc" }, select: { id: true, level: true, fileName: true, createdAt: true }, take: 100 }),
+    prisma.studentReactionPoint.findMany({ where: { studentId: student.id }, orderBy: { createdAt: "desc" }, select: { id: true, reaction: true, points: true, createdAt: true }, take: 100 }),
   ]);
   const participationTotal = participations.reduce((sum, item) => sum + item.count, 0);
   const liveQuestionImagesCount = questionImages.length;
-  return res.json({ status: "success", data: { progress, grades, assignments, badges, path, participations, participationTotal, liveQuestionImagesCount, liveQuestionImages: questionImages } });
+  const reactionPointsTotal = reactionPoints.reduce((sum, item) => sum + item.points, 0);
+  const reactionPointsSummary = {
+    totalPoints: reactionPointsTotal,
+    fireCount: reactionPoints.filter((r) => r.reaction === "fire").length,
+    loveCount: reactionPoints.filter((r) => r.reaction === "love").length,
+    likeCount: reactionPoints.filter((r) => r.reaction === "like").length,
+    dislikeCount: reactionPoints.filter((r) => r.reaction === "dislike").length,
+    cryCount: reactionPoints.filter((r) => r.reaction === "cry").length,
+  };
+  return res.json({
+    status: "success",
+    data: {
+      progress,
+      grades,
+      assignments,
+      badges,
+      path,
+      participations,
+      participationTotal,
+      liveQuestionImagesCount,
+      liveQuestionImages: questionImages,
+      reactionPointsTotal,
+      reactionPointsSummary,
+    },
+  });
 }
 
 async function updateLessonProgress(req, res) {

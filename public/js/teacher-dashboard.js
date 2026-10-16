@@ -59,6 +59,9 @@ const elements = {
   studentActionsParticipationVal: document.getElementById("student-actions-participation-val"),
   studentActionsExercisesCard: document.getElementById("student-actions-exercises-card"),
   studentActionsExercisesVal: document.getElementById("student-actions-exercises-val"),
+  studentActionsPointsCard: document.getElementById("student-actions-points-card"),
+  studentActionsPointsVal: document.getElementById("student-actions-points-val"),
+  studentActionsPointsBreakdown: document.getElementById("student-actions-points-breakdown"),
   attendanceModal: document.getElementById("attendance-modal"),
   attendanceStudentName: document.getElementById("attendance-student-name"),
   attendanceTotalCount: document.getElementById("attendance-total-count"),
@@ -1761,6 +1764,8 @@ function openStudentActionsModal(student) {
   if (elements.studentActionsAttendanceVal) elements.studentActionsAttendanceVal.textContent = "…";
   if (elements.studentActionsParticipationVal) elements.studentActionsParticipationVal.textContent = "…";
   if (elements.studentActionsExercisesVal) elements.studentActionsExercisesVal.textContent = "…";
+  if (elements.studentActionsPointsVal) elements.studentActionsPointsVal.textContent = "…";
+  if (elements.studentActionsPointsBreakdown) elements.studentActionsPointsBreakdown.textContent = "🔥×0 ❤️×0 👍×0";
 
   if (elements.studentActionsAttendanceCard) {
     elements.studentActionsAttendanceCard.onclick = () => {
@@ -4168,16 +4173,30 @@ async function fetchStudentStats(studentId) {
       if (elements.studentActionsExercisesVal) {
         elements.studentActionsExercisesVal.textContent = String(exTotal);
       }
+      const ptsSummary = payload?.pointsSummary || payload?.reactionPointsSummary || {};
+      const ptsTotal = ptsSummary.totalPoints ?? 0;
+      if (elements.studentActionsPointsVal) {
+        elements.studentActionsPointsVal.textContent = String(ptsTotal);
+      }
+      if (elements.studentActionsPointsBreakdown) {
+        const fire = ptsSummary.fireCount || 0;
+        const love = ptsSummary.loveCount || 0;
+        const like = ptsSummary.likeCount || 0;
+        const dislike = ptsSummary.dislikeCount || 0;
+        elements.studentActionsPointsBreakdown.textContent = `🔥×${fire} ❤️×${love} 👍×${like}${dislike ? ` 👎×${dislike}` : ""}`;
+      }
     } else {
       if (elements.studentActionsAttendanceVal) elements.studentActionsAttendanceVal.textContent = "0";
       if (elements.studentActionsParticipationVal) elements.studentActionsParticipationVal.textContent = "0";
       if (elements.studentActionsExercisesVal) elements.studentActionsExercisesVal.textContent = "0";
+      if (elements.studentActionsPointsVal) elements.studentActionsPointsVal.textContent = "0";
     }
   } catch (err) {
     console.warn("Unable to fetch student stats:", err);
     if (elements.studentActionsAttendanceVal) elements.studentActionsAttendanceVal.textContent = "0";
     if (elements.studentActionsParticipationVal) elements.studentActionsParticipationVal.textContent = "0";
     if (elements.studentActionsExercisesVal) elements.studentActionsExercisesVal.textContent = "0";
+    if (elements.studentActionsPointsVal) elements.studentActionsPointsVal.textContent = "0";
   }
 }
 
