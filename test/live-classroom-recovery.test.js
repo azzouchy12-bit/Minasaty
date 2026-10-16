@@ -333,7 +333,7 @@ test("Room switching: closes previous session before opening new room and ignore
 // -------------------------------------------------------------
 // Test 4: Independent & Observable Publication Error Handling
 // -------------------------------------------------------------
-test("Media sync: video publication failure is observable and does NOT block audio publication", async () => {
+test("Media sync: video publication failure is observable and SFU remains dedicated to video", async () => {
   let videoPublishAttempted = false;
   let audioPublishAttempted = false;
   const diagnostics = [];
@@ -377,10 +377,10 @@ test("Media sync: video publication failure is observable and does NOT block aud
   const result = await teacherCtx.executeTeacherSfuMediaSync();
 
   assert.equal(videoPublishAttempted, true, "Video publication was attempted");
-  assert.equal(audioPublishAttempted, true, "Audio publication must proceed independently despite video error");
+  assert.equal(audioPublishAttempted, false, "Audio is strictly P2P and never published to SFU");
   assert.equal(result.success, false, "Result indicates incomplete overall sync");
   assert.equal(result.videoPublished, false);
-  assert.equal(result.audioPublished, true);
+  assert.equal(result.audioPublished, false);
   assert.ok(result.videoError, "Video error is returned in result object");
   assert.ok(
     diagnostics.some((d) => d.type === "sfu_video_publish_error"),

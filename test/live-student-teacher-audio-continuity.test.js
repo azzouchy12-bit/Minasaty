@@ -409,9 +409,8 @@ test('1. Mixed Transport: P2P teacher receiver with connected SFU Room and SFU-p
   ctx.microphonePermissionGranted = true;
   await ctx.enableApprovedMicrophone();
 
-  // Verify mic was published to SFU
-  assert.equal(sfuPublishedTracks.length, 1, 'Student mic must be published to SFU');
-  assert.equal(Boolean(ctx.studentSfuMicPub), true);
+  // Verify mic was published to P2P
+  assert.equal(Boolean(ctx.studentP2pMicSender), true, 'Student mic must be published to P2P');
 
   // CRITICAL: Teacher audio must NOT disappear for the approved student!
   assert.equal(teacherAudioEl.paused, false, 'Teacher audio element must remain unpaused');

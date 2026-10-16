@@ -144,12 +144,12 @@ test("Teacher attendee transport badge uses blue for P2P and red for LiveKit", (
   assert.ok(match, "renderAttendeeTransportStatus must exist");
   vm.runInNewContext(match[0], context);
   context.renderAttendeeTransportStatus("student");
-  assert.equal(badge.textContent, "يستقبل عبر P2P");
+  assert.equal(badge.textContent, "صوت وصورة P2P");
   assert.equal(badge.style.color, "#bfdbfe");
   context.studentMediaTransports.set("student", { p2pActive: false, sfuReady: true });
   context.renderAttendeeTransportStatus("student");
-  assert.equal(badge.textContent, "يستقبل عبر LiveKit");
-  assert.equal(badge.style.color, "#fecaca");
+  assert.equal(badge.textContent, "صوت P2P + صورة LiveKit");
+  assert.equal(badge.style.color, "#86efac");
   context.studentMediaTransports.set("student", { p2pPending: true, p2pActive: false, sfuReady: false });
   context.renderAttendeeTransportStatus("student");
   assert.equal(badge.textContent, "حاضر — جارٍ تجهيز البث");

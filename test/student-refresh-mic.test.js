@@ -46,6 +46,7 @@ test("repeated join preserves mic button unless server explicitly reports it clo
     activeClassroomSessionId: "session", classActive: true, sessionAttendedStudentIds: new Set(),
     upsertAttendee: () => ({}), isTeacherSfuHealthy: () => true, studentMediaTransports: new Map(),
     renderAttendeeTransportStatus() {}, syncStudentMicButton(_row, _id, value) { enabled = value; },
+    createAndSendOffer: async () => {},
     approvedStudentMicrophones: new Set(["student"]), recordLiveDiagnosticEvent() {}, refreshAbsenteesBadge() {},
   };
   vm.runInNewContext(source.slice(start, end), ctx);

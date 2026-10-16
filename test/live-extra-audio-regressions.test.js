@@ -38,13 +38,13 @@ test('Teacher track plays through dedicated audio while the video stays muted',a
   assert.equal(ctx.teacherAudioElement.muted,false);assert.equal(ctx.elements.remoteVideo.muted,true);
   assert.ok(ctx.teacherAudioElement.plays>0);assert.ok(ctx.elements.remoteVideo.plays>0);
 });
-test('Late P2P audio cannot replace the selected SFU audio or revive on unmute',()=>{
-  const ctx=playbackContext(),sfu=new Track('sfu');sfu.__fromSfu=true;ctx.attachTeacherTrack({track:sfu});
-  const p2p=new Track('p2p');ctx.attachTeacherTrack({track:p2p});
-  assert.equal(ctx.remoteMediaStream.getAudioTracks()[0],sfu);
-  assert.equal(ctx.teacherAudioStream.getAudioTracks()[0],sfu);
+test('P2P audio is always primary; SFU audio cannot replace dedicated P2P audio',()=>{
+  const ctx=playbackContext(),p2p=new Track('p2p');ctx.attachTeacherTrack({track:p2p});
+  const sfu=new Track('sfu');sfu.__fromSfu=true;ctx.attachTeacherTrack({track:sfu});
+  assert.equal(ctx.remoteMediaStream.getAudioTracks()[0],p2p);
+  assert.equal(ctx.teacherAudioStream.getAudioTracks()[0],p2p);
   for(const cb of p2p.listeners.unmute||[])cb();
-  assert.equal(ctx.teacherAudioStream.getAudioTracks()[0],sfu);
+  assert.equal(ctx.teacherAudioStream.getAudioTracks()[0],p2p);
 });
 test('Mic approval revoked during permission prompt prevents publication and stops capture',async()=>{
   let resolve,published=0;

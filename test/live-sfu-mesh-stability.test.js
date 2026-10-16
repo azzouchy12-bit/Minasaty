@@ -8,32 +8,32 @@ const teacherLive = fs.readFileSync(path.join(ROOT, "public", "js", "teacher-liv
 const studentLive = fs.readFileSync(path.join(ROOT, "public", "js", "student-live.js"), "utf8");
 const serverCode = fs.readFileSync(path.join(ROOT, "server.js"), "utf8");
 
-test("Teacher: isTeacherSfuHealthy accurately checks SFU room state and publications", () => {
+test("Teacher: isTeacherSfuHealthy accurately checks SFU room state and video publication", () => {
   assert.match(teacherLive, /function isTeacherSfuHealthy\(\)/, "isTeacherSfuHealthy must be defined");
   assert.match(teacherLive, /sfuActiveForClass/, "Must verify SFU is active for class");
   assert.match(teacherLive, /teacherSfuRoom\.state === "connected"/, "Must verify SFU room is connected");
-  assert.match(teacherLive, /teacherSfuVideoPub || teacherSfuAudioPub/, "Must verify active video or audio publication");
+  assert.match(teacherLive, /teacherSfuVideoPub/, "Must verify active video publication");
 });
 
-test("Teacher: student_joined suppresses redundant P2P WebRTC offers when SFU is healthy", () => {
+test("Teacher: student_joined ALWAYS creates P2P WebRTC connection to guarantee audio", () => {
   assert.match(
     teacherLive,
-    /socket\.on\("student_joined",[\s\S]*?!isTeacherSfuHealthy\(\)[\s\S]*?createAndSendOffer\(socketId\)[\s\S]*?student_joined_sfu/,
-    "student_joined must skip P2P offer creation when SFU is active and healthy"
+    /socket\.on\("student_joined",[\s\S]*?createAndSendOffer\(socketId\)/,
+    "student_joined must establish P2P offer for audio"
   );
 });
 
-test("Teacher: addTeacherTracks does not attach outbound tracks to P2P connections when SFU is healthy", () => {
+test("Teacher: addTeacherTracks attaches mix-minus audio track to P2P connections", () => {
   assert.match(
     teacherLive,
-    /function addTeacherTracks\([^)]*\) \{[\s\S]*?if \(isTeacherSfuHealthy\(\)\) \{[\s\S]*?return;/
+    /function addTeacherTracks\([^)]*\) \{[\s\S]*?ensureStudentAudioSender\(peerConnection,\s*studentSocketId/
   );
 });
 
-test("Teacher: resumeLiveClassAfterSocketReconnect skips P2P offer storm if SFU is healthy", () => {
+test("Teacher: resumeLiveClassAfterSocketReconnect refreshes P2P audio offers for connected students", () => {
   assert.match(
     teacherLive,
-    /function resumeLiveClassAfterSocketReconnect\(\) \{[\s\S]*?if \(!isTeacherSfuHealthy\(\)\) \{[\s\S]*?createAndSendOffer/
+    /function resumeLiveClassAfterSocketReconnect\(\) \{[\s\S]*?createAndSendOffer\(studentSocketId/
   );
 });
 
@@ -59,14 +59,10 @@ test("Student: isStudentSfuHealthy and isStudentSfuConnected are defined", () =>
   assert.match(studentLive, /studentSfuRoom && studentSfuRoom\.state === "connected"/);
 });
 
-test("Student: addUniqueTrack prioritizes SFU audio and video over P2P, dropping P2P when SFU arrives", () => {
+test("Student: addUniqueTrack prioritizes P2P audio and SFU video", () => {
   assert.match(
     studentLive,
-    /if \(track\.__fromSfu\) \{[\s\S]*?const p2pTracks = existingAudio\.filter\(\(t\) => !t\.__fromSfu\);[\s\S]*?stream\.removeTrack\(oldP2p\);/
-  );
-  assert.match(
-    studentLive,
-    /const hasLiveSfuAudio = existingAudio\.some\(\(t\) => t\.readyState === "live" && t\.__fromSfu\);[\s\S]*?return;/
+    /if \(track\.__fromSfu\) \{[\s\S]*?Ignoring SFU audio[\s\S]*?return;/
   );
   assert.match(
     studentLive,
@@ -78,10 +74,9 @@ test("Student: addUniqueTrack prioritizes SFU audio and video over P2P, dropping
   );
 });
 
-test("Student: enableApprovedMicrophone publishes to SFU as primary and falls back to P2P", () => {
-  assert.match(studentLive, /const sfuAvailable = isStudentSfuConnected\(\);/);
-  assert.match(studentLive, /const sfuPublished = await publishStudentSfuMic\(localAudioStream\);/);
-  assert.match(studentLive, /publishStudentSfuMic[\s\S]*?negotiateStudentMicrophone/);
+test("Student: enableApprovedMicrophone publishes to P2P directly with SFU fallback", () => {
+  assert.match(studentLive, /publishStudentP2pMic\(existingTrack/);
+  assert.match(studentLive, /publishStudentP2pMic\(newTrack/);
 });
 
 test("Student: unpublishStudentSfuMic is called on mute, revocation, and class exit", () => {
@@ -157,17 +152,9 @@ test("Functional logic: Simulated addUniqueTrack track priority behaves correctl
 
   function simulateAddUniqueTrack(stream, track) {
     if (track.kind === "audio") {
+      // In hybrid mode, audio is 100% P2P mesh. SFU audio is rejected.
+      if (track.__fromSfu) return false;
       const existingAudio = stream.getAudioTracks();
-      if (track.__fromSfu) {
-        const p2pTracks = existingAudio.filter((t) => !t.__fromSfu);
-        p2pTracks.forEach((oldP2p) => {
-          stream.removeTrack(oldP2p);
-          oldP2p.stop();
-        });
-      } else {
-        const hasLiveSfuAudio = existingAudio.some((t) => t.readyState === "live" && t.__fromSfu);
-        if (hasLiveSfuAudio) return false;
-      }
       if (existingAudio.some(t => t.id === track.id)) return true;
       existingAudio.forEach(oldTrack => {
         stream.removeTrack(oldTrack);
@@ -206,19 +193,13 @@ test("Functional logic: Simulated addUniqueTrack track priority behaves correctl
   assert.equal(stream.getAudioTracks().length, 1);
   assert.equal(stream.getVideoTracks().length, 1);
 
-  // SFU audio arrives: must stop and remove P2P audio
+  // SFU audio arrives: must be rejected in favor of dedicated P2P audio
   const sfuAudio = new MockTrack("sfu-a1", "audio", true);
-  simulateAddUniqueTrack(stream, sfuAudio);
-  assert.equal(p2pAudio.stopped, true, "P2P audio must be stopped");
+  const sfuAudioAccepted = simulateAddUniqueTrack(stream, sfuAudio);
+  assert.equal(sfuAudioAccepted, false, "SFU audio must be rejected to keep P2P audio active");
+  assert.equal(p2pAudio.stopped, false, "P2P audio must NOT be stopped");
   assert.equal(stream.getAudioTracks().length, 1);
-  assert.equal(stream.getAudioTracks()[0].id, "sfu-a1", "SFU audio must replace P2P audio");
-
-  // Subsequent P2P audio arrives: must be dropped because SFU audio is live
-  const p2pAudio2 = new MockTrack("p2p-a2", "audio", false);
-  const acceptedAudio = simulateAddUniqueTrack(stream, p2pAudio2);
-  assert.equal(acceptedAudio, false, "P2P audio must be rejected when SFU audio is active");
-  assert.equal(stream.getAudioTracks().length, 1);
-  assert.equal(stream.getAudioTracks()[0].id, "sfu-a1");
+  assert.equal(stream.getAudioTracks()[0].id, "p2p-a1", "P2P audio must remain the primary audio");
 
   // SFU video arrives: must stop and remove P2P video
   const sfuVideo = new MockTrack("sfu-v1", "video", true);

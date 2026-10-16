@@ -84,15 +84,16 @@ test("A connected but stalled P2P peer can be recovered, while working media can
   assert.equal(f.ctx.studentMediaTransports.get("student").recoveryAttempts, 0);
 });
 
-test("SFU must remain confirmed before closing P2P; interrupted recovery preserves P2P", () => {
+test("SFU must remain confirmed before ending P2P video fallback; P2P audio is permanently preserved", () => {
   const f = fixture();
   f.ctx.peerConnections.student = { __teacherP2pFallback: true, connectionState: "connected" };
   const healthy = { receiving: true, receivingAudio: true, receivingVideo: true };
   f.report(healthy); f.advance(1_500);
   f.report({ p2p: healthy }); f.advance(3_000);
-  assert.equal(f.closed.length, 0);
+  assert.equal(f.ctx.peerConnections.student.__teacherP2pFallback, true);
   f.report(healthy); f.advance(1_500); f.report(healthy); f.advance(1_500);
-  assert.equal(f.closed.length, 1);
+  assert.equal(f.ctx.peerConnections.student.__teacherP2pFallback, false, "Fallback flag must be cleared");
+  assert.equal(f.closed.length, 0, "P2P connection must NOT be closed to preserve audio");
 });
 
 test("A student leaving before a recovery timer fires receives no stale offer", () => {

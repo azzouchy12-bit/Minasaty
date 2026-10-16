@@ -10,7 +10,7 @@ const root = path.resolve(__dirname, "..");
 test("Exercise Photo Count: attendanceController includes live question images as exercisesSummary", () => {
   const attendanceCode = fs.readFileSync(path.join(root, "controllers/attendanceController.js"), "utf8");
   assert.match(attendanceCode, /prisma\.liveQuestionImage\.findMany/, "getAttendanceForStudent must query liveQuestionImage");
-  assert.match(attendanceCode, /exercisesSummary\s*=\s*\{\s*totalCount:\s*questionImages\.length/, "getAttendanceForStudent must return exercisesSummary with totalCount");
+  assert.match(attendanceCode, /exercisesSummary\s*=\s*\{\s*totalCount:\s*(?:Math\.max\(0,\s*)?questionImages\.length/, "getAttendanceForStudent must return exercisesSummary with totalCount");
 });
 
 test("Exercise Photo Count: academicController returns liveQuestionImagesCount in getProgress and listAssignments", () => {

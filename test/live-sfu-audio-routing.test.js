@@ -77,7 +77,7 @@ test('Actual SFU routing preserves teacher UUID audio with two simultaneous stud
   subscribe('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'student', first);
   subscribe('cccccccc-cccc-cccc-cccc-cccccccccccc', 'student', second);
   assert.equal(teacher.readyState, 'live');
-  assert.deepEqual(ctx.remoteMediaStream.getAudioTracks(), [teacher]);
+  assert.deepEqual(ctx.remoteMediaStream.getAudioTracks(), []);
   assert.equal(ctx.classmateAudioElements.size, 2);
   for (const [id, audio] of ctx.classmateAudioElements) {
     assert.equal(audio.muted, false, id + ' must remain audible alongside teacher');
@@ -92,7 +92,7 @@ test('Actual unsubscribe and participant departure remove only that student, pre
   unsubscribe('one-uuid', 'student', first);
   assert.equal(ctx.classmateAudioElements.has('one-uuid'), false);
   assert.equal(ctx.classmateAudioElements.has('two-uuid'), true);
-  assert.equal(teacher.readyState, 'live'); assert.deepEqual(ctx.remoteMediaStream.getAudioTracks(), [teacher]);
+  assert.equal(teacher.readyState, 'live'); assert.deepEqual(ctx.remoteMediaStream.getAudioTracks(), []);
   ctx.studentSfuRoom.emit(events.ParticipantDisconnected, participant('two-uuid', 'student'));
   assert.equal(ctx.classmateAudioElements.size, 0);
   assert.equal(teacher.readyState, 'live');
@@ -124,18 +124,16 @@ test('Actual routing deduplicates subscriptions and ignores late removal of a re
   replacement.end(); assert.equal(ctx.classmateAudioElements.size, 0);
 });
 
-test('Actual SFU/P2P routing plays classmates once in mix-minus then adds them separately when teacher SFU audio replaces it', async () => {
+test('Actual SFU/P2P routing: P2P mix-minus audio is permanently preserved and never ended by SFU', async () => {
   const { ctx, subscribe } = await viewer();
   const mix = new Track('p2p-mix'); ctx.attachTeacherTrack({ track: mix });
   subscribe('classmate-uuid', 'student', new Track('classmate'));
   const audio = ctx.classmateAudioElements.get('classmate-uuid');
   assert.equal(audio.muted, true, 'P2P mix already contains classmate audio');
   const teacher = new Track('teacher-sfu'); subscribe('teacher-uuid', 'teacher', teacher);
-  assert.equal(mix.readyState, 'ended'); assert.equal(audio.muted, false);
-  assert.deepEqual(ctx.remoteMediaStream.getAudioTracks(), [teacher]);
-  ctx.attachTeacherTrack({ track: new Track('late-p2p-mix') });
-  assert.deepEqual(ctx.remoteMediaStream.getAudioTracks(), [teacher]);
-  assert.equal(audio.muted, false);
+  assert.equal(mix.readyState, 'live', 'P2P mix-minus audio must stay live and never be stopped by SFU');
+  assert.equal(audio.muted, true, 'Classmate audio remains handled by P2P mix without duplication');
+  assert.deepEqual(ctx.remoteMediaStream.getAudioTracks(), [mix], 'P2P mix-minus audio remains primary');
 });
 
 test('Actual SFU disconnect cleanup removes every classmate playback element', async () => {

@@ -469,7 +469,7 @@ function notifySfuTransportStatus(receiving = true) {
     const reception = typeof getTeacherSfuReceptionState === "function"
       ? getTeacherSfuReceptionState()
       : { receiving: Boolean(receiving), receivingAudio: false, receivingVideo: false };
-    if (receiving && reception.receiving) {
+    if (receiving && reception.receivingVideo) {
       try { sessionStorage.setItem("studentMediaTransport", "sfu"); } catch (_) {}
     }
     socket.emit("student_media_transport_status", {
@@ -958,15 +958,15 @@ async function connectStudentSfu(roomName, { backgroundRetry = false } = {}) {
             (typeof teacherSocketId !== "undefined" && teacherSocketId && participant?.identity === teacherSocketId)
           );
 
-          // Keep each classmate separate from the teacher's primary media stream.
-          if (!isTeacher && role === "student" && track.kind === "audio") {
-            console.info("[SFU-Student] Received classmate audio track via SFU from:", participant?.identity);
-            playClassmateSfuAudio(participant.identity, track);
-            recordStudentDiagnosticEvent("classmate_audio_received", "Classmate audio received via SFU");
+          if (!isTeacher) {
+            if (role === "student" && track.kind === "audio") {
+              console.info("[SFU-Student] Received classmate audio track via SFU from:", participant?.identity);
+              playClassmateSfuAudio(participant?.identity, track);
+              recordStudentDiagnosticEvent("classmate_audio_received", "Classmate audio received via SFU");
+            }
             return;
           }
 
-          if (!isTeacher) return;
           // Primary teacher broadcast track
           console.info("[SFU-Student] Received teacher track via SFU:", track.kind);
           if (track.mediaStreamTrack) {
@@ -5782,23 +5782,11 @@ function addUniqueTrack(stream, track) {
     // Ensure that exactly one primary audio track plays at any time.
     const existingAudio = stream.getAudioTracks();
 
+    // All classroom audio is received directly via P2P WebRTC with teacher mix-minus.
+    // If an SFU audio track is ever received, ignore it so dedicated P2P audio remains uninterrupted.
     if (track.__fromSfu) {
-      // SFU is PRIMARY. Remove any P2P audio tracks to avoid duplicate audio.
-      const p2pTracks = existingAudio.filter((t) => !t.__fromSfu);
-      p2pTracks.forEach((oldP2p) => {
-        try {
-          stream.removeTrack(oldP2p);
-          oldP2p.enabled = false;
-          if (typeof oldP2p.stop === "function") oldP2p.stop();
-        } catch (_) { }
-      });
-    } else {
-      // Incoming P2P audio track. If a live SFU audio track is active, discard P2P.
-      const hasLiveSfuAudio = existingAudio.some((t) => t.readyState === "live" && t.__fromSfu);
-      if (hasLiveSfuAudio) {
-        console.info("[WebRTC-Student] Ignoring incoming P2P audio because primary SFU audio is active and healthy.");
-        return;
-      }
+      console.info("[Audio-Student] Ignoring SFU audio in favor of dedicated P2P audio.");
+      return;
     }
 
     if (existingAudio.some((currentTrack) => currentTrack.id === track.id)) {
@@ -5888,10 +5876,9 @@ function attachTeacherTrack(event) {
   if (!track) return;
 
   if (track.kind === "audio") {
-    // Ignore a late fallback track before it can replace the dedicated output.
-    if (!track.__fromSfu && remoteMediaStream?.getAudioTracks?.().some(
-      (current) => current.readyState === "live" && current.__fromSfu
-    )) return;
+    if (track.__fromSfu && typeof teacherAudioStream !== "undefined" && teacherAudioStream?.getAudioTracks().some((t) => !t.__fromSfu && t.readyState === "live")) {
+      return;
+    }
     if (typeof playTeacherInboundAudio === "function") {
       playTeacherInboundAudio(track);
     }
@@ -5908,9 +5895,9 @@ function attachTeacherTrack(event) {
 
   if (!remoteMediaStream) {
     remoteMediaStream = new MediaStream();
-    elements.remoteVideo.srcObject = remoteMediaStream;
-    elements.remoteVideo.muted = true;
+    if (elements?.remoteVideo) elements.remoteVideo.srcObject = remoteMediaStream;
   }
+  if (elements?.remoteVideo) elements.remoteVideo.muted = true;
   addUniqueTrack(remoteMediaStream, track);
   if (!track.__fromSfu && typeof notifyP2pTransportStatus === "function") notifyP2pTransportStatus();
 
@@ -6394,7 +6381,22 @@ async function enableApprovedMicrophone() {
   if (existingTrack && existingTrack.readyState === "live") {
     existingTrack.enabled = true;
 
-    // Primary path: SFU
+    // 1. Primary path: Direct P2P Audio
+    if (pc) {
+      const published = await publishStudentP2pMic(existingTrack, localAudioStream);
+      if (!published && microphonePermissionGranted && joinedClass) {
+        setViewerStatus("لم يكتمل ربط المايك بالأستاذ. أعد محاولة تشغيل المايك.", "warning");
+      } else {
+        updateMicControl();
+        setViewerStatus("المايك يعمل الآن عبر اتصال P2P المباشر.", "live");
+      }
+      if (typeof ensureTeacherAudioPlayback === "function") {
+        await ensureTeacherAudioPlayback({ sourceHint: "enableApprovedMicrophone_existing_p2p" });
+      }
+      return;
+    }
+
+    // 2. Fallback path if P2P is not connected: SFU
     if (sfuAvailable) {
       const sfuPublished = await publishStudentSfuMic(localAudioStream);
       if (!microphonePermissionGranted || !joinedClass) return;
@@ -6405,19 +6407,6 @@ async function enableApprovedMicrophone() {
           await ensureTeacherAudioPlayback({ sourceHint: "enableApprovedMicrophone_existing_sfu" });
         }
         return;
-      }
-      console.warn("[SFU-Student] Existing mic track failed SFU publish; trying P2P fallback.");
-    }
-
-    // Fallback path: P2P
-    if (pc) {
-      const published = await publishStudentP2pMic(existingTrack, localAudioStream);
-      if (!published && microphonePermissionGranted && joinedClass) {
-        setViewerStatus("لم يكتمل ربط المايك بالأستاذ. أعد محاولة تشغيل المايك.", "warning");
-      }
-      updateMicControl();
-      if (typeof ensureTeacherAudioPlayback === "function") {
-        await ensureTeacherAudioPlayback({ sourceHint: "enableApprovedMicrophone_existing_p2p" });
       }
     }
     return;
@@ -6474,7 +6463,22 @@ async function enableApprovedMicrophone() {
       if ("contentHint" in newTrack) newTrack.contentHint = "speech";
     }
 
-    // 1. Primary path: SFU
+    // 1. Primary path: Direct P2P Audio (student mic is delivered to teacher who mixes it to classmates)
+    if (pc && teacherSocketId && newTrack) {
+      const published = await publishStudentP2pMic(newTrack, localAudioStream);
+      if (!published && microphonePermissionGranted && joinedClass) {
+        setViewerStatus("لم يكتمل ربط المايك بالأستاذ. أعد محاولة تشغيل المايك.", "warning");
+      } else {
+        updateMicControl();
+        setViewerStatus("المايك يعمل الآن عبر اتصال P2P المباشر.", "live");
+      }
+      if (typeof ensureTeacherAudioPlayback === "function") {
+        await ensureTeacherAudioPlayback({ sourceHint: "enableApprovedMicrophone_fresh_p2p" });
+      }
+      return;
+    }
+
+    // 2. Fallback path if P2P is unavailable: SFU
     if (isStudentSfuConnected()) {
       const sfuPublished = await publishStudentSfuMic(localAudioStream);
       if (!microphonePermissionGranted || !joinedClass) return;
@@ -6485,19 +6489,6 @@ async function enableApprovedMicrophone() {
           await ensureTeacherAudioPlayback({ sourceHint: "enableApprovedMicrophone_fresh_sfu" });
         }
         return;
-      }
-      console.warn("[SFU-Student] Fresh mic failed SFU publish; trying P2P fallback.");
-    }
-
-    // 2. Fallback path: P2P
-    if (pc && teacherSocketId && newTrack) {
-      const published = await publishStudentP2pMic(newTrack, localAudioStream);
-      if (!published && microphonePermissionGranted && joinedClass) {
-        setViewerStatus("لم يكتمل ربط المايك بالأستاذ. أعد محاولة تشغيل المايك.", "warning");
-      }
-      updateMicControl();
-      if (typeof ensureTeacherAudioPlayback === "function") {
-        await ensureTeacherAudioPlayback({ sourceHint: "enableApprovedMicrophone_fresh_p2p" });
       }
     }
   } catch (error) {
@@ -7361,8 +7352,9 @@ async function handleImplicitMediaResync(sourceHint = "teacher_force_resync") {
       localAudioStream.getAudioTracks().forEach((track) => {
         if (track.readyState === "live") track.enabled = true;
       });
-      if (typeof isStudentSfuConnected === "function" && isStudentSfuConnected() && typeof publishStudentSfuMic === "function") {
-        void publishStudentSfuMic(localAudioStream);
+      if (pc && typeof publishStudentP2pMic === "function") {
+        const liveTrack = localAudioStream.getAudioTracks().find((track) => track.readyState === "live");
+        if (liveTrack) void publishStudentP2pMic(liveTrack, localAudioStream);
       }
     }
   } catch (audioErr) {
