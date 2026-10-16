@@ -74,3 +74,10 @@ test("Points System: Student Live studio displays points badge and handles real-
   assert.match(js, /socket\.on\("teacher_reacted_to_message"/, "student-live.js must handle teacher_reacted_to_message");
   assert.match(js, /showMobileControlToast/, "student-live.js must display congratulatory toast on points award");
 });
+
+test("Points System: server.js passes Node.js syntax check without errors", () => {
+  const { execFileSync } = require("node:child_process");
+  assert.doesNotThrow(() => {
+    execFileSync(process.execPath, ["--check", path.join(root, "server.js")], { encoding: "utf8" });
+  }, "server.js must have valid syntax without uncaught await or parsing errors");
+});

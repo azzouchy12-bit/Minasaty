@@ -3503,7 +3503,7 @@ io.on("connection", (socket) => {
   });
 
   /** Handle chat message reactions (Like 👍 and Love ❤️) from teacher or students */
-  socket.on("classroom_chat_react", (data = {}, acknowledgement) => {
+  socket.on("classroom_chat_react", async (data = {}, acknowledgement) => {
     try {
       const messageId = String(data.messageId || "").trim();
       const reaction = String(data.reaction || "").trim().toLowerCase();
