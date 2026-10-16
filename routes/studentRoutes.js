@@ -18,6 +18,7 @@ const {
   getStudentPaymentReceipt,
   updateStudentContact,
   updateStudentSubscriptionDates,
+  updateStudentActivityStats,
   confirmStudentPaymentReceipt,
   rejectStudentPaymentReceipt,
   deleteStudent,
@@ -124,6 +125,9 @@ router.put("/:id/contact", verifyToken, isTeacher, updateStudentContact);
 
 // Teacher-only: subscription date updates
 router.put("/:id/subscription-dates", verifyToken, isTeacher, updateStudentSubscriptionDates);
+
+// Teacher-only: activity stats adjustments (attendance, participation, exercises, points)
+router.put("/:id/activity-stats", verifyToken, isTeacher, updateStudentActivityStats);
 
 // Teacher-only: payment and teacher-note updates are administrative actions.
 router.put("/:id", verifyToken, isTeacher, updateStudentStatusAndNotes);

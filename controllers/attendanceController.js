@@ -252,7 +252,16 @@ async function getAttendanceForStudent(req, res) {
   try {
     const student = await prisma.student.findUnique({
       where: { id: studentId },
-      select: { id: true, parentPhone: true, studentName: true, level: true },
+      select: {
+        id: true,
+        parentPhone: true,
+        studentName: true,
+        level: true,
+        manualAttendanceAdjustment: true,
+        manualParticipationAdjustment: true,
+        manualExercisesAdjustment: true,
+        manualPointsAdjustment: true,
+      },
     });
 
     if (!student) {
@@ -321,13 +330,24 @@ async function getAttendanceForStudent(req, res) {
     ]);
 
     const attendanceSummary = summarizeAttendances(attendances);
+    attendanceSummary.totalCount = Math.max(
+      0,
+      attendanceSummary.totalCount + (student.manualAttendanceAdjustment || 0)
+    );
+
     const participationSummary = summarizeParticipations(participations);
+    participationSummary.totalCount = Math.max(
+      0,
+      participationSummary.totalCount + (student.manualParticipationAdjustment || 0)
+    );
+
     const exercisesSummary = {
-      totalCount: questionImages.length,
+      totalCount: Math.max(0, questionImages.length + (student.manualExercisesAdjustment || 0)),
       items: questionImages,
     };
+    const rawPoints = reactionPoints.reduce((sum, item) => sum + item.points, 0);
     const reactionPointsSummary = {
-      totalPoints: reactionPoints.reduce((sum, item) => sum + item.points, 0),
+      totalPoints: Math.max(0, rawPoints + (student.manualPointsAdjustment || 0)),
       fireCount: reactionPoints.filter((r) => r.reaction === "fire").length,
       loveCount: reactionPoints.filter((r) => r.reaction === "love").length,
       likeCount: reactionPoints.filter((r) => r.reaction === "like").length,
@@ -345,6 +365,12 @@ async function getAttendanceForStudent(req, res) {
       exercisesSummary,
       reactionPointsSummary,
       pointsSummary: reactionPointsSummary,
+      manualAdjustments: {
+        attendance: student.manualAttendanceAdjustment || 0,
+        participation: student.manualParticipationAdjustment || 0,
+        exercises: student.manualExercisesAdjustment || 0,
+        points: student.manualPointsAdjustment || 0,
+      },
     });
   } catch (error) {
     console.error("Attendance retrieval failed:", error);

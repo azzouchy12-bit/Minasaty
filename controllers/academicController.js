@@ -350,9 +350,11 @@ async function getProgress(req, res) {
     prisma.liveQuestionImage.findMany({ where: { studentId: student.id }, orderBy: { createdAt: "desc" }, select: { id: true, level: true, fileName: true, createdAt: true }, take: 100 }),
     prisma.studentReactionPoint.findMany({ where: { studentId: student.id }, orderBy: { createdAt: "desc" }, select: { id: true, reaction: true, points: true, createdAt: true }, take: 100 }),
   ]);
-  const participationTotal = participations.reduce((sum, item) => sum + item.count, 0);
-  const liveQuestionImagesCount = questionImages.length;
-  const reactionPointsTotal = reactionPoints.reduce((sum, item) => sum + item.points, 0);
+  const rawParticipationTotal = participations.reduce((sum, item) => sum + item.count, 0);
+  const participationTotal = Math.max(0, rawParticipationTotal + (student.manualParticipationAdjustment || 0));
+  const liveQuestionImagesCount = Math.max(0, questionImages.length + (student.manualExercisesAdjustment || 0));
+  const rawReactionPointsTotal = reactionPoints.reduce((sum, item) => sum + item.points, 0);
+  const reactionPointsTotal = Math.max(0, rawReactionPointsTotal + (student.manualPointsAdjustment || 0));
   const reactionPointsSummary = {
     totalPoints: reactionPointsTotal,
     fireCount: reactionPoints.filter((r) => r.reaction === "fire").length,

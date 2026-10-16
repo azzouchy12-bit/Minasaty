@@ -32,6 +32,10 @@ model Student {
   pendingSubscriptionType String?
   subscriptionStartDate DateTime?
   subscriptionEndDate   DateTime?
+  manualAttendanceAdjustment    Int @default(0)
+  manualParticipationAdjustment Int @default(0)
+  manualExercisesAdjustment     Int @default(0)
+  manualPointsAdjustment        Int @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

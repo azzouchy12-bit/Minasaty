@@ -81,3 +81,46 @@ test("Points System: server.js passes Node.js syntax check without errors", () =
     execFileSync(process.execPath, ["--check", path.join(root, "server.js")], { encoding: "utf8" });
   }, "server.js must have valid syntax without uncaught await or parsing errors");
 });
+
+test("Manual Stats Adjustment: Schema defines 4 manual adjustment fields on Student", () => {
+  const schema = fs.readFileSync(path.join(root, "prisma/schema.prisma"), "utf8");
+  assert.match(schema, /manualAttendanceAdjustment\s+Int\s+@default\(0\)/, "schema must declare manualAttendanceAdjustment");
+  assert.match(schema, /manualParticipationAdjustment\s+Int\s+@default\(0\)/, "schema must declare manualParticipationAdjustment");
+  assert.match(schema, /manualExercisesAdjustment\s+Int\s+@default\(0\)/, "schema must declare manualExercisesAdjustment");
+  assert.match(schema, /manualPointsAdjustment\s+Int\s+@default\(0\)/, "schema must declare manualPointsAdjustment");
+});
+
+test("Manual Stats Adjustment: studentController & studentRoutes provide PUT /api/students/:id/activity-stats", () => {
+  const controllerCode = fs.readFileSync(path.join(root, "controllers/studentController.js"), "utf8");
+  assert.match(controllerCode, /updateStudentActivityStats/, "studentController must export updateStudentActivityStats");
+  assert.match(controllerCode, /manualAttendanceAdjustment\s*=\s*target\s*-\s*rawAttendanceTotal/, "adjustment must be delta between target and raw count");
+
+  const routesCode = fs.readFileSync(path.join(root, "routes/studentRoutes.js"), "utf8");
+  assert.match(routesCode, /router\.put\(\s*"\/:\w+\/activity-stats",\s*verifyToken,\s*isTeacher,\s*updateStudentActivityStats\s*\)/, "studentRoutes must register PUT /:id/activity-stats");
+});
+
+test("Manual Stats Adjustment: attendanceController includes adjustments in all totals", () => {
+  const attendanceCode = fs.readFileSync(path.join(root, "controllers/attendanceController.js"), "utf8");
+  assert.match(attendanceCode, /student\.manualAttendanceAdjustment/, "attendanceController must factor in manualAttendanceAdjustment");
+  assert.match(attendanceCode, /student\.manualParticipationAdjustment/, "attendanceController must factor in manualParticipationAdjustment");
+  assert.match(attendanceCode, /student\.manualExercisesAdjustment/, "attendanceController must factor in manualExercisesAdjustment");
+  assert.match(attendanceCode, /student\.manualPointsAdjustment/, "attendanceController must factor in manualPointsAdjustment");
+  assert.match(attendanceCode, /manualAdjustments:\s*\{/, "attendanceController must return manualAdjustments object");
+});
+
+test("Manual Stats Adjustment: Teacher Dashboard UI has edit button, modal and JS bindings", () => {
+  const html = fs.readFileSync(path.join(root, "public/teacher-dashboard.html"), "utf8");
+  assert.match(html, /id="student-actions-edit-stats-btn"/, "teacher-dashboard.html must have #student-actions-edit-stats-btn");
+  assert.match(html, /id="student-stats-edit-modal"/, "teacher-dashboard.html must have #student-stats-edit-modal");
+  assert.match(html, /id="student-stats-edit-attendance"/, "teacher-dashboard.html must have #student-stats-edit-attendance");
+  assert.match(html, /id="student-stats-edit-participation"/, "teacher-dashboard.html must have #student-stats-edit-participation");
+  assert.match(html, /id="student-stats-edit-exercises"/, "teacher-dashboard.html must have #student-stats-edit-exercises");
+  assert.match(html, /id="student-stats-edit-points"/, "teacher-dashboard.html must have #student-stats-edit-points");
+
+  const js = fs.readFileSync(path.join(root, "public/js/teacher-dashboard.js"), "utf8");
+  assert.match(js, /openStudentStatsEditModal/, "teacher-dashboard.js must define openStudentStatsEditModal");
+  assert.match(js, /closeStudentStatsEditModal/, "teacher-dashboard.js must define closeStudentStatsEditModal");
+  assert.match(js, /saveStudentStatsEdit/, "teacher-dashboard.js must define saveStudentStatsEdit");
+  assert.match(js, /\/activity-stats/, "teacher-dashboard.js must fetch /api/students/:id/activity-stats");
+});
+

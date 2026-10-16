@@ -5804,3 +5804,107 @@ body.parent-login-page {
   }
 }
 
+.student-actions-stats-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.student-actions-edit-stats-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.95rem;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border: 1.5px solid #93c5fd;
+  border-radius: 0.65rem;
+  color: #1e40af;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(30, 64, 175, 0.08);
+}
+
+.student-actions-edit-stats-btn:hover {
+  background: #bfdbfe;
+  border-color: #60a5fa;
+  transform: translateY(-1px);
+}
+
+.student-stats-edit-modal {
+  z-index: 50;
+}
+
+.student-stats-edit-card {
+  max-width: 520px;
+  width: 92%;
+}
+
+.student-stats-edit-notice {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 0.75rem;
+  padding: 0.75rem 0.95rem;
+  margin: 0.85rem 0 1.25rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #166534;
+}
+
+.student-stats-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 480px) {
+  .student-stats-edit-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.student-stats-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.student-stats-edit-field .field-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #334155;
+}
+
+.student-stats-edit-field input {
+  padding: 0.65rem 0.85rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 0.65rem;
+  background: #f8fafc;
+  color: #0f172a;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+
+.student-stats-edit-field input:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.student-stats-edit-field .field-hint {
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.student-stats-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+

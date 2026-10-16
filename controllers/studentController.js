@@ -1600,6 +1600,122 @@ async function updateStudentSubscriptionDates(req, res) {
   }
 }
 
+async function updateStudentActivityStats(req, res) {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: "معرّف التلميذ غير صالح." });
+    }
+
+    const currentStudent = await prisma.student.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        studentName: true,
+        level: true,
+        manualAttendanceAdjustment: true,
+        manualParticipationAdjustment: true,
+        manualExercisesAdjustment: true,
+        manualPointsAdjustment: true,
+      },
+    });
+
+    if (!currentStudent) {
+      return res.status(404).json({ error: "التلميذ غير موجود." });
+    }
+
+    const {
+      attendanceCount,
+      participationCount,
+      exercisesCount,
+      pointsCount,
+    } = req.body || {};
+
+    const [rawAttendances, rawParticipations, rawExercises, rawPoints] = await Promise.all([
+      prisma.attendance.findMany({
+        where: { studentId: id },
+        select: { joinedAt: true },
+      }),
+      prisma.classParticipation.findMany({
+        where: { studentId: id },
+        select: { count: true },
+      }),
+      prisma.liveQuestionImage.count({ where: { studentId: id } }),
+      prisma.studentReactionPoint.aggregate({
+        where: { studentId: id },
+        _sum: { points: true },
+      }),
+    ]);
+
+    const { summarizeAttendances } = require("./attendanceController");
+    const rawAttendanceTotal = summarizeAttendances(rawAttendances).totalCount;
+    const rawParticipationTotal = rawParticipations.reduce((sum, p) => sum + (p.count || 0), 0);
+    const rawExercisesTotal = rawExercises;
+    const rawPointsTotal = rawPoints?._sum?.points ?? 0;
+
+    const dataToUpdate = {};
+
+    if (attendanceCount !== undefined && attendanceCount !== null && attendanceCount !== "") {
+      const target = Math.max(0, Number.parseInt(attendanceCount, 10) || 0);
+      dataToUpdate.manualAttendanceAdjustment = target - rawAttendanceTotal;
+    }
+
+    if (participationCount !== undefined && participationCount !== null && participationCount !== "") {
+      const target = Math.max(0, Number.parseInt(participationCount, 10) || 0);
+      dataToUpdate.manualParticipationAdjustment = target - rawParticipationTotal;
+    }
+
+    if (exercisesCount !== undefined && exercisesCount !== null && exercisesCount !== "") {
+      const target = Math.max(0, Number.parseInt(exercisesCount, 10) || 0);
+      dataToUpdate.manualExercisesAdjustment = target - rawExercisesTotal;
+    }
+
+    if (pointsCount !== undefined && pointsCount !== null && pointsCount !== "") {
+      const target = Math.max(0, Number.parseInt(pointsCount, 10) || 0);
+      dataToUpdate.manualPointsAdjustment = target - rawPointsTotal;
+    }
+
+    const updated = await prisma.student.update({
+      where: { id },
+      data: dataToUpdate,
+      select: {
+        id: true,
+        studentName: true,
+        level: true,
+        manualAttendanceAdjustment: true,
+        manualParticipationAdjustment: true,
+        manualExercisesAdjustment: true,
+        manualPointsAdjustment: true,
+      },
+    });
+
+    const finalAttendance = Math.max(0, rawAttendanceTotal + (updated.manualAttendanceAdjustment || 0));
+    const finalParticipation = Math.max(0, rawParticipationTotal + (updated.manualParticipationAdjustment || 0));
+    const finalExercises = Math.max(0, rawExercisesTotal + (updated.manualExercisesAdjustment || 0));
+    const finalPoints = Math.max(0, rawPointsTotal + (updated.manualPointsAdjustment || 0));
+
+    return res.status(200).json({
+      status: "success",
+      message: "تم تحديث إحصائيات ونقاط التلميذ بنجاح.",
+      data: {
+        attendanceCount: finalAttendance,
+        participationCount: finalParticipation,
+        exercisesCount: finalExercises,
+        pointsCount: finalPoints,
+        manualAdjustments: {
+          attendance: updated.manualAttendanceAdjustment,
+          participation: updated.manualParticipationAdjustment,
+          exercises: updated.manualExercisesAdjustment,
+          points: updated.manualPointsAdjustment,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Activity stats update failed:", error);
+    return res.status(500).json({ error: "تعذر تحديث إحصائيات التلميذ حالياً." });
+  }
+}
+
 module.exports = {
   registerStudent,
   getStudentForParent,
@@ -1608,6 +1724,7 @@ module.exports = {
   updateStudentContact,
   updateStudentStatusAndNotes,
   updateStudentSubscriptionDates,
+  updateStudentActivityStats,
   requestStudentCardReupload,
   confirmStudentCardIdentity,
   replaceStudentCard,

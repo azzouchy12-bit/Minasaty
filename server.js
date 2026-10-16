@@ -1070,17 +1070,24 @@ async function getStudent24HourParticipation(studentId) {
   if (!isValidStudentId(studentId)) return 0;
   try {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const records = await prisma.classParticipation.findMany({
-      where: {
-        studentId,
-        OR: [
-          { lastParticipatedAt: { gte: since } },
-          { updatedAt: { gte: since } },
-        ],
-      },
-      select: { count: true },
-    });
-    return records.reduce((sum, r) => sum + (Number(r.count) || 0), 0);
+    const [records, studentRec] = await Promise.all([
+      prisma.classParticipation.findMany({
+        where: {
+          studentId,
+          OR: [
+            { lastParticipatedAt: { gte: since } },
+            { updatedAt: { gte: since } },
+          ],
+        },
+        select: { count: true },
+      }),
+      prisma.student.findUnique({
+        where: { id: studentId },
+        select: { manualParticipationAdjustment: true },
+      }),
+    ]);
+    const raw = records.reduce((sum, r) => sum + (Number(r.count) || 0), 0);
+    return Math.max(0, raw + (studentRec?.manualParticipationAdjustment || 0));
   } catch (error) {
     console.error("24h participation lookup failed:", error);
     return 0;
@@ -2462,11 +2469,17 @@ io.on("connection", (socket) => {
         }
       }).catch((error) => console.warn("Background participation count lookup failed:", error.message));
 
-      void prisma.studentReactionPoint.aggregate({
-        where: { studentId: student.id },
-        _sum: { points: true },
-      }).then((agg) => {
-        const points = agg?._sum?.points ?? 0;
+      void Promise.all([
+        prisma.studentReactionPoint.aggregate({
+          where: { studentId: student.id },
+          _sum: { points: true },
+        }),
+        prisma.student.findUnique({
+          where: { id: student.id },
+          select: { manualPointsAdjustment: true },
+        }),
+      ]).then(([agg, sRec]) => {
+        const points = Math.max(0, (agg?._sum?.points ?? 0) + (sRec?.manualPointsAdjustment ?? 0));
         if (socket.connected && isInLevelRoom(socket, classroomLevel)) {
           socket.emit("reaction_points_updated", { level: student.level, points });
         }
@@ -3656,12 +3669,18 @@ io.on("connection", (socket) => {
             });
           }
 
-          // Calculate student's total points across all reactions
-          const agg = await prisma.studentReactionPoint.aggregate({
-            where: { studentId: targetMsg.studentId },
-            _sum: { points: true },
-          });
-          const totalPoints = agg?._sum?.points ?? 0;
+          // Calculate student's total points across all reactions + manual adjustment
+          const [agg, studentRec] = await Promise.all([
+            prisma.studentReactionPoint.aggregate({
+              where: { studentId: targetMsg.studentId },
+              _sum: { points: true },
+            }),
+            prisma.student.findUnique({
+              where: { id: targetMsg.studentId },
+              select: { manualPointsAdjustment: true },
+            }),
+          ]);
+          const totalPoints = Math.max(0, (agg?._sum?.points ?? 0) + (studentRec?.manualPointsAdjustment ?? 0));
 
           if (targetMsg.socketId) {
             io.to(targetMsg.socketId).emit("teacher_reacted_to_message", {

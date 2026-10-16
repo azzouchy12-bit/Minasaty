@@ -62,6 +62,19 @@ const elements = {
   studentActionsPointsCard: document.getElementById("student-actions-points-card"),
   studentActionsPointsVal: document.getElementById("student-actions-points-val"),
   studentActionsPointsBreakdown: document.getElementById("student-actions-points-breakdown"),
+  studentActionsEditStatsBtn: document.getElementById("student-actions-edit-stats-btn"),
+  studentStatsEditModal: document.getElementById("student-stats-edit-modal"),
+  studentStatsEditModalClose: document.getElementById("student-stats-edit-modal-close"),
+  studentStatsEditTitle: document.getElementById("student-stats-edit-title"),
+  studentStatsEditSubtitle: document.getElementById("student-stats-edit-subtitle"),
+  studentStatsEditForm: document.getElementById("student-stats-edit-form"),
+  studentStatsEditAttendance: document.getElementById("student-stats-edit-attendance"),
+  studentStatsEditParticipation: document.getElementById("student-stats-edit-participation"),
+  studentStatsEditExercises: document.getElementById("student-stats-edit-exercises"),
+  studentStatsEditPoints: document.getElementById("student-stats-edit-points"),
+  studentStatsEditMessage: document.getElementById("student-stats-edit-message"),
+  studentStatsEditSubmitBtn: document.getElementById("student-stats-edit-submit-btn"),
+  studentStatsEditCancelBtn: document.getElementById("student-stats-edit-cancel-btn"),
   attendanceModal: document.getElementById("attendance-modal"),
   attendanceStudentName: document.getElementById("attendance-student-name"),
   attendanceTotalCount: document.getElementById("attendance-total-count"),
@@ -1755,6 +1768,132 @@ function applySubscriptionPreset(presetType) {
   updateSubscriptionDatesStatusBox(startVal, endVal);
 }
 
+let currentStatsEditStudent = null;
+
+function openStudentStatsEditModal(student) {
+  if (!student || !elements.studentStatsEditModal) return;
+  currentStatsEditStudent = student;
+
+  if (elements.studentStatsEditTitle) {
+    elements.studentStatsEditTitle.textContent = `تعديل إحصائيات ${student.studentName || "التلميذ"}`;
+  }
+  if (elements.studentStatsEditSubtitle) {
+    elements.studentStatsEditSubtitle.textContent = displayLevelLabel(student.level);
+  }
+
+  const curAtt = parseInt(elements.studentActionsAttendanceVal?.textContent, 10);
+  const curPart = parseInt(elements.studentActionsParticipationVal?.textContent, 10);
+  const curEx = parseInt(elements.studentActionsExercisesVal?.textContent, 10);
+  const curPts = parseInt(elements.studentActionsPointsVal?.textContent, 10);
+
+  if (elements.studentStatsEditAttendance) {
+    elements.studentStatsEditAttendance.value = Number.isFinite(curAtt) ? curAtt : 0;
+  }
+  if (elements.studentStatsEditParticipation) {
+    elements.studentStatsEditParticipation.value = Number.isFinite(curPart) ? curPart : 0;
+  }
+  if (elements.studentStatsEditExercises) {
+    elements.studentStatsEditExercises.value = Number.isFinite(curEx) ? curEx : 0;
+  }
+  if (elements.studentStatsEditPoints) {
+    elements.studentStatsEditPoints.value = Number.isFinite(curPts) ? curPts : 0;
+  }
+
+  showStudentStatsEditMessage("", false);
+  if (elements.studentStatsEditSubmitBtn) elements.studentStatsEditSubmitBtn.disabled = false;
+
+  elements.studentStatsEditModal.hidden = false;
+  elements.studentStatsEditModal.classList.add("is-open");
+  elements.studentStatsEditAttendance?.focus();
+}
+
+function closeStudentStatsEditModal() {
+  currentStatsEditStudent = null;
+  elements.studentStatsEditModal?.classList.remove("is-open");
+  if (elements.studentStatsEditModal) {
+    elements.studentStatsEditModal.hidden = true;
+  }
+  showStudentStatsEditMessage("", false);
+}
+
+function showStudentStatsEditMessage(message, isError = false) {
+  if (!elements.studentStatsEditMessage) return;
+  if (!message) {
+    elements.studentStatsEditMessage.hidden = true;
+    elements.studentStatsEditMessage.textContent = "";
+    elements.studentStatsEditMessage.className = "form-message";
+    return;
+  }
+  elements.studentStatsEditMessage.hidden = false;
+  elements.studentStatsEditMessage.textContent = message;
+  elements.studentStatsEditMessage.className = `form-message ${isError ? "is-error" : "is-success"}`;
+}
+
+async function saveStudentStatsEdit(event) {
+  event?.preventDefault();
+  if (!currentStatsEditStudent) return;
+
+  const studentId = currentStatsEditStudent.id;
+  const attendanceCount = Math.max(0, parseInt(elements.studentStatsEditAttendance?.value, 10) || 0);
+  const participationCount = Math.max(0, parseInt(elements.studentStatsEditParticipation?.value, 10) || 0);
+  const exercisesCount = Math.max(0, parseInt(elements.studentStatsEditExercises?.value, 10) || 0);
+  const pointsCount = Math.max(0, parseInt(elements.studentStatsEditPoints?.value, 10) || 0);
+
+  const submitBtn = elements.studentStatsEditSubmitBtn;
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const response = await teacherFetch(`/api/students/${encodeURIComponent(studentId)}/activity-stats`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        attendanceCount,
+        participationCount,
+        exercisesCount,
+        pointsCount,
+      }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(result.error || "تعذر حفظ إحصائيات التلميذ.");
+    }
+
+    if (elements.studentActionsAttendanceVal) {
+      elements.studentActionsAttendanceVal.textContent = String(attendanceCount);
+    }
+    if (elements.studentActionsParticipationVal) {
+      elements.studentActionsParticipationVal.textContent = String(participationCount);
+    }
+    if (elements.studentActionsExercisesVal) {
+      elements.studentActionsExercisesVal.textContent = String(exercisesCount);
+    }
+    if (elements.studentActionsPointsVal) {
+      elements.studentActionsPointsVal.textContent = String(pointsCount);
+    }
+
+    const targetStudent = currentStudents.find((s) => s.id === studentId);
+    if (targetStudent && result?.data?.manualAdjustments) {
+      targetStudent.manualAttendanceAdjustment = result.data.manualAdjustments.attendance;
+      targetStudent.manualParticipationAdjustment = result.data.manualAdjustments.participation;
+      targetStudent.manualExercisesAdjustment = result.data.manualAdjustments.exercises;
+      targetStudent.manualPointsAdjustment = result.data.manualAdjustments.points;
+    }
+
+    showToast("تم تحديث إحصائيات ونقاط التلميذ بنجاح! وستستمر المنصة بالحساب التلقائي فوقها.");
+    closeStudentStatsEditModal();
+  } catch (error) {
+    console.error("Unable to save student activity stats:", error);
+    showStudentStatsEditMessage(error.message || "تعذر حفظ إحصائيات التلميذ.", true);
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
 function openStudentActionsModal(student) {
   if (!student || !elements.studentActionsModal || !elements.studentActionsList) return;
   elements.studentActionsTitle.textContent = student.studentName || "التلميذ";
@@ -1779,6 +1918,21 @@ function openStudentActionsModal(student) {
       void openParticipationModal(student.id);
     };
   }
+  if (elements.studentActionsExercisesCard) {
+    elements.studentActionsExercisesCard.onclick = () => {
+      openStudentStatsEditModal(student);
+    };
+  }
+  if (elements.studentActionsPointsCard) {
+    elements.studentActionsPointsCard.onclick = () => {
+      openStudentStatsEditModal(student);
+    };
+  }
+  if (elements.studentActionsEditStatsBtn) {
+    elements.studentActionsEditStatsBtn.onclick = () => {
+      openStudentStatsEditModal(student);
+    };
+  }
 
   void fetchStudentStats(student.id);
 
@@ -1793,6 +1947,9 @@ function openStudentActionsModal(student) {
   }
 
   const actions = [
+    createButton("تعديل الإحصائيات والنقاط ✏️", "student-action-modal-button primary-highlight", () => {
+      openStudentStatsEditModal(student);
+    }),
     createButton("تعديل الاسم ورقم الهاتف", "student-action-modal-button", () => {
       closeStudentActionsModal();
       openStudentContactModal(student);
@@ -4575,6 +4732,12 @@ if (!getTeacherToken()) {
   elements.subscriptionDatesModal?.addEventListener("click", (event) => {
     if (event.target === elements.subscriptionDatesModal) closeSubscriptionDatesModal();
   });
+  elements.studentStatsEditModalClose?.addEventListener("click", closeStudentStatsEditModal);
+  elements.studentStatsEditCancelBtn?.addEventListener("click", closeStudentStatsEditModal);
+  elements.studentStatsEditForm?.addEventListener("submit", saveStudentStatsEdit);
+  elements.studentStatsEditModal?.addEventListener("click", (event) => {
+    if (event.target === elements.studentStatsEditModal) closeStudentStatsEditModal();
+  });
   elements.subscriptionStartDate?.addEventListener("input", () => {
     updateSubscriptionDatesStatusBox(elements.subscriptionStartDate.value, elements.subscriptionEndDate.value);
   });
@@ -4625,6 +4788,10 @@ if (!getTeacherToken()) {
   });
 
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && elements.studentStatsEditModal && !elements.studentStatsEditModal.hidden) {
+      closeStudentStatsEditModal();
+      return;
+    }
     if (event.key === "Escape" && elements.studentActionsModal && !elements.studentActionsModal.hidden) {
       closeStudentActionsModal();
       return;
