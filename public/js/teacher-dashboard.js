@@ -53,11 +53,28 @@ const elements = {
   summaryPaid: document.getElementById("summary-paid"),
   summaryUnpaid: document.getElementById("summary-unpaid"),
   filteredResultsLabel: document.getElementById("filtered-results-label"),
+  studentActionsAttendanceCard: document.getElementById("student-actions-attendance-card"),
+  studentActionsAttendanceVal: document.getElementById("student-actions-attendance-val"),
+  studentActionsParticipationCard: document.getElementById("student-actions-participation-card"),
+  studentActionsParticipationVal: document.getElementById("student-actions-participation-val"),
   attendanceModal: document.getElementById("attendance-modal"),
   attendanceStudentName: document.getElementById("attendance-student-name"),
+  attendanceTotalCount: document.getElementById("attendance-total-count"),
+  attendanceMathCount: document.getElementById("attendance-math-count"),
+  attendancePhysicsCount: document.getElementById("attendance-physics-count"),
+  attendanceRecordsCount: document.getElementById("attendance-records-count"),
   attendanceList: document.getElementById("attendance-list"),
   attendanceEmpty: document.getElementById("attendance-empty"),
   closeAttendanceButton: document.getElementById("close-attendance-modal"),
+  participationModal: document.getElementById("participation-modal"),
+  closeParticipationButton: document.getElementById("close-participation-modal"),
+  participationStudentName: document.getElementById("participation-student-name"),
+  participationTotalCount: document.getElementById("participation-total-count"),
+  participationMathCount: document.getElementById("participation-math-count"),
+  participationPhysicsCount: document.getElementById("participation-physics-count"),
+  participationRecordsCount: document.getElementById("participation-records-count"),
+  participationList: document.getElementById("participation-list"),
+  participationEmpty: document.getElementById("participation-empty"),
   subscriptionModal: document.getElementById("subscription-modal"),
   subscriptionForm: document.getElementById("subscription-form"),
   subscriptionStudentName: document.getElementById("subscription-student-name"),
@@ -1739,6 +1756,24 @@ function openStudentActionsModal(student) {
   elements.studentActionsLevel.textContent = displayLevelLabel(student.level);
   elements.studentActionsList.replaceChildren();
 
+  if (elements.studentActionsAttendanceVal) elements.studentActionsAttendanceVal.textContent = "…";
+  if (elements.studentActionsParticipationVal) elements.studentActionsParticipationVal.textContent = "…";
+
+  if (elements.studentActionsAttendanceCard) {
+    elements.studentActionsAttendanceCard.onclick = () => {
+      closeStudentActionsModal();
+      void openAttendanceModal(student.id);
+    };
+  }
+  if (elements.studentActionsParticipationCard) {
+    elements.studentActionsParticipationCard.onclick = () => {
+      closeStudentActionsModal();
+      void openParticipationModal(student.id);
+    };
+  }
+
+  void fetchStudentStats(student.id);
+
   const datesButton = createButton("تحديد فترة الاشتراك", "student-action-modal-button", () => {
     closeStudentActionsModal();
     openSubscriptionDatesModal(student);
@@ -1766,6 +1801,10 @@ function openStudentActionsModal(student) {
     createButton("سجل الحضور", "student-action-modal-button", () => {
       closeStudentActionsModal();
       void openAttendanceModal(student.id);
+    }),
+    createButton("سجل المشاركات", "student-action-modal-button", () => {
+      closeStudentActionsModal();
+      void openParticipationModal(student.id);
     }),
     createButton("الشهادات", "student-action-modal-button", () => {
       closeStudentActionsModal();
@@ -4106,6 +4145,28 @@ function formatAttendanceDate(value) {
   }).format(date);
 }
 
+async function fetchStudentStats(studentId) {
+  try {
+    const response = await teacherFetch(
+      `/api/attendance/student/${encodeURIComponent(studentId)}`,
+      { headers: { Accept: "application/json" } }
+    );
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok) {
+      const attTotal = payload?.attendanceSummary?.totalCount ?? (Array.isArray(payload?.data) ? payload.data.length : 0);
+      const partTotal = payload?.participationSummary?.totalCount ?? 0;
+      if (elements.studentActionsAttendanceVal) {
+        elements.studentActionsAttendanceVal.textContent = String(attTotal);
+      }
+      if (elements.studentActionsParticipationVal) {
+        elements.studentActionsParticipationVal.textContent = String(partTotal);
+      }
+    }
+  } catch (err) {
+    console.warn("Unable to fetch student stats:", err);
+  }
+}
+
 function renderAttendanceRecords(records) {
   if (!elements.attendanceList) {
     return;
@@ -4114,32 +4175,52 @@ function renderAttendanceRecords(records) {
   elements.attendanceList.replaceChildren();
 
   if (!records.length) {
-    const empty = document.createElement("p");
-    empty.id = "attendance-empty";
-    empty.className = "attendance-empty";
-    empty.textContent = "لا يوجد سجل حضور للحصص المباشرة حتى الآن.";
-    elements.attendanceList.append(empty);
+    if (elements.attendanceEmpty) elements.attendanceEmpty.hidden = false;
     return;
   }
-
-  const list = document.createElement("ul");
-  list.className = "attendance-records";
+  if (elements.attendanceEmpty) elements.attendanceEmpty.hidden = true;
 
   for (const record of records) {
     const item = document.createElement("li");
-    item.className = "attendance-record";
+    item.className = "attendance-record-item";
+
+    const main = document.createElement("div");
+    main.className = "record-main";
+
+    const dateRow = document.createElement("div");
+    dateRow.className = "record-date-row";
 
     const date = document.createElement("strong");
-    date.textContent = formatAttendanceDate(record.joinedAt);
+    date.className = "record-date-str";
+    date.textContent = record.formattedDate || formatAttendanceDate(record.firstJoinedAt || record.joinedAt);
+    dateRow.append(date);
 
-    const level = document.createElement("span");
-    level.textContent = record.level || "المستوى الدراسي";
+    const notes = document.createElement("span");
+    notes.className = "record-notes";
+    const levelStr = record.level ? displayLevelLabel(record.level) : "المستوى الدراسي";
+    const rejoinsStr = record.joinCount && record.joinCount > 1 ? ` · (تم الاتصال ${record.joinCount} مرات)` : "";
+    notes.textContent = `${levelStr}${rejoinsStr}`;
 
-    item.append(date, level);
-    list.append(item);
+    main.append(dateRow, notes);
+
+    const badges = document.createElement("div");
+    badges.className = "record-badges";
+
+    const subjectTag = document.createElement("span");
+    const subj = String(record.subject || "MATH").toUpperCase();
+    const isMath = subj === "MATH" || subj === "الرياضيات";
+    const isPhys = subj === "PHYSICS" || subj === "الفيزياء";
+    subjectTag.className = `dash-subject-tag ${isMath ? "is-math" : isPhys ? "is-physics" : "is-free"}`;
+    subjectTag.textContent = record.subjectLabel || (isMath ? "الرياضيات" : isPhys ? "الفيزياء" : "حصة عامة");
+
+    const statusPill = document.createElement("span");
+    statusPill.className = "record-status-pill";
+    statusPill.textContent = "حاضر للبث ✓";
+
+    badges.append(subjectTag, statusPill);
+    item.append(main, badges);
+    elements.attendanceList.append(item);
   }
-
-  elements.attendanceList.append(list);
 }
 
 async function openAttendanceModal(studentId) {
@@ -4151,6 +4232,11 @@ async function openAttendanceModal(studentId) {
   if (elements.attendanceStudentName) {
     elements.attendanceStudentName.textContent = student.studentName;
   }
+
+  if (elements.attendanceTotalCount) elements.attendanceTotalCount.textContent = "0";
+  if (elements.attendanceMathCount) elements.attendanceMathCount.textContent = "0";
+  if (elements.attendancePhysicsCount) elements.attendancePhysicsCount.textContent = "0";
+  if (elements.attendanceRecordsCount) elements.attendanceRecordsCount.textContent = "0 حصة";
 
   renderAttendanceRecords([]);
   elements.attendanceModal.hidden = false;
@@ -4167,7 +4253,16 @@ async function openAttendanceModal(studentId) {
       throw new Error(payload.error || "تعذر تحميل سجل الحضور.");
     }
 
-    renderAttendanceRecords(Array.isArray(payload.data) ? payload.data : []);
+    const summary = payload.attendanceSummary;
+    if (summary) {
+      if (elements.attendanceTotalCount) elements.attendanceTotalCount.textContent = String(summary.totalCount || 0);
+      if (elements.attendanceMathCount) elements.attendanceMathCount.textContent = String(summary.mathCount || 0);
+      if (elements.attendancePhysicsCount) elements.attendancePhysicsCount.textContent = String(summary.physicsCount || 0);
+      if (elements.attendanceRecordsCount) elements.attendanceRecordsCount.textContent = `${summary.totalCount || 0} حصة`;
+      renderAttendanceRecords(Array.isArray(summary.sessions) ? summary.sessions : []);
+    } else {
+      renderAttendanceRecords(Array.isArray(payload.data) ? payload.data : []);
+    }
   } catch (error) {
     if (!/انتهت الجلسة/.test(error.message)) {
       console.error("Unable to load attendance history:", error);
@@ -4181,6 +4276,112 @@ function closeAttendanceModal() {
   elements.attendanceModal?.classList.remove("is-open");
   if (elements.attendanceModal) {
     elements.attendanceModal.hidden = true;
+  }
+}
+
+function renderParticipationRecords(sessions) {
+  if (!elements.participationList) return;
+  elements.participationList.replaceChildren();
+
+  if (!sessions.length) {
+    if (elements.participationEmpty) elements.participationEmpty.hidden = false;
+    return;
+  }
+  if (elements.participationEmpty) elements.participationEmpty.hidden = true;
+
+  for (const session of sessions) {
+    const item = document.createElement("li");
+    item.className = "attendance-record-item";
+
+    const main = document.createElement("div");
+    main.className = "record-main";
+
+    const dateRow = document.createElement("div");
+    dateRow.className = "record-date-row";
+
+    const date = document.createElement("strong");
+    date.className = "record-date-str";
+    date.textContent = session.formattedDate || formatAttendanceDate(session.lastParticipatedAt);
+    dateRow.append(date);
+
+    const notes = document.createElement("span");
+    notes.className = "record-notes";
+    const levelStr = session.level ? displayLevelLabel(session.level) : "المستوى الدراسي";
+    notes.textContent = `${levelStr} · مشاركة صوتية عبر المايك`;
+
+    main.append(dateRow, notes);
+
+    const badges = document.createElement("div");
+    badges.className = "record-badges";
+
+    const subjectTag = document.createElement("span");
+    const subj = String(session.subject || "MATH").toUpperCase();
+    const isMath = subj === "MATH" || subj === "الرياضيات";
+    const isPhys = subj === "PHYSICS" || subj === "الفيزياء";
+    subjectTag.className = `dash-subject-tag ${isMath ? "is-math" : isPhys ? "is-physics" : "is-free"}`;
+    subjectTag.textContent = session.subjectLabel || (isMath ? "الرياضيات" : isPhys ? "الفيزياء" : "حصة عامة");
+
+    const countPill = document.createElement("span");
+    countPill.className = "record-participation-count-pill";
+    countPill.textContent = `🎙️ ${session.count} ${session.count === 1 ? "مشاركة" : "مشاركات"}`;
+
+    badges.append(subjectTag, countPill);
+    item.append(main, badges);
+    elements.participationList.append(item);
+  }
+}
+
+async function openParticipationModal(studentId) {
+  const student = currentStudents.find((item) => item.id === studentId);
+  if (!student || !elements.participationModal) return;
+
+  if (elements.participationStudentName) {
+    elements.participationStudentName.textContent = student.studentName;
+  }
+
+  if (elements.participationTotalCount) elements.participationTotalCount.textContent = "0";
+  if (elements.participationMathCount) elements.participationMathCount.textContent = "0";
+  if (elements.participationPhysicsCount) elements.participationPhysicsCount.textContent = "0";
+  if (elements.participationRecordsCount) elements.participationRecordsCount.textContent = "0 مشاركة";
+
+  renderParticipationRecords([]);
+  elements.participationModal.hidden = false;
+  elements.participationModal.classList.add("is-open");
+
+  try {
+    const response = await teacherFetch(
+      `/api/attendance/student/${encodeURIComponent(studentId)}`,
+      { headers: { Accept: "application/json" } }
+    );
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(payload.error || "تعذر تحميل سجل المشاركات.");
+    }
+
+    const summary = payload.participationSummary;
+    if (summary) {
+      if (elements.participationTotalCount) elements.participationTotalCount.textContent = String(summary.totalCount || 0);
+      if (elements.participationMathCount) elements.participationMathCount.textContent = String(summary.mathCount || 0);
+      if (elements.participationPhysicsCount) elements.participationPhysicsCount.textContent = String(summary.physicsCount || 0);
+      if (elements.participationRecordsCount) elements.participationRecordsCount.textContent = `${summary.totalCount || 0} مشاركة`;
+      renderParticipationRecords(Array.isArray(summary.sessions) ? summary.sessions : []);
+    } else {
+      renderParticipationRecords([]);
+    }
+  } catch (error) {
+    if (!/انتهت الجلسة/.test(error.message)) {
+      console.error("Unable to load participation history:", error);
+      renderParticipationRecords([]);
+      showDashboardError(error.message || "تعذر تحميل سجل المشاركات.");
+    }
+  }
+}
+
+function closeParticipationModal() {
+  elements.participationModal?.classList.remove("is-open");
+  if (elements.participationModal) {
+    elements.participationModal.hidden = true;
   }
 }
 
@@ -4352,6 +4553,7 @@ if (!getTeacherToken()) {
   elements.presetSchoolYear?.addEventListener("click", () => applySubscriptionPreset("school_year"));
   elements.subscriptionDatesClearBtn?.addEventListener("click", () => applySubscriptionPreset("clear"));
   elements.closeAttendanceButton?.addEventListener("click", closeAttendanceModal);
+  elements.closeParticipationButton?.addEventListener("click", closeParticipationModal);
   elements.closeCardPreviewButton?.addEventListener("click", closeStudentCardPreview);
   elements.cardPreviewSaveDriveButton?.addEventListener("click", (event) => {
     if (cardPreviewStudentId) {
@@ -4383,10 +4585,23 @@ if (!getTeacherToken()) {
       closeAttendanceModal();
     }
   });
+  elements.participationModal?.addEventListener("click", (event) => {
+    if (event.target === elements.participationModal) {
+      closeParticipationModal();
+    }
+  });
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && elements.studentActionsModal && !elements.studentActionsModal.hidden) {
       closeStudentActionsModal();
+      return;
+    }
+    if (event.key === "Escape" && elements.attendanceModal && !elements.attendanceModal.hidden) {
+      closeAttendanceModal();
+      return;
+    }
+    if (event.key === "Escape" && elements.participationModal && !elements.participationModal.hidden) {
+      closeParticipationModal();
       return;
     }
     if (event.key === "Escape" && elements.studentCertificatesModal && !elements.studentCertificatesModal.hidden) {

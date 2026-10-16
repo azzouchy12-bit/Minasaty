@@ -2423,7 +2423,12 @@ io.on("connection", (socket) => {
 
       if (!isAlreadyJoined) {
         void prisma.attendance.create({
-          data: { studentId: student.id, level: student.level, sessionKey },
+          data: {
+            studentId: student.id,
+            level: student.level,
+            sessionKey,
+            subject: activeSubjectByLevel.get(classroomLevel) || "MATH",
+          },
         }).then(async (attendance) => {
           socket.data.attendanceId = attendance.id;
           if (!socket.connected) {
@@ -2925,7 +2930,7 @@ io.on("connection", (socket) => {
       setStudentMicrophoneOpen(level, socket.id, false, studentId);
       const micStartedAt = socket.data.micStartedAt;
       socket.data.micStartedAt = null;
-      if (micStartedAt && Date.now() - micStartedAt >= 10000) {
+      if (micStartedAt && Date.now() - micStartedAt >= 5000) {
         void recordClassParticipation({ studentId, level: socket.data.studentAcademicLevel || level,
           subject: activeSubjectByLevel.get(level), sessionKey: io.sockets.sockets.get(activeTeachersByLevel.get(level))?.data?.classResumeToken })
           .catch((error) => console.warn("Self-mute participation recording failed:", error.message));
@@ -2986,7 +2991,7 @@ io.on("connection", (socket) => {
       } else if (!enabled && wasOpen && targetSocket.data.micStartedAt) {
         const micDurationSeconds = Math.floor((Date.now() - targetSocket.data.micStartedAt) / 1000);
         targetSocket.data.micStartedAt = null;
-        if (micDurationSeconds >= 10) {
+        if (micDurationSeconds >= 5) {
           try {
             await recordClassParticipation({
               studentId: targetSocket.data.studentId,
@@ -3078,7 +3083,7 @@ io.on("connection", (socket) => {
             if (targetSocket.data.micStartedAt) {
               const micDurationSeconds = Math.floor((Date.now() - targetSocket.data.micStartedAt) / 1000);
               targetSocket.data.micStartedAt = null;
-              if (micDurationSeconds >= 10) {
+              if (micDurationSeconds >= 5) {
                 void recordClassParticipation({
                   studentId: targetSocket.data.studentId,
                   level: targetSocket.data.studentAcademicLevel || level,
@@ -3228,16 +3233,7 @@ io.on("connection", (socket) => {
       await webrtcRoutes.syncStudentMicrophonePermission(level, targetSocket.data.studentId, true);
       setStudentWhiteboardAccess(level, targetSocketId, true);
       if (!wasOpen) {
-        try {
-          await recordClassParticipation({
-            studentId: targetSocket.data.studentId,
-            level: targetSocket.data.studentAcademicLevel || level,
-            subject: activeSubjectByLevel.get(level),
-            sessionKey: socket.data.classResumeToken,
-          });
-        } catch (partErr) {
-          console.warn("Approve mic record participation error:", partErr.message);
-        }
+        targetSocket.data.micStartedAt = Date.now();
       }
       try {
         const participationCount = await getStudent24HourParticipation(targetSocket.data.studentId);
@@ -3773,7 +3769,7 @@ io.on("connection", (socket) => {
       // Record final mic participation if still open
       if (socket.data.micStartedAt) {
         const micDurationSeconds = Math.floor((Date.now() - socket.data.micStartedAt) / 1000);
-        if (micDurationSeconds >= 10) {
+        if (micDurationSeconds >= 5) {
           const teacherSocketId = activeTeachersByLevel.get(classroomLevel);
           const teacherSocket = teacherSocketId ? io.sockets.sockets.get(teacherSocketId) : null;
           const sessionKey = teacherSocket?.data?.classResumeToken;

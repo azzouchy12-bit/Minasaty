@@ -2352,7 +2352,9 @@ async function loadActivityStats(studentId) {
     if (!currentStudent || currentStudent.id !== studentId) return;
 
     const attendanceRows = Array.isArray(attendancePayload.data) ? attendancePayload.data : [];
-    const qualifyingAttendance = attendanceRows.filter((entry) => Number(entry?.durationMinutes) >= 60).length;
+    const qualifyingAttendance = attendancePayload?.attendanceSummary?.totalCount !== undefined
+      ? (Number(attendancePayload.attendanceSummary.totalCount) || 0)
+      : attendanceRows.length;
     const participationTotal = Number(progressPayload?.data?.participationTotal) || 0;
     const assignments = Array.isArray(assignmentsPayload.data) ? assignmentsPayload.data : [];
     const submittedAssignments = assignments.filter((assignment) => Array.isArray(assignment?.submissions) && assignment.submissions.length > 0).length;

@@ -438,6 +438,7 @@ model Attendance {
   id              String   @id @default(uuid()) @db.Uuid
   studentId       String   @db.Uuid
   level           String
+  subject         String?
   sessionKey      String?
   joinedAt        DateTime @default(now())
   durationMinutes Int      @default(0)
