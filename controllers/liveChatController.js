@@ -15,7 +15,7 @@ const imageUploadDirectory = path.join(
 const teacherChatImageDirectory = path.join(imageUploadDirectory, "teacher-shared");
 const TEACHER_CHAT_IMAGE_ID_PATTERN = /^tci_([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 
-// Clean up any remaining question images on server disk so server remains lightweight
+// Clean up helper if manual cleanup is requested
 async function cleanupOldLiveQuestionImagesOnDisk() {
   try {
     if (fs.existsSync(imageUploadDirectory)) {
@@ -33,7 +33,6 @@ async function cleanupOldLiveQuestionImagesOnDisk() {
     console.warn("Failed to clean live question images from disk:", err.message);
   }
 }
-cleanupOldLiveQuestionImagesOnDisk();
 
 function normalizeText(value) {
   return typeof value === "string" ? value.trim() : "";
