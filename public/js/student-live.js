@@ -1244,6 +1244,7 @@ function unpublishStudentSfuMic() {
 
 async function publishStudentP2pMic(track, stream) {
   if (!pc || !track || track.readyState !== "live") return false;
+  const publishingPeer = pc;
   const senders = typeof pc.getSenders === "function" ? pc.getSenders() : [];
   const existingSender = senders.find((s) => s === studentP2pMicSender || s.__isStudentMic);
   if (existingSender && typeof existingSender.replaceTrack === "function") {
@@ -1252,11 +1253,12 @@ async function publishStudentP2pMic(track, stream) {
       await existingSender.replaceTrack(track);
     } catch (error) {
       window.LiveDoctor?.report("microphone_replace_track_failed", { source: "p2p", errorName: error?.name || "Error" });
+      return false;
     }
+    if (pc !== publishingPeer || !microphonePermissionGranted) return false;
     microphoneOfferSent = false;
     microphoneNegotiated = false;
-    await negotiateStudentMicrophone();
-    return true;
+    return await negotiateStudentMicrophone();
   }
   try {
     studentP2pMicSender = pc.addTrack(track, stream);
@@ -1265,8 +1267,7 @@ async function publishStudentP2pMic(track, stream) {
     }
     microphoneOfferSent = false;
     microphoneNegotiated = false;
-    await negotiateStudentMicrophone();
-    return true;
+    return await negotiateStudentMicrophone();
   } catch (err) {
     console.warn("[P2P-Student] addTrack for mic failed:", err);
     window.LiveDoctor?.report("microphone_publish_failed", { source: "p2p", errorName: err?.name || "Error" });
@@ -6158,36 +6159,54 @@ async function negotiateStudentMicrophone() {
     isMakingRenegotiationOffer ||
     pc.signalingState !== "stable"
   ) {
-    return;
+    return false;
   }
 
   isMakingRenegotiationOffer = true;
+  const negotiatingPeer = pc;
+  const targetTeacher = teacherSocketId;
+  const stillCurrent = () => pc === negotiatingPeer && teacherSocketId === targetTeacher && microphonePermissionGranted;
 
   try {
-    const negotiatingPeer = pc;
     if (typeof window.getMinasatyRtcConfig === "function") {
       Object.assign(rtcConfig, await window.getMinasatyRtcConfig());
-      if (pc !== negotiatingPeer || pc.signalingState !== "stable") return;
+      if (!stillCurrent() || negotiatingPeer.signalingState !== "stable") return false;
       if (typeof pc.setConfiguration === "function") pc.setConfiguration(rtcConfig);
     }
-    const offer = await pc.createOffer();
+    const offer = await negotiatingPeer.createOffer();
+    if (!stillCurrent() || negotiatingPeer.signalingState !== "stable") return false;
     const optimizedSdp = optimizeOpusSdp(offer.sdp);
-    await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: optimizedSdp }));
+    await negotiatingPeer.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: optimizedSdp }));
+    if (!stillCurrent()) return false;
 
     await emitWithAcknowledgement("webrtc_renegotiation_offer", {
-      targetSocketId: teacherSocketId,
-      sdp: pc.localDescription,
+      targetSocketId: targetTeacher,
+      sdp: negotiatingPeer.localDescription,
     });
+    if (!stillCurrent()) return false;
 
     microphoneOfferSent = true;
     setViewerStatus("جارٍ ربط مايكك بالأستاذ…", "warning");
+    return true;
   } catch (error) {
     console.error("Unable to negotiate the approved microphone track:", error);
     window.LiveDoctor?.report("microphone_negotiation_failed", { errorName: error?.name || "Error" });
-    microphoneOfferSent = false;
-    setViewerStatus("تعذر تشغيل المايك مع الحصة. حاول رفع اليد مرة أخرى.", "error");
+    if (stillCurrent()) {
+      // A rejected relay must not leave the peer stuck with a pending offer,
+      // otherwise the next manual microphone attempt cannot negotiate.
+      if (negotiatingPeer.signalingState === "have-local-offer") {
+        try { await negotiatingPeer.setLocalDescription({ type: "rollback" }); }
+        catch (rollbackError) {
+          window.LiveDoctor?.report("microphone_rollback_failed", { errorName: rollbackError?.name || "Error" });
+        }
+      }
+      if (!stillCurrent()) return false;
+      microphoneOfferSent = false;
+      setViewerStatus("تعذر تشغيل المايك مع الحصة. حاول رفع اليد مرة أخرى.", "error");
+    }
+    return false;
   } finally {
-    isMakingRenegotiationOffer = false;
+    if (pc === negotiatingPeer) isMakingRenegotiationOffer = false;
   }
 }
 
@@ -6358,7 +6377,10 @@ async function enableApprovedMicrophone() {
 
     // Fallback path: P2P
     if (pc) {
-      await publishStudentP2pMic(existingTrack, localAudioStream);
+      const published = await publishStudentP2pMic(existingTrack, localAudioStream);
+      if (!published && microphonePermissionGranted && joinedClass) {
+        setViewerStatus("لم يكتمل ربط المايك بالأستاذ. أعد محاولة تشغيل المايك.", "warning");
+      }
       updateMicControl();
       if (typeof ensureTeacherAudioPlayback === "function") {
         await ensureTeacherAudioPlayback({ sourceHint: "enableApprovedMicrophone_existing_p2p" });
@@ -6435,7 +6457,10 @@ async function enableApprovedMicrophone() {
 
     // 2. Fallback path: P2P
     if (pc && teacherSocketId && newTrack) {
-      await publishStudentP2pMic(newTrack, localAudioStream);
+      const published = await publishStudentP2pMic(newTrack, localAudioStream);
+      if (!published && microphonePermissionGranted && joinedClass) {
+        setViewerStatus("لم يكتمل ربط المايك بالأستاذ. أعد محاولة تشغيل المايك.", "warning");
+      }
       updateMicControl();
       if (typeof ensureTeacherAudioPlayback === "function") {
         await ensureTeacherAudioPlayback({ sourceHint: "enableApprovedMicrophone_fresh_p2p" });
