@@ -148,11 +148,37 @@ test("summarizeParticipations groups by subject and session", () => {
   ];
 
   const summary = summarizeParticipations(mockParticipations);
-  // Total count = 2 + 1 + 3 = 6 participations across 3 session records
+  // Total count = 2 + 1 + 3 = 6 participations across 2 calendar day sessions (Oct 10 & Oct 11)
   assert.strictEqual(summary.totalCount, 6, "Total participations should be 6");
   assert.strictEqual(summary.mathCount, 3, "Math participations should be 3");
   assert.strictEqual(summary.physicsCount, 3, "Physics participations should be 3");
-  assert.strictEqual(summary.sessions.length, 3);
+  assert.strictEqual(summary.sessions.length, 2, "Oct 10 morning and afternoon should be consolidated to 1 session for that day");
+});
+
+test("summarizeAttendances consolidates multiple joins across a single day (e.g. 8:13, 8:18, 8:22, 8:23) into exactly 1 attendance row", () => {
+  const { summarizeAttendances } = require(path.join(root, "controllers/attendanceController.js"));
+
+  // Exactly like the user's screenshot on Sept 9, 2026:
+  const sept9Records = [
+    { id: "1", joinedAt: new Date("2026-09-09T19:13:44Z"), durationMinutes: 1, subject: "MATH", level: "السنة الرابعة" },
+    { id: "2", joinedAt: new Date("2026-09-09T19:14:33Z"), durationMinutes: 0, subject: "MATH", level: "السنة الرابعة" },
+    { id: "3", joinedAt: new Date("2026-09-09T19:18:38Z"), durationMinutes: 0, subject: "MATH", level: "السنة الرابعة" },
+    { id: "4", joinedAt: new Date("2026-09-09T19:22:19Z"), durationMinutes: 0, subject: "PHYSICS", level: "السنة الرابعة" },
+    { id: "5", joinedAt: new Date("2026-09-09T19:23:20Z"), durationMinutes: 20, subject: "PHYSICS", level: "السنة الرابعة" },
+    { id: "6", joinedAt: new Date("2026-09-09T19:44:14Z"), durationMinutes: 20, subject: "PHYSICS", level: "السنة الرابعة" },
+    { id: "7", joinedAt: new Date("2026-09-09T20:05:23Z"), durationMinutes: 29, subject: "PHYSICS", level: "السنة الرابعة" },
+    { id: "8", joinedAt: new Date("2026-09-09T20:36:38Z"), durationMinutes: 38, subject: "PHYSICS", level: "السنة الرابعة" },
+    { id: "9", joinedAt: new Date("2026-09-09T21:15:10Z"), durationMinutes: 5, subject: "PHYSICS", level: "السنة الرابعة" },
+  ];
+
+  const summary = summarizeAttendances(sept9Records);
+  assert.strictEqual(summary.totalCount, 1, "Must be exactly 1 attendance for the entire day");
+  assert.strictEqual(summary.physicsCount, 1, "Dominant subject of that day must be PHYSICS");
+  assert.strictEqual(summary.mathCount, 0);
+  assert.strictEqual(summary.sessions.length, 1);
+  assert.strictEqual(summary.sessions[0].joinCount, 9);
+  assert.strictEqual(summary.sessions[0].totalDurationMinutes, 113);
+  assert.strictEqual(summary.sessions[0].subject, "PHYSICS");
 });
 
 test("parent-dashboard.js uses attendanceSummary.totalCount instead of 60 minute duration check", () => {

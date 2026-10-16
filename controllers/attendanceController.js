@@ -51,43 +51,41 @@ function formatAttendanceDate(dateInput) {
 
 /**
  * Deduplicate attendances according to the rule:
- * If a student enters during the 08:00 - 21:00 window (or daytime/evening live session),
- * multiple joins/reconnects on the same day for the same subject/session count as EXACTLY 1 attendance.
+ * In any single calendar day (08:00 - 23:00 Algeria time),
+ * attendance is counted EXACTLY ONCE per day.
+ * Multiple joins/reconnects on the same day are consolidated into 1 attendance session.
+ * The primary subject of the day is determined by duration and activity.
  */
 function summarizeAttendances(records) {
-  const sessionMap = new Map();
+  const dayMap = new Map();
 
-  for (const rec of records) {
+  for (const rec of (Array.isArray(records) ? records : [])) {
     const parts = getAlgeriaDateParts(rec.joinedAt);
     if (!parts) continue;
 
-    // Filter to the live session window (8:00 to 22:00) or count any valid classroom visit
-    const isWithinWindow = parts.hour >= 8 && parts.hour <= 22;
-    if (!isWithinWindow && rec.durationMinutes <= 0) {
+    // Filter to live session window (8:00 to 23:00) or any record with duration
+    const isWithinWindow = parts.hour >= 8 && parts.hour <= 23;
+    if (!isWithinWindow && (rec.durationMinutes || 0) <= 0) {
       continue;
     }
 
+    const groupKey = parts.dateKey; // Strictly ONE attendance per calendar day
     const subject = normalizeSubject(rec.subject);
-    // Grouping key: by sessionKey if present, or by date + subject
-    const groupKey = rec.sessionKey
-      ? `session_${rec.sessionKey}_${subject}`
-      : `day_${parts.dateKey}_${subject}`;
-
-    const existing = sessionMap.get(groupKey);
     const duration = Math.max(0, Number(rec.durationMinutes) || 0);
 
+    const existing = dayMap.get(groupKey);
     if (!existing) {
-      sessionMap.set(groupKey, {
+      dayMap.set(groupKey, {
         id: rec.id,
-        sessionKey: rec.sessionKey || null,
         dateKey: parts.dateKey,
-        subject,
-        subjectLabel: subject === "MATH" ? "الرياضيات" : subject === "PHYSICS" ? "الفيزياء" : "حصة عامة",
-        level: rec.level || "",
         firstJoinedAt: rec.joinedAt,
         latestJoinedAt: rec.joinedAt,
+        level: rec.level || "",
         totalDurationMinutes: duration,
         joinCount: 1,
+        subjectStats: {
+          [subject]: { duration, count: 1, lastAt: new Date(rec.joinedAt).getTime() }
+        }
       });
     } else {
       existing.joinCount += 1;
@@ -98,15 +96,49 @@ function summarizeAttendances(records) {
       if (new Date(rec.joinedAt) > new Date(existing.latestJoinedAt)) {
         existing.latestJoinedAt = rec.joinedAt;
       }
+      if (!existing.subjectStats[subject]) {
+        existing.subjectStats[subject] = { duration, count: 1, lastAt: new Date(rec.joinedAt).getTime() };
+      } else {
+        existing.subjectStats[subject].duration += duration;
+        existing.subjectStats[subject].count += 1;
+        existing.subjectStats[subject].lastAt = Math.max(existing.subjectStats[subject].lastAt, new Date(rec.joinedAt).getTime());
+      }
     }
   }
 
-  const sessions = Array.from(sessionMap.values()).sort(
-    (a, b) => new Date(b.firstJoinedAt) - new Date(a.firstJoinedAt)
-  ).map((item) => ({
-    ...item,
-    formattedDate: formatAttendanceDate(item.firstJoinedAt),
-  }));
+  // Resolve final dominant subject for each day
+  const sessions = Array.from(dayMap.values()).map((item) => {
+    let dominantSubject = "MATH";
+    let maxDuration = -1;
+    let maxCount = -1;
+    let latestTime = 0;
+
+    for (const [subj, stats] of Object.entries(item.subjectStats)) {
+      if (
+        stats.duration > maxDuration ||
+        (stats.duration === maxDuration && stats.count > maxCount) ||
+        (stats.duration === maxDuration && stats.count === maxCount && stats.lastAt > latestTime)
+      ) {
+        dominantSubject = subj;
+        maxDuration = stats.duration;
+        maxCount = stats.count;
+        latestTime = stats.lastAt;
+      }
+    }
+
+    return {
+      id: item.id,
+      dateKey: item.dateKey,
+      subject: dominantSubject,
+      subjectLabel: dominantSubject === "MATH" ? "الرياضيات" : dominantSubject === "PHYSICS" ? "الفيزياء" : "حصة عامة",
+      level: item.level,
+      firstJoinedAt: item.firstJoinedAt,
+      latestJoinedAt: item.latestJoinedAt,
+      totalDurationMinutes: item.totalDurationMinutes,
+      joinCount: item.joinCount,
+      formattedDate: formatAttendanceDate(item.firstJoinedAt),
+    };
+  }).sort((a, b) => new Date(b.firstJoinedAt) - new Date(a.firstJoinedAt));
 
   const mathCount = sessions.filter((s) => s.subject === "MATH").length;
   const physicsCount = sessions.filter((s) => s.subject === "PHYSICS").length;
@@ -122,30 +154,76 @@ function summarizeAttendances(records) {
 }
 
 function summarizeParticipations(records) {
+  const dayMap = new Map();
+  let totalCount = 0;
   let mathCount = 0;
   let physicsCount = 0;
   let freeCount = 0;
-  let totalCount = 0;
 
-  const sessions = (Array.isArray(records) ? records : []).map((item) => {
-    const subject = normalizeSubject(item.subject);
+  for (const item of (Array.isArray(records) ? records : [])) {
     const count = Math.max(0, Number(item.count) || 0);
-    totalCount += count;
+    if (count <= 0) continue;
 
+    const parts = getAlgeriaDateParts(item.lastParticipatedAt || item.createdAt);
+    const dateKey = parts ? parts.dateKey : "unknown";
+    const subject = normalizeSubject(item.subject);
+    const micSeconds = Math.max(0, Number(item.micSeconds) || 0);
+
+    totalCount += count;
     if (subject === "MATH") mathCount += count;
     else if (subject === "PHYSICS") physicsCount += count;
     else freeCount += count;
 
+    const existing = dayMap.get(dateKey);
+    const itemDate = item.lastParticipatedAt || item.createdAt;
+
+    if (!existing) {
+      dayMap.set(dateKey, {
+        id: item.id,
+        sessionKey: item.sessionKey,
+        dateKey,
+        subject,
+        subjectLabel: subject === "MATH" ? "الرياضيات" : subject === "PHYSICS" ? "الفيزياء" : "حصة عامة",
+        level: item.level || "",
+        count,
+        micSeconds,
+        lastParticipatedAt: itemDate,
+        subjectStats: {
+          [subject]: count,
+        },
+      });
+    } else {
+      existing.count += count;
+      existing.micSeconds += micSeconds;
+      existing.subjectStats[subject] = (existing.subjectStats[subject] || 0) + count;
+      if (new Date(itemDate) > new Date(existing.lastParticipatedAt)) {
+        existing.lastParticipatedAt = itemDate;
+      }
+    }
+  }
+
+  const sessions = Array.from(dayMap.values()).map((item) => {
+    // Pick dominant subject for the day's participation
+    let dominantSubject = item.subject;
+    let maxSubjectCount = -1;
+    for (const [subj, c] of Object.entries(item.subjectStats)) {
+      if (c > maxSubjectCount) {
+        dominantSubject = subj;
+        maxSubjectCount = c;
+      }
+    }
+
     return {
       id: item.id,
       sessionKey: item.sessionKey,
-      subject,
-      subjectLabel: subject === "MATH" ? "الرياضيات" : subject === "PHYSICS" ? "الفيزياء" : "حصة عامة",
+      dateKey: item.dateKey,
+      subject: dominantSubject,
+      subjectLabel: dominantSubject === "MATH" ? "الرياضيات" : dominantSubject === "PHYSICS" ? "الفيزياء" : "حصة عامة",
       level: item.level,
-      count,
-      micSeconds: item.micSeconds || 0,
+      count: item.count,
+      micSeconds: item.micSeconds,
       lastParticipatedAt: item.lastParticipatedAt,
-      formattedDate: formatAttendanceDate(item.lastParticipatedAt || item.createdAt),
+      formattedDate: formatAttendanceDate(item.lastParticipatedAt),
     };
   }).sort((a, b) => new Date(b.lastParticipatedAt) - new Date(a.lastParticipatedAt));
 
