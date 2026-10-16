@@ -45,7 +45,8 @@ function renderStudentProgress(data) {
   renderList($("student-participations"), data.participations, (item) => `<div class="academic-list-item participation-list-item"><div><strong>${escapeHtml(item.subject === "PHYSICS" ? "الفيزياء" : item.subject === "MATH" ? "الرياضيات" : item.subject)}</strong><small>${escapeHtml(item.level)} · آخر مشاركة: ${new Date(item.lastParticipatedAt || item.updatedAt || item.createdAt).toLocaleDateString("ar-DZ")}</small></div><strong>${Number(item.count || 0)} مشاركة</strong></div>`);
   $("student-average").textContent = average === null ? "—" : `${Math.round(average)}%`;
   $("student-completed").textContent = (data.progress || []).filter((item) => item.completed).length;
-  $("student-submissions").textContent = (data.assignments || []).length;
+  const exercisePhotosCount = data.liveQuestionImagesCount != null ? Number(data.liveQuestionImagesCount) : (data.assignments || []).length;
+  $("student-submissions").textContent = String(exercisePhotosCount);
   $("student-badges").textContent = (data.badges || []).length;
   renderList($("student-path"), data.path, (item) => `<div class="academic-list-item"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.subject)} · ${escapeHtml(item.status)}</small></div><span class="status-pill ${item.status === "DONE" ? "" : "pending"}">${item.status === "DONE" ? "مكتمل" : "قيد المتابعة"}</span></div>`);
   const evaluationEntries = [

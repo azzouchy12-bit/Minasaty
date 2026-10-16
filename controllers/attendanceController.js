@@ -271,7 +271,7 @@ async function getAttendanceForStudent(req, res) {
       });
     }
 
-    const [attendances, participations] = await Promise.all([
+    const [attendances, participations, questionImages] = await Promise.all([
       prisma.attendance.findMany({
         where: { studentId: student.id },
         orderBy: { joinedAt: "desc" },
@@ -298,16 +298,32 @@ async function getAttendanceForStudent(req, res) {
           createdAt: true,
         },
       }),
+      prisma.liveQuestionImage.findMany({
+        where: { studentId: student.id },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          level: true,
+          fileName: true,
+          originalName: true,
+          createdAt: true,
+        },
+      }),
     ]);
 
     const attendanceSummary = summarizeAttendances(attendances);
     const participationSummary = summarizeParticipations(participations);
+    const exercisesSummary = {
+      totalCount: questionImages.length,
+      items: questionImages,
+    };
 
     return res.status(200).json({
       status: "success",
       data: attendances,
       attendanceSummary,
       participationSummary,
+      exercisesSummary,
     });
   } catch (error) {
     console.error("Attendance retrieval failed:", error);

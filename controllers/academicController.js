@@ -170,32 +170,46 @@ async function listTeacherAssignments(req, res) {
 async function listAssignments(req, res) {
   const student = await getStudentForUser(req, text(req.params.studentId, 80));
   if (!student) return res.status(403).json({ error: "لا تملك صلاحية هذه البيانات." });
-  const assignments = await prisma.assignment.findMany({
-    where: { level: { in: assignmentLevelCandidates(student.level) }, ...(req.query.subject ? { subject: text(req.query.subject, 40).toUpperCase() } : {}) },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      level: true,
-      subject: true,
-      dueAt: true,
-      attachmentUrl: true,
-      attachmentMimeType: true,
-      attachmentOriginalName: true,
-      instructionImageMimeType: true,
-      instructionImageOriginalName: true,
-      createdAt: true,
-      updatedAt: true,
-      submissions: {
-        where: { studentId: student.id },
-        take: 1,
-        select: { id: true, status: true, receivedAt: true, grade: true, teacherNote: true, submittedAt: true, gradedAt: true, attachmentUrl: true, attachmentMimeType: true, attachmentOriginalName: true, answerText: true },
+  const [assignments, questionImages] = await Promise.all([
+    prisma.assignment.findMany({
+      where: { level: { in: assignmentLevelCandidates(student.level) }, ...(req.query.subject ? { subject: text(req.query.subject, 40).toUpperCase() } : {}) },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        level: true,
+        subject: true,
+        dueAt: true,
+        attachmentUrl: true,
+        attachmentMimeType: true,
+        attachmentOriginalName: true,
+        instructionImageMimeType: true,
+        instructionImageOriginalName: true,
+        createdAt: true,
+        updatedAt: true,
+        submissions: {
+          where: { studentId: student.id },
+          take: 1,
+          select: { id: true, status: true, receivedAt: true, grade: true, teacherNote: true, submittedAt: true, gradedAt: true, attachmentUrl: true, attachmentMimeType: true, attachmentOriginalName: true, answerText: true },
+        },
       },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
-  return res.json({ status: "success", data: assignments });
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.liveQuestionImage.findMany({
+      where: { studentId: student.id },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        level: true,
+        fileName: true,
+        originalName: true,
+        createdAt: true,
+      },
+    }),
+  ]);
+  return res.json({ status: "success", data: assignments, liveExercises: questionImages, liveQuestionImagesCount: questionImages.length });
 }
 
 async function submitAssignment(req, res) {
@@ -327,16 +341,18 @@ async function submitAssessment(req, res) {
 async function getProgress(req, res) {
   const student = await getStudentForUser(req, text(req.params.studentId, 80));
   if (!student) return res.status(403).json({ error: "لا تملك صلاحية هذه البيانات." });
-  const [progress, grades, assignments, badges, path, participations] = await Promise.all([
+  const [progress, grades, assignments, badges, path, participations, questionImages] = await Promise.all([
     prisma.lessonProgress.findMany({ where: { studentId: student.id }, include: { lessonVideo: true }, orderBy: { updatedAt: "desc" }, take: 100 }),
     prisma.grade.findMany({ where: { studentId: student.id }, orderBy: { gradedAt: "desc" }, take: 100 }),
     prisma.assignmentSubmission.findMany({ where: { studentId: student.id }, include: { assignment: true }, orderBy: { submittedAt: "desc" }, take: 100 }),
     prisma.studentBadge.findMany({ where: { studentId: student.id }, orderBy: { awardedAt: "desc" } }),
     prisma.learningPathItem.findMany({ where: { studentId: student.id }, orderBy: { position: "asc" } }),
     prisma.classParticipation.findMany({ where: { studentId: student.id }, orderBy: { lastParticipatedAt: "desc" }, take: 100 }),
+    prisma.liveQuestionImage.findMany({ where: { studentId: student.id }, orderBy: { createdAt: "desc" }, select: { id: true, level: true, fileName: true, originalName: true, createdAt: true }, take: 100 }),
   ]);
   const participationTotal = participations.reduce((sum, item) => sum + item.count, 0);
-  return res.json({ status: "success", data: { progress, grades, assignments, badges, path, participations, participationTotal } });
+  const liveQuestionImagesCount = questionImages.length;
+  return res.json({ status: "success", data: { progress, grades, assignments, badges, path, participations, participationTotal, liveQuestionImagesCount, liveQuestionImages: questionImages } });
 }
 
 async function updateLessonProgress(req, res) {

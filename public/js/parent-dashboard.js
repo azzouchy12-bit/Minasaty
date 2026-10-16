@@ -432,14 +432,87 @@ async function submitHomeworkSolution(assignmentId, form, submitButton) {
   }
 }
 
-function renderStudentHomework(assignments = []) {
+async function openStudentExercisePhoto(exerciseId, title = "حل تمرين أثناء الحصة") {
+  if (!exerciseId || !elements.studentHomeworkFileModal) return;
+  try {
+    closeStudentHomeworkFile();
+    const token = sessionStorage.getItem("parentToken") || localStorage.getItem("parentToken") || "";
+    const response = await fetch(`/api/live-chat/question-image/${encodeURIComponent(exerciseId)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error("تعذر تحميل صورة التمرين.");
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    homeworkFileObjectUrl = url;
+    if (elements.studentHomeworkFileTitle) elements.studentHomeworkFileTitle.textContent = title;
+    if (elements.studentHomeworkFileImage) {
+      elements.studentHomeworkFileImage.hidden = false;
+      elements.studentHomeworkFileImage.src = url;
+    }
+    if (elements.studentHomeworkFileFrame) {
+      elements.studentHomeworkFileFrame.hidden = true;
+    }
+    if (elements.studentHomeworkFileHint) {
+      elements.studentHomeworkFileHint.textContent = "اضغط بإصبعين للتكبير والتحريك.";
+    }
+    resetHomeworkFileTransform();
+    elements.studentHomeworkFileModal.hidden = false;
+    elements.studentHomeworkFileModal.classList.add("is-open");
+    document.body.style.overflow = "hidden";
+    elements.studentHomeworkFileClose?.focus();
+  } catch (error) {
+    if (!/انتهت الجلسة/.test(error.message)) openDocumentFeedback(error.message || "تعذر فتح صورة التمرين.");
+  }
+}
+
+function renderStudentHomework(assignments = [], liveExercises = []) {
   if (!elements.studentHomeworkList) return;
   elements.studentHomeworkList.replaceChildren();
-  if (!assignments.length) {
-    elements.studentHomeworkList.append(showHomeworkEmptyState("لا توجد واجبات منشورة لهذا المستوى حالياً."));
+  if (!assignments.length && !liveExercises.length) {
+    elements.studentHomeworkList.append(showHomeworkEmptyState("لا توجد تمارين أو واجبات مسجلة لهذا التلميذ بعد."));
     return;
   }
 
+  // 1. Render exercise photos sent during live class that arrived to Telegram
+  liveExercises.forEach((exercise) => {
+    const item = document.createElement("article");
+    item.className = "student-homework-item live-exercise-item";
+
+    const head = document.createElement("div");
+    head.className = "student-homework-head";
+    const statusBadge = document.createElement("span");
+    statusBadge.className = "student-homework-status is-approved";
+    statusBadge.textContent = "وصلت للأستاذ عبر تيليجرام ✓";
+    head.append(statusBadge);
+
+    const subject = document.createElement("small");
+    subject.className = "homework-subject";
+    subject.textContent = "المشاركة - حل التمارين أثناء الحصة";
+
+    const dateStr = exercise.createdAt ? new Intl.DateTimeFormat("ar-DZ", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Africa/Algiers",
+    }).format(new Date(exercise.createdAt)) : "";
+
+    const description = document.createElement("p");
+    description.className = "student-homework-desc";
+    description.textContent = `📸 صورة حل تمرين أرسلها التلميذ مباشرة للأستاذ أثناء الحصة (${dateStr}).`;
+
+    const previewBtn = document.createElement("button");
+    previewBtn.type = "button";
+    previewBtn.className = "cta-button is-secondary solution-preview-btn";
+    previewBtn.style.cssText = "margin-top: 10px; font-size: 0.85rem; padding: 6px 14px; border-radius: 8px; cursor: pointer;";
+    previewBtn.textContent = "👁 معاينة صورة التمرين";
+    previewBtn.addEventListener("click", () => {
+      openStudentExercisePhoto(exercise.id, "حل تمرين أثناء الحصة");
+    });
+
+    item.append(head, subject, description, previewBtn);
+    elements.studentHomeworkList.append(item);
+  });
+
+  // 2. Render standard assignments if any exist
   assignments.forEach((assignment) => {
     const submission = Array.isArray(assignment.submissions) ? assignment.submissions[0] : null;
     const status = homeworkStatusMeta(submission);
@@ -517,17 +590,20 @@ function renderStudentHomework(assignments = []) {
 
 async function loadStudentHomework(studentId) {
   if (!elements.studentHomeworkList || !studentId) return;
-  elements.studentHomeworkList.replaceChildren(showHomeworkEmptyState("جارٍ تحميل الواجبات…"));
+  elements.studentHomeworkList.replaceChildren(showHomeworkEmptyState("جارٍ تحميل التمارين والحلول…"));
   try {
     const response = await parentFetch(`/api/academic/students/${encodeURIComponent(studentId)}/assignments`, { headers: { Accept: "application/json" } });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || "تعذر تحميل الواجبات.");
+    if (!response.ok) throw new Error(payload.error || "تعذر تحميل التمارين والحلول.");
     if (!currentStudent || currentStudent.id !== studentId) return;
-    renderStudentHomework(Array.isArray(payload.data) ? payload.data : []);
+    renderStudentHomework(
+      Array.isArray(payload.data) ? payload.data : [],
+      Array.isArray(payload.liveExercises) ? payload.liveExercises : []
+    );
   } catch (error) {
     if (/انتهت الجلسة/.test(error.message)) return;
     console.error("Unable to load student homework:", error);
-    if (currentStudent?.id === studentId) elements.studentHomeworkList.replaceChildren(showHomeworkEmptyState("تعذر تحميل الواجبات حالياً."));
+    if (currentStudent?.id === studentId) elements.studentHomeworkList.replaceChildren(showHomeworkEmptyState("تعذر تحميل التمارين والحلول حالياً."));
   }
 }
 
@@ -2324,7 +2400,7 @@ async function loadActivityStats(studentId) {
   if (!studentId) {
     setActivityStat(elements.attendanceCount, 0);
     setActivityStat(elements.participationCount, 0);
-    setActivityStat(elements.homeworkCount, "0 / 0");
+    setActivityStat(elements.homeworkCount, 0);
     return;
   }
 
@@ -2348,7 +2424,7 @@ async function loadActivityStats(studentId) {
 
     if (!attendanceResponse.ok) throw new Error(attendancePayload.error || "تعذر تحميل الحضور.");
     if (!progressResponse.ok) throw new Error(progressPayload.error || "تعذر تحميل المشاركات.");
-    if (!assignmentsResponse.ok) throw new Error(assignmentsPayload.error || "تعذر تحميل الواجبات.");
+    if (!assignmentsResponse.ok) throw new Error(assignmentsPayload.error || "تعذر تحميل التمارين.");
     if (!currentStudent || currentStudent.id !== studentId) return;
 
     const attendanceRows = Array.isArray(attendancePayload.data) ? attendancePayload.data : [];
@@ -2356,12 +2432,18 @@ async function loadActivityStats(studentId) {
       ? (Number(attendancePayload.attendanceSummary.totalCount) || 0)
       : attendanceRows.length;
     const participationTotal = Number(progressPayload?.data?.participationTotal) || 0;
-    const assignments = Array.isArray(assignmentsPayload.data) ? assignmentsPayload.data : [];
-    const submittedAssignments = assignments.filter((assignment) => Array.isArray(assignment?.submissions) && assignment.submissions.length > 0).length;
+    
+    // Count of exercise photos sent to Telegram during live classes
+    const exercisesTotal = Number(
+      attendancePayload?.exercisesSummary?.totalCount ??
+      assignmentsPayload?.liveQuestionImagesCount ??
+      progressPayload?.data?.liveQuestionImagesCount ??
+      0
+    );
 
     setActivityStat(elements.attendanceCount, qualifyingAttendance);
     setActivityStat(elements.participationCount, participationTotal);
-    setActivityStat(elements.homeworkCount, `${submittedAssignments} / ${assignments.length}`);
+    setActivityStat(elements.homeworkCount, exercisesTotal);
   } catch (error) {
     if (/انتهت الجلسة/.test(error.message)) return;
     console.error("Unable to load activity stats:", error);

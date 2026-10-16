@@ -5449,6 +5449,16 @@ body.parent-login-page {
   box-shadow: 0 6px 18px rgba(59, 130, 246, 0.15);
 }
 
+.student-stat-pill.student-stat-exercises {
+  background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%);
+  border-color: #fde68a;
+}
+
+.student-stat-pill.student-stat-exercises:hover {
+  border-color: #f59e0b;
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.15);
+}
+
 .student-stat-icon {
   font-size: 1.5rem;
   flex-shrink: 0;

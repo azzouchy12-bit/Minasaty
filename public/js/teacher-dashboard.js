@@ -57,6 +57,8 @@ const elements = {
   studentActionsAttendanceVal: document.getElementById("student-actions-attendance-val"),
   studentActionsParticipationCard: document.getElementById("student-actions-participation-card"),
   studentActionsParticipationVal: document.getElementById("student-actions-participation-val"),
+  studentActionsExercisesCard: document.getElementById("student-actions-exercises-card"),
+  studentActionsExercisesVal: document.getElementById("student-actions-exercises-val"),
   attendanceModal: document.getElementById("attendance-modal"),
   attendanceStudentName: document.getElementById("attendance-student-name"),
   attendanceTotalCount: document.getElementById("attendance-total-count"),
@@ -1758,6 +1760,7 @@ function openStudentActionsModal(student) {
 
   if (elements.studentActionsAttendanceVal) elements.studentActionsAttendanceVal.textContent = "…";
   if (elements.studentActionsParticipationVal) elements.studentActionsParticipationVal.textContent = "…";
+  if (elements.studentActionsExercisesVal) elements.studentActionsExercisesVal.textContent = "…";
 
   if (elements.studentActionsAttendanceCard) {
     elements.studentActionsAttendanceCard.onclick = () => {
@@ -4155,11 +4158,15 @@ async function fetchStudentStats(studentId) {
     if (response.ok) {
       const attTotal = payload?.attendanceSummary?.totalCount ?? (Array.isArray(payload?.data) ? payload.data.length : 0);
       const partTotal = payload?.participationSummary?.totalCount ?? 0;
+      const exTotal = payload?.exercisesSummary?.totalCount ?? 0;
       if (elements.studentActionsAttendanceVal) {
         elements.studentActionsAttendanceVal.textContent = String(attTotal);
       }
       if (elements.studentActionsParticipationVal) {
         elements.studentActionsParticipationVal.textContent = String(partTotal);
+      }
+      if (elements.studentActionsExercisesVal) {
+        elements.studentActionsExercisesVal.textContent = String(exTotal);
       }
     }
   } catch (err) {
