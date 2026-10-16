@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { Prisma } = require("@prisma/client");
@@ -13,6 +14,26 @@ const imageUploadDirectory = path.join(
 );
 const teacherChatImageDirectory = path.join(imageUploadDirectory, "teacher-shared");
 const TEACHER_CHAT_IMAGE_ID_PATTERN = /^tci_([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+
+// Clean up any remaining question images on server disk so server remains lightweight
+async function cleanupOldLiveQuestionImagesOnDisk() {
+  try {
+    if (fs.existsSync(imageUploadDirectory)) {
+      const files = await fs.promises.readdir(imageUploadDirectory);
+      for (const file of files) {
+        if (file === "teacher-shared") continue;
+        const filePath = path.join(imageUploadDirectory, file);
+        const stat = await fs.promises.stat(filePath);
+        if (stat.isFile()) {
+          await fs.promises.unlink(filePath).catch(() => {});
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to clean live question images from disk:", err.message);
+  }
+}
+cleanupOldLiveQuestionImagesOnDisk();
 
 function normalizeText(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -180,22 +201,33 @@ async function uploadQuestionImage(req, res) {
       return res.status(403).json({ error: "لا تملك صلاحية رفع صورة لهذا التلميذ." });
     }
 
+    const ext = path.extname(uploadedFile.originalname || ".jpg").toLowerCase() || ".jpg";
+    const fileName = uploadedFile.filename || `tg-${Date.now()}-${crypto.randomUUID()}${ext}`;
+
     const image = await prisma.liveQuestionImage.create({
       data: {
         studentId: student.id,
         level: student.level,
-        fileName: uploadedFile.filename,
+        fileName,
         mimeType: uploadedFile.mimetype,
       },
       select: { id: true, createdAt: true },
     });
 
-    // Forward image directly to teacher's Telegram Bot
-    let telegramSent = false;
-    try {
+    // Obtain photo buffer directly from memory or read & delete disk file
+    let photoBuffer = uploadedFile.buffer;
+    if (!photoBuffer && uploadedFile.filename) {
       const imagePath = path.join(imageUploadDirectory, path.basename(uploadedFile.filename));
       if (fs.existsSync(imagePath)) {
-        const photoBuffer = fs.readFileSync(imagePath);
+        photoBuffer = fs.readFileSync(imagePath);
+        await removeImageFile(uploadedFile.filename);
+      }
+    }
+
+    // Forward image directly to teacher's Telegram Bot (0 bytes stored on server disk)
+    let telegramSent = false;
+    try {
+      if (photoBuffer && photoBuffer.length > 0) {
         const dateStr = new Intl.DateTimeFormat("ar-DZ", {
           dateStyle: "medium",
           timeStyle: "short",
@@ -212,7 +244,7 @@ async function uploadQuestionImage(req, res) {
 
         const tgResult = await sendTelegramPhoto({
           photoBuffer,
-          filename: uploadedFile.originalname || uploadedFile.filename,
+          filename: uploadedFile.originalname || fileName,
           mimeType: uploadedFile.mimetype,
           caption,
         });
@@ -264,7 +296,7 @@ async function getQuestionImage(req, res) {
 
     const imagePath = path.join(imageUploadDirectory, path.basename(image.fileName));
     if (!fs.existsSync(imagePath)) {
-      return res.status(404).json({ error: "ملف صورة السؤال لم يعد متاحاً." });
+      return res.status(404).json({ error: "تم إرسال الصورة مباشرة إلى تيليجرام الأستاذ ولا يتم تخزينها على السيرفر للحفاظ على السرعة والأداء." });
     }
 
     res.setHeader("Cache-Control", "private, max-age=300");

@@ -28,13 +28,9 @@ const acceptedImages = new Map([
 fs.mkdirSync(imageUploadDirectory, { recursive: true });
 fs.mkdirSync(teacherChatImageDirectory, { recursive: true });
 
-const imageStorage = multer.diskStorage({
-  destination: (_req, _file, callback) => callback(null, imageUploadDirectory),
-  filename: (_req, file, callback) => {
-    const extension = path.extname(file.originalname).toLowerCase();
-    callback(null, `question-${Date.now()}-${crypto.randomUUID()}${extension}`);
-  },
-});
+// Student live question images are held in memory buffer only and forwarded directly to Telegram bot.
+// They are NEVER written to the server's disk to prevent disk bloat and ensure fast streaming.
+const imageStorage = multer.memoryStorage();
 
 function imageFileFilter(_req, file, callback) {
   const extension = path.extname(file.originalname).toLowerCase();

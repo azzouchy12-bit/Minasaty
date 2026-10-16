@@ -29,3 +29,10 @@ test("Telegram Question Photo: student-live.js routes photos to Telegram without
   assert.match(studentLiveCode, /sendStudentQuestionPhotoToTelegram/, "student-live.js must define sendStudentQuestionPhotoToTelegram");
   assert.match(studentLiveCode, /elements\.questionImageInput\?\.addEventListener\("change",\s*\(\)\s*=>\s*\{[\s\S]*?sendStudentQuestionPhotoToTelegram/, "questionImageInput change event must trigger sendStudentQuestionPhotoToTelegram");
 });
+
+test("Telegram Question Photo: multer uses memoryStorage so photos are never saved to server disk", () => {
+  const routesCode = fs.readFileSync(path.join(root, "routes/liveChatRoutes.js"), "utf8");
+  assert.match(routesCode, /imageStorage\s*=\s*multer\.memoryStorage\(\)/, "liveChatRoutes must use multer.memoryStorage for question images");
+  const controllerCode = fs.readFileSync(path.join(root, "controllers/liveChatController.js"), "utf8");
+  assert.match(controllerCode, /cleanupOldLiveQuestionImagesOnDisk/, "liveChatController must include cleanup for disk images");
+});
