@@ -113,14 +113,16 @@ app.use(
         "base-uri": ["'self'"],
         "font-src": ["'self'", "https://fonts.gstatic.com", "data:"],
         "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        "img-src": ["'self'", "data:", "blob:"],
+        "img-src": ["'self'", "data:", "blob:", "https://www.facebook.com"],
         "media-src": ["'self'", "blob:"],
-        "connect-src": ["'self'", "https:", "wss:"],
+        "connect-src": ["'self'", "https:", "wss:", "https://www.facebook.com"],
         // Firebase Auth loads official ES modules from gstatic, while its
         // invisible reCAPTCHA challenge uses Google-hosted scripts and frames.
+        // Meta Pixel loads fbevents.js from connect.facebook.net.
         "script-src": [
           "'self'",
           "'unsafe-inline'",
+          "https://connect.facebook.net",
           "https://www.gstatic.com",
           "https://accounts.google.com",
           "https://apis.google.com",
@@ -129,6 +131,7 @@ app.use(
         ],
         "frame-src": [
           "'self'",
+          "https://www.facebook.com",
           "https://accounts.google.com",
           "https://docs.google.com",
           "https://drive.google.com",
