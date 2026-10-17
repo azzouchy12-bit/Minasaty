@@ -496,12 +496,16 @@ function notifyP2pTransportStatus() {
     notifySfuTransportStatus(true);
     return;
   }
-  try { sessionStorage.setItem("studentMediaTransport", "p2p"); } catch (_) {}
+  const sfuActive = Boolean((studentSfuRoom && studentSfuRoom.state === "connected") || sfuReception.receivingVideo);
+  if (sfuActive) {
+    notifySfuTransportStatus(Boolean(sfuReception.receivingVideo));
+    return;
+  }
   socket.emit("student_media_transport_status", {
-    transport: "p2p",
-    receiving: p2p.receiving,
+    transport: "sfu",
+    receiving: p2p.receiving || sfuReception.receiving,
     receivingAudio: p2p.receivingAudio,
-    receivingVideo: p2p.receivingVideo,
+    receivingVideo: sfuReception.receivingVideo,
     p2p,
   });
 }
@@ -1665,39 +1669,11 @@ function markPermanentStudentPrejoinCompleted() {
 }
 
 function hasPermanentStudentPrejoinCompleted() {
-  if (directClassEntryRequested || Boolean(studentId && level)) {
-    return true;
-  }
-  try {
-    if (
-      localStorage.getItem(STUDENT_PREJOIN_COMPLETED_KEY) === "true" ||
-      localStorage.getItem(STUDENT_MIC_PERMISSION_STORAGE_KEY) === "granted" ||
-      (studentId && localStorage.getItem(`${STUDENT_PREJOIN_COMPLETED_KEY}:${studentId}`) === "true")
-    ) {
-      return true;
-    }
-  } catch (error) { }
-
-  try {
-    if (
-      document.cookie &&
-      (document.cookie.includes("studentLivePrejoinCompleted=true") ||
-        (studentId && document.cookie.includes(`studentLivePrejoin_${encodeURIComponent(studentId)}=true`)))
-    ) {
-      return true;
-    }
-  } catch (error) { }
-
-  try {
-    if (sessionStorage.getItem(STUDENT_PREJOIN_COMPLETED_KEY) === "true") {
-      return true;
-    }
-  } catch (error) { }
-
-  return document.documentElement.classList.contains("student-prejoin-completed-user");
+  // Microphone is strictly mandatory: entry is never permitted without microphone ready
+  return Boolean(microphonePrepared);
 }
 
-if (directClassEntryRequested) {
+if (directClassEntryRequested && microphonePrepared) {
   prejoinCompleted = true;
   initialAutoJoinPending = true;
   markPermanentStudentPrejoinCompleted();
@@ -1714,9 +1690,8 @@ if (isStudentSubExpired) {
   initialAutoJoinPending = false;
   prejoinCompleted = false;
 } else {
-  // The classroom is entered from the parent dashboard. Once identity is known,
-  // keep the viewer hands-free even after a teacher ends and later restarts class.
-  initialAutoJoinPending = initialAutoJoinPending || Boolean(studentId && level) || prejoinCompleted || directClassEntryRequested;
+  // Auto join is gated strictly by microphone readiness
+  initialAutoJoinPending = Boolean(microphonePrepared);
 }
 
 /**
@@ -5391,17 +5366,22 @@ async function prepareStudentMicrophone() {
     });
     microphonePrepared = true;
     rememberStudentMicrophonePermission();
-    setViewerStatus("تم تجهيز المايك للحصة. لن يعمل إلا عند سماح الأستاذ.", "live");
-    updatePrejoinControls();
+    setViewerStatus("تم تجهيز المايك للحصة بنجاح. لن يعمل إلا عند سماح الأستاذ.", "live");
+    updatePrejoinControls("الميكروفون جاهز. يمكنك الآن الضغط على زر الاستمرار للدخول إلى الحصة.");
     return true;
   } catch (error) {
     microphonePrepared = false;
-    if (error?.name === "NotAllowedError") {
-      setViewerStatus("يمكنك متابعة الحصة بصوت الأستاذ. لن يعمل مايكك إلا بعد السماح للمتصفح.", "warning");
-    } else if (error?.name === "NotFoundError") {
-      setViewerStatus("لم يتم العثور على مايك متاح. ستتابع الحصة بصوت الأستاذ.", "warning");
+    clearRememberedStudentMicrophonePermission();
+    if (error?.name === "NotAllowedError" || error?.name === "PermissionDeniedError") {
+      setViewerStatus("يجب السماح للمتصفح باستخدام الميكروفون للمتابعة. اضغط على أيقونة القفل 🔒 بجانب الرابط أعلى المتصفح واختر السماح للميكروفون.", "error");
+      updatePrejoinControls("يجب السماح للمتصفح باستخدام الميكروفون للمتابعة. اضغط على أيقونة القفل 🔒 بجانب الرابط في الأعلى واختر السماح للميكروفون (Allow)، ثم اضغط زر 'تفعيل الميكروفون'.");
+    } else if (error?.name === "NotFoundError" || error?.name === "DevicesNotFoundError") {
+      setViewerStatus("لم يتم العثور على ميكروفون متاح بجهازك. يرجى توصيل ميكروفون أو سماعة للدخول للحصة.", "error");
+      updatePrejoinControls("لم يتم العثور على ميكروفون متاح. يرجى توصيل ميكروفون أو سماعة ثم إعادة المحاولة.");
+    } else {
+      setViewerStatus("تعذر الوصول إلى الميكروفون. يرجى التحقق من الصلاحيات والمحاولة مجدداً.", "error");
+      updatePrejoinControls("تعذر الوصول إلى الميكروفون. يرجى التحقق من إعدادات المتصفح ثم الضغط على زر 'تفعيل الميكروفون'.");
     }
-    updatePrejoinControls();
     return false;
   } finally {
     isPreparingMicrophone = false;
@@ -5535,7 +5515,7 @@ async function continueFromStudentPrejoin() {
   if (!microphonePrepared) {
     const ready = await prepareStudentMicrophone();
     if (!ready) {
-      updatePrejoinControls("لا يمكن الاستمرار قبل السماح للمتصفح باستخدام الميكروفون.");
+      updatePrejoinControls("لا يمكن الدخول إلى الحصة أو مشاهدة البث قبل تفعيل الميكروفون والسماح له بالمتصفح.");
       return;
     }
   }
@@ -5571,7 +5551,9 @@ async function completeStudentPrejoinAndJoin() {
 async function initializeStudentPrejoin() {
   if (!elements.prejoinOverlay) return;
 
-  if (hasPermanentStudentPrejoinCompleted()) {
+  // Strict microphone requirement: automatically check and prepare mic on load
+  const micReady = await prepareStudentMicrophone();
+  if (micReady) {
     prejoinCompleted = true;
     initialAutoJoinPending = true;
     setStudentPrejoinHidden(true);
@@ -5580,42 +5562,19 @@ async function initializeStudentPrejoin() {
     if (!isDesktopStudentView()) {
       openStudentChatComposer({ focus: false });
     }
-
     void startTeacherAudio({ userInitiated: true });
     armAutoUnmuteOnFirstInteraction();
-
-    // Silently attempt background microphone preparation if browser already permitted it,
-    // but never block entry or show the prejoin modal.
-    if (!microphonePrepared && navigator.mediaDevices?.getUserMedia) {
-      void (async () => {
-        try {
-          const browserPermission = await readBrowserMicrophonePermission();
-          if (browserPermission === "granted") {
-            await prepareStudentMicrophone();
-          }
-        } catch (ignored) { }
-      })();
-    }
-
     if (socket.connected && !joinedClass && !isJoining) {
       void joinClass();
     }
     return;
   }
 
+  // If mic is not ready or blocked, strictly block classroom access
   prejoinCompleted = false;
   initialAutoJoinPending = false;
   setStudentPrejoinHidden(false);
-  updatePrejoinControls("يجب تفعيل الميكروفون أولاً قبل دخول الحصة.");
-
-  const micWasPreparedDuringEntry = sessionStorage.getItem("studentMicPreflight") === "granted";
-  sessionStorage.removeItem("studentMicPreflight");
-  if (micWasPreparedDuringEntry) {
-    const ready = await prepareStudentMicrophone();
-    updatePrejoinControls(ready
-      ? "الميكروفون جاهز. اضغط استمرار للدخول إلى الحصة."
-      : "يجب السماح للمتصفح باستخدام الميكروفون قبل الاستمرار.");
-  }
+  updatePrejoinControls("يجب السماح للمتصفح باستخدام الميكروفون للمتابعة والدخول إلى الحصة.");
 }
 
 function updateRemoteAudioControl() {
@@ -6539,9 +6498,6 @@ async function enableApprovedMicrophone() {
 }
 
 async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
-  const storedTransport = (() => {
-    try { return sessionStorage.getItem("studentMediaTransport"); } catch (_) { return null; }
-  })();
   const hasRecentClassState = (() => {
     try {
       const state = sessionStorage.getItem("lastLiveClassState");
@@ -6550,8 +6506,17 @@ async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
       return Boolean(parsed?.savedAt && (Date.now() - parsed.savedAt) < 15 * 60 * 1000);
     } catch (_) { return false; }
   })();
-  if (hasRecentClassState || storedTransport) {
+  if (hasRecentClassState) {
     rejoin = true;
+  }
+
+  if (!microphonePrepared) {
+    const micReady = await prepareStudentMicrophone();
+    if (!micReady) {
+      setStudentPrejoinHidden(false);
+      updatePrejoinControls("يجب السماح للمتصفح باستخدام الميكروفون قبل الدخول ومشاهدة الحصة.");
+      return;
+    }
   }
 
   if (!prejoinCompleted && !rejoin && !directClassEntryRequested) {
@@ -6561,12 +6526,6 @@ async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
     prejoinCompleted = true;
     setStudentPrejoinHidden(true);
     setStudentSessionActive(true);
-  }
-
-  // A user-initiated click is the best moment to obtain browser mic permission.
-  // Automatic recovery and direct reconnects never request it unexpectedly.
-  if (!rejoin && prepareMicrophone) {
-    await prepareStudentMicrophone();
   }
 
   if ((!rejoin && joinedClass && !isRecoveringStream) || isJoining) {
@@ -6618,7 +6577,7 @@ async function joinClass({ rejoin = false, prepareMicrophone = false } = {}) {
       level,
       studentId,
       rejoin,
-      preferredTransport: storedTransport || (rejoin ? "p2p" : undefined),
+      preferredTransport: "sfu",
     });
 
     isJoining = false;
@@ -6837,17 +6796,9 @@ socket.on("room_joined", (data = {}) => {
     window.setTimeout(() => {
       const hasP2p = hasLiveP2pTeacherMedia();
       const hasSfu = isStudentSfuConnected() && (teacherSfuPlaybackTracks.size > 0 || (typeof getTeacherSfuReceptionState === "function" && getTeacherSfuReceptionState().receiving));
-      if (joinedClass && !hasP2p && !hasSfu) {
-        console.info("[SFU-Student] No media received after fast initial grace period (3.5s); requesting targeted P2P stream while keeping SFU active.");
-        requestTargetedP2pFallback("No media after initial grace period", { holdSfu: false });
-      }
-    }, 3500);
-    window.setTimeout(() => {
-      const hasP2p = hasLiveP2pTeacherMedia();
-      const hasSfu = isStudentSfuConnected() && (teacherSfuPlaybackTracks.size > 0 || (typeof getTeacherSfuReceptionState === "function" && getTeacherSfuReceptionState().receiving));
-      if (joinedClass && !hasP2p && !hasSfu) {
-        console.info("[SFU-Student] No media received after secondary grace period (7s); requesting targeted P2P stream while keeping SFU active.");
-        requestTargetedP2pFallback("No media after secondary grace period", { holdSfu: false });
+      if (joinedClass && !hasP2p && !hasSfu && !isStudentSfuConnected() && !isStudentSfuConnecting) {
+        console.info("[SFU-Student] No media received after grace period (7s); requesting stream refresh while keeping SFU active.");
+        requestTargetedP2pFallback("No media after grace period", { holdSfu: false });
       }
     }, 7000);
   }

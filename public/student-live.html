@@ -20,23 +20,8 @@
             document.documentElement.classList.add("inside-native-app");
             try { localStorage.setItem("minasaty_in_app", "true"); } catch (_) {}
           }
-          var completed = false;
-          if (window.localStorage) {
-            if (
-              localStorage.getItem("studentLivePrejoinCompleted:v1") === "true" ||
-              localStorage.getItem("studentLiveMicPermission:v1") === "granted"
-            ) {
-              completed = true;
-            }
-          }
-          if (!completed && document.cookie && document.cookie.indexOf("studentLivePrejoinCompleted=true") !== -1) {
-            completed = true;
-          }
-          if (completed) {
-            document.documentElement.classList.add("student-prejoin-completed-user");
-          } else {
-            document.documentElement.classList.add("student-prejoin-pending", "student-prejoin-active");
-          }
+          // Strict microphone enforcement: always require active microphone readiness before entering the live class
+          document.documentElement.classList.add("student-prejoin-pending", "student-prejoin-active");
         } catch (e) {}
       })();
     </script>

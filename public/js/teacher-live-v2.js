@@ -7653,7 +7653,7 @@ socket.on("student_joined", async (data = {}) => {
   recordLiveDiagnosticEvent("student_joined_audio_p2p", `Student ${socketId} joined; establishing permanent P2P audio channel`);
   await createAndSendOffer(socketId);
 
-  if (wantsP2p) {
+  if (wantsP2p && typeof transitionStudentToP2pFallback === "function") {
     transitionStudentToP2pFallback(socketId, { allowWhileSfuActive: true });
   }
   refreshAbsenteesBadge();
