@@ -312,19 +312,53 @@
   }
 
   .student-live-page .viewer-header .viewer-level,
+  .student-live-page .viewer-header .viewer-subject {
+    display: none !important;
+  }
+
   .student-live-page .viewer-header .student-participation-count {
+    display: inline-flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
     min-width: 0 !important;
-    max-width: 40% !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-    padding: 4px 8px !important;
+    padding: 2px 8px !important;
     color: #e2e8f0 !important;
-    background: rgba(15, 23, 42, .7) !important;
-    border: 1px solid rgba(148, 163, 184, .2) !important;
+    background: rgba(15, 23, 42, .88) !important;
+    border: 1px solid rgba(59, 130, 246, .35) !important;
     border-radius: 6px !important;
-    font-size: clamp(.6rem, .8vw, .76rem) !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+  }
+
+  .student-live-page .viewer-header .student-points-count {
+    border-color: rgba(245, 158, 11, .45) !important;
+  }
+
+  .student-live-page .viewer-header .stat-pill-label {
+    display: block !important;
+    font-size: 0.62rem !important;
     font-weight: 700 !important;
+    color: #93c5fd !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+  }
+
+  .student-live-page .viewer-header .student-points-count .stat-pill-label {
+    color: #fde047 !important;
+  }
+
+  .student-live-page .viewer-header .stat-pill-value {
+    display: block !important;
+    font-size: 0.82rem !important;
+    font-weight: 900 !important;
+    color: #34d399 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  .student-live-page .viewer-header .student-points-count .stat-pill-value {
+    color: #fbbf24 !important;
   }
 
   .student-live-page .viewer-brand,

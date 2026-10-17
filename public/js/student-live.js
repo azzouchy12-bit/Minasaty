@@ -2851,7 +2851,10 @@ function initializeStudentKeyboardLayout() {
 
 function setParticipationCount(value) {
   participationCount = Math.max(0, Number.parseInt(value, 10) || 0);
-  if (elements.participationCount) {
+  const valEl = document.getElementById("student-participation-val");
+  if (valEl) {
+    valEl.textContent = String(participationCount);
+  } else if (elements.participationCount) {
     elements.participationCount.textContent = `مشاركاتي: ${participationCount}`;
   }
 }
@@ -2860,8 +2863,11 @@ let studentPointsTotal = 0;
 
 function setStudentPointsCount(value) {
   studentPointsTotal = Math.max(0, Number.parseInt(value, 10) || 0);
-  if (elements.pointsCount) {
-    elements.pointsCount.textContent = `⭐ نقاطي: ${studentPointsTotal}`;
+  const valEl = document.getElementById("student-points-val");
+  if (valEl) {
+    valEl.textContent = String(studentPointsTotal);
+  } else if (elements.pointsCount) {
+    elements.pointsCount.textContent = `نقاطي: ${studentPointsTotal}`;
   }
 }
 

@@ -112,47 +112,21 @@ body.student-live-page {
 
   body.student-live-page .viewer-brand,
   body.student-live-page .viewer-header .live-start-notice,
-  body.student-live-page .viewer-header .message-bell {
+  body.student-live-page .viewer-header .message-bell,
+  body.student-live-page .viewer-level,
+  body.student-live-page #class-level-label,
+  body.student-live-page .viewer-subject,
+  body.student-live-page #class-subject-label {
     display: none !important;
   }
 
-  body.student-live-page .viewer-level,
   body.student-live-page .student-calculator-btn,
-  body.student-live-page .viewer-subject,
   body.student-live-page .student-participation-count,
   body.student-live-page .student-quality-wrapper,
   body.student-live-page .student-signal-finder-btn,
   body.student-live-page .student-exit-class-button {
     flex: 0 1 auto !important;
     min-width: 0 !important;
-  }
-
-  body.student-live-page .viewer-level {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    max-width: 32% !important;
-    min-height: 2.2rem !important;
-    padding: .32rem .5rem !important;
-    color: #dbeafe !important;
-    background: rgba(37, 99, 235, .17) !important;
-    border: 1px solid rgba(96, 165, 250, .35) !important;
-    border-radius: .65rem !important;
-    font-size: clamp(.58rem, 2.5vw, .72rem) !important;
-    font-weight: 800 !important;
-    line-height: 1.2 !important;
-  }
-
-  body.student-live-page .viewer-level svg {
-    display: none !important;
-  }
-
-  body.student-live-page #class-level-label,
-  body.student-live-page #class-subject-label {
-    display: block !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
   }
 
   body.student-live-page .student-calculator-btn {
@@ -181,25 +155,52 @@ body.student-live-page {
     white-space: nowrap !important;
   }
 
-  body.student-live-page .viewer-subject {
-    display: block !important;
-    max-width: 18% !important;
-    color: #cbd5e1 !important;
-    font-size: clamp(.6rem, 2.7vw, .76rem) !important;
-    font-weight: 800 !important;
+  body.student-live-page .student-participation-count {
+    display: inline-flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 2.25rem !important;
+    padding: .15rem .52rem !important;
+    background: rgba(15, 23, 42, .88) !important;
+    border: 1px solid rgba(59, 130, 246, .35) !important;
+    border-radius: .65rem !important;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, .2) !important;
     text-align: center !important;
+    box-sizing: border-box !important;
+    flex: 0 0 auto !important;
+    gap: 0 !important;
   }
 
-  body.student-live-page .student-participation-count {
+  body.student-live-page .student-points-count {
+    border-color: rgba(245, 158, 11, .45) !important;
+  }
+
+  body.student-live-page .stat-pill-label {
     display: block !important;
-    max-width: 22% !important;
-    overflow: hidden !important;
-    color: #a7f3d0 !important;
-    font-size: clamp(.56rem, 2.35vw, .68rem) !important;
-    font-weight: 800 !important;
-    line-height: 1.2 !important;
-    text-overflow: ellipsis !important;
+    font-size: clamp(.52rem, 2.1vw, .62rem) !important;
+    font-weight: 700 !important;
+    line-height: 1.1 !important;
+    color: #93c5fd !important;
     white-space: nowrap !important;
+  }
+
+  body.student-live-page .student-points-count .stat-pill-label {
+    color: #fde047 !important;
+  }
+
+  body.student-live-page .stat-pill-value {
+    display: block !important;
+    font-size: clamp(.72rem, 2.9vw, .88rem) !important;
+    font-weight: 900 !important;
+    line-height: 1.05 !important;
+    color: #34d399 !important;
+    font-family: inherit !important;
+    white-space: nowrap !important;
+  }
+
+  body.student-live-page .student-points-count .stat-pill-value {
+    color: #fbbf24 !important;
   }
 
   body.student-live-page .student-quality-wrapper {
@@ -759,20 +760,13 @@ body.student-live-page {
       padding-inline: .38rem !important;
     }
 
-    body.student-live-page .viewer-level {
-      max-width: 30% !important;
-      padding-inline: .32rem !important;
-      font-size: .54rem !important;
-    }
-
+    body.student-live-page .viewer-level,
     body.student-live-page .viewer-subject {
-      max-width: 17% !important;
-      font-size: .56rem !important;
+      display: none !important;
     }
 
     body.student-live-page .student-participation-count {
-      max-width: 22% !important;
-      font-size: .52rem !important;
+      padding: .1rem .35rem !important;
     }
 
     body.student-live-page .student-quality-wrapper {

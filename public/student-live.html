@@ -6098,7 +6098,7 @@
           </span>
         </div>
 
-        <div class="viewer-level" dir="rtl" lang="ar" aria-label="المستوى الدراسي">
+        <div class="viewer-level" dir="rtl" lang="ar" aria-label="المستوى الدراسي" hidden style="display: none !important;">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.75 5.75A1.75 1.75 0 0 1 6.5 4h11A1.75 1.75 0 0 1 19.25 5.75v9.5A1.75 1.75 0 0 1 17.5 17h-11a1.75 1.75 0 0 1-1.75-1.75v-9.5ZM9 20h6M12 17v3" /></svg>
           <span id="class-level-label">الحصة المباشرة</span>
         </div>
@@ -6106,8 +6106,14 @@
           <span class="live-start-notice-dot" aria-hidden="true"></span>
           <span id="live-start-notice-copy" class="live-start-notice-copy">بدأت الحصة الآن</span>
         </div>
-        <span id="student-participation-count" class="student-participation-count" dir="rtl" lang="ar" aria-live="polite">مشاركاتي: 0</span>
-        <span id="student-points-count" class="student-participation-count student-points-count" dir="rtl" lang="ar" aria-live="polite" title="نقاط التميز والتفاعل مع المعلم">⭐ نقاطي: 0</span>
+        <div id="student-participation-count" class="student-participation-count student-stat-pill" dir="rtl" lang="ar" aria-live="polite">
+          <span class="stat-pill-label">مشاركاتي</span>
+          <span class="stat-pill-value" id="student-participation-val">0</span>
+        </div>
+        <div id="student-points-count" class="student-participation-count student-points-count student-stat-pill student-points-pill" dir="rtl" lang="ar" aria-live="polite" title="نقاط التميز والتفاعل مع المعلم">
+          <span class="stat-pill-label">نقاطي</span>
+          <span class="stat-pill-value" id="student-points-val">0</span>
+        </div>
         <div class="student-quality-wrapper" id="student-quality-wrapper" dir="rtl" lang="ar">
           <button id="student-quality-btn" class="student-quality-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="اختيار جودة البث" aria-label="جودة البث">
             <svg viewBox="0 0 24 24" class="quality-icon" aria-hidden="true">
@@ -6126,7 +6132,7 @@
           </svg>
           <span class="calc-btn-label">حاسبة</span>
         </button>
-        <span id="class-subject-label" class="viewer-subject" dir="rtl" lang="ar" hidden>المادة</span>
+        <span id="class-subject-label" class="viewer-subject" dir="rtl" lang="ar" hidden style="display: none !important;">المادة</span>
         <button id="student-signal-finder-btn" class="student-signal-finder-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="رادار فحص وتقوية الإشارة المنزلية" aria-label="رادار الإشارة">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 14v-4"/>
