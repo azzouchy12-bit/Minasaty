@@ -1644,6 +1644,10 @@ const studentId = currentStudent.studentId;
 const studentName = currentStudent.studentName;
 const level = canonicalLevel(currentStudent.level);
 
+try {
+  window.checkAndTrackMetaActive20Days?.(currentStudent);
+} catch (_) {}
+
 function markPermanentStudentPrejoinCompleted() {
   try {
     localStorage.setItem(STUDENT_PREJOIN_COMPLETED_KEY, "true");

@@ -1949,6 +1949,19 @@ function formatSubscriptionArabicDate(dateValue) {
 function renderStudentSubscriptionDates(student) {
   const endDate = student?.subscriptionEndDate;
   const startDate = student?.subscriptionStartDate;
+
+  // Track Meta Pixel events for activated student
+  try {
+    if (student?.paymentStatus && student?.paymentStage === "PAID") {
+      const purKey = "meta_purchase_tracked_" + (student.id || "current");
+      if (localStorage.getItem(purKey) !== "true") {
+        window.trackMetaPurchase?.(student);
+        try { localStorage.setItem(purKey, "true"); } catch (_) {}
+      }
+    }
+    window.checkAndTrackMetaActive20Days?.(student);
+  } catch (_) {}
+
   const validity = getSubscriptionDaysRemaining(endDate);
 
   if (!validity) {

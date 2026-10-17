@@ -201,6 +201,7 @@ function initializeRegistration() {
 
       lastRegisteredPhone = data?.data?.parentPhone || payload.parentPhone;
       window.clearReferralCode?.();
+      window.trackMetaRegistration?.(payload);
       confirmationText.textContent = `تم تأكيد تسجيل ${payload.studentName} بنجاح. يمكنك الآن تسجيل تلميذ آخر بنفس الرقم أو الدخول لمتابعة التقدم.`;
       confirmation.hidden = false;
     } catch (error) {
