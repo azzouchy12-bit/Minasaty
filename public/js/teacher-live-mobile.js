@@ -1227,6 +1227,7 @@
         student.handRaised = false; // lower hand automatically once mic opens
       } else {
         approvedStudentMicrophones.delete(socketId);
+        student.handRaised = false; // lower hand automatically once mic closes
       }
       renderAttendees();
       showToast(nextState ? `تم فتح مايك ${student.studentName}` : `تم إغلاق مايك ${student.studentName}`);

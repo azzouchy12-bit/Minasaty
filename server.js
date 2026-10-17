@@ -3047,6 +3047,16 @@ io.on("connection", (socket) => {
         { level }
       );
 
+      if (!enabled) {
+        io.to(socket.id).emit("hand_lowered", { socketId: targetSocketId });
+        const companionsLower = activeCompanionsByLevel.get(level);
+        if (companionsLower) {
+          for (const compId of companionsLower) {
+            io.to(compId).emit("hand_lowered", { socketId: targetSocketId });
+          }
+        }
+      }
+
       // Tell every page that the room's expected audio tracks changed. The teacher
       // then adds/removes the matching sender on every existing RTCPeerConnection
       // and sends a fresh SDP offer to each student without reloading any page.
@@ -3142,10 +3152,16 @@ io.on("connection", (socket) => {
 
       // Notify teacher and companions
       io.to(socket.id).emit("all_student_mics_muted", { level, mutedSocketIds });
+      for (const targetSocketId of mutedSocketIds) {
+        io.to(socket.id).emit("hand_lowered", { socketId: targetSocketId });
+      }
       const companions = activeCompanionsByLevel.get(level);
       if (companions) {
         for (const compId of companions) {
           io.to(compId).emit("all_student_mics_muted", { level, mutedSocketIds });
+          for (const targetSocketId of mutedSocketIds) {
+            io.to(compId).emit("hand_lowered", { socketId: targetSocketId });
+          }
         }
       }
 

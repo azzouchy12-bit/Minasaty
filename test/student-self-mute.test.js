@@ -30,20 +30,39 @@ test('Delayed self-close does not override a newer teacher microphone approval',
  const f=serverFixture();f.ctx.isStudentMicrophoneOpen=()=>true;await f.handler({},()=>{});
  assert.equal(f.ack[0].superseded,true);assert.equal(f.emitted.length,0);
 });
-test('Close button stops both send paths while preserving teacher reception and requests only self-close',async()=>{
- const outgoing={stop(){this.stopped=true}},incoming={readyState:'live'},calls=[];
- const ctx={joinedClass:true,microphonePermissionGranted:true,studentMicrophoneSelfClosed:false,
-  localAudioStream:{getTracks:()=>[outgoing]},unpublishStudentSfuMic:()=>calls.push('sfu'),unpublishStudentP2pMic:()=>calls.push('p2p'),
-  updateMicControl(){},clearHandResetTimer(){},setRaisedHandState(){},showMobileControlToast(){},setViewerStatus(){},
-  ensureTeacherAudioPlayback:async()=>{calls.push('teacher');assert.equal(incoming.readyState,'live')},
-  emitWithAcknowledgement:async(name,payload)=>{assert.equal(name,'student_close_mic');assert.equal(Object.keys(payload).length,0);return {ok:true}}};
- vm.createContext(ctx);vm.runInContext(extract('stopLocalAudio')+'\n'+extract('closeOwnMicrophone'),ctx);
- await ctx.closeOwnMicrophone();assert.equal(outgoing.stopped,true);assert.equal(ctx.microphonePermissionGranted,false);
- assert.equal(ctx.studentMicrophoneSelfClosed,true);assert.deepEqual(calls,['sfu','p2p','teacher']);
+test('Student cannot close own microphone; only teacher controls microphone',async()=>{
+ let toast='';
+ const ctx={joinedClass:true,microphonePermissionGranted:true,showMobileControlToast:(msg)=>{toast=msg}};
+ vm.createContext(ctx);vm.runInContext(extract('closeOwnMicrophone'),ctx);
+ await ctx.closeOwnMicrophone();
+ assert.equal(ctx.microphonePermissionGranted,true);
+ assert.equal(toast,'التحكم في الميكروفون بيد الأستاذ فقط.');
 });
-test('Clicking active mic closes it; clicking a closed mic only requests teacher permission',()=>{
- let closed=0,raised=0;const ctx={microphonePermissionGranted:true,closeOwnMicrophone(){closed++},raiseHand(){raised++},lowerHand(){},
- elements:{raiseHandButton:{classList:{contains:()=>false}}}};
- vm.runInNewContext(extract('toggleRaisedHand'),ctx);ctx.toggleRaisedHand();assert.equal(closed,1);assert.equal(raised,0);
- ctx.microphonePermissionGranted=false;ctx.toggleRaisedHand();assert.equal(raised,1);
+test('Clicking active mic is blocked for student; hand raise cannot be cancelled by student',()=>{
+ let closed=0,raised=0,lowered=0,toast='';
+ const ctx={
+  microphonePermissionGranted:true,
+  closeOwnMicrophone(){closed++},
+  raiseHand(){raised++},
+  lowerHand(){lowered++},
+  showMobileControlToast(msg){toast=msg},
+  elements:{raiseHandButton:{classList:{contains:()=>false}}}
+ };
+ vm.runInNewContext(extract('toggleRaisedHand'),ctx);
+ ctx.toggleRaisedHand();
+ assert.equal(closed,0);
+ assert.equal(raised,0);
+ assert.equal(toast,'التحكم في الميكروفون بيد الأستاذ فقط.');
+
+ ctx.microphonePermissionGranted=false;
+ ctx.elements.raiseHandButton.classList.contains=(cls)=>cls==='hand-raised';
+ ctx.toggleRaisedHand();
+ assert.equal(lowered,0);
+ assert.equal(raised,0);
+ assert.equal(toast,'تم رفع اليد مسبقاً، بانتظار إذن الأستاذ.');
+
+ ctx.elements.raiseHandButton.classList.contains=()=>false;
+ ctx.toggleRaisedHand();
+ assert.equal(raised,1);
 });
+

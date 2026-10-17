@@ -5103,17 +5103,18 @@ function setRaisedHandState({ waiting = false } = {}) {
     button.setAttribute("aria-pressed", "true");
     button.setAttribute(
       "aria-label",
-      "إغلاق الميكروفون — يستمر سماع الأستاذ"
+      "الميكروفون مفعّل من قِبل الأستاذ"
     );
-    button.title = "إغلاق الميكروفون — يستمر سماع الأستاذ";
+    button.title = "الميكروفون مفعّل من قِبل الأستاذ — التحكم في الميكروفون بيد الأستاذ فقط";
     const icon = button.querySelector("span[aria-hidden]") || button.querySelector("span:first-child");
     if (icon) icon.textContent = "🎙️";
-    setButtonLabel(button, "إغلاق الميكروفون");
+    setButtonLabel(button, "الميكروفون مفتوح");
 
     elements.handWaitingActions.hidden = true;
     elements.handWaitingActions.classList.remove("hand-raised");
     const waitingLabel = elements.handWaitingActions.querySelector(".hand-waiting-label");
     if (waitingLabel) waitingLabel.textContent = "";
+    if (elements.lowerHandButton) elements.lowerHandButton.hidden = true;
     return;
   }
 
@@ -5124,12 +5125,12 @@ function setRaisedHandState({ waiting = false } = {}) {
   button.setAttribute("aria-pressed", String(waiting));
   button.setAttribute(
     "aria-label",
-    waiting ? "تنزيل اليد وإلغاء طلب التحدث" : "رفع اليد وطلب التحدث"
+    waiting ? "تم طلب التحدث — بانتظار إذن الأستاذ" : "رفع اليد وطلب التحدث"
   );
-  button.title = waiting ? "تنزيل اليد وإلغاء طلب التحدث" : "رفع اليد وطلب التحدث";
+  button.title = waiting ? "تم رفع اليد مسبقاً — بانتظار إذن الأستاذ" : "رفع اليد وطلب التحدث";
   const icon = button.querySelector("span[aria-hidden]") || button.querySelector("span:first-child");
   if (icon) icon.textContent = "✋";
-  setButtonLabel(button, waiting ? "تنزيل اليد" : (studentMicrophoneSelfClosed ? "ميكروفون مغلق" : "رفع اليد"));
+  setButtonLabel(button, waiting ? "تم طلب التحدث" : "رفع اليد");
 
   // The same primary button is the complete toggle. Keep the legacy waiting
   // wrapper hidden so no second or third hand-control button can appear.
@@ -5137,32 +5138,22 @@ function setRaisedHandState({ waiting = false } = {}) {
   elements.handWaitingActions.classList.remove("hand-raised");
   const waitingLabel = elements.handWaitingActions.querySelector(".hand-waiting-label");
   if (waitingLabel) waitingLabel.textContent = "";
+  if (elements.lowerHandButton) elements.lowerHandButton.hidden = true;
 }
 
 async function closeOwnMicrophone() {
   if (!joinedClass || !microphonePermissionGranted) return;
-  // Silence capture immediately, including in-flight SFU publication and P2P sends.
-  stopLocalAudio();
-  studentMicrophoneSelfClosed = true;
-  clearHandResetTimer();
-  setRaisedHandState({ waiting: false });
-  showMobileControlToast("الميكروفون مغلق. لطلب الكلام مجددًا ارفع يدك.");
-  void ensureTeacherAudioPlayback({ sourceHint: "student_self_mute" });
-  try {
-    await emitWithAcknowledgement("student_close_mic", {}, 8000);
-    if (!microphonePermissionGranted) setViewerStatus("أغلقت ميكروفونك. ما زلت تسمع الأستاذ.", "live");
-  } catch (error) {
-    if (!microphonePermissionGranted) setViewerStatus("ميكروفونك مغلق محليًا؛ تعذر تأكيد الحالة للأستاذ.", "warning");
-  }
+  // Student self-close is disabled: only teacher controls opening and closing microphone.
+  showMobileControlToast("التحكم في الميكروفون بيد الأستاذ فقط.");
 }
 
 function toggleRaisedHand() {
   if (microphonePermissionGranted) {
-    void closeOwnMicrophone();
+    showMobileControlToast("التحكم في الميكروفون بيد الأستاذ فقط.");
     return;
   }
   if (elements.raiseHandButton.classList.contains("hand-raised")) {
-    lowerHand();
+    showMobileControlToast("تم رفع اليد مسبقاً، بانتظار إذن الأستاذ.");
     return;
   }
   raiseHand();
@@ -7260,6 +7251,9 @@ socket.on("microphone_revoked", (data = {}) => {
   setRaisedHandState({ waiting: false });
   elements.handWaitingActions.hidden = true;
   updateMicControl();
+  if (socket && socket.connected && level) {
+    socket.emit("student_lower_hand", { level }, () => { });
+  }
   setViewerStatus(data.reason === "student_self_mute" ? "ميكروفونك مغلق. يمكنك رفع اليد لطلب الكلام." : "أغلق الأستاذ المايك. يمكنك رفع اليد عند الحاجة.", "neutral");
 
   // Keep teacher playback intact
@@ -7286,6 +7280,9 @@ socket.on("classroom_all_mics_muted", () => {
   setRaisedHandState({ waiting: false });
   elements.handWaitingActions.hidden = true;
   updateMicControl();
+  if (socket && socket.connected && level) {
+    socket.emit("student_lower_hand", { level }, () => { });
+  }
   setViewerStatus("أغلق الأستاذ ميكروفونات جميع التلاميذ.", "neutral");
 
   // Keep teacher playback intact
@@ -7512,7 +7509,9 @@ elements.remoteVideo?.addEventListener("click", () => {
   void startTeacherAudio({ userInitiated: true });
 });
 elements.raiseHandButton.addEventListener("click", toggleRaisedHand);
-elements.lowerHandButton?.addEventListener("click", lowerHand);
+elements.lowerHandButton?.addEventListener("click", () => {
+  showMobileControlToast("تم رفع اليد مسبقاً، بانتظار إذن الأستاذ.");
+});
 elements.chatForm.addEventListener("submit", sendStudentChatMessage);
 elements.desktopChatDirectForm?.addEventListener("submit", sendStudentChatMessage);
 elements.desktopChatInput?.addEventListener("input", updateChatControls);
