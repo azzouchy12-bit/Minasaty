@@ -3442,10 +3442,12 @@ io.on("connection", (socket) => {
           io.to(compId).emit("student_message_received", chatEntry);
         }
       }
-      void sendTelegramNotification({
-        title: "رسالة جديدة في الحصة",
-        body: `أرسل التلميذ رسالة إلى الأستاذ.\nالتلميذ: ${socket.data.studentName || "غير معروف"}\nالمستوى: ${level}\nالنص: ${message.slice(0, 500)}${approvedImageId ? "\nمرفق: صورة" : ""}`,
-      }).catch((error) => console.warn("Optional Telegram live-message notification failed:", error.message));
+      if (!data?.isPhotoNotice && !message.includes("عبر التيليجرام")) {
+        void sendTelegramNotification({
+          title: "رسالة جديدة في الحصة",
+          body: `أرسل التلميذ رسالة إلى الأستاذ.\nالتلميذ: ${socket.data.studentName || "غير معروف"}\nالمستوى: ${level}\nالنص: ${message.slice(0, 500)}${approvedImageId ? "\nمرفق: صورة" : ""}`,
+        }).catch((error) => console.warn("Optional Telegram live-message notification failed:", error.message));
+      }
       acknowledge(acknowledgement, { ok: true, imageId: approvedImageId, messageId });
     } catch (error) {
       console.error("student_send_message failed:", error);

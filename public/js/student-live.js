@@ -5025,9 +5025,26 @@ async function sendStudentQuestionPhotoToTelegram(file) {
     await uploadQuestionImage(file);
     setViewerStatus("تم إرسال الصورة إلى أستاذك عبر التيليجرام بنجاح ✓", "success");
 
+    const photoNotice = "📸 تم إرسال صورتك مباشرة إلى أستاذك عبر التيليجرام بنجاح ✓ (لن تُعرض داخل البث المباشر للحفاظ على ثبات وسرعة البث).";
+    let sentMessageId = null;
+    if (socket && socket.connected && joinedClass) {
+      try {
+        const res = await emitWithAcknowledgement("student_send_message", {
+          level,
+          studentName,
+          message: photoNotice,
+          isPhotoNotice: true,
+        });
+        sentMessageId = res?.messageId || null;
+      } catch (err) {
+        console.warn("Could not dispatch photo notice to teacher socket:", err);
+      }
+    }
+
     appendStudentChatMessage({
+      id: sentMessageId || `photo-${Date.now()}`,
       sender: "تنبيه الحصة",
-      message: "📸 تم إرسال صورتك مباشرة إلى أستاذك عبر التيليجرام بنجاح ✓ (لن تُعرض داخل البث المباشر للحفاظ على ثبات وسرعة البث).",
+      message: photoNotice,
       kind: "student",
     });
   } catch (error) {

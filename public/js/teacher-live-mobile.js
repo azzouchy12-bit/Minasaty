@@ -1590,6 +1590,98 @@
     return url;
   }
 
+  let activeMobileEmojiPopover = null;
+
+  function closeMobileEmojiPopover() {
+    if (activeMobileEmojiPopover?.menu) {
+      activeMobileEmojiPopover.menu.remove();
+    }
+    activeMobileEmojiPopover = null;
+  }
+
+  document.addEventListener("click", (event) => {
+    if (activeMobileEmojiPopover) {
+      if (
+        !activeMobileEmojiPopover.anchor.contains(event.target) &&
+        !activeMobileEmojiPopover.menu.contains(event.target)
+      ) {
+        closeMobileEmojiPopover();
+      }
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMobileEmojiPopover();
+  });
+
+  function openMobileEmojiPopover({ anchor, messageId }) {
+    if (!anchor || !messageId) return;
+    if (activeMobileEmojiPopover?.messageId === messageId) {
+      closeMobileEmojiPopover();
+      return;
+    }
+    closeMobileEmojiPopover();
+
+    const popover = document.createElement("div");
+    popover.className = "tm-emoji-popover";
+    popover.setAttribute("role", "dialog");
+    popover.setAttribute("aria-label", "اختر إيموجي للتفاعل مع التلميذ ومنح نقاط");
+
+    const title = document.createElement("div");
+    title.className = "tm-emoji-popover-title";
+    title.textContent = "⭐ اختر إيموجي للتفاعل:";
+    popover.append(title);
+
+    const TEACHER_STACKED_REACTIONS = [
+      { key: "fire", emoji: "🔥", label: "نار", points: "+5 نقاط", pointClass: "points-fire" },
+      { key: "love", emoji: "❤️", label: "قلب", points: "+3 نقاط", pointClass: "points-love" },
+      { key: "like", emoji: "👍", label: "إعجاب", points: "+2 نقطتان", pointClass: "points-like" },
+      { key: "dislike", emoji: "👎", label: "لايك مقلوبة", points: "-1 نقطة", pointClass: "points-dislike" },
+      { key: "cry", emoji: "😢", label: "بكاء", points: "0 نقاط", pointClass: "points-cry" },
+    ];
+
+    TEACHER_STACKED_REACTIONS.forEach((r) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "tm-emoji-popover-item";
+      item.dataset.reaction = r.key;
+      item.title = `${r.label} (${r.points})`;
+      item.innerHTML = `
+        <span class="popover-emoji">${r.emoji}</span>
+        <span class="popover-label">${r.label}</span>
+        <span class="popover-points ${r.pointClass}">${r.points}</span>
+      `;
+      item.addEventListener("click", (e) => {
+        e.stopPropagation();
+        sendChatReaction(messageId, r.key);
+        closeMobileEmojiPopover();
+      });
+      popover.append(item);
+    });
+
+    document.body.append(popover);
+
+    const rect = anchor.getBoundingClientRect();
+    const popRect = popover.getBoundingClientRect();
+    let top = rect.top;
+    if (top + popRect.height > window.innerHeight - 10) {
+      top = Math.max(10, window.innerHeight - popRect.height - 10);
+    }
+
+    let left = rect.left - popRect.width - 8;
+    if (left < 10) {
+      left = rect.right + 8;
+      if (left + popRect.width > window.innerWidth - 10) {
+        left = Math.max(10, rect.left + (rect.width - popRect.width) / 2);
+      }
+    }
+
+    popover.style.top = `${Math.max(10, top)}px`;
+    popover.style.left = `${Math.max(10, left)}px`;
+
+    activeMobileEmojiPopover = { anchor, menu: popover, messageId };
+  }
+
   function appendChatMessage({ id = null, sender, message, kind = "student", imageUrl = null, reactions = null }) {
     if (el.chatEmpty) el.chatEmpty.style.display = "none";
 
@@ -1597,6 +1689,15 @@
     const bubble = document.createElement("div");
     bubble.className = `tm-chat-bubble is-${kind}`;
     bubble.dataset.messageId = msgId;
+
+    if (kind === "student") {
+      bubble.addEventListener("click", (event) => {
+        if (event.target.closest("button, a, img, .tm-emoji-popover, .tm-reaction-pill")) {
+          return;
+        }
+        openMobileEmojiPopover({ anchor: bubble, messageId: msgId });
+      });
+    }
 
     const head = document.createElement("div");
     head.className = "tm-chat-bubble-head";
@@ -1613,32 +1714,20 @@
 
     meta.append(name, time);
 
-    // Quick Reaction Bar for Teacher
-    const reactBar = document.createElement("div");
-    reactBar.className = "tm-chat-react-bar";
-
-    const TEACHER_REACTIONS_CONFIG = [
-      { key: "love", emoji: "❤️", title: "قلب ❤️" },
-      { key: "like", emoji: "👍", title: "إعجاب 👍" },
-      { key: "cry", emoji: "😭", title: "بكاء 😭" },
-      { key: "dislike", emoji: "👎", title: "لم يعجبني 👎" },
-      { key: "fire", emoji: "🔥", title: "نار 🔥" },
-    ];
-
-    TEACHER_REACTIONS_CONFIG.forEach((r) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "tm-chat-react-btn";
-      btn.title = r.title;
-      btn.textContent = r.emoji;
-      btn.addEventListener("click", (e) => {
+    if (kind === "student") {
+      const reactTrigger = document.createElement("button");
+      reactTrigger.type = "button";
+      reactTrigger.className = "tm-chat-react-trigger";
+      reactTrigger.title = "اضغط لاختيار إيموجي ومنح نقاط للتلميذ";
+      reactTrigger.innerHTML = `<span>⭐ تفاعل</span>`;
+      reactTrigger.addEventListener("click", (e) => {
         e.stopPropagation();
-        sendChatReaction(msgId, r.key);
+        openMobileEmojiPopover({ anchor: bubble, messageId: msgId });
       });
-      reactBar.append(btn);
-    });
-
-    head.append(meta, reactBar);
+      head.append(meta, reactTrigger);
+    } else {
+      head.append(meta);
+    }
 
     const body = document.createElement("div");
     body.className = "tm-chat-bubble-body";
