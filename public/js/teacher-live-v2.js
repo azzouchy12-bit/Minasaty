@@ -5059,6 +5059,105 @@ function refreshChatStudentSocketTarget(studentId, socketId) {
   });
 }
 
+let studentStatsModalInitialized = false;
+
+function initStudentStatsModal() {
+  if (studentStatsModalInitialized) return;
+  const modal = document.getElementById("student-stats-modal");
+  const closeBtn = document.getElementById("close-student-stats-modal");
+  const closeFooterBtn = document.getElementById("student-stats-close-footer-btn");
+  const backdrop = document.getElementById("student-stats-modal-backdrop");
+
+  if (!modal) return;
+  studentStatsModalInitialized = true;
+
+  closeBtn?.addEventListener("click", closeStudentStatsModal);
+  closeFooterBtn?.addEventListener("click", closeStudentStatsModal);
+  backdrop?.addEventListener("click", closeStudentStatsModal);
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !modal.hidden) {
+      closeStudentStatsModal();
+    }
+  });
+}
+
+function closeStudentStatsModal() {
+  const modal = document.getElementById("student-stats-modal");
+  if (modal) {
+    modal.hidden = true;
+  }
+}
+
+async function openStudentStatsModal({ studentId = "", socketId = "", studentName = "تلميذ" } = {}) {
+  initStudentStatsModal();
+  const modal = document.getElementById("student-stats-modal");
+  if (!modal) return;
+
+  const avatarEl = document.getElementById("student-stats-avatar");
+  const nameEl = document.getElementById("student-stats-name");
+  const levelEl = document.getElementById("student-stats-level");
+  const loaderEl = document.getElementById("student-stats-loader");
+  const sessionPartEl = document.getElementById("student-stats-session-participations");
+  const sessionPointsEl = document.getElementById("student-stats-session-points");
+  const totalPointsEl = document.getElementById("student-stats-total-points");
+  const totalPartEl = document.getElementById("student-stats-total-participations");
+
+  if (nameEl) nameEl.textContent = studentName || "تلميذ";
+  if (avatarEl) avatarEl.textContent = displayInitials(studentName);
+  if (levelEl) levelEl.textContent = activeLevel ? `متصل بالحصة • ${activeLevel}` : "متصل بالحصة";
+  if (sessionPartEl) sessionPartEl.textContent = "…";
+  if (sessionPointsEl) sessionPointsEl.textContent = "…";
+  if (totalPointsEl) totalPointsEl.textContent = "…";
+  if (totalPartEl) totalPartEl.textContent = "…";
+  if (loaderEl) loaderEl.hidden = false;
+
+  modal.hidden = false;
+
+  try {
+    const res = await emitWithAcknowledgement(
+      "teacher_get_student_session_stats",
+      { studentId, socketId },
+      6000
+    );
+
+    if (res && res.ok) {
+      if (res.studentName && nameEl) {
+        nameEl.textContent = res.studentName;
+        if (avatarEl) avatarEl.textContent = displayInitials(res.studentName);
+      }
+      if (res.level && levelEl) {
+        levelEl.textContent = `متصل بالحصة • ${res.level}`;
+      }
+      if (sessionPartEl) {
+        sessionPartEl.textContent = Math.max(0, Number(res.sessionParticipations) || 0);
+      }
+      if (sessionPointsEl) {
+        sessionPointsEl.textContent = Math.max(0, Number(res.sessionPoints) || 0);
+      }
+      if (totalPointsEl) {
+        totalPointsEl.textContent = Math.max(0, Number(res.totalPoints) || 0);
+      }
+      if (totalPartEl) {
+        totalPartEl.textContent = Math.max(0, Number(res.totalParticipations) || 0);
+      }
+    } else {
+      if (sessionPartEl) sessionPartEl.textContent = "0";
+      if (sessionPointsEl) sessionPointsEl.textContent = "0";
+      if (totalPointsEl) totalPointsEl.textContent = "0";
+      if (totalPartEl) totalPartEl.textContent = "0";
+    }
+  } catch (err) {
+    console.warn("teacher_get_student_session_stats lookup error:", err);
+    if (sessionPartEl) sessionPartEl.textContent = "0";
+    if (sessionPointsEl) sessionPointsEl.textContent = "0";
+    if (totalPointsEl) totalPointsEl.textContent = "0";
+    if (totalPartEl) totalPartEl.textContent = "0";
+  } finally {
+    if (loaderEl) loaderEl.hidden = true;
+  }
+}
+
 
 function renderAttendeeTransportStatus(socketId) {
   const attendee = attendeeElements.get(socketId);
@@ -5123,6 +5222,15 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
   avatar.className = "attendee-avatar";
   avatar.setAttribute("aria-hidden", "true");
   avatar.textContent = displayInitials(studentName);
+  avatar.title = "انقر لعرض مشاركات ونقاط التلميذ في هذه الحصة";
+  avatar.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openStudentStatsModal({
+      studentId: item.dataset.studentId || stableStudentId,
+      socketId,
+      studentName: name.textContent || studentName,
+    });
+  });
 
   const details = document.createElement("div");
   details.className = "attendee-details";
@@ -5130,6 +5238,15 @@ function upsertAttendee(socketId, studentId, studentName = "تلميذ", partici
   const name = document.createElement("strong");
   name.className = "attendee-name";
   name.textContent = studentName;
+  name.title = "انقر لعرض مشاركات ونقاط التلميذ في هذه الحصة";
+  name.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openStudentStatsModal({
+      studentId: item.dataset.studentId || stableStudentId,
+      socketId,
+      studentName: name.textContent || studentName,
+    });
+  });
 
   const state = document.createElement("span");
   state.className = "attendee-state";

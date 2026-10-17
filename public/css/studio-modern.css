@@ -2352,3 +2352,379 @@
 
 
 .attendee-audio-delivery { display: block; font-size: .62rem; line-height: 1.6; color: var(--text-secondary); overflow-wrap: anywhere; }
+
+/* ── Clickable student name & avatar in attendance list ── */
+.attendee-name {
+  cursor: pointer;
+  transition: color 0.18s ease, text-decoration 0.18s ease;
+}
+.attendee-name:hover {
+  color: #60a5fa !important;
+  text-decoration: underline;
+}
+.attendee-avatar {
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.attendee-avatar:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+/* ── Student Session Stats Modal ── */
+.student-stats-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.student-stats-modal[hidden] {
+  display: none !important;
+  opacity: 0;
+}
+
+.student-stats-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 17, 31, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.student-stats-modal-card {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 540px;
+  max-height: min(90vh, 680px);
+  background: linear-gradient(165deg, #101d31 0%, #0a1322 100%);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 20px;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 30px rgba(59, 130, 246, 0.12);
+  overflow: hidden;
+  direction: rtl;
+  color: #f1f5f9;
+  animation: statsModalScaleIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes statsModalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.93) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.student-stats-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.35rem 0.95rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(16, 29, 49, 0.6);
+}
+
+.student-stats-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.student-stats-modal-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.1) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+  flex-shrink: 0;
+}
+
+.student-stats-modal-titles h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #f8fafc;
+  line-height: 1.3;
+}
+
+.student-stats-modal-subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.student-stats-close-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.7);
+  color: #94a3b8;
+  font-size: 1.35rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.student-stats-close-btn:hover {
+  color: #fff;
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
+.student-stats-modal-body {
+  padding: 1.25rem 1.35rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+/* Profile banner */
+.student-stats-profile-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  background: rgba(30, 41, 59, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 14px;
+}
+
+.student-stats-avatar {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  border: 1.5px solid rgba(96, 165, 250, 0.4);
+  color: #ffffff;
+  font-size: 1.15rem;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  flex-shrink: 0;
+}
+
+.student-stats-profile-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.student-stats-name {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #f8fafc;
+  line-height: 1.3;
+}
+
+.student-stats-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.student-stats-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
+  flex-shrink: 0;
+}
+
+.student-stats-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.student-stats-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(148, 163, 184, 0.25);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: statsSpin 0.7s linear infinite;
+}
+
+@keyframes statsSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Stats grid */
+.student-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.85rem;
+}
+
+@media (max-width: 480px) {
+  .student-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.student-stat-box {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.1rem;
+  border-radius: 16px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.student-stat-box:hover {
+  transform: translateY(-2px);
+}
+
+.student-stat-box.is-participations {
+  background: linear-gradient(145deg, rgba(30, 58, 138, 0.28) 0%, rgba(15, 23, 42, 0.6) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.12);
+}
+
+.student-stat-box.is-points {
+  background: linear-gradient(145deg, rgba(180, 83, 9, 0.25) 0%, rgba(15, 23, 42, 0.6) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.1);
+}
+
+.stat-box-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.stat-box-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.student-stat-box.is-participations .stat-box-icon {
+  background: rgba(37, 99, 235, 0.2);
+  color: #60a5fa;
+}
+
+.student-stat-box.is-points .stat-box-icon {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.stat-box-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.stat-box-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin: 0.3rem 0;
+}
+
+.stat-box-number {
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.student-stat-box.is-participations .stat-box-number {
+  color: #93c5fd;
+  text-shadow: 0 0 16px rgba(59, 130, 246, 0.4);
+}
+
+.student-stat-box.is-points .stat-box-number {
+  color: #fcd34d;
+  text-shadow: 0 0 16px rgba(245, 158, 11, 0.4);
+}
+
+.stat-box-unit {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.stat-box-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+/* Totals summary row */
+.student-stats-totals-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 0.95rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 12px;
+}
+
+.stat-total-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.stat-total-chip .chip-label {
+  color: #94a3b8;
+}
+
+.stat-total-chip .chip-value {
+  color: #f1f5f9;
+  font-weight: 800;
+  font-size: 0.82rem;
+}
+
+/* Modal footer */
+.student-stats-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 0.9rem 1.35rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(16, 29, 49, 0.75);
+}
+
+.student-stats-modal-footer .studio-button {
+  min-height: 38px;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border-radius: 10px;
+}

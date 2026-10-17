@@ -2207,6 +2207,102 @@
       </div>
     </div>
 
+    <!-- نافذة إحصائيات وتفاعل التلميذ (مشاركات الحصة ونقاطها) -->
+    <div id="student-stats-modal" class="student-stats-modal" role="dialog" aria-modal="true" aria-labelledby="student-stats-modal-title" hidden>
+      <div class="student-stats-modal-backdrop" id="student-stats-modal-backdrop"></div>
+      <div class="student-stats-modal-card">
+        <header class="student-stats-modal-header">
+          <div class="student-stats-modal-title-row">
+            <span class="student-stats-modal-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+            </span>
+            <div class="student-stats-modal-titles">
+              <h2 id="student-stats-modal-title">تفاعل ومشاركات التلميذ</h2>
+              <p class="student-stats-modal-subtitle">إحصائيات الحصة الحالية محسوبة خلال 24 ساعة (مع استمرارية الاتصال)</p>
+            </div>
+          </div>
+          <button id="close-student-stats-modal" class="student-stats-close-btn" type="button" aria-label="إغلاق النافذة">×</button>
+        </header>
+
+        <div class="student-stats-modal-body">
+          <!-- بروفايل التلميذ المصغر -->
+          <div class="student-stats-profile-bar">
+            <div id="student-stats-avatar" class="student-stats-avatar" aria-hidden="true">ت</div>
+            <div class="student-stats-profile-info">
+              <strong id="student-stats-name" class="student-stats-name">اسم التلميذ</strong>
+              <div class="student-stats-meta-row">
+                <span class="student-stats-status-dot" aria-hidden="true"></span>
+                <span id="student-stats-level" class="student-stats-level">متصل بالحصة</span>
+              </div>
+            </div>
+            <div id="student-stats-loader" class="student-stats-loader" hidden title="جارٍ التحديث">
+              <span class="student-stats-spinner"></span>
+            </div>
+          </div>
+
+          <!-- بطاقات الإحصائيات الرئيسية للحصة -->
+          <div class="student-stats-grid">
+            <!-- بطاقة مشاركات الحصة -->
+            <div class="student-stat-box is-participations">
+              <div class="stat-box-header">
+                <span class="stat-box-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                </span>
+                <span class="stat-box-title">مشاركات هذه الحصة</span>
+              </div>
+              <div class="stat-box-value-row">
+                <strong id="student-stats-session-participations" class="stat-box-number">0</strong>
+                <span class="stat-box-unit">مشاركة صوتية</span>
+              </div>
+              <p class="stat-box-note">محسوبة لآخر 24 ساعة لضمان ثباتها حتى عند انقطاع الكهرباء أو إعادة الدخول.</p>
+            </div>
+
+            <!-- بطاقة نقاط الحصة -->
+            <div class="student-stat-box is-points">
+              <div class="stat-box-header">
+                <span class="stat-box-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                </span>
+                <span class="stat-box-title">نقاط هذه الحصة</span>
+              </div>
+              <div class="stat-box-value-row">
+                <strong id="student-stats-session-points" class="stat-box-number">0</strong>
+                <span class="stat-box-unit">نقطة تفاعل</span>
+              </div>
+              <p class="stat-box-note">مجموع النقاط الممنوحة من تفاعلات الأستاذ في هذه الحصة خلال 24 ساعة.</p>
+            </div>
+          </div>
+
+          <!-- ملخص إجمالي الحساب التراكمي -->
+          <div class="student-stats-totals-row">
+            <div class="stat-total-chip">
+              <span class="chip-label">إجمالي النقاط الكلي:</span>
+              <strong id="student-stats-total-points" class="chip-value">0</strong>
+            </div>
+            <div class="stat-total-chip">
+              <span class="chip-label">إجمالي المشاركات العام:</span>
+              <strong id="student-stats-total-participations" class="chip-value">0</strong>
+            </div>
+          </div>
+        </div>
+
+        <footer class="student-stats-modal-footer">
+          <button id="student-stats-close-footer-btn" class="studio-button primary" type="button">
+            <span>إغلاق النافذة</span>
+          </button>
+        </footer>
+      </div>
+    </div>
+
     <!-- نافذة إعدادات التقاط وتضخيم الصوت وكرت Focusrite -->
     <div id="audio-settings-modal" class="audio-settings-modal" role="dialog" aria-modal="true" aria-labelledby="audio-settings-modal-title" hidden>
       <div class="audio-settings-modal-backdrop" id="audio-settings-modal-backdrop"></div>

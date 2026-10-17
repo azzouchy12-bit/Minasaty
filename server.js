@@ -3244,6 +3244,104 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("teacher_get_student_session_stats", async (data = {}, acknowledgement) => {
+    try {
+      const isTeacher =
+        socket.data.role === "teacher" ||
+        socket.data.role === "teacher_companion";
+      if (!isTeacher) {
+        return acknowledge(acknowledgement, {
+          ok: false,
+          message: "غير مسموح بهذا الإجراء لغير الأستاذ.",
+        });
+      }
+
+      let studentId = typeof data.studentId === "string" ? data.studentId.trim() : "";
+      const targetSocketId = typeof data.socketId === "string" ? data.socketId.trim() : "";
+      let targetSocket = null;
+
+      if (targetSocketId && isValidSocketId(targetSocketId)) {
+        targetSocket = io.sockets.sockets.get(targetSocketId);
+        if (targetSocket && targetSocket.data?.studentId && !studentId) {
+          studentId = targetSocket.data.studentId;
+        }
+      }
+
+      if (!studentId && targetSocketId && users.has(targetSocketId)) {
+        studentId = users.get(targetSocketId)?.studentId || "";
+      }
+
+      if (!studentId || !isValidStudentId(studentId)) {
+        return acknowledge(acknowledgement, {
+          ok: true,
+          studentId: studentId || targetSocketId,
+          studentName: targetSocket?.data?.studentName || "تلميذ",
+          level: targetSocket?.data?.studentAcademicLevel || "",
+          sessionParticipations: targetSocket?.data?.participationCount || 0,
+          sessionPoints: 0,
+          totalPoints: 0,
+          totalParticipations: targetSocket?.data?.participationCount || 0,
+        });
+      }
+
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      // 1. Participations in this class (last 24 hours) via existing getStudent24HourParticipation
+      const sessionParticipations = await getStudent24HourParticipation(studentId);
+
+      // 2. Points in this class (last 24 hours from studentReactionPoint) + Student details + Total aggregates
+      const [sessionPointsAgg, totalPointsAgg, studentRec, totalParticipationsAgg] = await Promise.all([
+        prisma.studentReactionPoint.aggregate({
+          where: {
+            studentId,
+            createdAt: { gte: since24h },
+          },
+          _sum: { points: true },
+        }),
+        prisma.studentReactionPoint.aggregate({
+          where: { studentId },
+          _sum: { points: true },
+        }),
+        prisma.student.findUnique({
+          where: { id: studentId },
+          select: {
+            id: true,
+            studentName: true,
+            level: true,
+            manualPointsAdjustment: true,
+            manualParticipationAdjustment: true,
+          },
+        }),
+        prisma.classParticipation.aggregate({
+          where: { studentId },
+          _sum: { count: true },
+        }),
+      ]);
+
+      const sessionPoints = Math.max(0, sessionPointsAgg?._sum?.points ?? 0);
+      const totalPoints = Math.max(0, (totalPointsAgg?._sum?.points ?? 0) + (studentRec?.manualPointsAdjustment ?? 0));
+      const totalParticipations = Math.max(0, (totalParticipationsAgg?._sum?.count ?? 0) + (studentRec?.manualParticipationAdjustment ?? 0));
+      const studentName = targetSocket?.data?.studentName || studentRec?.studentName || "تلميذ";
+
+      return acknowledge(acknowledgement, {
+        ok: true,
+        studentId,
+        studentName,
+        level: studentRec?.level || targetSocket?.data?.studentAcademicLevel || "",
+        sessionParticipations,
+        sessionPoints,
+        totalPoints,
+        totalParticipations,
+      });
+    } catch (err) {
+      console.error("[Socket.io] teacher_get_student_session_stats error:", err);
+      acknowledge(acknowledgement, {
+        ok: false,
+        message: "تعذر جلب إحصائيات التلميذ.",
+      });
+    }
+  });
+
   // Kept as a compatibility route for teacher pages that are still open while
   // the new client bundle is being deployed.
   socket.on("teacher_approve_mic", async (data = {}, acknowledgement) => {

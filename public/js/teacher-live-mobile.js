@@ -1330,6 +1330,11 @@
 
     meta.append(nameRow, sub);
     left.append(avatar, meta);
+    left.style.cursor = "pointer";
+    left.title = "انقر لعرض مشاركات ونقاط التلميذ في هذه الحصة";
+    left.addEventListener("click", () => {
+      openMobileStudentStats(student);
+    });
 
     const micBtn = document.createElement("button");
     micBtn.className = "tm-attendee-mic-btn";
@@ -1339,6 +1344,52 @@
 
     card.append(left, micBtn);
     return card;
+  }
+
+  async function openMobileStudentStats(student) {
+    const modal = document.getElementById("tm-student-stats-modal");
+    if (!modal) return;
+    const nameEl = document.getElementById("tm-student-stats-name");
+    const partEl = document.getElementById("tm-student-stats-participations");
+    const ptsEl = document.getElementById("tm-student-stats-points");
+    const totPtsEl = document.getElementById("tm-student-stats-total-points");
+    const totPartEl = document.getElementById("tm-student-stats-total-participations");
+    const closeBtn = document.getElementById("tm-close-student-stats-btn");
+
+    if (nameEl) nameEl.textContent = student.studentName || "التلميذ";
+    if (partEl) partEl.textContent = "…";
+    if (ptsEl) ptsEl.textContent = "…";
+    if (totPtsEl) totPtsEl.textContent = "…";
+    if (totPartEl) totPartEl.textContent = "…";
+
+    modal.hidden = false;
+
+    if (closeBtn) closeBtn.onclick = () => { modal.hidden = true; };
+    modal.onclick = (e) => { if (e.target === modal) modal.hidden = true; };
+
+    try {
+      const res = await emitWithAcknowledgement("teacher_get_student_session_stats", {
+        studentId: student.studentId,
+        socketId: student.socketId,
+      }, 5000);
+      if (res && res.ok) {
+        if (partEl) partEl.textContent = Math.max(0, Number(res.sessionParticipations) || 0);
+        if (ptsEl) ptsEl.textContent = Math.max(0, Number(res.sessionPoints) || 0);
+        if (totPtsEl) totPtsEl.textContent = Math.max(0, Number(res.totalPoints) || 0);
+        if (totPartEl) totPartEl.textContent = Math.max(0, Number(res.totalParticipations) || 0);
+      } else {
+        if (partEl) partEl.textContent = "0";
+        if (ptsEl) ptsEl.textContent = "0";
+        if (totPtsEl) totPtsEl.textContent = "0";
+        if (totPartEl) totPartEl.textContent = "0";
+      }
+    } catch (err) {
+      console.warn("Mobile student stats lookup error:", err);
+      if (partEl) partEl.textContent = "0";
+      if (ptsEl) ptsEl.textContent = "0";
+      if (totPtsEl) totPtsEl.textContent = "0";
+      if (totPartEl) totPartEl.textContent = "0";
+    }
   }
 
   // ---------------------------------------------------------------------------
