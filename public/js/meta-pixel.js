@@ -1,8 +1,10 @@
 /**
  * Meta Pixel Integration for Minasaty (أكاديمية التفوق)
  * Pixel ID: 1012712520447774
- * Supports explicit PageView eventID for CAPI Gateway deduplication
- * and handles Funnel Events: CompleteRegistration, Purchase, and ActiveSubscriber20Days.
+ * Funnel Events:
+ * 1. PageView: يُسجل مرة واحدة فقط عند زيارة الواجهة الرئيسية (index.html) ولا يتكرر عند التنقل.
+ * 2. CompleteRegistration / Purchase: للمسجل الذي تم تفعيل حسابه فقط.
+ * 3. ActiveSubscriber20Days: للمشترك الذي تم تفعيل حسابه ومضى عليه أكثر من 20 يوماً.
  */
 (function () {
   const PIXEL_ID = "1012712520447774";
@@ -20,48 +22,81 @@
     window.fbq('init', PIXEL_ID);
   }
 
-  // 1. Explicit unique eventID for PageView (Conversions API Gateway deduplication)
-  const pvEventId = "pv_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
-  window.pageViewEventId = pvEventId;
-  window.fbq('track', 'PageView', {}, { eventID: pvEventId });
+  // 1. الحدث الأول: PageView (الـ View مرة واحدة فقط في الواجهة الرئيسية)
+  try {
+    const rawPath = (window.location.pathname || "").toLowerCase();
+    const isLandingPage = rawPath === "/" || 
+                          rawPath === "" || 
+                          rawPath.endsWith("/index.html") || 
+                          rawPath.endsWith("/");
 
-  // 2. Event 1: Registration (فتح حساب وتسجيل جديد)
-  window.trackMetaRegistration = function (data) {
-    try {
-      if (typeof window.fbq !== 'function') return;
-      const regEventId = "reg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
-      window.fbq('track', 'CompleteRegistration', {
-        content_name: data?.studentName || 'تسجيل تلميذ جديد',
-        content_category: data?.level || 'عام',
-        status: 'registered'
-      }, { eventID: regEventId });
-    } catch (err) {
-      console.warn('[MetaPixel] trackRegistration error:', err);
+    if (isLandingPage && !sessionStorage.getItem("meta_landing_pv_tracked")) {
+      const pvEventId = "pv_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
+      window.pageViewEventId = pvEventId;
+      window.fbq('track', 'PageView', {}, { eventID: pvEventId });
+      try { sessionStorage.setItem("meta_landing_pv_tracked", "true"); } catch (_) {}
     }
-  };
+  } catch (err) {
+    console.warn('[MetaPixel] PageView error:', err);
+  }
 
-  // 3. Event 2: Purchase / Activation (تفعيل الحساب من طرف الأستاذ أو شراء اشتراك)
-  window.trackMetaPurchase = function (data) {
+  // دالة مساعدة للتحقق مما إذا كان حساب التلميذ مفعلاً
+  function isStudentAccountActivated(student) {
+    if (!student) return false;
+    const isUniv = student.level === "طالب جامعي";
+    if (isUniv) {
+      return Boolean(student.accountActive && !student.cardReuploadRequested);
+    }
+    const stage = student.paymentStage || (student.paymentStatus ? "PAID" : "UNPAID");
+    return ["PAID", "PROMISED"].includes(stage) || 
+           student.paymentStatus === true || 
+           student.accountActive === true ||
+           (student.subscriptionEndDate && new Date(student.subscriptionEndDate) > new Date());
+  }
+
+  // 2. الحدث الثاني: المسجل (يعني الذي تم تفعيل حسابه فقط)
+  window.trackMetaActivatedStudent = function (student) {
     try {
-      if (typeof window.fbq !== 'function') return;
-      const studentId = data?.studentId || data?.id || 'unknown';
-      const purEventId = "pur_" + studentId + "_" + Date.now();
+      if (typeof window.fbq !== 'function' || !student) return;
+      if (!isStudentAccountActivated(student)) return; // شرط أساسي: حسابه مفعل
+
+      const studentId = student.id || student.studentId || student._id || 'unknown';
+      const cacheKey = "meta_activated_tracked_" + studentId;
+      if (sessionStorage.getItem(cacheKey) === "true") return;
+
+      const actEventId = "act_" + studentId + "_" + Date.now();
+
+      // إرسال حدث إكمال التسجيل المفعل (CompleteRegistration)
+      window.fbq('track', 'CompleteRegistration', {
+        content_name: student.studentName || 'تلميذ مفعل',
+        content_category: student.level || 'عام',
+        status: 'activated'
+      }, { eventID: "reg_" + actEventId });
+
+      // إرسال حدث الاشتراك/الشراء (Purchase)
       window.fbq('track', 'Purchase', {
         content_name: 'اشتراك أكاديمية التفوق',
-        content_category: data?.level || 'اشتراك شهري',
-        value: Number(data?.amount || 2500),
+        content_category: student.level || 'اشتراك',
+        value: Number(student.amount || 2500),
         currency: 'DZD'
-      }, { eventID: purEventId });
+      }, { eventID: "pur_" + actEventId });
+
+      try { sessionStorage.setItem(cacheKey, "true"); } catch (_) {}
     } catch (err) {
-      console.warn('[MetaPixel] trackPurchase error:', err);
+      console.warn('[MetaPixel] trackMetaActivatedStudent error:', err);
     }
   };
 
-  // 4. Event 3: Active Subscriber > 20 Days (مشترك نشط أكثر من 20 يوماً)
-  window.checkAndTrackMetaActive20Days = function (studentData) {
+  // للتوافق مع أي استدعاءات سابقة لـ trackMetaPurchase
+  window.trackMetaPurchase = window.trackMetaActivatedStudent;
+
+  // 3. الحدث الثالث: مشترك نشط أكثر من 20 يوماً وحسابه مفعل
+  window.checkAndTrackMetaActive20Days = function (student) {
     try {
-      if (typeof window.fbq !== 'function' || !studentData) return;
-      const startDateStr = studentData.subscriptionStartDate || studentData.createdAt;
+      if (typeof window.fbq !== 'function' || !student) return;
+      if (!isStudentAccountActivated(student)) return; // شرط أساسي: حسابه مفعل
+
+      const startDateStr = student.subscriptionStartDate || student.createdAt;
       if (!startDateStr) return;
 
       const startDate = new Date(startDateStr);
@@ -72,18 +107,18 @@
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
       if (diffDays >= 20) {
-        const studentKey = studentData.studentId || studentData.id || 'student';
-        const cacheKey = "meta_active_20d_" + studentKey;
-        if (localStorage.getItem(cacheKey) === "true") return;
+        const studentId = student.id || student.studentId || student._id || 'unknown';
+        const cacheKey = "meta_active_20d_" + studentId;
+        if (sessionStorage.getItem(cacheKey) === "true") return;
 
-        const eventId = "act20d_" + studentKey + "_" + Date.now();
+        const eventId = "act20d_" + studentId + "_" + Date.now();
         window.fbq('trackCustom', 'ActiveSubscriber20Days', {
-          student_level: studentData.level || '',
+          student_level: student.level || '',
           days_active: diffDays,
           status: 'loyal_active_subscriber'
         }, { eventID: eventId });
 
-        try { localStorage.setItem(cacheKey, "true"); } catch (_) {}
+        try { sessionStorage.setItem(cacheKey, "true"); } catch (_) {}
       }
     } catch (err) {
       console.warn('[MetaPixel] checkAndTrackMetaActive20Days error:', err);

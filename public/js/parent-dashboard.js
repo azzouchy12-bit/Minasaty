@@ -1950,15 +1950,9 @@ function renderStudentSubscriptionDates(student) {
   const endDate = student?.subscriptionEndDate;
   const startDate = student?.subscriptionStartDate;
 
-  // Track Meta Pixel events for activated student
+  // Track Meta Pixel events for activated student (المسجل المفعل + مشترك نشط أكثر من 20 يوماً)
   try {
-    if (student?.paymentStatus && student?.paymentStage === "PAID") {
-      const purKey = "meta_purchase_tracked_" + (student.id || "current");
-      if (localStorage.getItem(purKey) !== "true") {
-        window.trackMetaPurchase?.(student);
-        try { localStorage.setItem(purKey, "true"); } catch (_) {}
-      }
-    }
+    window.trackMetaActivatedStudent?.(student);
     window.checkAndTrackMetaActive20Days?.(student);
   } catch (_) {}
 

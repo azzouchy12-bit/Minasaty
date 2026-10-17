@@ -1645,6 +1645,7 @@ const studentName = currentStudent.studentName;
 const level = canonicalLevel(currentStudent.level);
 
 try {
+  window.trackMetaActivatedStudent?.(currentStudent);
   window.checkAndTrackMetaActive20Days?.(currentStudent);
 } catch (_) {}
 
