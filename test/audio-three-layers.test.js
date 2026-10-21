@@ -85,90 +85,8 @@ test("Layer 1: Adaptive Jitter Buffer target is applied on audio receivers for t
   assert.match(mobileTeacher, /jitterBufferTarget\s*=\s*80/, "teacher-live-mobile must tune jitterBufferTarget");
 });
 
-test("Layer 2: MinasatyAudioEnhancer creates studio voice chain with highpass filter and dynamics compression", () => {
+test("Layer 2: MinasatyAudioEnhancer provides clean pass-through and gesture autoplay unlock", () => {
   const enhancerSource = fs.readFileSync(path.join(root, "public/js/audio-enhancer.js"), "utf8");
-
-  class MockNode {
-    constructor() {
-      this.connectedTo = [];
-    }
-    connect(node) {
-      this.connectedTo.push(node);
-      return node;
-    }
-    disconnect() {}
-  }
-
-  class MockBiquadFilter extends MockNode {
-    constructor() {
-      super();
-      this.frequency = { value: 0 };
-      this.Q = { value: 0 };
-      this.gain = { value: 0 };
-    }
-  }
-
-  class MockCompressor extends MockNode {
-    constructor() {
-      super();
-      this.threshold = { value: 0 };
-      this.knee = { value: 0 };
-      this.ratio = { value: 0 };
-      this.attack = { value: 0 };
-      this.release = { value: 0 };
-    }
-  }
-
-  class MockGainNode extends MockNode {
-    constructor() {
-      super();
-      this.gain = { value: 1 };
-    }
-  }
-
-  let highpassCreated = null;
-  let compressorCreated = null;
-
-  const mockEnhancedTrack = {
-    id: "enhanced-track-1",
-    kind: "audio",
-    contentHint: "",
-    readyState: "live",
-    addEventListener: () => {},
-    stop: () => {},
-  };
-  const mockTrackList = [mockEnhancedTrack];
-
-  class MockAudioContext {
-    constructor() {
-      this.state = "running";
-    }
-    createMediaStreamSource() {
-      return new MockNode();
-    }
-    createBiquadFilter() {
-      const filter = new MockBiquadFilter();
-      if (!highpassCreated) highpassCreated = filter;
-      return filter;
-    }
-    createDynamicsCompressor() {
-      compressorCreated = new MockCompressor();
-      return compressorCreated;
-    }
-    createGain() {
-      return new MockGainNode();
-    }
-    createMediaStreamDestination() {
-      const dest = new MockNode();
-      dest.stream = {
-        getAudioTracks: () => mockTrackList,
-      };
-      return dest;
-    }
-    resume() {
-      return Promise.resolve();
-    }
-  }
 
   const rawTrack = {
     id: "raw-mic-1",
@@ -183,7 +101,6 @@ test("Layer 2: MinasatyAudioEnhancer creates studio voice chain with highpass fi
 
   const ctx = {
     window: {
-      AudioContext: MockAudioContext,
       console,
     },
     module: { exports: {} },
@@ -195,30 +112,13 @@ test("Layer 2: MinasatyAudioEnhancer creates studio voice chain with highpass fi
   assert.equal(enhancer.isSupported(), true);
 
   const enhanced = enhancer.enhanceStream(rawStream);
-  assert.ok(enhanced, "enhanceStream must return stream");
-
-  assert.ok(highpassCreated, "Highpass filter must be created");
-  assert.equal(highpassCreated.type, "highpass");
-  assert.equal(highpassCreated.frequency.value, 85);
-
-  assert.ok(compressorCreated, "Dynamics compressor must be created");
-  assert.equal(compressorCreated.threshold.value, -24);
-  assert.equal(compressorCreated.ratio.value, 4.0);
-  assert.equal(compressorCreated.attack.value, 0.003);
-  assert.equal(compressorCreated.release.value, 0.25);
-
-  const enhancedTrack = enhanced.getAudioTracks()[0];
-  assert.equal(enhancedTrack.__enhancedByMinasaty, true);
-  assert.equal(enhancedTrack.contentHint, "speech");
+  assert.equal(enhanced, rawStream, "enhanceStream must return clean rawStream directly without distortion");
 });
 
-test("Layer 2: Teacher mix-minus graph in teacher-live-v2.js passes teacher mic through highpass and dynamics compressor", () => {
+test("Layer 2: Teacher mix-minus graph in teacher-live-v2.js passes teacher mic cleanly to gainNode without artificial compressor distortion", () => {
   const teacherLive = fs.readFileSync(path.join(root, "public/js/teacher-live-v2.js"), "utf8");
-  assert.match(teacherLive, /createBiquadFilter\(\)[\s\S]*?hp\.type\s*=\s*"highpass"/);
-  assert.match(teacherLive, /createDynamicsCompressor\(\)[\s\S]*?comp\.threshold\.value\s*=\s*-24/);
-  assert.match(teacherLive, /intermediateNode\.connect\(hp\)/);
-  assert.match(teacherLive, /hp\.connect\(comp\)/);
   assert.match(teacherLive, /intermediateNode\.connect\(gainNode\)/);
+  assert.match(teacherLive, /setupLiveMicMeter\(gainNode\)/);
 });
 
 test("Layer 3: Coturn TLS over port 443 and 5349 provides secure fallback in webrtcRoutes.js", () => {

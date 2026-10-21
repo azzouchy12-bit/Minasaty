@@ -73,9 +73,9 @@ let teacherMicMeterAnimationFrame = null;
 
 const storedTeacherMicGain = parseFloat(localStorage.getItem("minasaty_teacher_mic_gain") || "1.0");
 let teacherMicGainLevel = isNaN(storedTeacherMicGain) ? 1.0 : Math.max(0, Math.min(storedTeacherMicGain, 2.5));
-let teacherAgcEnabled = localStorage.getItem("minasaty_teacher_agc_enabled") === "true"; // False by default!
+let teacherAgcEnabled = localStorage.getItem("minasaty_teacher_agc_enabled") !== "false";
 let teacherEchoCancellation = localStorage.getItem("minasaty_teacher_echo_cancellation") !== "false"; // True by default
-let teacherNoiseSuppression = localStorage.getItem("minasaty_teacher_noise_suppression") === "true"; // False by default for studio mic
+let teacherNoiseSuppression = localStorage.getItem("minasaty_teacher_noise_suppression") !== "false"; // True by default
 const iceDisconnectTimers = Object.create(null);
 const ICE_DISCONNECT_GRACE_MS = 15_000;
 let activeLevel = null;
@@ -5360,23 +5360,34 @@ function getClassroomAudioContextConstructor() {
 }
 
 
+let sharedClassroomAudioDestination = null;
+
 function rebuildClassroomAudioGraph() {
-  if (classroomAudioContext && classroomAudioContext.state === "suspended" && classActive) {
+  if (typeof classroomAudioContext !== "undefined" && classroomAudioContext && classroomAudioContext.state === "suspended" && (typeof classActive === "undefined" || classActive)) {
     classroomAudioContext.resume().catch(() => {});
   }
 
-  classroomAudioSources.forEach(({ node, gainNode }) => {
-    try {
-      if (gainNode) gainNode.disconnect();
-      else node.disconnect();
-    } catch {}
-  });
+  if (typeof classroomAudioSources !== "undefined" && classroomAudioSources) {
+    classroomAudioSources.forEach(({ node, gainNode }) => {
+      try {
+        if (gainNode) gainNode.disconnect();
+        else if (node) node.disconnect();
+      } catch {}
+    });
+  }
 
+  const destinations = (typeof sharedClassroomAudioDestination !== "undefined" && sharedClassroomAudioDestination)
+    ? [sharedClassroomAudioDestination]
+    : (typeof classroomAudioDestinations !== "undefined" && classroomAudioDestinations ? Array.from(new Set(classroomAudioDestinations.values())) : []);
 
-  classroomAudioDestinations.forEach((destination, destinationSocketId) => {
-    const teacherSource = classroomAudioSources.get("__teacher_microphone__");
-    const screenSource = classroomAudioSources.get("__screen_audio__");
+  if (destinations.length === 0) {
+    return;
+  }
 
+  destinations.forEach((destination) => {
+    if (!destination) return;
+    const teacherSource = typeof classroomAudioSources !== "undefined" && classroomAudioSources ? classroomAudioSources.get("__teacher_microphone__") : null;
+    const screenSource = typeof classroomAudioSources !== "undefined" && classroomAudioSources ? classroomAudioSources.get("__screen_audio__") : null;
 
     [teacherSource, screenSource].forEach((source) => {
       if (source?.enabled) {
@@ -5387,29 +5398,23 @@ function rebuildClassroomAudioGraph() {
       }
     });
 
-
-    classroomAudioSources.forEach((source, sourceKey) => {
-      if (
-        sourceKey !== "__teacher_microphone__" &&
-        sourceKey !== "__screen_audio__" &&
-        sourceKey !== destinationSocketId &&
-        source.enabled
-      ) {
-        if (sourceKey.startsWith("sfu_")) {
-          const sfuId = sourceKey.slice(4);
-          if (destinationSocketId === sfuId || destinationSocketId === attendeeSocketByStudentId.get(sfuId)) {
-            return;
-          }
+    if (typeof classroomAudioSources !== "undefined" && classroomAudioSources) {
+      classroomAudioSources.forEach((source, sourceKey) => {
+        if (
+          sourceKey !== "__teacher_microphone__" &&
+          sourceKey !== "__screen_audio__" &&
+          source.enabled
+        ) {
+          const outNode = source.gainNode || source.node;
+          try {
+            outNode.connect(destination);
+          } catch (_) {}
         }
-        const outNode = source.gainNode || source.node;
-        try {
-          outNode.connect(destination);
-        } catch (_) {}
-      }
-    });
+      });
+    }
   });
 
-  if (teacherMicGainNode && teacherMicAnalyserNode) {
+  if (typeof teacherMicGainNode !== "undefined" && teacherMicGainNode && typeof teacherMicAnalyserNode !== "undefined" && teacherMicAnalyserNode) {
     try {
       teacherMicGainNode.connect(teacherMicAnalyserNode);
     } catch {}
@@ -5441,62 +5446,44 @@ function removeClassroomAudioSource(sourceKey) {
 
 
 function ensureStudentAudioDestination(studentSocketId) {
-  if (!classroomAudioContext || !studentSocketId) {
+  if (!classroomAudioContext) {
     return null;
   }
 
-
-  const existing = classroomAudioDestinations.get(studentSocketId);
-  if (existing?.stream?.getAudioTracks?.().some((track) => track.readyState === "live")) {
-    return existing;
-  }
-
-
-  if (existing) {
-    existing.stream.getTracks().forEach((track) => track.stop());
-    classroomAudioDestinations.delete(studentSocketId);
-  }
-
-
-  try {
-    const destination = classroomAudioContext.createMediaStreamDestination();
-    const track = destination.stream.getAudioTracks()[0];
-    if (!track) {
+  if (!sharedClassroomAudioDestination || !sharedClassroomAudioDestination.stream?.getAudioTracks?.().some((track) => track.readyState === "live")) {
+    try {
+      sharedClassroomAudioDestination = classroomAudioContext.createMediaStreamDestination();
+      const track = sharedClassroomAudioDestination.stream.getAudioTracks()[0];
+      if (track) {
+        track.contentHint = "speech";
+      }
+      rebuildClassroomAudioGraph();
+    } catch (error) {
+      console.warn("Unable to create shared classroom audio destination:", error);
       return null;
     }
-    track.contentHint = "speech";
-    classroomAudioDestinations.set(studentSocketId, destination);
-    rebuildClassroomAudioGraph();
-    return destination;
-  } catch (error) {
-    console.warn("Unable to create the student's mix-minus destination:", error);
-    return null;
   }
+
+  if (studentSocketId) {
+    classroomAudioDestinations.set(studentSocketId, sharedClassroomAudioDestination);
+  }
+  return sharedClassroomAudioDestination;
 }
 
 
 function removeStudentAudioDestination(studentSocketId) {
-  const destination = classroomAudioDestinations.get(studentSocketId);
-  if (!destination) {
-    return;
+  if (studentSocketId) {
+    classroomAudioDestinations.delete(studentSocketId);
   }
-
-
-  try {
-    destination.disconnect();
-  } catch {}
-  destination.stream.getTracks().forEach((track) => track.stop());
-  classroomAudioDestinations.delete(studentSocketId);
-  rebuildClassroomAudioGraph();
 }
 
 
 function getStudentAudioTrack(studentSocketId) {
-  return classroomAudioDestinations
-    .get(studentSocketId)
+  const dest = (studentSocketId && classroomAudioDestinations.get(studentSocketId)) || sharedClassroomAudioDestination;
+  return dest
     ?.stream
     ?.getAudioTracks?.()
-    .find((track) => track.readyState === "live") || null;
+    .find((track) => track.readyState === "live") || getActiveTeacherAudioTrack();
 }
 
 
@@ -5506,9 +5493,19 @@ function getStudentAudioSender(peerConnection) {
 
 
 function ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate = true } = {}) {
-  const destination = ensureStudentAudioDestination(studentSocketId);
-  const audioTrack = getStudentAudioTrack(studentSocketId);
-  if (!peerConnection || !destination || !audioTrack || peerConnection.signalingState === "closed") {
+  let audioTrack = null;
+  let audioStream = null;
+
+  if (approvedStudentMicrophones.has(studentSocketId)) {
+    audioTrack = getActiveTeacherAudioTrack();
+    audioStream = cameraStream;
+  } else {
+    const destination = ensureStudentAudioDestination(studentSocketId);
+    audioTrack = getStudentAudioTrack(studentSocketId);
+    audioStream = destination?.stream || cameraStream;
+  }
+
+  if (!peerConnection || !audioTrack || peerConnection.signalingState === "closed") {
     return null;
   }
 
@@ -5524,7 +5521,7 @@ function ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate
   }
 
 
-  const sender = peerConnection.addTrack(audioTrack, destination.stream);
+  const sender = peerConnection.addTrack(audioTrack, audioStream || cameraStream);
   sender.__classroomMixMinusAudio = true;
   sender.__classroomAudioDestinationSocketId = studentSocketId;
   void tuneOutboundSender(sender, "audio");
@@ -5705,26 +5702,6 @@ function addClassroomAudioSource(sourceKey, stream, { enabled = true } = {}) {
     const gainNode = classroomAudioContext.createGain();
     let intermediateNode = node;
     if (sourceKey === "__teacher_microphone__") {
-      try {
-        const hp = classroomAudioContext.createBiquadFilter();
-        hp.type = "highpass";
-        hp.frequency.value = 85;
-        hp.Q.value = 0.707;
-
-        const comp = classroomAudioContext.createDynamicsCompressor();
-        comp.threshold.value = -24;
-        comp.knee.value = 12;
-        comp.ratio.value = 4.0;
-        comp.attack.value = 0.003;
-        comp.release.value = 0.25;
-
-        intermediateNode.connect(hp);
-        hp.connect(comp);
-        intermediateNode = comp;
-      } catch (err) {
-        console.warn("[Teacher Audio] Built-in dynamics processing fallback:", err);
-      }
-
       gainNode.gain.value = teacherMicGainLevel;
       teacherMicGainNode = gainNode;
       setupLiveMicMeter(gainNode);
@@ -5776,6 +5753,13 @@ function clearClassroomAudioGraph() {
   classroomAudioSources.clear();
   teacherMicGainNode = null;
 
+  if (sharedClassroomAudioDestination) {
+    try {
+      sharedClassroomAudioDestination.disconnect();
+    } catch {}
+    sharedClassroomAudioDestination.stream.getTracks().forEach((track) => track.stop());
+    sharedClassroomAudioDestination = null;
+  }
 
   classroomAudioDestinations.forEach((destination) => {
     try {
@@ -7494,49 +7478,26 @@ async function resyncClassroomAudioAndStream() {
   if (btn) btn.disabled = true;
 
   try {
-    setStudioStatus("جارٍ تحديث الصوت والبث وإعادة المزامنة مع كافة التلاميذ…", "neutral");
+    setStudioStatus("جارٍ تحديث اتصال الصوت وإعادة تنشيطه مع جميع التلاميذ…", "neutral");
 
     // 1. Re-activate/verify teacher microphone
     await ensureTeacherMicrophoneActive();
 
-    // 2. Re-verify video track
-    const videoTrack = getActiveTeacherVideoTrack();
-    if (videoTrack) {
-      await syncTeacherVideoTrackToAllPeers();
-    }
-
-    // 3. Rebuild classroom audio graph and mix-minus
+    // 2. Refresh classroom audio routing
     rebuildClassroomAudioGraph();
     syncMixMinusAudioToAllPeers();
 
-    // 4. Broadcast resync signal to students in room to resume/recover playback
+    // 3. Broadcast resync signal to students in room to resume/recover playback
     try {
       await emitWithAcknowledgement("teacher_force_resync", { level: activeLevel }, 5000);
     } catch (e) {
       console.warn("teacher_force_resync broadcast warning:", e);
     }
 
-    // 5. Trigger forced ICE restart offers to all connected student peer connections
-    const studentSocketIds = Object.keys(peerConnections);
-    for (const sid of studentSocketIds) {
-      const pc = peerConnections[sid];
-      if (pc) {
-        ensureStudentAudioSender(pc, sid, { renegotiate: false });
-        void createAndSendOffer(sid, { iceRestart: true, force: true });
-      }
-    }
-
-    // Also offer to any attendees without an active peer connection
-    attendeeElements.forEach((_, sid) => {
-      if (!peerConnections[sid] && sid !== socket.id) {
-        void createAndSendOffer(sid, { iceRestart: true, force: true });
-      }
-    });
-
-    setStudioStatus("تم تحديث الصوت والبث وإعادة مزامنة الاتصال مع كافة التلاميذ بنجاح.", "live");
+    setStudioStatus("تم تحديث اتصال الصوت وإعادة تشغيله بنجاح.", "live");
   } catch (err) {
     console.error("Error in resyncClassroomAudioAndStream:", err);
-    setStudioStatus("تعذر إتمام تحديث البث: " + (err.message || "خطأ غير متوقع"), "error");
+    setStudioStatus("تعذر إتمام تحديث الصوت: " + (err.message || "خطأ غير متوقع"), "error");
   } finally {
     if (btn) btn.disabled = !classActive || isEnding;
   }
@@ -7544,61 +7505,8 @@ async function resyncClassroomAudioAndStream() {
 
 
 async function fixClassroomEcho() {
-  if (!classActive || isEnding) return;
-  const btn = elements.fixEchoButton;
-  if (btn) btn.disabled = true;
-
-  try {
-    setStudioStatus("جارٍ تصفية وضبط عزل الصوت…", "neutral");
-
-    // Reconnect and isolate any extraneous audio sources without muting students
-    classroomAudioSources.forEach((source, key) => {
-      if (key !== "__teacher_microphone__" && key !== "__screen_audio__") {
-        try {
-          if (source.gainNode) source.gainNode.disconnect();
-          source.node?.disconnect();
-        } catch (_) {}
-        classroomAudioSources.delete(key);
-      }
-    });
-
-    // Clear and pause extraneous student audio playback elements
-    studentAudioElements.forEach((audioEl) => {
-      try {
-        audioEl.pause();
-        audioEl.srcObject = null;
-      } catch (_) {}
-    });
-    studentAudioElements.clear();
-
-    // Force echo cancellation constraints on teacher's microphone
-    const micTrack = cameraStream?.getAudioTracks?.().find((t) => t.readyState === "live");
-    if (micTrack && typeof micTrack.applyConstraints === "function") {
-      try {
-        await micTrack.applyConstraints({
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        });
-      } catch (e) {
-        console.warn("Could not re-apply echo cancellation constraints:", e);
-      }
-    }
-
-    // Rebuild audio graph and mix-minus
-    if (classroomAudioContext && classroomAudioContext.state === "suspended") {
-      await classroomAudioContext.resume().catch(() => {});
-    }
-    rebuildClassroomAudioGraph();
-    syncMixMinusAudioToAllPeers();
-
-    setStudioStatus("تم تأمين عزل الصوت بنجاح.", "live");
-  } catch (err) {
-    console.error("Error in fixClassroomEcho:", err);
-    setStudioStatus("تعذر إتمام ضبط الصوت: " + (err.message || "خطأ غير متوقع"), "error");
-  } finally {
-    if (btn) btn.disabled = !classActive || isEnding;
-  }
+  // Fix echo button removed per user request: native hardware echo cancellation is active by default.
+  return;
 }
 
 

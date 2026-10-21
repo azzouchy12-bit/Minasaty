@@ -577,14 +577,13 @@ function getSfuParticipantRole(participant) {
 }
 
 function syncClassmateSfuAudioPlayback() {
-  // A P2P mix-minus track already includes classmates. Never play it twice.
-  const hasP2pMix = Boolean(remoteMediaStream?.getAudioTracks?.().some(
-    (track) => track.readyState === "live" && !track.__fromSfu && track.enabled !== false && !track.muted
-  ));
+  const activeP2p = Boolean(
+    remoteMediaStream?.getAudioTracks?.().some((track) => track.readyState === "live" && !track.muted)
+  );
   classmateAudioElements.forEach((audio) => {
-    const wasMuted = audio.muted;
-    audio.muted = hasP2pMix;
-    if (wasMuted && !hasP2pMix && audio.paused) {
+    audio.muted = activeP2p;
+    audio.volume = 1.0;
+    if (!audio.muted && audio.paused) {
       audio.play().catch(() => {});
     }
   });

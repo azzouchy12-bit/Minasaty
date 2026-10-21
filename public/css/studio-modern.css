@@ -71,8 +71,8 @@
 .studio-button.force-youtube:hover:not(:disabled) { color: #fff; background: #be123c; border-color: #fb7185; }
 .studio-button.resync-stream { color: #93c5fd; border-color: rgba(59,130,246,.45); background: rgba(30,58,138,.55); }
 .studio-button.resync-stream:hover:not(:disabled) { color: #fff; background: rgba(37,99,235,.75); border-color: rgba(96,165,250,.75); box-shadow: 0 0 12px rgba(59,130,246,.4); }
-.studio-button.fix-echo { color: #fed7aa; border-color: rgba(249,115,22,.45); background: rgba(154,52,18,.5); }
-.studio-button.fix-echo:hover:not(:disabled) { color: #fff; background: rgba(194,65,12,.75); border-color: rgba(251,146,60,.75); box-shadow: 0 0 12px rgba(249,115,22,.4); }
+/* .studio-button.fix-echo removed */
+
 .studio-button.danger { width: auto; min-width: 118px; padding: 0 16px; color: #fff; border: 0; border-radius: 8px; background: var(--danger-red); font-size: .7rem; font-weight: 800; }
 .studio-button.danger svg { width: 17px; height: 17px; }
 .studio-button:disabled { opacity: .42; cursor: not-allowed; transform: none; }

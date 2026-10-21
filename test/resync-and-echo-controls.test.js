@@ -3,25 +3,22 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-test("teacher-live.html includes resync stream and fix echo buttons in floating toolbar", () => {
+test("teacher-live.html includes resync stream button labeled 'تحديث الصوت' and removed fix-echo button", () => {
   const htmlPath = path.join(__dirname, "..", "public", "teacher-live.html");
   const html = fs.readFileSync(htmlPath, "utf8");
 
   assert.match(html, /id="resync-stream-btn"/, "resync-stream-btn must exist");
-  assert.match(html, /id="fix-echo-btn"/, "fix-echo-btn must exist");
+  assert.doesNotMatch(html, /id="fix-echo-btn"/, "fix-echo-btn must be removed per user request");
   assert.match(html, /class="[^"]*studio-button\s+resync-stream[^"]*"/, "resync-stream class must exist");
-  assert.match(html, /class="[^"]*studio-button\s+fix-echo[^"]*"/, "fix-echo class must exist");
-  assert.match(html, /تحديث البث والصوت/, "resync button Arabic text must exist");
-  assert.match(html, /إلغاء الصدى/, "fix echo button Arabic text must exist");
+  assert.match(html, /تحديث الصوت/, "resync button Arabic text must be 'تحديث الصوت'");
   assert.match(html, /\.attendee-resync-btn/, "attendee-resync-btn CSS must be defined");
 });
 
-test("studio-modern.css includes styling for resync stream, fix echo, and attendee resync button", () => {
+test("studio-modern.css includes styling for resync stream and attendee resync button", () => {
   const cssPath = path.join(__dirname, "..", "public", "css", "studio-modern.css");
   const css = fs.readFileSync(cssPath, "utf8");
 
   assert.match(css, /\.studio-button\.resync-stream/, "studio-button.resync-stream CSS must be styled");
-  assert.match(css, /\.studio-button\.fix-echo/, "studio-button.fix-echo CSS must be styled");
   assert.match(css, /\.attendee-resync-btn/, "attendee-resync-btn CSS must be styled");
 });
 

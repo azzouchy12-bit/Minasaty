@@ -626,19 +626,6 @@
         box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
       }
 
-      .studio-button.fix-echo {
-        color: #fed7aa;
-        background: rgba(154, 52, 18, 0.5);
-        border-color: rgba(249, 115, 22, 0.45);
-      }
-
-      .studio-button.fix-echo:hover:not(:disabled) {
-        color: #ffffff;
-        background: rgba(194, 65, 12, 0.75);
-        border-color: rgba(251, 146, 60, 0.75);
-        box-shadow: 0 0 12px rgba(249, 115, 22, 0.4);
-      }
-
       .sidebar-action-btn.mute-all-btn {
         display: inline-flex;
         align-items: center;
@@ -1929,20 +1916,11 @@
               <span>كتم ميكروفون الجميع</span>
             </button>
 
-            <button id="resync-stream-btn" class="studio-button resync-stream" type="button" title="تحديث الصوت والبث وإعادة مزامنة الاتصال مع جميع التلاميذ فوراً" disabled>
+            <button id="resync-stream-btn" class="studio-button resync-stream" type="button" title="تحديث اتصال الصوت وإعادة تشغيله فوراً لجميع التلاميذ" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
               </svg>
-              <span>تحديث البث والصوت</span>
-            </button>
-
-            <button id="fix-echo-btn" class="studio-button fix-echo" type="button" title="إلغاء الصدى والتشويش الصوتي فوراً وضبط عزل الصوت" disabled>
-              <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M11 5L6 9H2v6h4l5 4V5z"/>
-                <path d="M23 9l-6 6"/>
-                <path d="M17 9l6 6"/>
-              </svg>
-              <span>إلغاء الصدى</span>
+              <span>تحديث الصوت</span>
             </button>
 
             <button id="record-local-btn" class="studio-button record" type="button" title="بدء أو إيقاف التسجيل المحلي" disabled>
