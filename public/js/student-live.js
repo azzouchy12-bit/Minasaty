@@ -4104,11 +4104,12 @@ function isViewingLatestMessages(container, threshold = 36) {
 }
 
 const STUDENT_REACTIONS_CONFIG = [
+  { key: "fire", emoji: "🔥", title: "نار 🔥" },
+  { key: "clap", emoji: "👏", title: "تصفيق 👏" },
   { key: "love", emoji: "❤️", title: "قلب ❤️" },
   { key: "like", emoji: "👍", title: "إعجاب 👍" },
   { key: "cry", emoji: "😭", title: "بكاء 😭" },
   { key: "dislike", emoji: "👎", title: "لم يعجبني 👎" },
-  { key: "fire", emoji: "🔥", title: "نار 🔥" },
 ];
 
 const myActiveChatReactions = new Map();
@@ -4747,6 +4748,151 @@ function showStudentFloatingReaction(targetEl, emoji) {
   setTimeout(() => floating.remove(), 850);
 }
 
+// ===== Exclusive Live Celebration (TikTok Gifts Style) =====
+let celebrationAudioCtx = null;
+
+function unlockCelebrationAudio() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass && !celebrationAudioCtx) {
+      celebrationAudioCtx = new AudioContextClass();
+    }
+    if (celebrationAudioCtx && celebrationAudioCtx.state === "suspended") {
+      celebrationAudioCtx.resume().catch(() => {});
+    }
+  } catch (_) {}
+}
+
+window.addEventListener("click", unlockCelebrationAudio, { once: true });
+window.addEventListener("touchstart", unlockCelebrationAudio, { once: true });
+window.addEventListener("keydown", unlockCelebrationAudio, { once: true });
+
+function playCelebrationChime() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    if (!celebrationAudioCtx) {
+      celebrationAudioCtx = new AudioContextClass();
+    }
+
+    if (celebrationAudioCtx.state === "suspended") {
+      celebrationAudioCtx.resume().catch(() => {});
+    }
+
+    const ctx = celebrationAudioCtx;
+    const now = ctx.currentTime;
+
+    // Sparkling harmonic reward chime lasting ~0.33s (one-third second)
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    osc1.type = "sine";
+    osc2.type = "triangle";
+
+    // Pleasant ascending chime notes (E5 659Hz to C6 1046Hz) + high overtone sparkle
+    osc1.frequency.setValueAtTime(659.25, now);
+    osc1.frequency.exponentialRampToValueAtTime(1046.5, now + 0.08);
+
+    osc2.frequency.setValueAtTime(1318.5, now);
+    osc2.frequency.exponentialRampToValueAtTime(2093.0, now + 0.08);
+
+    // Quick smooth attack (0.02s) and gentle fade-out (~0.33s)
+    gainNode.gain.setValueAtTime(0.001, now);
+    gainNode.gain.linearRampToValueAtTime(0.24, now + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.33);
+
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.34);
+    osc2.stop(now + 0.34);
+  } catch (err) {
+    console.debug("Celebration chime playback skipped:", err);
+  }
+}
+
+function triggerCelebrationConfetti() {
+  try {
+    if (typeof window.confetti === "function") {
+      window.confetti({
+        particleCount: 55,
+        spread: 80,
+        origin: { x: 0.5, y: 0.5 },
+        colors: ["#f59e0b", "#ef4444", "#ec4899", "#3b82f6", "#10b981", "#fbbf24", "#a855f7"],
+        ticks: 120,
+        gravity: 1.1,
+        scalar: 1.15,
+        disableForReducedMotion: true,
+        zIndex: 9999998,
+      });
+    }
+  } catch (confettiErr) {
+    console.debug("Confetti launch skipped:", confettiErr);
+  }
+}
+
+let lastCelebrationTimestamp = 0;
+
+function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null) {
+  const now = Date.now();
+  if (now - lastCelebrationTimestamp < 850) {
+    return; // Prevent duplicate triggers within 850ms
+  }
+  lastCelebrationTimestamp = now;
+
+  const emojiMap = {
+    fire: "🔥",
+    clap: "👏",
+    love: "❤️",
+    like: "👍",
+    cry: "😭",
+    dislike: "👎",
+  };
+  const labelMap = {
+    fire: "إجابة نارية وممتازة! 🔥",
+    clap: "أحسنت! إجابة صحيحة 👏",
+    love: "رائع جداً! إجابة مميزة ❤️",
+    like: "أحسنت! إجابة موفقة 👍",
+  };
+
+  const emoji = customEmoji || emojiMap[reactionKey] || "⭐";
+  const tagText = labelMap[reactionKey] || "إجابة صحيحة من التلميذ! ⭐";
+
+  // 1. Play soft ~1/3-second chime
+  playCelebrationChime();
+
+  // 2. Launch confetti in center
+  triggerCelebrationConfetti();
+
+  // 3. Render big center emoji pop animation (~0.4s)
+  let container = document.getElementById("student-celebration-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "student-celebration-container";
+    container.className = "student-celebration-container";
+    container.setAttribute("aria-hidden", "true");
+    document.body.append(container);
+  }
+
+  const pop = document.createElement("div");
+  pop.className = "student-celebration-pop";
+  pop.innerHTML = `
+    <span class="student-celebration-emoji">${emoji}</span>
+    <span class="student-celebration-tag">${tagText}</span>
+  `;
+
+  container.append(pop);
+
+  setTimeout(() => {
+    pop.remove();
+  }, 440);
+}
+
 function updateStudentMessageReactions(data) {
   if (!data || !data.messageId) return;
   const pillsWrap = document.querySelector(`.student-chat-reactions-pills[data-pills-for="${data.messageId}"]`);
@@ -4757,6 +4903,7 @@ function updateStudentMessageReactions(data) {
       cry: data.cryCount,
       dislike: data.dislikeCount,
       fire: data.fireCount,
+      clap: data.clapCount,
       teacherReacted: data.teacherReacted,
     }, data.messageId);
   }
@@ -7006,12 +7153,40 @@ socket.on("teacher_message_received", async (data = {}) => {
 socket.on("classroom_chat_reaction_updated", (data = {}) => {
   if (!joinedClass) return;
   updateStudentMessageReactions(data);
+
+  if (data.isTeacherReactor && data.toggledOn) {
+    const myStudentId = String((typeof studentId !== "undefined" ? studentId : "") || sessionStorage.getItem("studentId") || "");
+    const isTargetStudent = Boolean(
+      (data.targetUserId && myStudentId && String(data.targetUserId) === myStudentId) ||
+      (data.targetSocketId && data.targetSocketId === socket.id)
+    );
+
+    if (isTargetStudent) {
+      triggerExclusiveCelebration(data.lastReaction || data.userReaction);
+    } else {
+      // For other students watching the stream: show brief subtle reaction on comment if visible
+      const reactionEmojiMap = { fire: "🔥", clap: "👏", love: "❤️", like: "👍", cry: "😭", dislike: "👎" };
+      const emoji = reactionEmojiMap[data.lastReaction || data.userReaction] || "⭐";
+      const targetBubble = data.messageId ? document.querySelector(`.student-chat-message[data-message-id="${data.messageId}"]`) : null;
+      if (targetBubble) {
+        showStudentFloatingReaction(targetBubble, emoji);
+        targetBubble.classList.add("chat-message-reward-pulse");
+        setTimeout(() => targetBubble.classList.remove("chat-message-reward-pulse"), 850);
+      }
+    }
+  }
+});
+
+socket.on("student_celebration_trigger", (data = {}) => {
+  if (!joinedClass) return;
+  triggerExclusiveCelebration(data.reaction, data.emoji);
 });
 
 socket.on("teacher_reacted_to_message", (data = {}) => {
   if (!joinedClass) return;
   const reactionConfig = {
     fire: { emoji: "🔥", label: "نار وتميز", points: 5 },
+    clap: { emoji: "👏", label: "تصفيق وإشادة", points: 5 },
     love: { emoji: "❤️", label: "إعجاب وتشجيع", points: 3 },
     like: { emoji: "👍", label: "أحسنت", points: 2 },
     cry: { emoji: "😭", label: "بكاء", points: 0 },
@@ -7047,6 +7222,9 @@ socket.on("teacher_reacted_to_message", (data = {}) => {
   let toastMsg = "";
 
   if (isToggledOn) {
+    // Trigger exclusive center celebration with big emoji, chime, and confetti!
+    triggerExclusiveCelebration(data.reaction, emoji);
+
     if (delta > 0) {
       toastMsg = `${emoji} تفاعل المعلم مع إجابتك: +${delta} نقاط! (مجموع نقاطك: ${data.totalPoints ?? studentPointsTotal})`;
     } else if (delta < 0) {

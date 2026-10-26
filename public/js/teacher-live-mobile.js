@@ -1685,9 +1685,10 @@
     popover.append(title);
 
     const TEACHER_STACKED_REACTIONS = [
-      { key: "fire", emoji: "🔥", label: "نار", points: "+5 نقاط", pointClass: "points-fire" },
-      { key: "love", emoji: "❤️", label: "قلب", points: "+3 نقاط", pointClass: "points-love" },
-      { key: "like", emoji: "👍", label: "إعجاب", points: "+2 نقطتان", pointClass: "points-like" },
+      { key: "fire", emoji: "🔥", label: "نار وتميز", points: "+5 نقاط", pointClass: "points-fire" },
+      { key: "clap", emoji: "👏", label: "تصفيق وبرافو", points: "+5 نقاط", pointClass: "points-fire" },
+      { key: "love", emoji: "❤️", label: "قلب وتشجيع", points: "+3 نقاط", pointClass: "points-love" },
+      { key: "like", emoji: "👍", label: "إعجاب وأحسنت", points: "+2 نقطتان", pointClass: "points-like" },
       { key: "dislike", emoji: "👎", label: "لايك مقلوبة", points: "-1 نقطة", pointClass: "points-dislike" },
       { key: "cry", emoji: "😢", label: "بكاء", points: "0 نقاط", pointClass: "points-cry" },
     ];
@@ -1734,17 +1735,19 @@
     activeMobileEmojiPopover = { anchor, menu: popover, messageId };
   }
 
-  function appendChatMessage({ id = null, sender, message, kind = "student", imageUrl = null, reactions = null }) {
+  function appendChatMessage({ id = null, sender, message, kind = "student", imageUrl = null, reactions = null, studentId = null, studentSocketId = null }) {
     if (el.chatEmpty) el.chatEmpty.style.display = "none";
 
     const msgId = id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const bubble = document.createElement("div");
     bubble.className = `tm-chat-bubble is-${kind}`;
     bubble.dataset.messageId = msgId;
+    if (studentId) bubble.dataset.studentId = String(studentId);
+    if (studentSocketId) bubble.dataset.socketId = String(studentSocketId);
 
     if (kind === "student") {
       bubble.addEventListener("click", (event) => {
-        if (event.target.closest("button, a, img, .tm-emoji-popover, .tm-reaction-pill")) {
+        if (event.target.closest("button, a, img, .tm-emoji-popover, .tm-reaction-pill, .tm-chat-actions-bar")) {
           return;
         }
         openMobileEmojiPopover({ anchor: bubble, messageId: msgId });
@@ -1767,16 +1770,43 @@
     meta.append(name, time);
 
     if (kind === "student") {
+      const actionsBar = document.createElement("div");
+      actionsBar.className = "tm-chat-actions-bar";
+
+      const quickReactions = [
+        { key: "fire", emoji: "🔥", label: "نار (+5)" },
+        { key: "love", emoji: "❤️", label: "تشجيع (+3)" },
+        { key: "clap", emoji: "👏", label: "تصفيق (+5)" },
+      ];
+
+      quickReactions.forEach((qr) => {
+        const qBtn = document.createElement("button");
+        qBtn.type = "button";
+        qBtn.className = "tm-chat-quick-btn";
+        qBtn.dataset.reactionKey = qr.key;
+        qBtn.title = `${qr.label}: تفاعل فوري واحتفال للتلميذ`;
+        qBtn.setAttribute("aria-label", qr.label);
+        qBtn.textContent = qr.emoji;
+        qBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          sendChatReaction(msgId, qr.key, studentId, studentSocketId);
+        });
+        actionsBar.append(qBtn);
+      });
+
       const reactTrigger = document.createElement("button");
       reactTrigger.type = "button";
       reactTrigger.className = "tm-chat-react-trigger";
-      reactTrigger.title = "اضغط لاختيار إيموجي ومنح نقاط للتلميذ";
-      reactTrigger.innerHTML = `<span>⭐ تفاعل</span>`;
+      reactTrigger.title = "المزيد من التفاعلات";
+      reactTrigger.setAttribute("aria-label", "المزيد من التفاعلات");
+      reactTrigger.innerHTML = `<span>⭐</span>`;
       reactTrigger.addEventListener("click", (e) => {
         e.stopPropagation();
         openMobileEmojiPopover({ anchor: bubble, messageId: msgId });
       });
-      head.append(meta, reactTrigger);
+      actionsBar.append(reactTrigger);
+
+      head.append(meta, actionsBar);
     } else {
       head.append(meta);
     }
@@ -1830,11 +1860,12 @@
     if (!reactions) return;
 
     const TEACHER_REACTIONS_CONFIG = [
+      { key: "fire", emoji: "🔥", title: "نار 🔥" },
+      { key: "clap", emoji: "👏", title: "تصفيق 👏" },
       { key: "love", emoji: "❤️", title: "قلب ❤️" },
       { key: "like", emoji: "👍", title: "إعجاب 👍" },
       { key: "cry", emoji: "😭", title: "بكاء 😭" },
       { key: "dislike", emoji: "👎", title: "لم يعجبني 👎" },
-      { key: "fire", emoji: "🔥", title: "نار 🔥" },
     ];
 
     TEACHER_REACTIONS_CONFIG.forEach((r) => {
@@ -1843,7 +1874,7 @@
         reactions.teacherReacted === r.key ||
         (Array.isArray(reactions.teacherReacted) && reactions.teacherReacted.includes(r.key))
       );
-      let count = Number(reactions[r.key] || reactions[`${r.key}Count`] || 0);
+      let count = Number(reactions[r.key] || reactions[`${r.key}Count`] || (reactions.counts && reactions.counts[r.key]) || 0);
       if (isTeacherReacted && count === 0) count = 1;
 
       if (count > 0) {
@@ -1861,17 +1892,21 @@
     });
   }
 
-  function sendChatReaction(messageId, reaction) {
+  function sendChatReaction(messageId, reaction, studentId, studentSocketId) {
     if (!socket || !classActive) return;
     const bubble = document.querySelector(`.tm-chat-bubble[data-message-id="${messageId}"]`);
-    const emojiMap = { love: "❤️", like: "👍", cry: "😭", dislike: "👎", fire: "🔥" };
+    const emojiMap = { love: "❤️", like: "👍", cry: "😭", dislike: "👎", fire: "🔥", clap: "👏" };
     if (bubble) {
-      showFloatingReaction(bubble, emojiMap[reaction] || "❤️");
+      showFloatingReaction(bubble, emojiMap[reaction] || "🔥");
     }
+    const targetUserId = studentId || bubble?.dataset?.studentId || null;
+    const targetSocketId = studentSocketId || bubble?.dataset?.socketId || null;
     socket.emit("classroom_chat_react", {
       messageId,
       reaction,
       level: activeLevel,
+      targetUserId,
+      targetSocketId,
     }, (res) => {
       if (res && res.ok) {
         updateMessageReactions(res);
@@ -1901,6 +1936,7 @@
         cry: data.cryCount,
         dislike: data.dislikeCount,
         fire: data.fireCount,
+        clap: data.clapCount,
         teacherReacted: data.teacherReacted,
       }, data.messageId);
     }
@@ -2068,6 +2104,8 @@
       kind: "student",
       imageUrl,
       reactions: data.reactions || null,
+      studentId: data.studentId || null,
+      studentSocketId: data.socketId || null,
     });
   });
 

@@ -996,6 +996,42 @@
         transform: scale(1.05);
       }
 
+      .chat-message-actions-bar {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: rgba(15, 23, 42, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        padding: 2px 4px;
+        margin-inline-start: auto;
+      }
+
+      .chat-quick-reaction-btn {
+        background: transparent;
+        border: none;
+        color: inherit;
+        font-size: 0.98rem;
+        line-height: 1;
+        padding: 2px 4px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease;
+      }
+
+      .chat-quick-reaction-btn:hover {
+        transform: scale(1.35);
+        background: rgba(255, 255, 255, 0.18);
+      }
+
+      .chat-quick-reaction-btn:active,
+      .chat-quick-reaction-btn.btn-clicked-pop {
+        transform: scale(0.92);
+      }
+
       /* Stacked Emoji Popover for Teacher ("فوق بعضها") */
       .teacher-emoji-popover {
         position: fixed;
@@ -2375,6 +2411,7 @@
     </div>
 
     <link rel="stylesheet" href="./css/private-messages.css" />
+    <script src="./js/sentry-client.js" defer></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="./js/session-storage.js?v=single-session-1"></script>
     <script src="./js/message-notifications.js"></script>

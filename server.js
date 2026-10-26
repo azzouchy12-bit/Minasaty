@@ -5,6 +5,7 @@
 // messages required for each teacher <-> student peer connection.
 
 require("dotenv").config();
+const { Sentry, isSentryEnabled } = require("./config/sentry");
 
 const express = require("express");
 const http = require("http");
@@ -115,6 +116,7 @@ app.use(
         "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         "img-src": ["'self'", "data:", "blob:", "https://www.facebook.com"],
         "media-src": ["'self'", "blob:"],
+        "worker-src": ["'self'", "blob:"],
         "connect-src": ["'self'", "https:", "wss:", "https://www.facebook.com"],
         // Firebase Auth loads official ES modules from gstatic, while its
         // invisible reCAPTCHA challenge uses Google-hosted scripts and frames.
@@ -128,6 +130,8 @@ app.use(
           "https://apis.google.com",
           "https://www.google.com",
           "https://www.recaptcha.net",
+          "https://browser.sentry-cdn.com",
+          "https://js.sentry-cdn.com",
         ],
         "frame-src": [
           "'self'",
@@ -239,6 +243,16 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/webrtc", webrtcRoutes);
 app.use("/api/native-alerts", nativeAlertRoutes);
 
+
+// Sentry public configuration for client-side error monitoring
+app.get("/api/sentry/config", (_req, res) => {
+  const dsn = (process.env.SENTRY_FRONTEND_DSN || process.env.SENTRY_DSN || "").trim();
+  res.json({
+    enabled: Boolean(dsn),
+    dsn: dsn || null,
+    environment: process.env.NODE_ENV || "development",
+  });
+});
 
 // Platform Version Endpoint for instant in-app web updates without APK re-download
 const PLATFORM_VERSION = process.env.PLATFORM_VERSION || "2026.09.14-v9-instant";
@@ -1028,7 +1042,7 @@ function appendClassroomChatMessage(level, entry) {
     entry.id = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
   if (!entry.reactions) {
-    entry.reactions = { love: 0, like: 0, cry: 0, dislike: 0, fire: 0, teacherReacted: {} };
+    entry.reactions = { love: 0, like: 0, cry: 0, dislike: 0, fire: 0, clap: 0, teacherReacted: {} };
   }
   history.push({ ...entry, sentAt: Date.now() });
   if (history.length > MAX_CLASSROOM_CHAT_HISTORY) {
@@ -3548,7 +3562,7 @@ io.on("connection", (socket) => {
         studentName: socket.data.studentName,
         message,
         imageId: null,
-        reactions: { love: 0, like: 0, cry: 0, dislike: 0, fire: 0, teacherReacted: {} },
+        reactions: { love: 0, like: 0, cry: 0, dislike: 0, fire: 0, clap: 0, teacherReacted: {} },
       };
       appendClassroomChatMessage(level, chatEntry);
       // This is intentionally a direct socket emission—not a level-room broadcast.
@@ -3623,7 +3637,7 @@ io.on("connection", (socket) => {
       imageId: imageId || null,
       imageName: originalImage?.originalName || null,
       imageData: imageData || null,
-      reactions: { love: 0, like: 0, cry: 0, dislike: 0, fire: 0, teacherReacted: {} },
+      reactions: { love: 0, like: 0, cry: 0, dislike: 0, fire: 0, clap: 0, teacherReacted: {} },
     };
     appendClassroomChatMessage(level, chatEntry);
     socket.to(level).emit("teacher_message_received", chatEntry);
@@ -3634,14 +3648,14 @@ io.on("connection", (socket) => {
     acknowledge(acknowledgement, { ok: true, imageSent: Boolean(imageData || imageId), messageId });
   });
 
-  /** Handle chat message reactions (Like 👍 and Love ❤️) from teacher or students */
+  /** Handle chat message reactions (Like 👍, Love ❤️, Fire 🔥, Clap 👏, etc.) from teacher or students */
   socket.on("classroom_chat_react", async (data = {}, acknowledgement) => {
     try {
       const messageId = String(data.messageId || "").trim();
       const reaction = String(data.reaction || "").trim().toLowerCase();
       const level = String(data.level || socket.data.roomLevel || "").trim();
 
-      const VALID_REACTIONS = new Set(["love", "like", "cry", "dislike", "fire"]);
+      const VALID_REACTIONS = new Set(["love", "like", "cry", "dislike", "fire", "clap"]);
       if (!messageId || !VALID_REACTIONS.has(reaction) || !isValidLevel(level)) {
         return acknowledge(acknowledgement, { ok: false, error: "بيانات التفاعل غير صالحة." });
       }
@@ -3681,6 +3695,7 @@ io.on("connection", (socket) => {
         cry: 0,
         dislike: 0,
         fire: 0,
+        clap: 0,
       };
       const teacherReacted = {
         love: false,
@@ -3688,6 +3703,7 @@ io.on("connection", (socket) => {
         cry: false,
         dislike: false,
         fire: false,
+        clap: false,
       };
 
       for (const [uid, rSet] of messageReactions.entries()) {
@@ -3711,6 +3727,13 @@ io.on("connection", (socket) => {
         };
       }
 
+      const targetUserId = data.targetUserId
+        ? String(data.targetUserId).trim()
+        : (targetMsg && targetMsg.studentId ? String(targetMsg.studentId).trim() : null);
+      const targetSocketId = data.targetSocketId
+        ? String(data.targetSocketId).trim()
+        : (targetMsg && targetMsg.socketId ? String(targetMsg.socketId).trim() : null);
+
       const updatePayload = {
         messageId,
         level,
@@ -3720,20 +3743,23 @@ io.on("connection", (socket) => {
         cryCount: counts.cry,
         dislikeCount: counts.dislike,
         fireCount: counts.fire,
+        clapCount: counts.clap || 0,
         teacherReacted,
         userReaction: reaction,
         toggledOn,
         lastReactorName: userName,
         lastReaction: reaction,
         isTeacherReactor: isTeacher,
+        targetUserId: targetUserId || null,
+        targetSocketId: targetSocketId || null,
       };
 
       // Broadcast to level room
       io.to(level).emit("classroom_chat_reaction_updated", updatePayload);
 
       // If targetMsg has a specific student socketId, also emit directly to ensure instant arrival
-      if (targetMsg && targetMsg.socketId) {
-        io.to(targetMsg.socketId).emit("classroom_chat_reaction_updated", updatePayload);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit("classroom_chat_reaction_updated", updatePayload);
       }
 
       // Notify teacher and companions
@@ -3750,14 +3776,49 @@ io.on("connection", (socket) => {
 
       const TEACHER_REACTION_POINTS = Object.freeze({
         fire: 5,
+        clap: 5,
         love: 3,
         like: 2,
         cry: 0,
         dislike: -1,
       });
 
+      // Exclusive Celebration Trigger: If teacher reacted and turned on reaction for student
+      if (isTeacher && toggledOn && (targetSocketId || targetUserId)) {
+        const celebrationEmojiMap = {
+          fire: "🔥",
+          clap: "👏",
+          love: "❤️",
+          like: "👍",
+          cry: "😭",
+          dislike: "👎",
+        };
+        const celebrationPayload = {
+          messageId,
+          reaction,
+          emoji: celebrationEmojiMap[reaction] || "⭐",
+          points: TEACHER_REACTION_POINTS[reaction] ?? 0,
+          targetUserId: targetUserId || null,
+          targetSocketId: targetSocketId || null,
+          studentName: targetMsg ? targetMsg.studentName : "",
+          messageText: targetMsg ? targetMsg.message || "" : "",
+        };
+
+        if (targetSocketId) {
+          io.to(targetSocketId).emit("student_celebration_trigger", celebrationPayload);
+        }
+        if (targetUserId) {
+          for (const [sId, s] of io.sockets.sockets) {
+            if (s.data && String(s.data.studentId || "") === String(targetUserId) && sId !== targetSocketId) {
+              io.to(sId).emit("student_celebration_trigger", celebrationPayload);
+            }
+          }
+        }
+      }
+
       // If teacher reacted to a student's message, record/update points in database
-      if (isTeacher && targetMsg && targetMsg.kind === "student" && targetMsg.studentId) {
+      const studentTargetId = (targetMsg && targetMsg.studentId) || targetUserId;
+      if (isTeacher && studentTargetId && (!targetMsg || targetMsg.kind === "student")) {
         const pointDelta = TEACHER_REACTION_POINTS[reaction] ?? 0;
         try {
           if (toggledOn) {
@@ -3769,8 +3830,8 @@ io.on("connection", (socket) => {
                 },
               },
               create: {
-                studentId: targetMsg.studentId,
-                level: targetMsg.level || level,
+                studentId: studentTargetId,
+                level: (targetMsg && targetMsg.level) || level,
                 messageId,
                 reaction,
                 points: pointDelta,
@@ -3791,38 +3852,57 @@ io.on("connection", (socket) => {
           // Calculate student's total points across all reactions + manual adjustment
           const [agg, studentRec] = await Promise.all([
             prisma.studentReactionPoint.aggregate({
-              where: { studentId: targetMsg.studentId },
+              where: { studentId: studentTargetId },
               _sum: { points: true },
             }),
             prisma.student.findUnique({
-              where: { id: targetMsg.studentId },
+              where: { id: studentTargetId },
               select: { manualPointsAdjustment: true },
             }),
           ]);
           const totalPoints = Math.max(0, (agg?._sum?.points ?? 0) + (studentRec?.manualPointsAdjustment ?? 0));
 
-          if (targetMsg.socketId) {
-            io.to(targetMsg.socketId).emit("teacher_reacted_to_message", {
-              messageId,
-              reaction,
-              points: toggledOn ? pointDelta : -pointDelta,
-              toggledOn,
-              totalPoints,
-              messageText: targetMsg.message || "",
-            });
+          const studentReactionEmitData = {
+            messageId,
+            reaction,
+            points: toggledOn ? pointDelta : -pointDelta,
+            toggledOn,
+            totalPoints,
+            messageText: targetMsg ? targetMsg.message || "" : "",
+            targetUserId: studentTargetId,
+          };
+
+          if (targetSocketId) {
+            io.to(targetSocketId).emit("teacher_reacted_to_message", studentReactionEmitData);
+          }
+          for (const [sId, s] of io.sockets.sockets) {
+            if (s.data && String(s.data.studentId || "") === String(studentTargetId) && sId !== targetSocketId) {
+              io.to(sId).emit("teacher_reacted_to_message", studentReactionEmitData);
+            }
           }
         } catch (dbErr) {
           console.warn("Unable to persist student reaction points:", dbErr.message);
         }
-      } else if (isTeacher && toggledOn && targetMsg && targetMsg.kind === "student" && targetMsg.socketId) {
-        io.to(targetMsg.socketId).emit("teacher_reacted_to_message", {
+      } else if (isTeacher && toggledOn && (targetSocketId || studentTargetId)) {
+        const studentReactionEmitData = {
           messageId,
           reaction,
           points: TEACHER_REACTION_POINTS[reaction] ?? 0,
           toggledOn: true,
           totalPoints: 0,
-          messageText: targetMsg.message || "",
-        });
+          messageText: targetMsg ? targetMsg.message || "" : "",
+          targetUserId: studentTargetId || null,
+        };
+        if (targetSocketId) {
+          io.to(targetSocketId).emit("teacher_reacted_to_message", studentReactionEmitData);
+        }
+        if (studentTargetId) {
+          for (const [sId, s] of io.sockets.sockets) {
+            if (s.data && String(s.data.studentId || "") === String(studentTargetId) && sId !== targetSocketId) {
+              io.to(sId).emit("teacher_reacted_to_message", studentReactionEmitData);
+            }
+          }
+        }
       }
 
       acknowledge(acknowledgement, { ok: true, ...updatePayload });
@@ -4048,6 +4128,10 @@ io.on("connection", (socket) => {
   });
 });
 
+if (isSentryEnabled) {
+  Sentry.setupExpressErrorHandler(app);
+}
+
 // Terminal Express error handler. Route-specific handlers can return useful
 // 4xx responses; unexpected errors are logged server-side and never expose a
 // stack trace or internal database detail to clients.
@@ -4057,6 +4141,12 @@ app.use((error, req, res, next) => {
   }
 
   const incidentId = crypto.randomUUID();
+  if (isSentryEnabled) {
+    Sentry.captureException(error, {
+      tags: { incidentId },
+      user: req.user ? { id: req.user.sessionId || req.user.id, role: req.user.role } : undefined,
+    });
+  }
   console.error(`Unhandled Express error [${incidentId}]:`, error);
   void prisma.auditLog.create({
     data: {
@@ -4159,11 +4249,17 @@ if (require.main === module) {
   });
 
   process.on("unhandledRejection", (reason, promise) => {
+    if (isSentryEnabled) {
+      Sentry.captureException(reason);
+    }
     liveDiagnostics.logServer("unhandled_rejection", { errorName: String(reason?.name || "UnknownError").slice(0, 60) });
     console.error("[Process Protection] Unhandled Rejection at:", promise, "reason:", reason);
   });
 
   process.on("uncaughtException", (error) => {
+    if (isSentryEnabled) {
+      Sentry.captureException(error);
+    }
     console.error("[Process Protection] Uncaught Exception thrown:", error);
   });
 

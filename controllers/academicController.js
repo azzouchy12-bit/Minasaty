@@ -358,6 +358,7 @@ async function getProgress(req, res) {
   const reactionPointsSummary = {
     totalPoints: reactionPointsTotal,
     fireCount: reactionPoints.filter((r) => r.reaction === "fire").length,
+    clapCount: reactionPoints.filter((r) => r.reaction === "clap").length,
     loveCount: reactionPoints.filter((r) => r.reaction === "love").length,
     likeCount: reactionPoints.filter((r) => r.reaction === "like").length,
     dislikeCount: reactionPoints.filter((r) => r.reaction === "dislike").length,
