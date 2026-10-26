@@ -4861,7 +4861,7 @@ function triggerCelebrationConfetti() {
               zIndex: 9999998,
             });
           }
-        } catch (_) {}
+        } catch (_) { }
       }, 350);
     }
   } catch (confettiErr) {
@@ -4883,7 +4883,7 @@ function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null) {
     clap: "👏",
     love: "❤️",
     like: "👍",
-    cry: "😭",
+    cry: "👀",
     dislike: "👎",
   };
   const labelMap = {
