@@ -136,7 +136,7 @@ function detachTeacherSfuPlaybackTrack(kind, expectedTrack = null) {
   if (!track || (expectedTrack && track !== expectedTrack)) return;
   teacherSfuPlaybackTracks.delete(kind);
   const element = kind === "video" ? elements.remoteVideo : getTeacherAudioElement();
-  try { if (element && typeof track.detach === "function") track.detach(element); } catch (_) {}
+  try { if (element && typeof track.detach === "function") track.detach(element); } catch (_) { }
 }
 
 function attachTeacherSfuPlaybackTrack(track, participant) {
@@ -153,7 +153,7 @@ function attachTeacherSfuPlaybackTrack(track, participant) {
   if (track.kind === "video") {
     element.srcObject = new MediaStream([track.mediaStreamTrack]);
     element.muted = true;
-    if (typeof element?.play === "function") void element.play().catch(() => {});
+    if (typeof element?.play === "function") void element.play().catch(() => { });
     if (elements?.placeholder) elements.placeholder.hidden = true;
     if (typeof updateRemoteVideoPresentation === "function") updateRemoteVideoPresentation();
     if (typeof clearRecoveryTimer === "function") clearRecoveryTimer();
@@ -164,7 +164,7 @@ function attachTeacherSfuPlaybackTrack(track, participant) {
   track.attach(element);
   if (track.kind === "video") {
     element.muted = true;
-    if (typeof element?.play === "function") void element.play().catch(() => {});
+    if (typeof element?.play === "function") void element.play().catch(() => { });
     if (elements?.placeholder) elements.placeholder.hidden = true;
     if (typeof updateRemoteVideoPresentation === "function") updateRemoteVideoPresentation();
   }
@@ -185,7 +185,7 @@ function playTeacherInboundAudio(track) {
   const existingTracks = teacherAudioStream.getAudioTracks();
   if (!existingTracks.some((t) => t.id === track.id)) {
     existingTracks.forEach((oldT) => {
-      try { teacherAudioStream.removeTrack(oldT); } catch (_) {}
+      try { teacherAudioStream.removeTrack(oldT); } catch (_) { }
     });
     teacherAudioStream.addTrack(track);
     if (audioEl.srcObject !== teacherAudioStream) {
@@ -256,7 +256,7 @@ async function refreshClassroomAudioOnly({ sourceHint = "student_mic_opened" } =
       const teacherTrack = tracks.find((track) => track.__fromSfu) ||
         tracks.find((track) => track === teacherInboundAudioTrack) || tracks[0] ||
         (teacherInboundAudioTrack?.readyState === "live" &&
-         teacherInboundAudioTrack.enabled !== false && !teacherInboundAudioTrack.muted
+          teacherInboundAudioTrack.enabled !== false && !teacherInboundAudioTrack.muted
           ? teacherInboundAudioTrack : null);
       if (teacherTrack) playTeacherInboundAudio(teacherTrack);
       const teacherResult = await ensureTeacherAudioPlayback({ sourceHint });
@@ -335,9 +335,11 @@ async function reportClassroomAudioReception() {
           if (pending.length >= 64) continue;
           pending.push(sampleAudioReception(key, mediaTrack,
             typeof remoteTrack.getRTCStatsReport === "function" ? () => remoteTrack.getRTCStatsReport() : null).then((receiving) => {
-            tracks.push({ identity: participant.identity, receiving,
-              playing: audioPlaybackIsActive(classmateAudioElements.get(participant.identity), mediaTrack) });
-          }));
+              tracks.push({
+                identity: participant.identity, receiving,
+                playing: audioPlaybackIsActive(classmateAudioElements.get(participant.identity), mediaTrack)
+              });
+            }));
         }
       }
     }
@@ -352,7 +354,7 @@ async function reportClassroomAudioReception() {
     const micTrack = sfuMicTrack?.readyState === "live" && sfuMicTrack.enabled !== false && !sfuMicTrack.muted
       ? sfuMicTrack : (sessionPeer?.connectionState === "connected" ? studentP2pMicSender?.track : null);
     if (!joinedClass || !socket.connected || teacherSocketId !== teacherId ||
-        studentSfuRoom !== sessionRoom || pc !== sessionPeer) return;
+      studentSfuRoom !== sessionRoom || pc !== sessionPeer) return;
     socket.emit("student_audio_reception_report", {
       micPublished: Boolean(microphonePermissionGranted && micTrack?.readyState === "live" && micTrack.enabled !== false && !micTrack.muted),
       tracks: tracks.slice(0, 64),
@@ -431,7 +433,7 @@ async function sampleTeacherP2pReception() {
     for (const receiver of peer.getReceivers?.() || []) {
       const track = receiver.track;
       if (!track || track.__fromSfu === true || track.readyState !== "live" ||
-          track.enabled === false || track.muted || typeof receiver.getStats !== "function") continue;
+        track.enabled === false || track.muted || typeof receiver.getStats !== "function") continue;
       activeTracks.add(track);
       let timeout;
       try {
@@ -451,8 +453,10 @@ async function sampleTeacherP2pReception() {
         const previous = studentP2pMediaProgress.get(track);
         const advanced = previous?.peer === peer && bytes > previous.bytes &&
           (!hasUnits || !previous.hasUnits || units > previous.units);
-        studentP2pMediaProgress.set(track, { peer, bytes, units, hasUnits,
-          lastProgressAt: advanced ? Date.now() : (previous?.lastProgressAt || 0) });
+        studentP2pMediaProgress.set(track, {
+          peer, bytes, units, hasUnits,
+          lastProgressAt: advanced ? Date.now() : (previous?.lastProgressAt || 0)
+        });
       } catch (_) {
         studentP2pMediaProgress.delete(track);
       } finally { window.clearTimeout(timeout); }
@@ -473,7 +477,7 @@ function notifySfuTransportStatus(receiving = true) {
       ? getTeacherP2pReceptionState()
       : { receiving: false, receivingAudio: false, receivingVideo: false };
     if (receiving && reception.receivingVideo) {
-      try { sessionStorage.setItem("studentMediaTransport", "sfu"); } catch (_) {}
+      try { sessionStorage.setItem("studentMediaTransport", "sfu"); } catch (_) { }
     }
     socket.emit("student_media_transport_status", {
       transport: "sfu",
@@ -584,7 +588,7 @@ function syncClassmateSfuAudioPlayback() {
     audio.muted = activeP2p;
     audio.volume = 1.0;
     if (!audio.muted && audio.paused) {
-      audio.play().catch(() => {});
+      audio.play().catch(() => { });
     }
   });
 }
@@ -608,7 +612,7 @@ function playClassmateSfuAudio(participantId, track) {
   }
   audio.srcObject = new MediaStream([mediaTrack]);
   if (typeof track.attach === "function") {
-    try { track.attach(audio); } catch (_) {}
+    try { track.attach(audio); } catch (_) { }
   }
   syncClassmateSfuAudioPlayback();
   mediaTrack.addEventListener?.("ended", () => stopClassmateSfuAudio(participantId, mediaTrack), { once: true });
@@ -619,7 +623,7 @@ function playClassmateSfuAudio(participantId, track) {
       if (typeof armAutoUnmuteOnFirstInteraction === "function") armAutoUnmuteOnFirstInteraction();
       if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.armAutoplayUnlock) {
         window.MinasatyAudioEnhancer.armAutoplayUnlock(() => {
-          audio.play().catch(() => {});
+          audio.play().catch(() => { });
         });
       }
     });
@@ -637,7 +641,7 @@ function stopClassmateSfuAudio(participantId, track = null) {
       audio.pause();
       audio.srcObject = null;
       audio.remove();
-    } catch (_) {}
+    } catch (_) { }
     classmateAudioElements.delete(participantId);
   }
 }
@@ -648,7 +652,7 @@ function clearAllClassmateAudio() {
       audio.pause();
       audio.srcObject = null;
       audio.remove();
-    } catch (_) {}
+    } catch (_) { }
   });
   classmateAudioElements.clear();
 }
@@ -736,7 +740,7 @@ window.getMinasatyStudentLiveStatsAsync = async function getMinasatyStudentLiveS
         }
       });
       base.inboundAudioStats = inboundAudioStats;
-    } catch (_) {}
+    } catch (_) { }
   }
   return base;
 };
@@ -774,7 +778,7 @@ function startSfuReceptionMonitor(room) {
           if (publication.kind === "video" || publication.track?.kind === "video" || publication.source === "screen_share") teacherVideoPublished = true;
           // Intentional mute and adaptive-stream pauses must not trigger recovery.
           if (publication.isMuted || publication.track?.streamState === "paused"
-              || publication.isDesired === false) continue;
+            || publication.isDesired === false) continue;
           activePublications.add(publication);
           let bytes = null;
           let decodedUnits = null;
@@ -1010,7 +1014,7 @@ async function connectStudentSfu(roomName, { backgroundRetry = false } = {}) {
 
             if (!isTeacher && role === "student" && publication?.kind === "audio") {
               if (publication.isSubscribed === false && typeof publication.setSubscribed === "function") {
-                try { publication.setSubscribed(true); } catch (_) {}
+                try { publication.setSubscribed(true); } catch (_) { }
               }
               if (publication.track) {
                 console.info("[SFU-Student] Attaching published classmate audio track from:", participant?.identity);
@@ -1028,7 +1032,7 @@ async function connectStudentSfu(roomName, { backgroundRetry = false } = {}) {
           }
           if (track.mediaStreamTrack) {
             if (typeof teacherAudioStream !== "undefined" && teacherAudioStream && teacherAudioStream.getAudioTracks().some((t) => t.id === track.mediaStreamTrack.id)) {
-              try { teacherAudioStream.removeTrack(track.mediaStreamTrack); } catch (_) {}
+              try { teacherAudioStream.removeTrack(track.mediaStreamTrack); } catch (_) { }
             }
             if (remoteMediaStream) {
               remoteMediaStream.removeTrack(track.mediaStreamTrack);
@@ -1124,7 +1128,7 @@ async function connectStudentSfu(roomName, { backgroundRetry = false } = {}) {
           for (const pub of (participant.trackPublications?.values?.() || [])) {
             if (pub?.kind === "audio" || pub?.track?.kind === "audio") {
               if (pub.isSubscribed === false && typeof pub.setSubscribed === "function") {
-                try { pub.setSubscribed(true); } catch (_) {}
+                try { pub.setSubscribed(true); } catch (_) { }
               }
               if (pub?.track) {
                 console.info("[SFU-Student] Attaching existing classmate audio track from:", participant.identity);
@@ -1215,7 +1219,7 @@ async function publishStudentSfuMic(audioStream) {
       }
       try {
         await room.localParticipant.unpublishTrack(studentSfuMicPub.track, false);
-      } catch (_) {}
+      } catch (_) { }
       studentSfuMicPub = null;
     }
     const publication = await room.localParticipant.publishTrack(track, {
@@ -1227,7 +1231,7 @@ async function publishStudentSfuMic(audioStream) {
       stopOnUnpublish: false,
     });
     if (!microphonePermissionGranted || !joinedClass || studentSfuRoom !== room || track.enabled === false) {
-      try { await room.localParticipant.unpublishTrack(publication.track || track, false); } catch (_) {}
+      try { await room.localParticipant.unpublishTrack(publication.track || track, false); } catch (_) { }
       return false;
     }
     studentSfuMicPub = publication;
@@ -1248,7 +1252,7 @@ function unpublishStudentSfuMic() {
   if (studentSfuRoom && studentSfuMicPub) {
     try {
       if (studentSfuMicPub.track) {
-        Promise.resolve(studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track, false)).catch(() => {});
+        Promise.resolve(studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track, false)).catch(() => { });
       }
     } catch (_) { }
     studentSfuMicPub = null;
@@ -1291,7 +1295,7 @@ async function publishStudentP2pMic(track, stream) {
 function unpublishStudentP2pMic() {
   if (studentP2pMicSender && typeof studentP2pMicSender.replaceTrack === "function") {
     try {
-      studentP2pMicSender.replaceTrack(null).catch(() => {});
+      studentP2pMicSender.replaceTrack(null).catch(() => { });
     } catch (_) { }
   }
 }
@@ -1305,7 +1309,7 @@ function clearStaleSfuMedia() {
       try {
         remoteMediaStream.removeTrack(t);
         t.stop();
-      } catch (_) {}
+      } catch (_) { }
     }
   }
   if (typeof teacherAudioStream !== "undefined" && teacherAudioStream) {
@@ -1314,11 +1318,11 @@ function clearStaleSfuMedia() {
       try {
         teacherAudioStream.removeTrack(t);
         t.stop();
-      } catch (_) {}
+      } catch (_) { }
     }
   }
   if (typeof updateRemoteVideoPresentation === "function") {
-    try { updateRemoteVideoPresentation(); } catch (_) {}
+    try { updateRemoteVideoPresentation(); } catch (_) { }
   }
 }
 
@@ -1646,7 +1650,7 @@ const level = canonicalLevel(currentStudent.level);
 try {
   window.trackMetaActivatedStudent?.(currentStudent);
   window.checkAndTrackMetaActive20Days?.(currentStudent);
-} catch (_) {}
+} catch (_) { }
 
 function markPermanentStudentPrejoinCompleted() {
   try {
@@ -1845,7 +1849,7 @@ function exitLiveClass() {
         preferredTransport: currentTransport,
       }));
     }
-  } catch (_) {}
+  } catch (_) { }
   waitingForNextClass = true;
   joinedClass = false;
   studentClassJoinedAt = 0;
@@ -1883,7 +1887,7 @@ function continueWatchingClass() {
   // Direct activation without modal
   void startTeacherAudio({ userInitiated: true });
   if (studentSfuRoom && typeof studentSfuRoom.startAudio === "function") {
-    void studentSfuRoom.startAudio().catch(() => {});
+    void studentSfuRoom.startAudio().catch(() => { });
   }
   if (elements.classContinueOverlay) elements.classContinueOverlay.hidden = true;
   classContinueRefreshPending = true;
@@ -1935,7 +1939,7 @@ function refreshAudioVideo({ automatic = false } = {}) {
         const msg = result?.ok ? "تم تحديث الصوت بنجاح" : "تعذّر تحديث الصوت. جرّب الضغط مرة أخرى.";
         showMobileControlToast(msg);
       }
-    }).catch(() => {}).finally(() => {
+    }).catch(() => { }).finally(() => {
       if (!automatic) {
         if (button) button.disabled = false;
         button?.classList.remove("is-refreshing");
@@ -2027,7 +2031,7 @@ function checkAutomaticMediaRefresh() {
   const now = Date.now();
   if (state.missingSince === null) state.missingSince = now;
   if (now - state.missingSince < 2_000 || state.attempts >= 3
-      || (state.lastAttempt !== null && now - state.lastAttempt < 4_000)) return;
+    || (state.lastAttempt !== null && now - state.lastAttempt < 4_000)) return;
   state.lastAttempt = now;
   state.missingSince = now;
   state.attempts += 1;
@@ -4307,7 +4311,7 @@ function initStudentImageModalGestures() {
 
   stage.addEventListener("pointerdown", (e) => {
     e.preventDefault();
-    try { stage.setPointerCapture?.(e.pointerId); } catch (_) {}
+    try { stage.setPointerCapture?.(e.pointerId); } catch (_) { }
     activeImagePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
     if (activeImagePointers.size === 1) {
@@ -4447,7 +4451,7 @@ async function triggerOriginalImageDownload({ event, imageId, imageUrl, preferre
     try {
       const resp = await fetch(imageUrl);
       if (resp.ok) finalBlob = await resp.blob();
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // 2. Otherwise fetch the original image bytes from server with Bearer auth
@@ -4457,7 +4461,7 @@ async function triggerOriginalImageDownload({ event, imageId, imageUrl, preferre
         headers: token ? { Authorization: `Bearer ${token}`, Accept: "image/*" } : { Accept: "image/*" },
       });
       if (resp.ok) finalBlob = await resp.blob();
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // 3. Fallback: fetch from data URL or imageUrl
@@ -4465,7 +4469,7 @@ async function triggerOriginalImageDownload({ event, imageId, imageUrl, preferre
     try {
       const resp = await fetch(imageUrl);
       if (resp.ok) finalBlob = await resp.blob();
-    } catch (_) {}
+    } catch (_) { }
   }
   if (!finalBlob && imageUrl && !imageUrl.startsWith("blob:") && !imageUrl.startsWith("data:")) {
     try {
@@ -4473,7 +4477,7 @@ async function triggerOriginalImageDownload({ event, imageId, imageUrl, preferre
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (resp.ok) finalBlob = await resp.blob();
-    } catch (_) {}
+    } catch (_) { }
   }
 
   let finalName = preferredName || "teacher-original-image.jpg";
@@ -4758,9 +4762,9 @@ function unlockCelebrationAudio() {
       celebrationAudioCtx = new AudioContextClass();
     }
     if (celebrationAudioCtx && celebrationAudioCtx.state === "suspended") {
-      celebrationAudioCtx.resume().catch(() => {});
+      celebrationAudioCtx.resume().catch(() => { });
     }
-  } catch (_) {}
+  } catch (_) { }
 }
 
 window.addEventListener("click", unlockCelebrationAudio, { once: true });
@@ -4777,7 +4781,7 @@ function playCelebrationChime() {
     }
 
     if (celebrationAudioCtx.state === "suspended") {
-      celebrationAudioCtx.resume().catch(() => {});
+      celebrationAudioCtx.resume().catch(() => { });
     }
 
     const ctx = celebrationAudioCtx;
@@ -4854,10 +4858,10 @@ function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null) {
     dislike: "👎",
   };
   const labelMap = {
-    fire: "إجابة نارية وممتازة! 🔥",
-    clap: "أحسنت! إجابة صحيحة 👏",
-    love: "رائع جداً! إجابة مميزة ❤️",
-    like: "أحسنت! إجابة موفقة 👍",
+    fire: "+5 نار يا حبيبي نار! 🔥",
+    clap: "BRAVOOOOOOOO+5 👏",
+    love: "الحب الغالي يا غالي +3 ❤️",
+    like: "رائع اجتهد اكثر +2 👍",
   };
 
   const emoji = customEmoji || emojiMap[reactionKey] || "⭐";
@@ -5754,14 +5758,14 @@ function armAutoUnmuteOnFirstInteraction() {
       if (elements.remoteVideo) {
         elements.remoteVideo.muted = true;
         elements.remoteVideo.volume = 1.0;
-        await elements.remoteVideo.play().catch(() => {});
+        await elements.remoteVideo.play().catch(() => { });
       }
       if (typeof classmateAudioElements !== "undefined" && classmateAudioElements) {
         classmateAudioElements.forEach((el) => {
           if (el && (el.paused || el.muted)) {
             el.muted = false;
             el.volume = 1.0;
-            el.play().catch(() => {});
+            el.play().catch(() => { });
           }
         });
       }
@@ -5941,7 +5945,7 @@ function addUniqueTrack(stream, track) {
       elements.remoteVideo.muted = true;
       elements.remoteVideo.volume = 1.0;
       if (typeof elements.remoteVideo.play === "function") {
-        void elements.remoteVideo.play().catch(() => {});
+        void elements.remoteVideo.play().catch(() => { });
       }
     }
     return;
@@ -5985,7 +5989,7 @@ function addUniqueTrack(stream, track) {
         elements.remoteVideo.srcObject = stream;
       }
       if (typeof elements.remoteVideo.play === "function") {
-        void elements.remoteVideo.play().catch(() => {});
+        void elements.remoteVideo.play().catch(() => { });
       }
     }
     return;
@@ -5999,7 +6003,7 @@ function addUniqueTrack(stream, track) {
         elements.remoteVideo.srcObject = stream;
       }
       if (typeof elements.remoteVideo.play === "function") {
-        void elements.remoteVideo.play().catch(() => {});
+        void elements.remoteVideo.play().catch(() => { });
       }
     }
   }
@@ -6059,7 +6063,7 @@ function attachTeacherTrack(event) {
 
   track.addEventListener("ended", () => {
     if (track.kind === "audio" && typeof teacherAudioStream !== "undefined" && teacherAudioStream) {
-      try { teacherAudioStream.removeTrack(track); } catch (_) {}
+      try { teacherAudioStream.removeTrack(track); } catch (_) { }
     }
     remoteMediaStream?.removeTrack(track);
     if (typeof syncClassmateSfuAudioPlayback === "function") syncClassmateSfuAudioPlayback();
@@ -6076,7 +6080,7 @@ function attachTeacherTrack(event) {
     if (typeof updateRemoteAudioControl === "function") updateRemoteAudioControl();
     if (typeof updateRemoteVideoPresentation === "function") updateRemoteVideoPresentation();
     if (track.kind === "audio" && typeof playTeacherInboundAudio === "function"
-        && remoteMediaStream?.getAudioTracks?.().includes(track)) {
+      && remoteMediaStream?.getAudioTracks?.().includes(track)) {
       playTeacherInboundAudio(track);
     }
     if (track.kind === "video" && typeof elements?.remoteVideo?.play === "function") {
@@ -7024,7 +7028,7 @@ function handleLiveAccessActivation(data = {}) {
         }
       }
     }
-  } catch (_) {}
+  } catch (_) { }
 
   const accessGranted =
     data.liveAccessEnabled === true ||
@@ -7504,11 +7508,11 @@ async function handleImplicitMediaResync(sourceHint = "teacher_force_resync") {
       syncClassmateSfuAudioPlayback();
     }
     if (typeof classroomAudioContext !== "undefined" && classroomAudioContext && classroomAudioContext.state === "suspended") {
-      await classroomAudioContext.resume().catch(() => {});
+      await classroomAudioContext.resume().catch(() => { });
     }
     const audioEl = elements.teacherAudioElement || document.getElementById("teacher-live-audio");
     if (audioEl && audioEl.paused && audioEl.srcObject) {
-      audioEl.play().catch(() => {});
+      audioEl.play().catch(() => { });
     }
     // Re-verify student mic tracks if permitted and open
     if (typeof localAudioStream !== "undefined" && localAudioStream && typeof microphonePermissionGranted !== "undefined" && microphonePermissionGranted) {
@@ -7536,7 +7540,7 @@ async function handleImplicitMediaResync(sourceHint = "teacher_force_resync") {
           elements.remoteVideo.srcObject = teacherSfuVideoStream;
         }
         if (elements.remoteVideo.paused) {
-          elements.remoteVideo.play().catch(() => {});
+          elements.remoteVideo.play().catch(() => { });
         }
       }
       hideConnectionOverlay();
@@ -7553,7 +7557,7 @@ async function handleImplicitMediaResync(sourceHint = "teacher_force_resync") {
         console.info("[Resync] LiveKit SFU connected and healthy in background.");
         if (typeof teacherSfuVideoStream !== "undefined" && teacherSfuVideoStream && elements.remoteVideo) {
           elements.remoteVideo.srcObject = teacherSfuVideoStream;
-          elements.remoteVideo.play().catch(() => {});
+          elements.remoteVideo.play().catch(() => { });
         }
         hideConnectionOverlay();
         setViewerStatus("البث المباشر مستمر", "live");
@@ -7573,7 +7577,7 @@ async function handleImplicitMediaResync(sourceHint = "teacher_force_resync") {
         elements.remoteVideo.srcObject = p2pStream;
       }
       if (elements.remoteVideo.paused) {
-        elements.remoteVideo.play().catch(() => {});
+        elements.remoteVideo.play().catch(() => { });
       }
     }
     hideConnectionOverlay();
@@ -7825,8 +7829,8 @@ if (!studentId || !studentName || !level) {
 }
 
 
-window.setInterval(() => { void reportClassroomAudioReception().catch(() => {}); }, 3000);
-window.setInterval(() => { void sampleTeacherP2pReception().catch(() => {}); }, 3000);
+window.setInterval(() => { void reportClassroomAudioReception().catch(() => { }); }, 3000);
+window.setInterval(() => { void sampleTeacherP2pReception().catch(() => { }); }, 3000);
 
 window.setInterval(() => {
   flushClassContinueRefresh();
@@ -7841,11 +7845,13 @@ window.LiveDoctor?.start({
     if (teacherAudioElement) window.LiveDoctor?.report("teacher_audio_playback_state", {
       paused: teacherAudioElement.paused, muted: teacherAudioElement.muted, readyState: teacherAudioElement.readyState,
     });
-    return { signal: socket.connected, sfu: studentSfuRoom?.state || "absent",
+    return {
+      signal: socket.connected, sfu: studentSfuRoom?.state || "absent",
       micApproved: microphonePermissionGranted, micPresent: Boolean(mic), micEnabled: Boolean(mic?.enabled),
       micMuted: Boolean(mic?.muted), micEnded: mic?.readyState === "ended", micPublished: Boolean(microphonePermissionGranted && mic?.readyState === "live" && mic.enabled && (studentSfuMicPub || studentP2pMicSender?.track === mic)),
       audioReceiving: sfu.receivingAudio || p2p.receivingAudio, videoReceiving: sfu.receivingVideo || p2p.receivingVideo,
-      paused: Boolean(elements.remoteVideo?.paused), muted: Boolean(elements.remoteVideo?.muted), readyState: elements.remoteVideo?.readyState };
+      paused: Boolean(elements.remoteVideo?.paused), muted: Boolean(elements.remoteVideo?.muted), readyState: elements.remoteVideo?.readyState
+    };
   },
   sources: () => {
     const sources = [];
