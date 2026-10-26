@@ -4887,11 +4887,11 @@ function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null) {
     dislike: "👎",
   };
   const labelMap = {
-    fire: "+5 نار يا حبيبي نار! 🔥",
-    clap: "BRAVOOOOOOOO+5 👏",
-    love: "الحب الغالي يا غالي +3 ❤️",
-    like: "رائع اجتهد اكثر +2 👍",
-    cry: "ركّز وانتبه جيداً! 👀",
+    fire: " نار يا حبيبي نار! 🔥",
+    clap: "BRAVOOOOOOOO 👏",
+    love: "الحب الغالي يا غالي ❤️",
+    like: "رائع اجتهد اكثر  👍",
+    cry: "راني شفت تعليقك 👀",
   };
 
   const emoji = customEmoji || emojiMap[reactionKey] || "⭐";

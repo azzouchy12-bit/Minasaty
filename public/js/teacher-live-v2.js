@@ -1574,7 +1574,7 @@ function openTeacherEmojiPopover({ anchor, messageId }) {
     { key: "love", emoji: "❤️", label: "قلب وتشجيع", points: "+3 نقاط", pointClass: "points-love" },
     { key: "like", emoji: "👍", label: "إعجاب وأحسنت", points: "+2 نقطتان", pointClass: "points-like" },
     { key: "dislike", emoji: "👎", label: "لايك مقلوبة", points: "-1 نقطة", pointClass: "points-dislike" },
-    { key: "cry", emoji: "😢", label: "بكاء", points: "0 نقاط", pointClass: "points-cry" },
+    { key: "cry", emoji: "👀", label: "ملاحظة وانتباه", points: "0 نقاط", pointClass: "points-cry" },
   ];
 
   TEACHER_STACKED_REACTIONS.forEach((r) => {

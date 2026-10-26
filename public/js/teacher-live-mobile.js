@@ -11,7 +11,7 @@
   // 1. Authentication & Socket Setup
   // ---------------------------------------------------------------------------
   const teacherToken = sessionStorage.getItem("teacherToken") || "";
-  
+
   const socket = io({
     auth: { token: teacherToken },
     autoConnect: false,
@@ -366,7 +366,7 @@
   el.levelSelect.addEventListener("change", async (e) => {
     if (isStandaloneBroadcaster()) return;
     activeLevel = e.target.value;
-    try { localStorage.setItem("tm_last_level", activeLevel); } catch (_) {}
+    try { localStorage.setItem("tm_last_level", activeLevel); } catch (_) { }
     updateLevelSelection(activeLevel);
     attendeesMap.clear();
     renderAttendees();
@@ -376,7 +376,7 @@
   el.subjectSelect.addEventListener("change", async (e) => {
     if (isStandaloneBroadcaster()) return;
     activeSubject = e.target.value;
-    try { localStorage.setItem("tm_last_subject", activeSubject); } catch (_) {}
+    try { localStorage.setItem("tm_last_subject", activeSubject); } catch (_) { }
     attendeesMap.clear();
     renderAttendees();
     await checkActiveRoomForCompanion(activeLevel, activeSubject);
@@ -403,19 +403,19 @@
     if (!classroomAudioContext) return;
 
     classroomAudioSources.forEach(({ node }) => {
-      try { node.disconnect(); } catch (_) {}
+      try { node.disconnect(); } catch (_) { }
     });
 
     classroomAudioDestinations.forEach((destination, destinationSocketId) => {
       const teacherSource = classroomAudioSources.get("__teacher_microphone__");
       if (teacherSource?.enabled) {
-        try { teacherSource.node.connect(destination); } catch (_) {}
+        try { teacherSource.node.connect(destination); } catch (_) { }
       }
 
       // Mix all OTHER students' audio to this student's destination (mix-minus)
       classroomAudioSources.forEach((src, srcKey) => {
         if (srcKey !== "__teacher_microphone__" && srcKey !== destinationSocketId && src.enabled) {
-          try { src.node.connect(destination); } catch (_) {}
+          try { src.node.connect(destination); } catch (_) { }
         }
       });
     });
@@ -463,7 +463,7 @@
           } else if ("playoutDelayHint" in event.receiver) {
             event.receiver.playoutDelayHint = 0.08;
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       let audio = studentAudioElements.get(studentSocketId);
@@ -485,7 +485,7 @@
       audio.play().catch(() => {
         if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.armAutoplayUnlock) {
           window.MinasatyAudioEnhancer.armAutoplayUnlock(() => {
-            audio.play().catch(() => {});
+            audio.play().catch(() => { });
           });
         }
       });
@@ -607,7 +607,7 @@
       const videoTrack = cameraStream.getVideoTracks().find((t) => t.readyState === "live");
       const videoSender = pc.getSenders().find((s) => s.__classroomVideoTrack);
       if (videoSender && videoTrack && videoSender.track !== videoTrack) {
-        try { await videoSender.replaceTrack(videoTrack); } catch (_) {}
+        try { await videoSender.replaceTrack(videoTrack); } catch (_) { }
       } else if (!videoSender && videoTrack) {
         const nextSender = pc.addTrack(videoTrack, cameraStream);
         nextSender.__classroomVideoTrack = true;
@@ -632,7 +632,7 @@
           params.encodings[0].maxFramerate = 15;
           params.degradationPreference = "maintain-resolution";
           await videoSender.setParameters(params);
-        } catch (_) {}
+        } catch (_) { }
       }
 
       await emitWithAcknowledgement("webrtc_offer", {
@@ -651,14 +651,14 @@
   function closePeerConnection(studentSocketId) {
     const pc = peerConnections[studentSocketId];
     if (pc) {
-      try { pc.close(); } catch (_) {}
+      try { pc.close(); } catch (_) { }
       delete peerConnections[studentSocketId];
     }
     delete pendingIceCandidates[studentSocketId];
 
     const audio = studentAudioElements.get(studentSocketId);
     if (audio) {
-      try { audio.srcObject = null; audio.remove(); } catch (_) {}
+      try { audio.srcObject = null; audio.remove(); } catch (_) { }
       studentAudioElements.delete(studentSocketId);
     }
 
@@ -756,7 +756,7 @@
       for (const [studentSocketId, pc] of Object.entries(peerConnections)) {
         const videoSender = pc.getSenders().find((s) => s.__classroomVideoTrack);
         if (videoSender) {
-          try { await videoSender.replaceTrack(null); } catch (_) {}
+          try { await videoSender.replaceTrack(null); } catch (_) { }
         }
       }
 
@@ -766,7 +766,7 @@
           level: activeLevel,
           active: false,
         });
-      } catch (_) {}
+      } catch (_) { }
 
       showToast("تم إيقاف الكاميرا");
     } else {
@@ -784,7 +784,7 @@
         if (el.cameraVideo) {
           el.cameraVideo.srcObject = cameraStream;
           el.cameraVideo.classList.add("is-active");
-          void el.cameraVideo.play().catch(() => {});
+          void el.cameraVideo.play().catch(() => { });
         }
         if (el.stageImage) {
           el.stageImage.style.display = "none";
@@ -808,7 +808,7 @@
         for (const [studentSocketId, pc] of Object.entries(peerConnections)) {
           const videoSender = pc.getSenders().find((s) => s.__classroomVideoTrack);
           if (videoSender) {
-            try { await videoSender.replaceTrack(videoTrack); } catch (_) {}
+            try { await videoSender.replaceTrack(videoTrack); } catch (_) { }
           } else {
             const nextSender = pc.addTrack(videoTrack, cameraStream);
             nextSender.__classroomVideoTrack = true;
@@ -822,7 +822,7 @@
             level: activeLevel,
             active: true,
           });
-        } catch (_) {}
+        } catch (_) { }
 
         showToast("تم تشغيل كاميرا الهاتف 📹");
       } catch (err) {
@@ -854,14 +854,14 @@
 
       if (el.cameraVideo) {
         el.cameraVideo.srcObject = cameraStream;
-        void el.cameraVideo.play().catch(() => {});
+        void el.cameraVideo.play().catch(() => { });
       }
 
       const nextTrack = cameraStream.getVideoTracks()[0];
       for (const pc of Object.values(peerConnections)) {
         const videoSender = pc.getSenders().find((s) => s.__classroomVideoTrack);
         if (videoSender) {
-          try { await videoSender.replaceTrack(nextTrack); } catch (_) {}
+          try { await videoSender.replaceTrack(nextTrack); } catch (_) { }
         }
       }
     } catch (err) {
@@ -973,7 +973,7 @@
 
   function exitCompanionMode(resetDropdowns = false) {
     if (companionPeerConnection) {
-      try { companionPeerConnection.close(); } catch (_) {}
+      try { companionPeerConnection.close(); } catch (_) { }
       companionPeerConnection = null;
     }
     companionPrimaryTeacherSocketId = null;
@@ -1045,7 +1045,7 @@
           await enterCompanionMode(activeCheck.level, activeCheck.subject, activeCheck.teacherSocketId, activeCheck.presentStudents);
           return;
         }
-      } catch (_) {}
+      } catch (_) { }
 
       // 3. Acquire mic for mobile standalone broadcast
       await setupMicrophone();
@@ -1115,7 +1115,7 @@
       micStream = null;
     }
     if (classroomAudioContext && classroomAudioContext.state !== "closed") {
-      try { classroomAudioContext.close(); } catch (_) {}
+      try { classroomAudioContext.close(); } catch (_) { }
       classroomAudioContext = null;
     }
 
@@ -1162,8 +1162,8 @@
         el.startBtnText.textContent = isStarting
           ? "جارٍ بدء الحصة…"
           : classActive
-          ? "الحصة مباشرة الآن"
-          : "بدء الحصة المباشرة";
+            ? "الحصة مباشرة الآن"
+            : "بدء الحصة المباشرة";
       }
       if (el.startBtnIcon) {
         el.startBtnIcon.textContent = classActive ? "🔴" : "▶";
@@ -1325,8 +1325,8 @@
     sub.textContent = student.micEnabled
       ? "🎙️ المايك مفتوح"
       : student.handRaised
-      ? "يريد التحدث"
-      : `المشاركات: ${student.participationCount}`;
+        ? "يريد التحدث"
+        : `المشاركات: ${student.participationCount}`;
 
     meta.append(nameRow, sub);
     left.append(avatar, meta);
@@ -1690,7 +1690,7 @@
       { key: "love", emoji: "❤️", label: "قلب وتشجيع", points: "+3 نقاط", pointClass: "points-love" },
       { key: "like", emoji: "👍", label: "إعجاب وأحسنت", points: "+2 نقطتان", pointClass: "points-like" },
       { key: "dislike", emoji: "👎", label: "لايك مقلوبة", points: "-1 نقطة", pointClass: "points-dislike" },
-      { key: "cry", emoji: "😢", label: "بكاء", points: "0 نقاط", pointClass: "points-cry" },
+      { key: "cry", emoji: "👀", label: "ملاحظة وانتباه", points: "0 نقاط", pointClass: "points-cry" },
     ];
 
     TEACHER_STACKED_REACTIONS.forEach((r) => {
@@ -2134,7 +2134,7 @@
 
     try {
       if (companionPeerConnection) {
-        try { companionPeerConnection.close(); } catch (_) {}
+        try { companionPeerConnection.close(); } catch (_) { }
       }
 
       companionPeerConnection = new RTCPeerConnection(rtcConfig);
@@ -2183,7 +2183,7 @@
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
       const queued = pendingIceCandidates[fromSocketId]?.splice(0) || [];
       for (const candidate of queued) {
-        try { await pc.addIceCandidate(candidate); } catch (_) {}
+        try { await pc.addIceCandidate(candidate); } catch (_) { }
       }
     } catch (err) {
       console.warn("Unable to apply student WebRTC answer:", err);
@@ -2215,7 +2215,7 @@
     if (isCompanionMode && companionPeerConnection && fromSocketId === companionPrimaryTeacherSocketId) {
       try {
         await companionPeerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (_) {}
+      } catch (_) { }
       return;
     }
 
@@ -2228,7 +2228,7 @@
 
     try {
       await pc.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch (_) {}
+    } catch (_) { }
   });
 
   socket.on("class_ended", () => {
@@ -2266,7 +2266,7 @@
   });
 
   document.getElementById("tm-desktop-switch-btn")?.addEventListener("click", () => {
-    try { sessionStorage.setItem("teacherDesktopMode", "1"); } catch (_) {}
+    try { sessionStorage.setItem("teacherDesktopMode", "1"); } catch (_) { }
   });
 
   // ---------------------------------------------------------------------------
@@ -2287,7 +2287,7 @@
         el.subjectSelect.value = savedSub;
         initialSubject = savedSub;
       }
-    } catch (_) {}
+    } catch (_) { }
 
     activeLevel = initialLevel;
     activeSubject = initialSubject;
@@ -2311,6 +2311,6 @@
           updateLevelSelection(recovery.level);
         }
       }
-    } catch (_) {}
+    } catch (_) { }
   });
 })();
