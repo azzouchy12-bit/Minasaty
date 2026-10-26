@@ -1147,7 +1147,7 @@
       align-items: center;
       justify-content: center;
       pointer-events: none !important;
-      animation: celebrationPopAnim 0.92s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      animation: celebrationPopAnim 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       will-change: transform, opacity;
     }
 
@@ -1184,24 +1184,29 @@
         transform: scale(0.2) rotate(-10deg);
       }
 
-      40% {
+      15% {
         opacity: 1;
-        transform: scale(1.18) rotate(3deg);
+        transform: scale(1.15) rotate(2deg);
       }
 
-      60% {
+      25% {
         opacity: 1;
         transform: scale(1) rotate(0deg);
       }
 
-      85% {
+      78% {
+        opacity: 1;
+        transform: scale(1.02) translateY(0);
+      }
+
+      88% {
         opacity: 0.95;
-        transform: scale(1.05) translateY(-8px);
+        transform: scale(1.06) translateY(-6px);
       }
 
       100% {
         opacity: 0;
-        transform: scale(1.4) translateY(-35px);
+        transform: scale(1.25) translateY(-28px);
       }
     }
 

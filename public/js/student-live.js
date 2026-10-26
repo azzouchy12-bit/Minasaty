@@ -4787,34 +4787,43 @@ function playCelebrationChime() {
     const ctx = celebrationAudioCtx;
     const now = ctx.currentTime;
 
-    // Sparkling harmonic reward chime lasting ~0.33s (one-third second)
+    // Sparkling harmonic reward chime lasting ~0.75s with two celebratory notes
     const osc1 = ctx.createOscillator();
     const osc2 = ctx.createOscillator();
+    const osc3 = ctx.createOscillator();
     const gainNode = ctx.createGain();
 
     osc1.type = "sine";
     osc2.type = "triangle";
+    osc3.type = "sine";
 
-    // Pleasant ascending chime notes (E5 659Hz to C6 1046Hz) + high overtone sparkle
+    // Primary bell (E5 659Hz rising to C6 1046Hz)
     osc1.frequency.setValueAtTime(659.25, now);
-    osc1.frequency.exponentialRampToValueAtTime(1046.5, now + 0.08);
+    osc1.frequency.exponentialRampToValueAtTime(1046.5, now + 0.1);
 
+    // Sparkle octave overtone (E6 1318Hz rising to C7 2093Hz)
     osc2.frequency.setValueAtTime(1318.5, now);
-    osc2.frequency.exponentialRampToValueAtTime(2093.0, now + 0.08);
+    osc2.frequency.exponentialRampToValueAtTime(2093.0, now + 0.1);
 
-    // Quick smooth attack (0.02s) and gentle fade-out (~0.33s)
+    // Warm celebratory fifth note (G6 1567Hz) starting slightly after
+    osc3.frequency.setValueAtTime(1567.98, now + 0.08);
+
+    // Smooth energetic attack (0.02s) and musical decay (~0.75s)
     gainNode.gain.setValueAtTime(0.001, now);
-    gainNode.gain.linearRampToValueAtTime(0.24, now + 0.02);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.33);
+    gainNode.gain.linearRampToValueAtTime(0.28, now + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
 
     osc1.connect(gainNode);
     osc2.connect(gainNode);
+    osc3.connect(gainNode);
     gainNode.connect(ctx.destination);
 
     osc1.start(now);
     osc2.start(now);
-    osc1.stop(now + 0.34);
-    osc2.stop(now + 0.34);
+    osc3.start(now + 0.08);
+    osc1.stop(now + 0.76);
+    osc2.stop(now + 0.76);
+    osc3.stop(now + 0.76);
   } catch (err) {
     console.debug("Celebration chime playback skipped:", err);
   }
@@ -4823,17 +4832,37 @@ function playCelebrationChime() {
 function triggerCelebrationConfetti() {
   try {
     if (typeof window.confetti === "function") {
+      // First immediate burst in center
       window.confetti({
-        particleCount: 55,
-        spread: 80,
+        particleCount: 65,
+        spread: 90,
         origin: { x: 0.5, y: 0.5 },
         colors: ["#f59e0b", "#ef4444", "#ec4899", "#3b82f6", "#10b981", "#fbbf24", "#a855f7"],
-        ticks: 120,
-        gravity: 1.1,
+        ticks: 200,
+        gravity: 0.95,
         scalar: 1.15,
         disableForReducedMotion: true,
         zIndex: 9999998,
       });
+
+      // Second celebratory wave at 350ms to sustain the confetti throughout the 2s display
+      setTimeout(() => {
+        try {
+          if (typeof window.confetti === "function") {
+            window.confetti({
+              particleCount: 45,
+              spread: 110,
+              origin: { x: 0.5, y: 0.45 },
+              colors: ["#fbbf24", "#f59e0b", "#f43f5e", "#8b5cf6", "#06b6d4"],
+              ticks: 200,
+              gravity: 0.85,
+              scalar: 1.05,
+              disableForReducedMotion: true,
+              zIndex: 9999998,
+            });
+          }
+        } catch (_) {}
+      }, 350);
     }
   } catch (confettiErr) {
     console.debug("Confetti launch skipped:", confettiErr);
@@ -4844,8 +4873,8 @@ let lastCelebrationTimestamp = 0;
 
 function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null) {
   const now = Date.now();
-  if (now - lastCelebrationTimestamp < 850) {
-    return; // Prevent duplicate triggers within 850ms
+  if (now - lastCelebrationTimestamp < 2100) {
+    return; // Prevent duplicate triggers within 2.1s
   }
   lastCelebrationTimestamp = now;
 
@@ -4873,7 +4902,7 @@ function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null) {
   // 2. Launch confetti in center
   triggerCelebrationConfetti();
 
-  // 3. Render big center emoji pop animation (~0.4s)
+  // 3. Render big center emoji pop animation (~2s)
   let container = document.getElementById("student-celebration-container");
   if (!container) {
     container = document.createElement("div");
@@ -4894,7 +4923,7 @@ function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null) {
 
   setTimeout(() => {
     pop.remove();
-  }, 440);
+  }, 2000);
 }
 
 function updateStudentMessageReactions(data) {
