@@ -1786,7 +1786,7 @@ function renderTeacherReactionPills(container, reactions, messageId) {
     { key: "clap", emoji: "👏", title: "تصفيق 👏" },
     { key: "love", emoji: "❤️", title: "قلب ❤️" },
     { key: "like", emoji: "👍", title: "إعجاب 👍" },
-    { key: "cry", emoji: "😭", title: "بكاء 😭" },
+    { key: "cry", emoji: "👀", title: "ملاحظة 👀" },
     { key: "dislike", emoji: "👎", title: "لم يعجبني 👎" },
   ];
 
@@ -1814,7 +1814,7 @@ function renderTeacherReactionPills(container, reactions, messageId) {
 function sendTeacherChatReaction(messageId, reaction, studentId, studentSocketId) {
   if (!socket || !classActive) return;
   const bubble = document.querySelector(`.chat-message[data-message-id="${messageId}"]`);
-  const emojiMap = { love: "❤️", like: "👍", cry: "😭", dislike: "👎", fire: "🔥", clap: "👏" };
+  const emojiMap = { love: "❤️", like: "👍", cry: "👀", dislike: "👎", fire: "🔥", clap: "👏" };
   if (bubble) {
     showTeacherFloatingReaction(bubble, emojiMap[reaction] || "🔥");
   }

@@ -3790,7 +3790,7 @@ io.on("connection", (socket) => {
           clap: "👏",
           love: "❤️",
           like: "👍",
-          cry: "😭",
+          cry: "👀",
           dislike: "👎",
         };
         const celebrationPayload = {

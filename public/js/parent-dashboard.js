@@ -2474,7 +2474,7 @@ async function loadActivityStats(studentId) {
       if (Number(reactionSummary.loveCount) > 0) parts.push(`❤️ ×${reactionSummary.loveCount}`);
       if (Number(reactionSummary.likeCount) > 0) parts.push(`👍 ×${reactionSummary.likeCount}`);
       if (Number(reactionSummary.dislikeCount) > 0) parts.push(`👎 ×${reactionSummary.dislikeCount}`);
-      if (Number(reactionSummary.cryCount) > 0) parts.push(`😭 ×${reactionSummary.cryCount}`);
+      if (Number(reactionSummary.cryCount) > 0) parts.push(`👀 ×${reactionSummary.cryCount}`);
 
       if (parts.length > 0) {
         elements.reactionPointsSubtitle.textContent = parts.join(" • ");

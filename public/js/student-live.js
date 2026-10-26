@@ -4112,7 +4112,7 @@ const STUDENT_REACTIONS_CONFIG = [
   { key: "clap", emoji: "👏", title: "تصفيق 👏" },
   { key: "love", emoji: "❤️", title: "قلب ❤️" },
   { key: "like", emoji: "👍", title: "إعجاب 👍" },
-  { key: "cry", emoji: "😭", title: "بكاء 😭" },
+  { key: "cry", emoji: "👀", title: "ملاحظة 👀" },
   { key: "dislike", emoji: "👎", title: "لم يعجبني 👎" },
 ];
 
@@ -4891,6 +4891,7 @@ function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null) {
     clap: "BRAVOOOOOOOO+5 👏",
     love: "الحب الغالي يا غالي +3 ❤️",
     like: "رائع اجتهد اكثر +2 👍",
+    cry: "ركّز وانتبه جيداً! 👀",
   };
 
   const emoji = customEmoji || emojiMap[reactionKey] || "⭐";
@@ -7198,7 +7199,7 @@ socket.on("classroom_chat_reaction_updated", (data = {}) => {
       triggerExclusiveCelebration(data.lastReaction || data.userReaction);
     } else {
       // For other students watching the stream: show brief subtle reaction on comment if visible
-      const reactionEmojiMap = { fire: "🔥", clap: "👏", love: "❤️", like: "👍", cry: "😭", dislike: "👎" };
+      const reactionEmojiMap = { fire: "🔥", clap: "👏", love: "❤️", like: "👍", cry: "👀", dislike: "👎" };
       const emoji = reactionEmojiMap[data.lastReaction || data.userReaction] || "⭐";
       const targetBubble = data.messageId ? document.querySelector(`.student-chat-message[data-message-id="${data.messageId}"]`) : null;
       if (targetBubble) {
@@ -7222,7 +7223,7 @@ socket.on("teacher_reacted_to_message", (data = {}) => {
     clap: { emoji: "👏", label: "تصفيق وإشادة", points: 5 },
     love: { emoji: "❤️", label: "إعجاب وتشجيع", points: 3 },
     like: { emoji: "👍", label: "أحسنت", points: 2 },
-    cry: { emoji: "😭", label: "بكاء", points: 0 },
+    cry: { emoji: "👀", label: "ملاحظة وانتباه", points: 0 },
     dislike: { emoji: "👎", label: "تنبيه", points: -1 },
   };
 
