@@ -573,6 +573,8 @@
         paramMap.set("sprop-stereo", "0");
         paramMap.set("cbr", "1");
         paramMap.set("maxaveragebitrate", "48000");
+        paramMap.set("sprop-maxcapturerate", "48000");
+        paramMap.set("maxplaybackrate", "48000");
         paramMap.set("ptime", "20");
         paramMap.set("minptime", "10");
         paramMap.set("maxptime", "40");
@@ -585,7 +587,7 @@
         if (line.startsWith(`a=rtpmap:${opusPayload} `) && !fmtpFound) {
           const nextLine = lines[i + 1] || "";
           if (!nextLine.startsWith(`a=fmtp:${opusPayload}`)) {
-            modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;ptime=20;maxptime=40;useinbandfec=1;usedtx=0;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=48000`);
+            modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;ptime=20;maxptime=40;useinbandfec=1;usedtx=0;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=48000;sprop-maxcapturerate=48000;maxplaybackrate=48000`);
             fmtpFound = true;
           }
         }

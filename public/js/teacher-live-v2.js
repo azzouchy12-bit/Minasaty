@@ -266,6 +266,12 @@ function attachSfuStudentAudio(identity, track) {
   if (typeof track.attach === "function") {
     try { track.attach(audio); } catch (_) {}
   }
+
+  // Prevent double-voice echo on teacher speakers: mute SFU if P2P is already live
+  const socketId = typeof attendeeSocketByStudentId !== "undefined" ? attendeeSocketByStudentId.get(identity) : null;
+  const hasLiveP2p = Boolean(socketId && studentAudioElements.get(socketId)?.srcObject?.getAudioTracks?.().some((t) => t.readyState === "live"));
+  audio.muted = hasLiveP2p;
+
   audio.play().catch((err) => {
     window.LiveDoctor?.report("student_audio_playback_failed", { target: identity, errorName: err?.name || "Error" });
     console.debug("SFU student audio play hint:", err);
@@ -279,7 +285,8 @@ function attachSfuStudentAudio(identity, track) {
   sfuStudentAudioStreams.set(identity, { stream, track: mediaStreamTrack });
 
   if (typeof addClassroomAudioSource === "function") {
-    addClassroomAudioSource("sfu_" + identity, stream, { enabled: true });
+    const isMicApproved = approvedStudentMicrophones?.has(identity) || (socketId && approvedStudentMicrophones?.has(socketId));
+    addClassroomAudioSource("sfu_" + identity, stream, { enabled: isMicApproved !== false });
   }
 
   if (typeof mediaStreamTrack.addEventListener === "function") {
@@ -5438,12 +5445,28 @@ function rebuildClassroomAudioGraph() {
     });
 
     if (typeof classroomAudioSources !== "undefined" && classroomAudioSources) {
+      const activeStudentSpeakers = new Set();
       classroomAudioSources.forEach((source, sourceKey) => {
         if (
           sourceKey !== "__teacher_microphone__" &&
           sourceKey !== "__screen_audio__" &&
           source.enabled
         ) {
+          // Identify speaker identity to avoid mixing duplicate sources (e.g. P2P + SFU comb filtering)
+          let speakerId = sourceKey;
+          if (sourceKey.startsWith("sfu_")) {
+            speakerId = sourceKey.slice(4);
+          } else {
+            const attendee = typeof attendeeElements !== "undefined" ? attendeeElements.get(sourceKey) : null;
+            if (attendee?.dataset?.studentId) {
+              speakerId = attendee.dataset.studentId;
+            }
+          }
+          if (activeStudentSpeakers.has(speakerId)) {
+            return;
+          }
+          activeStudentSpeakers.add(speakerId);
+
           const outNode = source.gainNode || source.node;
           try {
             outNode.connect(destination);
@@ -5535,7 +5558,11 @@ function ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate
   let audioTrack = null;
   let audioStream = null;
 
-  if (approvedStudentMicrophones.has(studentSocketId)) {
+  const attendee = typeof attendeeElements !== "undefined" ? attendeeElements.get(studentSocketId) : null;
+  const studentId = attendee?.dataset?.studentId;
+  const isApproved = approvedStudentMicrophones.has(studentSocketId) || (studentId && approvedStudentMicrophones.has(studentId));
+
+  if (isApproved) {
     audioTrack = getActiveTeacherAudioTrack();
     audioStream = cameraStream;
   } else {
@@ -5643,7 +5670,18 @@ function applyStudentMicrophoneState(studentSocketId, enabled) {
       sfuSource.enabled = Boolean(enabled);
     }
   }
+  const sfuSocketSource = classroomAudioSources.get("sfu_" + studentSocketId);
+  if (sfuSocketSource) {
+    sfuSocketSource.enabled = Boolean(enabled);
+  }
+  classroomAudioSources.forEach((src, key) => {
+    if (key === studentSocketId || (studentId && (key === studentId || key === "sfu_" + studentId))) {
+      src.enabled = Boolean(enabled);
+    }
+  });
+
   rebuildClassroomAudioGraph();
+  if (typeof syncMixMinusAudioToAllPeers === "function") syncMixMinusAudioToAllPeers();
   syncLocalRecordingAudioSources();
   if (typeof renderStudentAudioDeliveryStatus === "function") renderStudentAudioDeliveryStatus();
 }
@@ -5873,6 +5911,7 @@ function getTeacherMicrophoneConstraints() {
       googEchoCancellation: Boolean(teacherEchoCancellation),
       googNoiseSuppression: Boolean(teacherNoiseSuppression),
       googHighpassFilter: false,
+      sampleRate: 48000,
       channelCount: 1,
     },
   };
@@ -6149,8 +6188,18 @@ function attachStudentAudio(peerConnection, studentSocketId) {
 
     const incomingStream = event.streams?.[0] || new MediaStream([event.track]);
     audio.srcObject = incomingStream;
+    audio.muted = false;
+
+    // Prevent double-voice echo on teacher device: mute SFU if P2P audio is actively playing
+    const attendee = typeof attendeeElements !== "undefined" ? attendeeElements.get(studentSocketId) : null;
+    const studentId = attendee?.dataset?.studentId;
+    if (studentId) {
+      const sfuAudio = sfuStudentAudioElements.get(studentId);
+      if (sfuAudio) sfuAudio.muted = true;
+    }
+
     addClassroomAudioSource(studentSocketId, incomingStream, {
-      enabled: approvedStudentMicrophones.has(studentSocketId),
+      enabled: approvedStudentMicrophones.has(studentSocketId) || (studentId && approvedStudentMicrophones.has(studentId)),
     });
     audio.play().catch((error) => {
       window.LiveDoctor?.report("student_audio_playback_failed", { target: studentSocketId, source: "p2p", errorName: error?.name || "Error" });
@@ -6167,6 +6216,10 @@ function attachStudentAudio(peerConnection, studentSocketId) {
       }
       removeStudentAudio(studentSocketId);
       removeClassroomAudioSource(studentSocketId);
+      if (studentId) {
+        const sfuAudio = sfuStudentAudioElements.get(studentId);
+        if (sfuAudio) sfuAudio.muted = false;
+      }
     }, { once: true });
   };
 }
@@ -6687,6 +6740,8 @@ function optimizeOpusSdp(sdp) {
       paramMap.set("sprop-stereo", "0");
       paramMap.set("cbr", "1");
       paramMap.set("maxaveragebitrate", "48000");
+      paramMap.set("sprop-maxcapturerate", "48000");
+      paramMap.set("maxplaybackrate", "48000");
       paramMap.set("ptime", "20");
       paramMap.set("minptime", "10");
       paramMap.set("maxptime", "40");
@@ -6699,7 +6754,7 @@ function optimizeOpusSdp(sdp) {
       if (line.startsWith(`a=rtpmap:${opusPayload} `) && !fmtpFound) {
         const nextLine = lines[i + 1] || "";
         if (!nextLine.startsWith(`a=fmtp:${opusPayload}`)) {
-          modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;ptime=20;maxptime=40;useinbandfec=1;usedtx=0;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=48000`);
+          modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;ptime=20;maxptime=40;useinbandfec=1;usedtx=0;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=48000;sprop-maxcapturerate=48000;maxplaybackrate=48000`);
           fmtpFound = true;
         }
       }

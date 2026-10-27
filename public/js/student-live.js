@@ -118,6 +118,22 @@ function getTeacherAudioElement() {
     if (teacherAudioElement) {
       teacherAudioElement.muted = false;
       teacherAudioElement.volume = 1.0;
+      if (!teacherAudioElement.__resilienceBound && typeof teacherAudioElement.addEventListener === "function") {
+        teacherAudioElement.__resilienceBound = true;
+        const autoResume = () => {
+          if (typeof joinedClass !== "undefined" && joinedClass && !teacherAudioPlaybackBlocked && teacherAudioElement.paused) {
+            teacherAudioElement.play().catch(() => {});
+          }
+        };
+        teacherAudioElement.addEventListener("pause", () => {
+          if (typeof window !== "undefined" && window.setTimeout) {
+            window.setTimeout(autoResume, 80);
+            window.setTimeout(autoResume, 300);
+          }
+        });
+        teacherAudioElement.addEventListener("stalled", autoResume);
+        teacherAudioElement.addEventListener("waiting", autoResume);
+      }
     }
   }
   return teacherAudioElement;
@@ -220,8 +236,12 @@ async function ensureTeacherAudioPlayback({ sourceHint = "unknown" } = {}) {
     return { ok: false, error: "no_inbound_audio_track" };
   }
 
-  if (!teacherEl.srcObject && teacherAudioStream) {
-    teacherEl.srcObject = teacherAudioStream;
+  if (!teacherEl.srcObject) {
+    if (teacherAudioStream && teacherAudioStream.getAudioTracks().some((t) => t.readyState === "live")) {
+      teacherEl.srcObject = teacherAudioStream;
+    } else if (remoteMediaStream && remoteMediaStream.getAudioTracks().some((t) => t.readyState === "live")) {
+      teacherEl.srcObject = remoteMediaStream;
+    }
   }
 
   teacherEl.muted = false;
@@ -239,6 +259,19 @@ async function ensureTeacherAudioPlayback({ sourceHint = "unknown" } = {}) {
   } catch (playErr) {
     console.warn(`[Teacher-Audio] Local playback failure (${sourceHint}):`, playErr.message);
     recordStudentDiagnosticEvent("teacher_audio_playback_failed", `Playback error (${sourceHint}): ${playErr.message}`);
+
+    // Auto-retry specifically for mobile audio hardware mode transitions (e.g. getUserMedia activation)
+    if (typeof window !== "undefined" && window.setTimeout && (typeof joinedClass === "undefined" || joinedClass) && (typeof teacherAudioPlaybackBlocked === "undefined" || !teacherAudioPlaybackBlocked)) {
+      const retryDelays = [80, 250, 600];
+      retryDelays.forEach((delay) => {
+        window.setTimeout(() => {
+          if (teacherEl && teacherEl.paused && (typeof joinedClass === "undefined" || joinedClass) && (typeof teacherAudioPlaybackBlocked === "undefined" || !teacherAudioPlaybackBlocked)) {
+            teacherEl.play().catch(() => {});
+          }
+        }, delay);
+      });
+    }
+
     if (typeof armAutoUnmuteOnFirstInteraction === "function") armAutoUnmuteOnFirstInteraction();
     return { ok: false, error: "playback_failed", details: playErr.message };
   }
@@ -4887,10 +4920,10 @@ function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null) {
     dislike: "👎",
   };
   const labelMap = {
-    fire: " نار يا حبيبي نار! 🔥",
-    clap: "BRAVOOOOOOOO 👏",
-    love: "الحب الغالي يا غالي ❤️",
-    like: "رائع اجتهد اكثر  👍",
+    fire: " نار يا حبيبي نار! +5🔥",
+    clap: "BRAVOOOOOOOO +4👏",
+    love: "الحب الغالي يا غالي +3❤️",
+    like: "رائع اجتهد اكثر +2👍",
     cry: "راني شفت تعليقك 👀",
   };
 
@@ -5532,10 +5565,7 @@ async function prepareStudentMicrophone() {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
-        googEchoCancellation: true,
-        googAutoGainControl: true,
-        googNoiseSuppression: true,
-        googHighpassFilter: true,
+        sampleRate: 48000,
         channelCount: 1,
       },
     });
@@ -6316,6 +6346,8 @@ function optimizeOpusSdp(sdp) {
       paramMap.set("sprop-stereo", "0");
       paramMap.set("cbr", "1");
       paramMap.set("maxaveragebitrate", "48000");
+      paramMap.set("sprop-maxcapturerate", "48000");
+      paramMap.set("maxplaybackrate", "48000");
       paramMap.set("ptime", "20");
       paramMap.set("minptime", "10");
       paramMap.set("maxptime", "40");
@@ -6328,7 +6360,7 @@ function optimizeOpusSdp(sdp) {
       if (line.startsWith(`a=rtpmap:${opusPayload} `) && !fmtpFound) {
         const nextLine = lines[i + 1] || "";
         if (!nextLine.startsWith(`a=fmtp:${opusPayload}`)) {
-          modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;ptime=20;maxptime=40;useinbandfec=1;usedtx=0;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=48000`);
+          modifiedLines.push(`a=fmtp:${opusPayload} minptime=10;ptime=20;maxptime=40;useinbandfec=1;usedtx=0;stereo=0;sprop-stereo=0;cbr=1;maxaveragebitrate=48000;sprop-maxcapturerate=48000;maxplaybackrate=48000`);
           fmtpFound = true;
         }
       }
@@ -6561,6 +6593,14 @@ async function enableApprovedMicrophone() {
       if (typeof ensureTeacherAudioPlayback === "function") {
         await ensureTeacherAudioPlayback({ sourceHint: "enableApprovedMicrophone_existing_p2p" });
       }
+      // Dual Mesh: publish to SFU as well so all classmates hear student directly
+      if (sfuAvailable && microphonePermissionGranted && joinedClass) {
+        try {
+          await publishStudentSfuMic(localAudioStream);
+        } catch (sfuErr) {
+          console.warn("[Mesh-Audio] SFU classmate broadcast publication failed:", sfuErr);
+        }
+      }
       return;
     }
 
@@ -6597,10 +6637,7 @@ async function enableApprovedMicrophone() {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
-        googEchoCancellation: true,
-        googAutoGainControl: true,
-        googNoiseSuppression: true,
-        googHighpassFilter: true,
+        sampleRate: 48000,
         channelCount: 1,
       },
     });
@@ -6642,6 +6679,14 @@ async function enableApprovedMicrophone() {
       }
       if (typeof ensureTeacherAudioPlayback === "function") {
         await ensureTeacherAudioPlayback({ sourceHint: "enableApprovedMicrophone_fresh_p2p" });
+      }
+      // Dual Mesh: publish to SFU as well so all classmates hear student directly
+      if (isStudentSfuConnected() && microphonePermissionGranted && joinedClass) {
+        try {
+          await publishStudentSfuMic(localAudioStream);
+        } catch (sfuErr) {
+          console.warn("[Mesh-Audio] SFU classmate broadcast publication failed:", sfuErr);
+        }
       }
       return;
     }
