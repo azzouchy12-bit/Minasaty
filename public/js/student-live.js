@@ -453,6 +453,22 @@ function getTeacherP2pReceptionState() {
   return { receivingAudio, receivingVideo, receiving: receivingAudio || receivingVideo };
 }
 
+function isTeacherAudioHealthy() {
+  if (typeof getTeacherP2pReceptionState === "function") {
+    const p2p = getTeacherP2pReceptionState();
+    if (p2p?.receivingAudio) {
+      return true;
+    }
+  }
+  if (typeof getTeacherSfuReceptionState === "function") {
+    const sfu = getTeacherSfuReceptionState();
+    if (sfu?.receivingAudio) {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function sampleTeacherP2pReception() {
   if (studentP2pReceptionBusy) return;
   const peer = typeof pc !== "undefined" ? pc : null;
@@ -547,8 +563,8 @@ function notifyP2pTransportStatus() {
   });
 }
 
-function requestTargetedP2pFallback(reason = "", { holdSfu = true } = {}) {
-  if (typeof hasLiveP2pTeacherMedia === "function" && hasLiveP2pTeacherMedia()) return;
+function requestTargetedP2pFallback(reason = "", { holdSfu = true, force = false } = {}) {
+  if (!force && typeof hasLiveP2pTeacherMedia === "function" && hasLiveP2pTeacherMedia()) return;
   if (holdSfu && typeof holdStudentSfuDuringRecovery === "function") {
     holdStudentSfuDuringRecovery();
   }
@@ -559,6 +575,7 @@ function requestTargetedP2pFallback(reason = "", { holdSfu = true } = {}) {
       studentId: typeof studentId !== "undefined" ? studentId : "",
       reason: String(reason || "sfu_fallback"),
       preferredTransport: "p2p",
+      restartStalled: Boolean(force || reason === "p2p_audio_recovery"),
     });
     setViewerStatus("جارٍ استقبال بث الأستاذ المباشر…", "warning");
   }
@@ -752,6 +769,7 @@ window.getMinasatyStudentLiveDiagnostics = function getMinasatyStudentLiveDiagno
       fromSfu: Boolean(t.__fromSfu),
     })) : [],
     signalingConnected: Boolean(typeof socket !== "undefined" && socket?.connected),
+    studentMicDiagnostics: typeof window.getMinasatyStudentMicDiagnostics === "function" ? window.getMinasatyStudentMicDiagnostics() : null,
     recentEvents: studentDiagnosticEvents.slice(0, 10),
   };
 };
@@ -769,6 +787,10 @@ window.getMinasatyStudentLiveStatsAsync = async function getMinasatyStudentLiveS
             packetsReceived: report.packetsReceived || 0,
             packetsLost: report.packetsLost || 0,
             jitter: report.jitter || 0,
+            packetsDiscarded: report.packetsDiscarded || 0,
+            concealedSamples: report.concealedSamples || 0,
+            jitterBufferDelay: report.jitterBufferDelay || 0,
+            jitterBufferEmittedCount: report.jitterBufferEmittedCount || 0,
           };
         }
       });
@@ -776,6 +798,167 @@ window.getMinasatyStudentLiveStatsAsync = async function getMinasatyStudentLiveS
     } catch (_) { }
   }
   return base;
+};
+
+window.getMinasatyStudentMicDiagnostics = function getMinasatyStudentMicDiagnostics() {
+  const mode = typeof window !== "undefined" && window.MinasatyAudioEnhancer?.getDiagnosticMode
+    ? window.MinasatyAudioEnhancer.getDiagnosticMode()
+    : "current";
+  const rawTrack = (typeof localAudioRawTrack !== "undefined" && localAudioRawTrack)
+    ? localAudioRawTrack
+    : (typeof localAudioRawStream !== "undefined" && localAudioRawStream?.getAudioTracks?.()[0] ? localAudioRawStream.getAudioTracks()[0] : null);
+  const publishedTrack = typeof localAudioStream !== "undefined" && localAudioStream?.getAudioTracks?.()[0]
+    ? localAudioStream.getAudioTracks()[0]
+    : null;
+  const level = typeof getStudentMicInputLevel === "function"
+    ? getStudentMicInputLevel()
+    : { level: 0, rms: 0, peak: 0, peakPercent: 0 };
+
+  const rawDiag = rawTrack && typeof window !== "undefined" && window.MinasatyAudioEnhancer?.getAudioTrackDiagnostics
+    ? window.MinasatyAudioEnhancer.getAudioTrackDiagnostics(rawTrack)
+    : null;
+  const publishedDiag = publishedTrack && typeof window !== "undefined" && window.MinasatyAudioEnhancer?.getAudioTrackDiagnostics
+    ? window.MinasatyAudioEnhancer.getAudioTrackDiagnostics(publishedTrack)
+    : null;
+
+  return {
+    mode,
+    availableModes: ["current", "bypass_enhancer", "raw_clean"],
+    isMicrophoneActive: Boolean(publishedTrack && publishedTrack.readyState === "live" && publishedTrack.enabled),
+    isMicrophonePrepared: Boolean(typeof microphonePrepared !== "undefined" && microphonePrepared),
+    isEnhanced: Boolean(publishedTrack?.__isSpeechEnhanced || (typeof localAudioStream !== "undefined" && localAudioStream?.__isSpeechEnhanced)),
+    inputLevel: level,
+    rawTrackSettings: rawDiag?.settings || null,
+    rawTrackConstraints: rawDiag?.constraints || null,
+    publishedTrackSettings: publishedDiag?.settings || null,
+    rawTrack: rawDiag,
+    publishedTrack: publishedDiag,
+    p2pPublished: Boolean(typeof studentP2pMicSender !== "undefined" && studentP2pMicSender?.track && studentP2pMicSender.track.readyState === "live"),
+    sfuPublished: Boolean(typeof studentSfuMicPub !== "undefined" && studentSfuMicPub),
+  };
+};
+
+window.setStudentMicDiagnosticMode = async function setStudentMicDiagnosticMode(newMode) {
+  const allowed = ["current", "bypass_enhancer", "raw_clean"];
+  if (!allowed.includes(newMode)) {
+    console.warn(`[StudentMicDiagnostic] Invalid mode "${newMode}". Valid modes: ${allowed.join(", ")}`);
+    return { ok: false, error: "Invalid mode", allowed };
+  }
+
+  if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.setDiagnosticMode) {
+    window.MinasatyAudioEnhancer.setDiagnosticMode(newMode);
+  }
+
+  if (typeof recordStudentDiagnosticEvent === "function") {
+    recordStudentDiagnosticEvent("student_mic_mode_switched", `Diagnostic mode changed to: ${newMode}`);
+  }
+
+  const isCurrentlyPrepared = Boolean(typeof microphonePrepared !== "undefined" && microphonePrepared);
+  const isCurrentlyActive = Boolean(
+    typeof microphonePermissionGranted !== "undefined" &&
+    microphonePermissionGranted &&
+    typeof joinedClass !== "undefined" &&
+    joinedClass &&
+    typeof localAudioStream !== "undefined" &&
+    localAudioStream?.getAudioTracks?.().some((t) => t.readyState === "live")
+  );
+
+  if (!isCurrentlyPrepared && !isCurrentlyActive) {
+    return { ok: true, mode: newMode, switchedLive: false, status: "saved" };
+  }
+
+  if (isCurrentlyPrepared && !isCurrentlyActive) {
+    try {
+      if (typeof stopLocalAudio === "function") stopLocalAudio();
+      microphonePrepared = false;
+      if (typeof prepareStudentMicrophone === "function") {
+        await prepareStudentMicrophone();
+      }
+      return { ok: true, mode: newMode, switchedLive: false, status: "re-prepared" };
+    } catch (err) {
+      console.warn("[StudentMicDiagnostic] Failed to re-prepare with new mode:", err);
+      return { ok: false, mode: newMode, error: err.message };
+    }
+  }
+
+  try {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("getUserMedia not supported");
+    }
+
+    const constraints = typeof getStudentMicrophoneConstraints === "function"
+      ? getStudentMicrophoneConstraints(newMode)
+      : { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000, channelCount: 1 };
+    const freshRawStream = await navigator.mediaDevices.getUserMedia({
+      audio: constraints,
+    });
+    const freshRawTrack = freshRawStream.getAudioTracks()[0];
+
+    let freshPublishedStream;
+    if (newMode === "current" && typeof window !== "undefined" && window.MinasatyAudioEnhancer?.enhanceStream) {
+      freshPublishedStream = window.MinasatyAudioEnhancer.enhanceStream(freshRawStream, { mode: newMode });
+    } else {
+      freshPublishedStream = freshRawStream;
+    }
+
+    const freshPublishedTrack = freshPublishedStream.getAudioTracks()[0];
+    if (freshPublishedTrack) {
+      freshPublishedTrack.enabled = true;
+      if ("contentHint" in freshPublishedTrack) freshPublishedTrack.contentHint = "speech";
+    }
+
+    if (typeof studentP2pMicSender !== "undefined" && studentP2pMicSender && typeof studentP2pMicSender.replaceTrack === "function" && freshPublishedTrack) {
+      try {
+        await studentP2pMicSender.replaceTrack(freshPublishedTrack);
+      } catch (p2pErr) {
+        console.warn("[StudentMicDiagnostic] P2P replaceTrack error:", p2pErr);
+      }
+    }
+
+    if (typeof studentSfuRoom !== "undefined" && studentSfuRoom && typeof studentSfuMicPub !== "undefined" && studentSfuMicPub) {
+      try {
+        await studentSfuRoom.localParticipant.unpublishTrack(studentSfuMicPub.track, false);
+      } catch (_) {}
+      studentSfuMicPub = null;
+      if (freshPublishedTrack && freshPublishedStream && typeof publishStudentSfuMic === "function") {
+        try {
+          await publishStudentSfuMic(freshPublishedStream);
+        } catch (sfuErr) {
+          console.warn("[StudentMicDiagnostic] SFU re-publish error:", sfuErr);
+        }
+      }
+    }
+
+    const oldEnhancedStream = typeof localAudioStream !== "undefined" ? localAudioStream : null;
+    const oldRawStream = typeof localAudioRawStream !== "undefined" ? localAudioRawStream : null;
+
+    localAudioStream = freshPublishedStream;
+    if (typeof localAudioRawStream !== "undefined") localAudioRawStream = freshRawStream;
+    if (typeof localAudioRawTrack !== "undefined") localAudioRawTrack = freshRawTrack;
+
+    if (oldEnhancedStream && oldEnhancedStream !== freshPublishedStream) {
+      if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.disposeEnhancedStream) {
+        try { window.MinasatyAudioEnhancer.disposeEnhancedStream(oldEnhancedStream, { stopRaw: true }); } catch (_) {}
+      } else {
+        try { oldEnhancedStream.getTracks().forEach((t) => t.stop()); } catch (_) {}
+      }
+    }
+    if (oldRawStream && oldRawStream !== freshRawStream) {
+      try { oldRawStream.getTracks().forEach((t) => t.stop()); } catch (_) {}
+    }
+
+    if (typeof setupStudentMicLevelMeter === "function") {
+      setupStudentMicLevelMeter(freshRawStream);
+    }
+    if (typeof updateMicControl === "function") {
+      updateMicControl();
+    }
+
+    return { ok: true, mode: newMode, switchedLive: true, status: "live_swapped" };
+  } catch (err) {
+    console.warn("[StudentMicDiagnostic] Failed to swap live microphone track:", err);
+    return { ok: false, mode: newMode, error: err.message };
+  }
 };
 
 function stopSfuReceptionMonitor() {
@@ -1205,11 +1388,15 @@ function isStudentSfuConnected() {
   return Boolean(studentSfuRoom && studentSfuRoom.state === "connected");
 }
 
+function isStudentSfuReconnecting() {
+  return Boolean(studentSfuRoom && studentSfuRoom.state === "reconnecting");
+}
+
 function isStudentSfuHealthy() {
   if (!studentSfuRoom) {
     return false;
   }
-  // Respect LiveKit SDK transient reconnection phase
+  // Respect LiveKit SDK transient reconnection phase for SFU room health
   if (studentSfuRoom.state === "reconnecting") {
     return true;
   }
@@ -5517,6 +5704,50 @@ function updateMicControl() {
   elements.toggleMicButton.disabled = true;
 }
 
+let localAudioRawStream = null;
+let localAudioRawTrack = null;
+let studentMicLevelMeter = null;
+
+function setupStudentMicLevelMeter(streamOrTrack) {
+  if (typeof studentMicLevelMeter !== "undefined" && studentMicLevelMeter) {
+    try { studentMicLevelMeter.stop(); } catch (_) {}
+    studentMicLevelMeter = null;
+  }
+  if (!streamOrTrack) return;
+  if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.createInputLevelMeter) {
+    try {
+      studentMicLevelMeter = window.MinasatyAudioEnhancer.createInputLevelMeter(streamOrTrack);
+    } catch (_) {}
+  }
+}
+
+function getStudentMicInputLevel() {
+  if (typeof studentMicLevelMeter !== "undefined" && studentMicLevelMeter && typeof studentMicLevelMeter.getLevel === "function") {
+    return studentMicLevelMeter.getLevel();
+  }
+  return { level: 0, rms: 0, peak: 0, peakPercent: 0 };
+}
+
+function getStudentMicrophoneConstraints(mode) {
+  const targetMode = mode || (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.getDiagnosticMode ? window.MinasatyAudioEnhancer.getDiagnosticMode() : "current");
+  if (targetMode === "raw_clean") {
+    return {
+      echoCancellation: true,
+      noiseSuppression: false,
+      autoGainControl: false,
+      sampleRate: 48000,
+      channelCount: 1,
+    };
+  }
+  return {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    sampleRate: 48000,
+    channelCount: 1,
+  };
+}
+
 function clearHandResetTimer() {
   if (handResetTimer) {
     window.clearTimeout(handResetTimer);
@@ -5525,8 +5756,47 @@ function clearHandResetTimer() {
 }
 
 function stopLocalAudio() {
+  if (typeof studentMicLevelMeter !== "undefined" && studentMicLevelMeter) {
+    try { studentMicLevelMeter.stop(); } catch (_) {}
+    studentMicLevelMeter = null;
+  }
+  if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.disposeEnhancedStream) {
+    try {
+      window.MinasatyAudioEnhancer.disposeEnhancedStream(localAudioStream, { stopRaw: true });
+    } catch (_) {}
+  }
   if (localAudioStream) {
-    localAudioStream.getTracks().forEach((track) => track.stop());
+    try {
+      if (typeof localAudioStream.cleanup === "function") {
+        localAudioStream.cleanup({ stopRaw: true });
+      }
+    } catch (_) {}
+    try {
+      localAudioStream.getTracks().forEach((track) => {
+        try { track.stop(); } catch (_) {}
+      });
+    } catch (_) {}
+    if (localAudioStream.__rawStream) {
+      try {
+        localAudioStream.__rawStream.getTracks().forEach((track) => {
+          try { track.stop(); } catch (_) {}
+        });
+      } catch (_) {}
+    }
+  }
+  if (typeof localAudioRawStream !== "undefined" && localAudioRawStream) {
+    try {
+      localAudioRawStream.getTracks().forEach((track) => {
+        try { track.stop(); } catch (_) {}
+      });
+    } catch (_) {}
+    localAudioRawStream = null;
+  }
+  if (typeof localAudioRawTrack !== "undefined" && localAudioRawTrack) {
+    try {
+      localAudioRawTrack.stop();
+    } catch (_) {}
+    localAudioRawTrack = null;
   }
   unpublishStudentSfuMic();
   unpublishStudentP2pMic();
@@ -5560,17 +5830,23 @@ async function prepareStudentMicrophone() {
 
   isPreparingMicrophone = true;
   try {
-    localAudioStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: 48000,
-        channelCount: 1,
-      },
+    const captureConstraints = typeof getStudentMicrophoneConstraints === "function"
+      ? getStudentMicrophoneConstraints()
+      : { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000, channelCount: 1 };
+    const rawCaptureStream = await navigator.mediaDevices.getUserMedia({
+      audio: captureConstraints,
     });
-    if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.enhanceStream) {
-      localAudioStream = window.MinasatyAudioEnhancer.enhanceStream(localAudioStream);
+    if (typeof localAudioRawStream !== "undefined") localAudioRawStream = rawCaptureStream;
+    if (typeof localAudioRawTrack !== "undefined") localAudioRawTrack = rawCaptureStream.getAudioTracks()[0] || null;
+
+    const micMode = typeof window !== "undefined" && window.MinasatyAudioEnhancer?.getDiagnosticMode ? window.MinasatyAudioEnhancer.getDiagnosticMode() : "current";
+    if (micMode === "current" && typeof window !== "undefined" && window.MinasatyAudioEnhancer?.enhanceStream) {
+      localAudioStream = window.MinasatyAudioEnhancer.enhanceStream(rawCaptureStream, { mode: micMode });
+    } else {
+      localAudioStream = rawCaptureStream;
+    }
+    if (typeof setupStudentMicLevelMeter === "function") {
+      setupStudentMicLevelMeter(rawCaptureStream);
     }
     localAudioStream.getAudioTracks().forEach((track) => {
       track.enabled = false;
@@ -6080,6 +6356,7 @@ function attachTeacherTrack(event) {
     if (typeof playTeacherInboundAudio === "function") {
       playTeacherInboundAudio(track);
     }
+    p2pAudioRecoveryAttempts = 0;
     if (event.receiver) {
       try {
         if ("jitterBufferTarget" in event.receiver) {
@@ -6251,6 +6528,8 @@ function resetViewerState({ message, mode = "neutral", showJoin = true } = {}) {
   clearRecoveryTimer();
   isRecoveringStream = false;
   recoveryAttempts = 0;
+  p2pAudioRecoveryAttempts = 0;
+  lastP2pAudioRecoveryAt = 0;
   closePeerConnection();
   disconnectStudentSfu();
   stopLocalAudio();
@@ -6431,6 +6710,60 @@ async function negotiateStudentMicrophone() {
   }
 }
 
+let p2pAudioRecoveryAttempts = 0;
+let lastP2pAudioRecoveryAt = 0;
+const MAX_P2P_AUDIO_RECOVERY_ATTEMPTS = 5;
+const P2P_AUDIO_RECOVERY_COOLDOWN_MS = 2_000;
+
+function handleP2pAudioFailure(reason = "") {
+  if (!joinedClass) return;
+
+  // Suppress recovery only when teacher audio is already healthy on another transport
+  if (typeof isTeacherAudioHealthy === "function" && isTeacherAudioHealthy()) {
+    console.info("[WebRTC-Student] P2P audio recovery suppressed; teacher audio is arriving on healthy transport.");
+    return;
+  }
+
+  const now = Date.now();
+  if (now - lastP2pAudioRecoveryAt < P2P_AUDIO_RECOVERY_COOLDOWN_MS) {
+    console.info("[WebRTC-Student] P2P audio recovery throttled by cooldown.");
+    return;
+  }
+
+  if (p2pAudioRecoveryAttempts >= MAX_P2P_AUDIO_RECOVERY_ATTEMPTS) {
+    console.warn("[WebRTC-Student] P2P audio recovery attempts exhausted; falling back to full stream recovery.");
+    recordStudentDiagnosticEvent("p2p_audio_recovery_exhausted", "P2P audio recovery attempts exhausted; triggering full recovery");
+    beginStreamRecovery("انقطع صوت البث. جارٍ إعادة الاتصال تلقائياً…", { force: true });
+    return;
+  }
+
+  p2pAudioRecoveryAttempts++;
+  lastP2pAudioRecoveryAt = now;
+
+  console.info(`[WebRTC-Student] Recovering P2P audio independently (attempt ${p2pAudioRecoveryAttempts}/${MAX_P2P_AUDIO_RECOVERY_ATTEMPTS}, reason: ${reason}). Preserving video.`);
+  recordStudentDiagnosticEvent("p2p_audio_isolated_recovery", `Recovering P2P audio attempt ${p2pAudioRecoveryAttempts} (${reason})`);
+
+  // Close the failed P2P connection cleanly without touching SFU or remote video
+  closePeerConnection();
+
+  // Clear stale P2P audio tracks from teacherAudioStream so fresh tracks attach cleanly
+  if (typeof teacherAudioStream !== "undefined" && teacherAudioStream) {
+    try {
+      teacherAudioStream.getAudioTracks().forEach((track) => {
+        if (!track.__fromSfu) {
+          try { teacherAudioStream.removeTrack(track); } catch (_) {}
+          try { track.stop(); } catch (_) {}
+        }
+      });
+    } catch (_) {}
+  }
+
+  setViewerStatus("جارٍ استعادة صوت الأستاذ…", "warning");
+
+  // Request fresh P2P stream from teacher with holdSfu: true and force: true
+  requestTargetedP2pFallback(reason || "p2p_audio_recovery", { holdSfu: true, force: true });
+}
+
 function createViewerPeerConnection() {
   closePeerConnection();
 
@@ -6474,11 +6807,29 @@ function createViewerPeerConnection() {
       p2pDisconnectTimer = null;
     }
 
+    if (pc.connectionState === "connected") {
+      p2pAudioRecoveryAttempts = 0;
+    }
+
     if (pc.connectionState === "failed") {
-      if (isStudentSfuHealthy()) {
-        console.info("[WebRTC-Student] P2P failed while LiveKit media is healthy; preserving playback.");
+      // 1. Suppress recovery only when a valid teacher audio path is confirmed healthy
+      if (typeof isTeacherAudioHealthy === "function" && isTeacherAudioHealthy()) {
+        console.info("[WebRTC-Student] P2P failed while teacher audio is arriving on healthy transport; preserving playback.");
         return;
       }
+
+      // 2. If SFU is carrying video or reconnecting, recover audio path independently without blacking out video or session
+      const sfuHasVideo = Boolean(typeof getTeacherSfuReceptionState === "function" && getTeacherSfuReceptionState().receivingVideo);
+      const sfuReconnecting = typeof isStudentSfuReconnecting === "function"
+        ? isStudentSfuReconnecting()
+        : Boolean(studentSfuRoom && studentSfuRoom.state === "reconnecting");
+      if (sfuHasVideo || sfuReconnecting) {
+        console.info(`[WebRTC-Student] P2P failed, but SFU is ${sfuReconnecting ? "reconnecting" : "carrying video"}. Recovering audio independently.`);
+        handleP2pAudioFailure("p2p_connection_failed");
+        return;
+      }
+
+      // 3. Neither SFU video nor audio is healthy; trigger full stream recovery
       beginStreamRecovery("انقطع اتصال البث. جارٍ استعادته تلقائياً…");
     }
   };
@@ -6497,6 +6848,7 @@ function createViewerPeerConnection() {
       }
       clearRecoveryTimer();
       recoveryAttempts = 0;
+      p2pAudioRecoveryAttempts = 0;
       isRecoveringStream = false;
       hideConnectionOverlay();
       updateChatControls();
@@ -6506,7 +6858,7 @@ function createViewerPeerConnection() {
     if (iceConnectionState === "disconnected") {
       // ICE can briefly report "disconnected" during Wi-Fi jitter even while
       // LiveKit is delivering media. Wait before showing a warning or rejoining.
-      if (isStudentSfuHealthy()) {
+      if (typeof isStudentSfuHealthy === "function" && isStudentSfuHealthy()) {
         hideConnectionOverlay();
         return;
       }
@@ -6514,7 +6866,18 @@ function createViewerPeerConnection() {
       const disconnectedPeer = pc;
       p2pDisconnectTimer = window.setTimeout(() => {
         p2pDisconnectTimer = null;
-        if (pc !== disconnectedPeer || pc.iceConnectionState !== "disconnected" || isStudentSfuHealthy()) return;
+        if (pc !== disconnectedPeer || pc.iceConnectionState !== "disconnected") return;
+        if (typeof isStudentSfuHealthy === "function" && isStudentSfuHealthy()) return;
+        if (typeof isTeacherAudioHealthy === "function" && isTeacherAudioHealthy()) return;
+
+        const sfuHasVideo = Boolean(typeof getTeacherSfuReceptionState === "function" && getTeacherSfuReceptionState().receivingVideo);
+        const sfuReconnecting = Boolean(typeof studentSfuRoom !== "undefined" && studentSfuRoom?.state === "reconnecting");
+        if ((sfuHasVideo || sfuReconnecting) && typeof handleP2pAudioFailure === "function") {
+          console.info(`[WebRTC-Student] P2P ICE disconnected after grace period, but SFU is ${sfuReconnecting ? "reconnecting" : "carrying video"}. Recovering audio independently.`);
+          handleP2pAudioFailure("p2p_ice_disconnected_timeout");
+          return;
+        }
+
         showConnectionOverlay("اتصال البث غير مستقر. جارٍ محاولة الاستعادة…", "warning");
         setViewerStatus("اتصال البث غير مستقر. جارٍ محاولة الاستعادة…", "warning");
         isRecoveringStream = true;
@@ -6528,10 +6891,24 @@ function createViewerPeerConnection() {
         window.clearTimeout(p2pDisconnectTimer);
         p2pDisconnectTimer = null;
       }
-      if (isStudentSfuHealthy()) {
-        console.info("[WebRTC-Student] P2P ICE failed while LiveKit media is healthy; preserving playback.");
+      // 1. Suppress recovery only when a valid teacher audio path is confirmed healthy
+      if (typeof isTeacherAudioHealthy === "function" && isTeacherAudioHealthy()) {
+        console.info("[WebRTC-Student] P2P ICE failed while teacher audio is arriving on healthy transport; preserving playback.");
         return;
       }
+
+      // 2. If SFU is carrying video or reconnecting, recover audio path independently without blacking out video or session
+      const sfuHasVideo = Boolean(typeof getTeacherSfuReceptionState === "function" && getTeacherSfuReceptionState().receivingVideo);
+      const sfuReconnecting = typeof isStudentSfuReconnecting === "function"
+        ? isStudentSfuReconnecting()
+        : Boolean(studentSfuRoom && studentSfuRoom.state === "reconnecting");
+      if (sfuHasVideo || sfuReconnecting) {
+        console.info(`[WebRTC-Student] P2P ICE failed, but SFU is ${sfuReconnecting ? "reconnecting" : "carrying video"}. Recovering audio independently.`);
+        handleP2pAudioFailure("p2p_ice_failed");
+        return;
+      }
+
+      // 3. Neither SFU video nor audio is healthy; trigger full stream recovery
       beginStreamRecovery("فشل اتصال البث. جارٍ إعادة الاتصال تلقائياً…");
     }
   };
@@ -6623,26 +7000,46 @@ async function enableApprovedMicrophone() {
   // If track doesn't exist or is ended/stopped, clean it up and get a fresh one
   if (localAudioStream) {
     try {
+      if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.disposeEnhancedStream) {
+        window.MinasatyAudioEnhancer.disposeEnhancedStream(localAudioStream, { stopRaw: true });
+      }
       localAudioStream.getTracks().forEach((track) => track.stop());
     } catch (_) { }
     localAudioStream = undefined;
+  }
+  if (typeof localAudioRawStream !== "undefined" && localAudioRawStream) {
+    try {
+      localAudioRawStream.getTracks().forEach((track) => track.stop());
+    } catch (_) {}
+    localAudioRawStream = null;
+  }
+  if (typeof localAudioRawTrack !== "undefined" && localAudioRawTrack) {
+    try {
+      localAudioRawTrack.stop();
+    } catch (_) {}
+    localAudioRawTrack = null;
   }
 
   isRequestingMicrophone = true;
   updateMicControl();
 
   try {
-    localAudioStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: 48000,
-        channelCount: 1,
-      },
+    const captureConstraints = typeof getStudentMicrophoneConstraints === "function"
+      ? getStudentMicrophoneConstraints()
+      : { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000, channelCount: 1 };
+    const rawCaptureStream = await navigator.mediaDevices.getUserMedia({
+      audio: captureConstraints,
     });
-    if (typeof window !== "undefined" && window.MinasatyAudioEnhancer?.enhanceStream) {
-      localAudioStream = window.MinasatyAudioEnhancer.enhanceStream(localAudioStream);
+    if (typeof localAudioRawStream !== "undefined") localAudioRawStream = rawCaptureStream;
+    if (typeof localAudioRawTrack !== "undefined") localAudioRawTrack = rawCaptureStream.getAudioTracks()[0] || null;
+    const micMode = typeof window !== "undefined" && window.MinasatyAudioEnhancer?.getDiagnosticMode ? window.MinasatyAudioEnhancer.getDiagnosticMode() : "current";
+    if (micMode === "current" && typeof window !== "undefined" && window.MinasatyAudioEnhancer?.enhanceStream) {
+      localAudioStream = window.MinasatyAudioEnhancer.enhanceStream(rawCaptureStream, { mode: micMode });
+    } else {
+      localAudioStream = rawCaptureStream;
+    }
+    if (typeof setupStudentMicLevelMeter === "function") {
+      setupStudentMicLevelMeter(rawCaptureStream);
     }
     // Approval may be revoked while the browser permission dialog is open.
     if (!microphonePermissionGranted || !joinedClass) {
@@ -7925,6 +8322,7 @@ window.LiveDoctor?.start({
       micApproved: microphonePermissionGranted, micPresent: Boolean(mic), micEnabled: Boolean(mic?.enabled),
       micMuted: Boolean(mic?.muted), micEnded: mic?.readyState === "ended", micPublished: Boolean(microphonePermissionGranted && mic?.readyState === "live" && mic.enabled && (studentSfuMicPub || studentP2pMicSender?.track === mic)),
       audioReceiving: sfu.receivingAudio || p2p.receivingAudio, videoReceiving: sfu.receivingVideo || p2p.receivingVideo,
+      audioLevel: typeof getStudentMicInputLevel === "function" ? getStudentMicInputLevel().level : 0,
       paused: Boolean(elements.remoteVideo?.paused), muted: Boolean(elements.remoteVideo?.muted), readyState: elements.remoteVideo?.readyState
     };
   },

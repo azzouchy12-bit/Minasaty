@@ -2596,6 +2596,7 @@ io.on("connection", (socket) => {
         level,
         reason: data?.reason || "sfu_failed",
         preferredTransport: data?.preferredTransport,
+        restartStalled: Boolean(data?.restartStalled),
       });
     }
     acknowledge(acknowledgement, { ok: true });

@@ -4763,11 +4763,28 @@ function closeAbsenteesModal() {
 
 
 
+let localRecordingPendingChunkWrites = new Set();
+let localRecordingFinalizing = false;
+
 async function finalizeLocalRecording() {
+  if (localRecordingFinalized || localRecordingFinalizing) {
+    return;
+  }
+  localRecordingFinalizing = true;
+
+  // Await all pending chunk-save promises to ensure the final chunk write is fully committed
+  if (localRecordingPendingChunkWrites && localRecordingPendingChunkWrites.size > 0) {
+    try {
+      await Promise.allSettled(Array.from(localRecordingPendingChunkWrites));
+    } catch (_) {}
+  }
+
   if (localRecordingFinalized) {
+    localRecordingFinalizing = false;
     return;
   }
   localRecordingFinalized = true;
+  localRecordingFinalizing = false;
 
   let chunks = await retrieveRecordingChunksFromStorage();
   if (!chunks || !chunks.length) {
@@ -4813,6 +4830,8 @@ function startLocalRecording() {
 
   try {
     void clearRecordingDb();
+    localRecordingPendingChunkWrites = new Set();
+    localRecordingFinalizing = false;
     localRecordingStream = buildLocalRecordingStream();
     if (localRecordingAudioContext && localRecordingAudioContext.state === "suspended") {
       void localRecordingAudioContext.resume().catch(() => {});
@@ -4829,12 +4848,24 @@ function startLocalRecording() {
     localRecordingStartedAt = Date.now();
     localRecordingDownloadRequested = true;
     localRecordingFinalized = false;
-    recorder.ondataavailable = async (event) => {
+    recorder.ondataavailable = (event) => {
       if (event.data?.size) {
-        const storedInDb = await saveRecordingChunkToStorage(event.data);
-        if (!storedInDb) {
-          localRecordingChunks.push(event.data);
-        }
+        const chunk = event.data;
+        const writePromise = (async () => {
+          try {
+            const storedInDb = await saveRecordingChunkToStorage(chunk);
+            if (!storedInDb) {
+              localRecordingChunks.push(chunk);
+            }
+          } catch (err) {
+            console.warn("Unable to save recording chunk to storage, using memory fallback:", err);
+            localRecordingChunks.push(chunk);
+          }
+        })();
+        localRecordingPendingChunkWrites.add(writePromise);
+        writePromise.finally(() => {
+          localRecordingPendingChunkWrites.delete(writePromise);
+        });
       }
     };
     recorder.onerror = (event) => {
@@ -4877,26 +4908,23 @@ function stopLocalRecording({ download = true } = {}) {
   return new Promise((resolve) => {
     localRecordingStopResolver = resolve;
     if (recorder.state === "inactive") {
-      finalizeLocalRecording();
+      void finalizeLocalRecording();
       return;
     }
     try {
-      recorder.requestData();
-    } catch (_) {}
-    try {
-      if (recorder.state !== "inactive") {
+      if (recorder.state === "recording") {
         recorder.requestData();
       }
       recorder.stop();
       setTimeout(() => {
-        if (!localRecordingFinalized) {
+        if (!localRecordingFinalized && !localRecordingFinalizing) {
           console.warn("Manual finalization fallback triggered.");
-          finalizeLocalRecording();
+          void finalizeLocalRecording();
         }
       }, 1500);
     } catch (error) {
       console.warn("Unable to stop local class recorder:", error);
-      finalizeLocalRecording();
+      void finalizeLocalRecording();
     }
   });
 }
@@ -5365,6 +5393,9 @@ function removeAttendee(socketId) {
     attendeeElements.delete(socketId);
     updateAttendeeCount();
   }
+  removeStudentAudio(socketId);
+  removeClassroomAudioSource(socketId);
+  removeStudentAudioDestination(socketId);
 }
 
 
@@ -5383,6 +5414,12 @@ function clearAttendees() {
   for (const timer of studentSfuReturnTimers.values()) clearTimeout(timer);
   studentSfuFallbackTimers.clear();
   studentSfuReturnTimers.clear();
+  if (typeof classroomAudioDestinations !== "undefined" && classroomAudioDestinations) {
+    classroomAudioDestinations.forEach((dest) => {
+      try { dest.stream?.getTracks?.().forEach((t) => t.stop()); } catch (_) {}
+    });
+    classroomAudioDestinations.clear();
+  }
   updateAttendeeCount();
 }
 
@@ -5422,19 +5459,30 @@ function rebuildClassroomAudioGraph() {
     });
   }
 
-  const destinations = (typeof sharedClassroomAudioDestination !== "undefined" && sharedClassroomAudioDestination)
-    ? [sharedClassroomAudioDestination]
-    : (typeof classroomAudioDestinations !== "undefined" && classroomAudioDestinations ? Array.from(new Set(classroomAudioDestinations.values())) : []);
+  // Gather all active per-student destinations plus shared destination if active
+  const targetDestinations = [];
+  if (typeof classroomAudioDestinations !== "undefined" && classroomAudioDestinations) {
+    classroomAudioDestinations.forEach((dest, socketId) => {
+      if (dest) targetDestinations.push({ recipientSocketId: socketId, destination: dest });
+    });
+  }
+  if (typeof sharedClassroomAudioDestination !== "undefined" && sharedClassroomAudioDestination) {
+    if (!targetDestinations.some((d) => d.destination === sharedClassroomAudioDestination)) {
+      targetDestinations.push({ recipientSocketId: null, destination: sharedClassroomAudioDestination });
+    }
+  }
 
-  if (destinations.length === 0) {
+  if (targetDestinations.length === 0) {
     return;
   }
 
-  destinations.forEach((destination) => {
-    if (!destination) return;
-    const teacherSource = typeof classroomAudioSources !== "undefined" && classroomAudioSources ? classroomAudioSources.get("__teacher_microphone__") : null;
-    const screenSource = typeof classroomAudioSources !== "undefined" && classroomAudioSources ? classroomAudioSources.get("__screen_audio__") : null;
+  const teacherSource = typeof classroomAudioSources !== "undefined" && classroomAudioSources ? classroomAudioSources.get("__teacher_microphone__") : null;
+  const screenSource = typeof classroomAudioSources !== "undefined" && classroomAudioSources ? classroomAudioSources.get("__screen_audio__") : null;
 
+  targetDestinations.forEach(({ recipientSocketId, destination }) => {
+    if (!destination) return;
+
+    // Connect teacher microphone and screen audio to every recipient's mix
     [teacherSource, screenSource].forEach((source) => {
       if (source?.enabled) {
         const outNode = source.gainNode || source.node;
@@ -5445,23 +5493,68 @@ function rebuildClassroomAudioGraph() {
     });
 
     if (typeof classroomAudioSources !== "undefined" && classroomAudioSources) {
+      // Find recipient's studentId if available
+      let recipientStudentId = null;
+      if (recipientSocketId && typeof attendeeElements !== "undefined" && attendeeElements) {
+        const att = attendeeElements.get(recipientSocketId);
+        if (att?.dataset?.studentId) {
+          recipientStudentId = att.dataset.studentId;
+        }
+      }
+      if (!recipientStudentId && recipientSocketId && typeof attendeeSocketByStudentId !== "undefined" && attendeeSocketByStudentId) {
+        for (const [stId, sockId] of attendeeSocketByStudentId.entries()) {
+          if (sockId === recipientSocketId) {
+            recipientStudentId = stId;
+            break;
+          }
+        }
+      }
+
       const activeStudentSpeakers = new Set();
       classroomAudioSources.forEach((source, sourceKey) => {
         if (
           sourceKey !== "__teacher_microphone__" &&
           sourceKey !== "__screen_audio__" &&
-          source.enabled
+          source?.enabled
         ) {
           // Identify speaker identity to avoid mixing duplicate sources (e.g. P2P + SFU comb filtering)
           let speakerId = sourceKey;
+          let speakerSocketId = null;
           if (sourceKey.startsWith("sfu_")) {
             speakerId = sourceKey.slice(4);
+            speakerSocketId = typeof getSocketIdForStudentIdentity === "function" ? getSocketIdForStudentIdentity(speakerId) : null;
           } else {
-            const attendee = typeof attendeeElements !== "undefined" ? attendeeElements.get(sourceKey) : null;
+            speakerSocketId = sourceKey;
+            const attendee = typeof attendeeElements !== "undefined" && attendeeElements ? attendeeElements.get(sourceKey) : null;
             if (attendee?.dataset?.studentId) {
               speakerId = attendee.dataset.studentId;
             }
           }
+
+          // Strict authorization: unapproved microphones never enter an outbound mix!
+          const isApproved = typeof isStudentMicrophoneApproved === "function"
+            ? isStudentMicrophoneApproved(speakerId) || (speakerSocketId && isStudentMicrophoneApproved(speakerSocketId))
+            : (typeof approvedStudentMicrophones !== "undefined" && approvedStudentMicrophones
+                ? (approvedStudentMicrophones.has(speakerId) || (speakerSocketId && approvedStudentMicrophones.has(speakerSocketId)))
+                : true);
+          if (!isApproved) {
+            return;
+          }
+
+          // REAL PER-RECIPIENT MIX-MINUS: Exclude the receiving student's own microphone!
+          if (recipientSocketId) {
+            if (speakerSocketId && speakerSocketId === recipientSocketId) {
+              return;
+            }
+            if (sourceKey === recipientSocketId || (sourceKey.startsWith("sfu_") && sourceKey.slice(4) === recipientSocketId)) {
+              return;
+            }
+            if (recipientStudentId && (speakerId === recipientStudentId || sourceKey === recipientStudentId || sourceKey === "sfu_" + recipientStudentId)) {
+              return;
+            }
+          }
+
+          // Deduplication: prevent mixing duplicate sources (e.g. P2P + SFU simultaneously)
           if (activeStudentSpeakers.has(speakerId)) {
             return;
           }
@@ -5511,31 +5604,60 @@ function ensureStudentAudioDestination(studentSocketId) {
   if (!classroomAudioContext) {
     return null;
   }
+  if (classroomAudioContext.state === "suspended" && (typeof classActive === "undefined" || classActive)) {
+    classroomAudioContext.resume().catch(() => {});
+  }
 
-  if (!sharedClassroomAudioDestination || !sharedClassroomAudioDestination.stream?.getAudioTracks?.().some((track) => track.readyState === "live")) {
+  if (!studentSocketId) {
+    if (!sharedClassroomAudioDestination || !sharedClassroomAudioDestination.stream?.getAudioTracks?.().some((track) => track.readyState === "live")) {
+      try {
+        sharedClassroomAudioDestination = classroomAudioContext.createMediaStreamDestination();
+        const track = sharedClassroomAudioDestination.stream.getAudioTracks()[0];
+        if (track) {
+          track.contentHint = "speech";
+        }
+        rebuildClassroomAudioGraph();
+      } catch (error) {
+        console.warn("Unable to create shared classroom audio destination:", error);
+        return null;
+      }
+    }
+    return sharedClassroomAudioDestination;
+  }
+
+  let dest = classroomAudioDestinations.get(studentSocketId);
+  const isLive = dest?.stream?.getAudioTracks?.().some((track) => track.readyState === "live");
+  if (!dest || !isLive) {
     try {
-      sharedClassroomAudioDestination = classroomAudioContext.createMediaStreamDestination();
-      const track = sharedClassroomAudioDestination.stream.getAudioTracks()[0];
+      dest = classroomAudioContext.createMediaStreamDestination();
+      const track = dest.stream.getAudioTracks()[0];
       if (track) {
         track.contentHint = "speech";
       }
+      classroomAudioDestinations.set(studentSocketId, dest);
       rebuildClassroomAudioGraph();
     } catch (error) {
-      console.warn("Unable to create shared classroom audio destination:", error);
+      console.warn(`Unable to create audio destination for student ${studentSocketId}:`, error);
       return null;
     }
   }
 
-  if (studentSocketId) {
-    classroomAudioDestinations.set(studentSocketId, sharedClassroomAudioDestination);
-  }
-  return sharedClassroomAudioDestination;
+  return dest;
 }
 
 
 function removeStudentAudioDestination(studentSocketId) {
-  if (studentSocketId) {
+  if (!studentSocketId) return;
+  const dest = classroomAudioDestinations.get(studentSocketId);
+  if (dest) {
+    try {
+      if (typeof dest.disconnect === "function") dest.disconnect();
+    } catch (_) {}
+    try {
+      dest.stream?.getTracks?.().forEach((track) => track.stop());
+    } catch (_) {}
     classroomAudioDestinations.delete(studentSocketId);
+    rebuildClassroomAudioGraph();
   }
 }
 
@@ -5555,21 +5677,12 @@ function getStudentAudioSender(peerConnection) {
 
 
 function ensureStudentAudioSender(peerConnection, studentSocketId, { renegotiate = true } = {}) {
-  let audioTrack = null;
-  let audioStream = null;
-
-  const attendee = typeof attendeeElements !== "undefined" ? attendeeElements.get(studentSocketId) : null;
-  const studentId = attendee?.dataset?.studentId;
-  const isApproved = approvedStudentMicrophones.has(studentSocketId) || (studentId && approvedStudentMicrophones.has(studentId));
-
-  if (isApproved) {
-    audioTrack = getActiveTeacherAudioTrack();
-    audioStream = cameraStream;
-  } else {
-    const destination = ensureStudentAudioDestination(studentSocketId);
-    audioTrack = getStudentAudioTrack(studentSocketId);
-    audioStream = destination?.stream || cameraStream;
-  }
+  // Always use the student's distinct mix-minus destination.
+  // Both approved and non-approved students hear Teacher + Screen + other approved classmates,
+  // while the approved student's own microphone is strictly excluded from their destination.
+  const destination = ensureStudentAudioDestination(studentSocketId);
+  const audioTrack = getStudentAudioTrack(studentSocketId);
+  const audioStream = destination?.stream || cameraStream;
 
   if (!peerConnection || !audioTrack || peerConnection.signalingState === "closed") {
     return null;
@@ -7920,7 +8033,8 @@ socket.on("student_needs_p2p", (data = {}) => {
   });
   renderAttendeeTransportStatus(data.socketId);
 
-  const started = transitionStudentToP2pFallback(data.socketId, { allowWhileSfuActive: true });
+  const restartStalled = Boolean(data?.restartStalled || data?.reason === "p2p_audio_recovery");
+  const started = transitionStudentToP2pFallback(data.socketId, { allowWhileSfuActive: true, restartStalled });
   if (started) recordLiveDiagnosticEvent("student_requested_p2p", `Student ${data.socketId} requested targeted P2P (${data.reason || "network"}); sending offer`);
 });
 
