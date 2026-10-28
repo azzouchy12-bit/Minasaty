@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.github
+.vscode
+.agents
+android
+test
+docs
+local-preview
+*.mp4
+!public/assets/*.mp4
+dev.db*
+prisma/dev.db*

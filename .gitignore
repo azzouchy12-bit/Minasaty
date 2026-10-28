@@ -7,3 +7,5 @@ public/uploads/*
 npm-debug.log*
 .vscode/
 extensions/
+*.mp4
+!public/assets/*.mp4
