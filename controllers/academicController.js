@@ -357,6 +357,7 @@ async function getProgress(req, res) {
   const reactionPointsTotal = Math.max(0, rawReactionPointsTotal + (student.manualPointsAdjustment || 0));
   const reactionPointsSummary = {
     totalPoints: reactionPointsTotal,
+    tigerCount: reactionPoints.filter((r) => r.reaction === "tiger").length,
     fireCount: reactionPoints.filter((r) => r.reaction === "fire").length,
     clapCount: reactionPoints.filter((r) => r.reaction === "clap").length,
     loveCount: reactionPoints.filter((r) => r.reaction === "love").length,

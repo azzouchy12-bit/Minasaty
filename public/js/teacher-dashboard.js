@@ -4336,11 +4336,12 @@ async function fetchStudentStats(studentId) {
         elements.studentActionsPointsVal.textContent = String(ptsTotal);
       }
       if (elements.studentActionsPointsBreakdown) {
+        const tiger = ptsSummary.tigerCount || 0;
         const fire = ptsSummary.fireCount || 0;
         const love = ptsSummary.loveCount || 0;
         const like = ptsSummary.likeCount || 0;
         const dislike = ptsSummary.dislikeCount || 0;
-        elements.studentActionsPointsBreakdown.textContent = `🔥×${fire} ❤️×${love} 👍×${like}${dislike ? ` 👎×${dislike}` : ""}`;
+        elements.studentActionsPointsBreakdown.textContent = `${tiger ? `🐯×${tiger} ` : ""}🔥×${fire} ❤️×${love} 👍×${like}${dislike ? ` 👎×${dislike}` : ""}`;
       }
     } else {
       if (elements.studentActionsAttendanceVal) elements.studentActionsAttendanceVal.textContent = "0";

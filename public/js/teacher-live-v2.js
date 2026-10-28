@@ -1576,6 +1576,7 @@ function openTeacherEmojiPopover({ anchor, messageId }) {
   popover.append(title);
 
   const TEACHER_STACKED_REACTIONS = [
+    { key: "tiger", emoji: "🐯", label: "نمر التميز والإبداع", points: "+10 نقاط", pointClass: "points-tiger" },
     { key: "fire", emoji: "🔥", label: "نار وتميز", points: "+5 نقاط", pointClass: "points-fire" },
     { key: "clap", emoji: "👏", label: "تصفيق وبرافو", points: "+5 نقاط", pointClass: "points-fire" },
     { key: "love", emoji: "❤️", label: "قلب وتشجيع", points: "+3 نقاط", pointClass: "points-love" },
@@ -1685,6 +1686,7 @@ function appendTeacherChatMessage({ id, sender, message = "", kind, imageUrl = n
     actionsBar.className = "chat-message-actions-bar";
 
     const quickReactions = [
+      { key: "tiger", emoji: "🐯", label: "نمر (+10)" },
       { key: "fire", emoji: "🔥", label: "نار (+5)" },
       { key: "love", emoji: "❤️", label: "تشجيع (+3)" },
       { key: "clap", emoji: "👏", label: "تصفيق (+5)" },
@@ -1789,6 +1791,7 @@ function renderTeacherReactionPills(container, reactions, messageId) {
   if (!reactions) return;
 
   const TEACHER_REACTIONS_CONFIG = [
+    { key: "tiger", emoji: "🐯", title: "نمر 🐯" },
     { key: "fire", emoji: "🔥", title: "نار 🔥" },
     { key: "clap", emoji: "👏", title: "تصفيق 👏" },
     { key: "love", emoji: "❤️", title: "قلب ❤️" },
@@ -1818,15 +1821,116 @@ function renderTeacherReactionPills(container, reactions, messageId) {
   });
 }
 
+let activeTeacherTigerOverlay = null;
+
+function triggerTigerTikTokCelebration({ studentName = "", points = 10 } = {}) {
+  try {
+    if (activeTeacherTigerOverlay) {
+      activeTeacherTigerOverlay.remove();
+      activeTeacherTigerOverlay = null;
+    }
+
+    const overlay = document.createElement("div");
+    overlay.className = "tiktok-gift-overlay";
+    overlay.setAttribute("aria-hidden", "true");
+
+    const wrap = document.createElement("div");
+    wrap.className = "tiktok-gift-video-wrap";
+
+    const video = document.createElement("video");
+    video.className = "tiktok-gift-video";
+    video.src = "/assets/tiger-gift.mp4";
+    video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+    video.autoplay = true;
+    video.preload = "auto";
+
+    const badge = document.createElement("div");
+    badge.className = "tiktok-gift-badge";
+
+    const emojiSpan = document.createElement("span");
+    emojiSpan.className = "tiktok-gift-badge-emoji";
+    emojiSpan.textContent = "🐯";
+
+    const textsDiv = document.createElement("div");
+    textsDiv.className = "tiktok-gift-badge-texts";
+
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "tiktok-gift-badge-title";
+    titleSpan.textContent = `نمر التميز والإبداع! +${points} نقاط 🌟`;
+
+    const subSpan = document.createElement("span");
+    subSpan.className = "tiktok-gift-badge-sub";
+    subSpan.textContent = studentName ? `مكافأة للتلميذ: ${studentName} ✨` : "مكافأة الأستاذ الحماسية للبث المباشر ✨";
+
+    textsDiv.append(titleSpan, subSpan);
+    badge.append(emojiSpan, textsDiv);
+    wrap.append(video, badge);
+    overlay.append(wrap);
+    document.body.append(overlay);
+    activeTeacherTigerOverlay = overlay;
+
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      overlay.style.transition = "opacity 0.6s ease, transform 0.6s ease";
+      overlay.style.opacity = "0";
+      overlay.style.transform = "scale(1.03)";
+      setTimeout(() => {
+        overlay.remove();
+        if (activeTeacherTigerOverlay === overlay) activeTeacherTigerOverlay = null;
+      }, 620);
+    };
+
+    video.addEventListener("ended", cleanup);
+    video.addEventListener("error", (e) => {
+      console.warn("Teacher tiger video error:", e);
+      cleanup();
+    });
+
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn("Unmuted autoplay restricted, retrying muted:", err);
+        video.muted = true;
+        video.play().catch(() => {});
+      });
+    }
+
+    if (typeof confetti === "function") {
+      try {
+        confetti({
+          particleCount: 70,
+          spread: 80,
+          origin: { y: 0.7 },
+          colors: ["#f59e0b", "#fbbf24", "#d97706", "#ffffff", "#ef4444"],
+        });
+      } catch (_) {}
+    }
+
+    // Safety fallback timeout
+    setTimeout(cleanup, 6500);
+  } catch (err) {
+    console.warn("Unable to trigger teacher tiger celebration:", err);
+  }
+}
+
 function sendTeacherChatReaction(messageId, reaction, studentId, studentSocketId) {
   if (!socket || !classActive) return;
   const bubble = document.querySelector(`.chat-message[data-message-id="${messageId}"]`);
-  const emojiMap = { love: "❤️", like: "👍", cry: "👀", dislike: "👎", fire: "🔥", clap: "👏" };
+  const emojiMap = { tiger: "🐯", love: "❤️", like: "👍", cry: "👀", dislike: "👎", fire: "🔥", clap: "👏" };
   if (bubble) {
     showTeacherFloatingReaction(bubble, emojiMap[reaction] || "🔥");
   }
   const targetUserId = studentId || bubble?.dataset?.studentId || null;
   const targetSocketId = studentSocketId || bubble?.dataset?.socketId || null;
+
+  if (reaction === "tiger") {
+    const studentSender = bubble?.querySelector(".chat-message-sender")?.textContent?.trim() || "";
+    triggerTigerTikTokCelebration({ studentName: studentSender, points: 10 });
+  }
 
   socket.emit("classroom_chat_react", {
     messageId,
@@ -1858,6 +1962,7 @@ function updateTeacherMessageReactions(data) {
   const pillsWrap = document.querySelector(`.chat-message-reactions-pills[data-pills-for="${data.messageId}"]`);
   if (pillsWrap) {
     renderTeacherReactionPills(pillsWrap, data.counts || {
+      tiger: data.tigerCount,
       love: data.loveCount,
       like: data.likeCount,
       cry: data.cryCount,
@@ -8276,6 +8381,11 @@ socket.on("student_message_received", async (data = {}) => {
 socket.on("classroom_chat_reaction_updated", (data = {}) => {
   if (!classActive || data.level !== activeLevel) return;
   updateTeacherMessageReactions(data);
+});
+
+socket.on("tiktok_gift_celebration", (data = {}) => {
+  if (!classActive || (data.level && data.level !== activeLevel)) return;
+  triggerTigerTikTokCelebration({ studentName: data.studentName, points: data.points || 10 });
 });
 
 

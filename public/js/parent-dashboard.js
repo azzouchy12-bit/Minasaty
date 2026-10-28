@@ -2470,6 +2470,7 @@ async function loadActivityStats(studentId) {
 
     if (elements.reactionPointsSubtitle) {
       const parts = [];
+      if (Number(reactionSummary.tigerCount) > 0) parts.push(`🐯 ×${reactionSummary.tigerCount}`);
       if (Number(reactionSummary.fireCount) > 0) parts.push(`🔥 ×${reactionSummary.fireCount}`);
       if (Number(reactionSummary.loveCount) > 0) parts.push(`❤️ ×${reactionSummary.loveCount}`);
       if (Number(reactionSummary.likeCount) > 0) parts.push(`👍 ×${reactionSummary.likeCount}`);

@@ -3656,7 +3656,7 @@ io.on("connection", (socket) => {
       const reaction = String(data.reaction || "").trim().toLowerCase();
       const level = String(data.level || socket.data.roomLevel || "").trim();
 
-      const VALID_REACTIONS = new Set(["love", "like", "cry", "dislike", "fire", "clap"]);
+      const VALID_REACTIONS = new Set(["love", "like", "cry", "dislike", "fire", "clap", "tiger"]);
       if (!messageId || !VALID_REACTIONS.has(reaction) || !isValidLevel(level)) {
         return acknowledge(acknowledgement, { ok: false, error: "بيانات التفاعل غير صالحة." });
       }
@@ -3691,6 +3691,7 @@ io.on("connection", (socket) => {
 
       // Calculate aggregated reaction counts
       const counts = {
+        tiger: 0,
         love: 0,
         like: 0,
         cry: 0,
@@ -3699,6 +3700,7 @@ io.on("connection", (socket) => {
         clap: 0,
       };
       const teacherReacted = {
+        tiger: false,
         love: false,
         like: false,
         cry: false,
@@ -3739,6 +3741,7 @@ io.on("connection", (socket) => {
         messageId,
         level,
         counts,
+        tigerCount: counts.tiger,
         loveCount: counts.love,
         likeCount: counts.like,
         cryCount: counts.cry,
@@ -3776,6 +3779,7 @@ io.on("connection", (socket) => {
       }
 
       const TEACHER_REACTION_POINTS = Object.freeze({
+        tiger: 10,
         fire: 5,
         clap: 5,
         love: 3,
@@ -3787,6 +3791,7 @@ io.on("connection", (socket) => {
       // Exclusive Celebration Trigger: If teacher reacted and turned on reaction for student
       if (isTeacher && toggledOn && (targetSocketId || targetUserId)) {
         const celebrationEmojiMap = {
+          tiger: "🐯",
           fire: "🔥",
           clap: "👏",
           love: "❤️",
@@ -3814,6 +3819,10 @@ io.on("connection", (socket) => {
               io.to(sId).emit("student_celebration_trigger", celebrationPayload);
             }
           }
+        }
+        // Broadcast TikTok gift celebration to the entire live classroom
+        if (reaction === "tiger") {
+          io.to(level).emit("tiktok_gift_celebration", celebrationPayload);
         }
       }
 

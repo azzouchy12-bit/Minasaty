@@ -1210,6 +1210,96 @@
       }
     }
 
+    /* TikTok Gift Video Celebration (Tiger & Gifts) */
+    .tiktok-gift-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 99999999;
+      pointer-events: none !important;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      overflow: hidden;
+      animation: tiktokGiftOverlayIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes tiktokGiftOverlayIn {
+      0% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+
+    .tiktok-gift-video-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .tiktok-gift-video {
+      width: 100%;
+      max-height: 82vh;
+      object-fit: contain;
+      display: block;
+      /* TikTok luxury gift blend: semi-transparent at the top, dark and solid at the bottom */
+      -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 18%, rgba(0,0,0,0.9) 45%, #000 70%, #000 100%);
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 18%, rgba(0,0,0,0.9) 45%, #000 70%, #000 100%);
+      filter: drop-shadow(0 15px 35px rgba(0, 0, 0, 0.85));
+    }
+
+    .tiktok-gift-badge {
+      position: absolute;
+      bottom: 25px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(30, 20, 10, 0.96));
+      border: 2px solid rgba(245, 158, 11, 0.85);
+      border-radius: 999px;
+      padding: 8px 24px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75), 0 0 25px rgba(245, 158, 11, 0.5);
+      color: #fff;
+      direction: rtl;
+      animation: tiktokBadgeSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    @keyframes tiktokBadgeSlideUp {
+      0% { opacity: 0; transform: translateY(20px) scale(0.9); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .tiktok-gift-badge-emoji {
+      font-size: 2.2rem;
+      line-height: 1;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+    }
+
+    .tiktok-gift-badge-texts {
+      display: flex;
+      flex-direction: column;
+      text-align: right;
+    }
+
+    .tiktok-gift-badge-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #fde047;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+      white-space: nowrap;
+    }
+
+    .tiktok-gift-badge-sub {
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: #e2e8f0;
+      white-space: nowrap;
+    }
+
     .chat-message-reward-pulse {
       animation: chatRewardPulse 0.8s ease-out;
     }

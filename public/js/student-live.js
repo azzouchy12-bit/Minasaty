@@ -4328,6 +4328,7 @@ function isViewingLatestMessages(container, threshold = 36) {
 }
 
 const STUDENT_REACTIONS_CONFIG = [
+  { key: "tiger", emoji: "🐯", title: "نمر 🐯" },
   { key: "fire", emoji: "🔥", title: "نار 🔥" },
   { key: "clap", emoji: "👏", title: "تصفيق 👏" },
   { key: "love", emoji: "❤️", title: "قلب ❤️" },
@@ -5091,7 +5092,120 @@ function triggerCelebrationConfetti() {
 
 let lastCelebrationTimestamp = 0;
 
-function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null) {
+let activeStudentTigerOverlay = null;
+
+function triggerTigerTikTokCelebration({ studentName = "", points = 10, isTargetStudent = true } = {}) {
+  try {
+    if (activeStudentTigerOverlay) {
+      activeStudentTigerOverlay.remove();
+      activeStudentTigerOverlay = null;
+    }
+
+    const overlay = document.createElement("div");
+    overlay.className = "tiktok-gift-overlay";
+    overlay.setAttribute("aria-hidden", "true");
+
+    const wrap = document.createElement("div");
+    wrap.className = "tiktok-gift-video-wrap";
+
+    const video = document.createElement("video");
+    video.className = "tiktok-gift-video";
+    video.src = "/assets/tiger-gift.mp4";
+    video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+    video.autoplay = true;
+    video.preload = "auto";
+
+    const badge = document.createElement("div");
+    badge.className = "tiktok-gift-badge";
+
+    const emojiSpan = document.createElement("span");
+    emojiSpan.className = "tiktok-gift-badge-emoji";
+    emojiSpan.textContent = "🐯";
+
+    const textsDiv = document.createElement("div");
+    textsDiv.className = "tiktok-gift-badge-texts";
+
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "tiktok-gift-badge-title";
+    titleSpan.textContent = isTargetStudent
+      ? `مبروك! نمر التميز والإبداع (+${points} نقاط) 🌟`
+      : `نمر التميز والإبداع (+${points} نقاط) 🌟`;
+
+    const subSpan = document.createElement("span");
+    subSpan.className = "tiktok-gift-badge-sub";
+    if (studentName) {
+      subSpan.textContent = isTargetStudent
+        ? `كافأك الأستاذ بنمر التيك توك الخارق! ✨`
+        : `أهدى الأستاذ نمر التميز للتلميذ: ${studentName} ✨`;
+    } else {
+      subSpan.textContent = "مكافأة الأستاذ الحماسية للبث المباشر ✨";
+    }
+
+    textsDiv.append(titleSpan, subSpan);
+    badge.append(emojiSpan, textsDiv);
+    wrap.append(video, badge);
+    overlay.append(wrap);
+    document.body.append(overlay);
+    activeStudentTigerOverlay = overlay;
+
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      overlay.style.transition = "opacity 0.6s ease, transform 0.6s ease";
+      overlay.style.opacity = "0";
+      overlay.style.transform = "scale(1.03)";
+      setTimeout(() => {
+        overlay.remove();
+        if (activeStudentTigerOverlay === overlay) activeStudentTigerOverlay = null;
+      }, 620);
+    };
+
+    video.addEventListener("ended", cleanup);
+    video.addEventListener("error", (e) => {
+      console.warn("Student tiger video error:", e);
+      cleanup();
+    });
+
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn("Unmuted autoplay restricted, playing muted with chime:", err);
+        video.muted = true;
+        video.play().catch(() => {});
+        playCelebrationChime();
+      });
+    }
+
+    if (typeof confetti === "function") {
+      try {
+        confetti({
+          particleCount: 90,
+          spread: 85,
+          origin: { y: 0.72 },
+          colors: ["#f59e0b", "#fbbf24", "#d97706", "#ffffff", "#ef4444"],
+        });
+      } catch (_) {}
+    }
+
+    setTimeout(cleanup, 6500);
+  } catch (err) {
+    console.warn("Unable to trigger student tiger celebration:", err);
+  }
+}
+
+function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null, customData = {}) {
+  if (reactionKey === "tiger") {
+    triggerTigerTikTokCelebration({
+      studentName: customData.studentName || "",
+      points: customData.points || 10,
+      isTargetStudent: customData.isTargetStudent ?? true,
+    });
+    return;
+  }
+
   const now = Date.now();
   if (now - lastCelebrationTimestamp < 2100) {
     return; // Prevent duplicate triggers within 2.1s
@@ -5099,6 +5213,7 @@ function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null) {
   lastCelebrationTimestamp = now;
 
   const emojiMap = {
+    tiger: "🐯",
     fire: "🔥",
     clap: "👏",
     love: "❤️",
@@ -5107,6 +5222,7 @@ function triggerExclusiveCelebration(reactionKey = "fire", customEmoji = null) {
     dislike: "👎",
   };
   const labelMap = {
+    tiger: "نمر التميز والإبداع! +10 نقاط 🐯",
     fire: " نار يا حبيبي نار! +5🔥",
     clap: "BRAVOOOOOOOO +4👏",
     love: "الحب الغالي يا غالي +3❤️",
@@ -5152,6 +5268,7 @@ function updateStudentMessageReactions(data) {
   const pillsWrap = document.querySelector(`.student-chat-reactions-pills[data-pills-for="${data.messageId}"]`);
   if (pillsWrap) {
     renderStudentReactionPills(pillsWrap, data.counts || {
+      tiger: data.tigerCount,
       love: data.loveCount,
       like: data.likeCount,
       cry: data.cryCount,
@@ -7638,10 +7755,14 @@ socket.on("classroom_chat_reaction_updated", (data = {}) => {
     );
 
     if (isTargetStudent) {
-      triggerExclusiveCelebration(data.lastReaction || data.userReaction);
+      triggerExclusiveCelebration(data.lastReaction || data.userReaction, null, {
+        studentName: data.lastReactorName || "",
+        points: (data.lastReaction === "tiger" || data.userReaction === "tiger") ? 10 : 5,
+        isTargetStudent: true,
+      });
     } else {
       // For other students watching the stream: show brief subtle reaction on comment if visible
-      const reactionEmojiMap = { fire: "🔥", clap: "👏", love: "❤️", like: "👍", cry: "👀", dislike: "👎" };
+      const reactionEmojiMap = { tiger: "🐯", fire: "🔥", clap: "👏", love: "❤️", like: "👍", cry: "👀", dislike: "👎" };
       const emoji = reactionEmojiMap[data.lastReaction || data.userReaction] || "⭐";
       const targetBubble = data.messageId ? document.querySelector(`.student-chat-message[data-message-id="${data.messageId}"]`) : null;
       if (targetBubble) {
@@ -7653,14 +7774,33 @@ socket.on("classroom_chat_reaction_updated", (data = {}) => {
   }
 });
 
+socket.on("tiktok_gift_celebration", (data = {}) => {
+  if (!joinedClass) return;
+  const myStudentId = String((typeof studentId !== "undefined" ? studentId : "") || sessionStorage.getItem("studentId") || "");
+  const isTarget = Boolean(
+    (data.targetUserId && myStudentId && String(data.targetUserId) === myStudentId) ||
+    (data.targetSocketId && data.targetSocketId === socket.id)
+  );
+  triggerTigerTikTokCelebration({
+    studentName: data.studentName || "",
+    points: data.points || 10,
+    isTargetStudent: isTarget,
+  });
+});
+
 socket.on("student_celebration_trigger", (data = {}) => {
   if (!joinedClass) return;
-  triggerExclusiveCelebration(data.reaction, data.emoji);
+  triggerExclusiveCelebration(data.reaction, data.emoji, {
+    studentName: data.studentName || "",
+    points: data.points || 10,
+    isTargetStudent: true,
+  });
 });
 
 socket.on("teacher_reacted_to_message", (data = {}) => {
   if (!joinedClass) return;
   const reactionConfig = {
+    tiger: { emoji: "🐯", label: "نمر التميز والإبداع", points: 10 },
     fire: { emoji: "🔥", label: "نار وتميز", points: 5 },
     clap: { emoji: "👏", label: "تصفيق وإشادة", points: 5 },
     love: { emoji: "❤️", label: "إعجاب وتشجيع", points: 3 },
@@ -7699,7 +7839,11 @@ socket.on("teacher_reacted_to_message", (data = {}) => {
 
   if (isToggledOn) {
     // Trigger exclusive center celebration with big emoji, chime, and confetti!
-    triggerExclusiveCelebration(data.reaction, emoji);
+    triggerExclusiveCelebration(data.reaction, emoji, {
+      studentName: "",
+      points: delta || 10,
+      isTargetStudent: true,
+    });
 
     if (delta > 0) {
       toastMsg = `${emoji} تفاعل المعلم مع إجابتك: +${delta} نقاط! (مجموع نقاطك: ${data.totalPoints ?? studentPointsTotal})`;
