@@ -5093,8 +5093,16 @@ function triggerCelebrationConfetti() {
 let lastCelebrationTimestamp = 0;
 
 let activeStudentTigerOverlay = null;
+let lastStudentTigerCelebrationAt = 0;
 
 function triggerTigerTikTokCelebration({ studentName = "", points = 10, isTargetStudent = true } = {}) {
+  // Only the awarded target student sees the celebration overlay
+  if (!isTargetStudent) return;
+
+  const now = Date.now();
+  if (now - lastStudentTigerCelebrationAt < 2500) return;
+  lastStudentTigerCelebrationAt = now;
+
   try {
     if (activeStudentTigerOverlay) {
       activeStudentTigerOverlay.remove();
@@ -5129,21 +5137,9 @@ function triggerTigerTikTokCelebration({ studentName = "", points = 10, isTarget
 
     const titleSpan = document.createElement("span");
     titleSpan.className = "tiktok-gift-badge-title";
-    titleSpan.textContent = isTargetStudent
-      ? `مبروك! نمر التميز والإبداع (+${points} نقاط) 🌟`
-      : `نمر التميز والإبداع (+${points} نقاط) 🌟`;
+    titleSpan.textContent = `مبروك! نمر التميز والإبداع (+${points} نقاط) 🌟`;
 
-    const subSpan = document.createElement("span");
-    subSpan.className = "tiktok-gift-badge-sub";
-    if (studentName) {
-      subSpan.textContent = isTargetStudent
-        ? `كافأك الأستاذ بنمر التيك توك الخارق! ✨`
-        : `أهدى الأستاذ نمر التميز للتلميذ: ${studentName} ✨`;
-    } else {
-      subSpan.textContent = "مكافأة الأستاذ الحماسية للبث المباشر ✨";
-    }
-
-    textsDiv.append(titleSpan, subSpan);
+    textsDiv.append(titleSpan);
     badge.append(emojiSpan, textsDiv);
     wrap.append(video, badge);
     overlay.append(wrap);
@@ -7778,13 +7774,15 @@ socket.on("tiktok_gift_celebration", (data = {}) => {
   if (!joinedClass) return;
   const myStudentId = String((typeof studentId !== "undefined" ? studentId : "") || sessionStorage.getItem("studentId") || "");
   const isTarget = Boolean(
+    data.isTarget ||
     (data.targetUserId && myStudentId && String(data.targetUserId) === myStudentId) ||
     (data.targetSocketId && data.targetSocketId === socket.id)
   );
+  if (!isTarget) return;
   triggerTigerTikTokCelebration({
     studentName: data.studentName || "",
     points: data.points || 10,
-    isTargetStudent: isTarget,
+    isTargetStudent: true,
   });
 });
 

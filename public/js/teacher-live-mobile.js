@@ -2002,11 +2002,6 @@
     const targetUserId = studentId || bubble?.dataset?.studentId || null;
     const targetSocketId = studentSocketId || bubble?.dataset?.socketId || null;
 
-    if (reaction === "tiger") {
-      const studentSender = bubble?.querySelector(".tm-chat-bubble-name")?.textContent?.trim() || "";
-      triggerTigerTikTokCelebration({ studentName: studentSender, points: 10 });
-    }
-
     socket.emit("classroom_chat_react", {
       messageId,
       reaction,
@@ -2219,11 +2214,6 @@
   socket.on("classroom_chat_reaction_updated", (data = {}) => {
     if (!classActive) return;
     updateMessageReactions(data);
-  });
-
-  socket.on("tiktok_gift_celebration", (data = {}) => {
-    if (!classActive || (data.level && data.level !== activeLevel)) return;
-    triggerTigerTikTokCelebration({ studentName: data.studentName, points: data.points || 10 });
   });
 
   socket.on("classroom_chat_history", (data = {}) => {

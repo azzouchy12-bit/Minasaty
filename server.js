@@ -3820,9 +3820,18 @@ io.on("connection", (socket) => {
             }
           }
         }
-        // Broadcast TikTok gift celebration to the entire live classroom
+        // TikTok gift celebration is sent exclusively to the awarded student (not teacher, not other students)
         if (reaction === "tiger") {
-          io.to(level).emit("tiktok_gift_celebration", celebrationPayload);
+          if (targetSocketId) {
+            io.to(targetSocketId).emit("tiktok_gift_celebration", { ...celebrationPayload, isTarget: true });
+          }
+          if (targetUserId) {
+            for (const [sId, s] of io.sockets.sockets) {
+              if (s.data && String(s.data.studentId || "") === String(targetUserId) && sId !== targetSocketId) {
+                io.to(sId).emit("tiktok_gift_celebration", { ...celebrationPayload, isTarget: true });
+              }
+            }
+          }
         }
       }
 
