@@ -349,6 +349,7 @@ async function getAttendanceForStudent(req, res) {
     const reactionPointsSummary = {
       totalPoints: Math.max(0, rawPoints + (student.manualPointsAdjustment || 0)),
       tigerCount: reactionPoints.filter((r) => r.reaction === "tiger").length,
+      airplaneCount: reactionPoints.filter((r) => r.reaction === "airplane").length,
       fireCount: reactionPoints.filter((r) => r.reaction === "fire").length,
       clapCount: reactionPoints.filter((r) => r.reaction === "clap").length,
       loveCount: reactionPoints.filter((r) => r.reaction === "love").length,

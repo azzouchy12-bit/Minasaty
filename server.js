@@ -3656,7 +3656,7 @@ io.on("connection", (socket) => {
       const reaction = String(data.reaction || "").trim().toLowerCase();
       const level = String(data.level || socket.data.roomLevel || "").trim();
 
-      const VALID_REACTIONS = new Set(["love", "like", "cry", "dislike", "fire", "clap", "tiger"]);
+      const VALID_REACTIONS = new Set(["love", "like", "cry", "dislike", "fire", "clap", "tiger", "airplane"]);
       if (!messageId || !VALID_REACTIONS.has(reaction) || !isValidLevel(level)) {
         return acknowledge(acknowledgement, { ok: false, error: "بيانات التفاعل غير صالحة." });
       }
@@ -3692,6 +3692,7 @@ io.on("connection", (socket) => {
       // Calculate aggregated reaction counts
       const counts = {
         tiger: 0,
+        airplane: 0,
         love: 0,
         like: 0,
         cry: 0,
@@ -3701,6 +3702,7 @@ io.on("connection", (socket) => {
       };
       const teacherReacted = {
         tiger: false,
+        airplane: false,
         love: false,
         like: false,
         cry: false,
@@ -3742,6 +3744,7 @@ io.on("connection", (socket) => {
         level,
         counts,
         tigerCount: counts.tiger,
+        airplaneCount: counts.airplane || 0,
         loveCount: counts.love,
         likeCount: counts.like,
         cryCount: counts.cry,
@@ -3780,6 +3783,7 @@ io.on("connection", (socket) => {
 
       const TEACHER_REACTION_POINTS = Object.freeze({
         tiger: 10,
+        airplane: 7,
         fire: 5,
         clap: 5,
         love: 3,
@@ -3792,6 +3796,7 @@ io.on("connection", (socket) => {
       if (isTeacher && toggledOn && (targetSocketId || targetUserId)) {
         const celebrationEmojiMap = {
           tiger: "🐯",
+          airplane: "✈️",
           fire: "🔥",
           clap: "👏",
           love: "❤️",
@@ -3821,7 +3826,7 @@ io.on("connection", (socket) => {
           }
         }
         // TikTok gift celebration is sent exclusively to the awarded student (not teacher, not other students)
-        if (reaction === "tiger") {
+        if (reaction === "tiger" || reaction === "airplane") {
           if (targetSocketId) {
             io.to(targetSocketId).emit("tiktok_gift_celebration", { ...celebrationPayload, isTarget: true });
           }
@@ -3927,6 +3932,168 @@ io.on("connection", (socket) => {
       acknowledge(acknowledgement, { ok: true, ...updatePayload });
     } catch (err) {
       console.error("classroom_chat_react error:", err);
+      acknowledge(acknowledgement, { ok: false, error: err.message });
+    }
+  });
+
+  /**
+   * Handle direct reaction/reward from teacher to student without a chat message (from student stats modal)
+   * Supports: tiger (+10), airplane (+7), fire (+5), clap (+5), love (+3), like (+2), cry (0), dislike (-1)
+   */
+  socket.on("teacher_direct_student_react", async (data = {}, acknowledgement) => {
+    try {
+      const level = String(data.level || socket.data.roomLevel || "").trim();
+      const isTeacher =
+        socket.data.role === "teacher" ||
+        socket.data.role === "teacher_companion" ||
+        activeTeachersByLevel.get(level) === socket.id ||
+        users.get(socket.id)?.role === "teacher";
+      if (!isTeacher) {
+        return acknowledge(acknowledgement, { ok: false, error: "غير مصرح لغير الأستاذ." });
+      }
+
+      const studentId = String(data.studentId || "").trim();
+      let targetSocketId = data.socketId ? String(data.socketId).trim() : "";
+      const reaction = String(data.reaction || "").trim().toLowerCase();
+
+      const VALID_REACTIONS = new Set(["love", "like", "cry", "dislike", "fire", "clap", "tiger", "airplane"]);
+      if (!VALID_REACTIONS.has(reaction) || (!studentId && !targetSocketId)) {
+        return acknowledge(acknowledgement, { ok: false, error: "بيانات التفاعل المباشر غير صالحة." });
+      }
+
+      const TEACHER_REACTION_POINTS = Object.freeze({
+        tiger: 10,
+        airplane: 7,
+        fire: 5,
+        clap: 5,
+        love: 3,
+        like: 2,
+        cry: 0,
+        dislike: -1,
+      });
+      const celebrationEmojiMap = {
+        tiger: "🐯",
+        airplane: "✈️",
+        fire: "🔥",
+        clap: "👏",
+        love: "❤️",
+        like: "👍",
+        cry: "👀",
+        dislike: "👎",
+      };
+
+      const pointDelta = TEACHER_REACTION_POINTS[reaction] ?? 0;
+      const directMsgId = `direct_${studentId || targetSocketId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+      if (!targetSocketId && studentId) {
+        for (const [sId, s] of io.sockets.sockets) {
+          if (s.data && String(s.data.studentId || "") === String(studentId)) {
+            targetSocketId = sId;
+            break;
+          }
+        }
+      }
+
+      let studentName = data.studentName || (targetSocketId ? io.sockets.sockets.get(targetSocketId)?.data?.studentName : "") || "تلميذ";
+
+      let totalPoints = 0;
+      if (studentId) {
+        try {
+          await prisma.studentReactionPoint.create({
+            data: {
+              studentId,
+              level: level || "عام",
+              messageId: directMsgId,
+              reaction,
+              points: pointDelta,
+            },
+          });
+
+          const [agg, studentRec] = await Promise.all([
+            prisma.studentReactionPoint.aggregate({
+              where: { studentId },
+              _sum: { points: true },
+            }),
+            prisma.student.findUnique({
+              where: { id: studentId },
+              select: { studentName: true, manualPointsAdjustment: true },
+            }),
+          ]);
+          if (studentRec?.studentName) {
+            studentName = studentRec.studentName;
+          }
+          totalPoints = Math.max(0, (agg?._sum?.points ?? 0) + (studentRec?.manualPointsAdjustment ?? 0));
+        } catch (dbErr) {
+          console.warn("Direct reaction point save error:", dbErr.message);
+        }
+      }
+
+      const celebrationPayload = {
+        messageId: directMsgId,
+        reaction,
+        emoji: celebrationEmojiMap[reaction] || "⭐",
+        points: pointDelta,
+        targetUserId: studentId || null,
+        targetSocketId: targetSocketId || null,
+        studentName,
+        messageText: "",
+        isDirectReward: true,
+      };
+
+      // Emit exclusive celebration to target student
+      if (targetSocketId) {
+        io.to(targetSocketId).emit("student_celebration_trigger", celebrationPayload);
+      }
+      if (studentId) {
+        for (const [sId, s] of io.sockets.sockets) {
+          if (s.data && String(s.data.studentId || "") === String(studentId) && sId !== targetSocketId) {
+            io.to(sId).emit("student_celebration_trigger", celebrationPayload);
+          }
+        }
+      }
+
+      // TikTok gift video celebration (only for target student)
+      if (reaction === "tiger" || reaction === "airplane") {
+        if (targetSocketId) {
+          io.to(targetSocketId).emit("tiktok_gift_celebration", { ...celebrationPayload, isTarget: true });
+        }
+        if (studentId) {
+          for (const [sId, s] of io.sockets.sockets) {
+            if (s.data && String(s.data.studentId || "") === String(studentId) && sId !== targetSocketId) {
+              io.to(sId).emit("tiktok_gift_celebration", { ...celebrationPayload, isTarget: true });
+            }
+          }
+        }
+      }
+
+      // Send direct reaction received event to target student
+      const directReactionData = {
+        reaction,
+        emoji: celebrationEmojiMap[reaction] || "⭐",
+        points: pointDelta,
+        totalPoints,
+      };
+      if (targetSocketId) {
+        io.to(targetSocketId).emit("teacher_direct_reaction_received", directReactionData);
+      }
+      if (studentId) {
+        for (const [sId, s] of io.sockets.sockets) {
+          if (s.data && String(s.data.studentId || "") === String(studentId) && sId !== targetSocketId) {
+            io.to(sId).emit("teacher_direct_reaction_received", directReactionData);
+          }
+        }
+      }
+
+      acknowledge(acknowledgement, {
+        ok: true,
+        points: pointDelta,
+        reaction,
+        totalPoints,
+        studentName,
+        emoji: celebrationEmojiMap[reaction] || "⭐",
+      });
+    } catch (err) {
+      console.error("teacher_direct_student_react error:", err);
       acknowledge(acknowledgement, { ok: false, error: err.message });
     }
   });

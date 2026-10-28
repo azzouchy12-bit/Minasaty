@@ -358,6 +358,47 @@
         <div class="tm-modal-card" role="dialog" aria-modal="true" aria-labelledby="tm-student-stats-title">
           <h3 id="tm-student-stats-title" class="tm-modal-title">تفاعل ومشاركات التلميذ</h3>
           <p id="tm-student-stats-name" style="margin:0 0 12px;font-size:1.05rem;font-weight:800;color:#60a5fa;"></p>
+          <!-- شريط التفاعل المباشر للتلميذ على الهاتف -->
+          <div class="tm-direct-reward-section" style="margin-bottom:14px;background:rgba(15,23,42,0.65);border:1px solid rgba(59,130,246,0.3);border-radius:12px;padding:8px 10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:0.75rem;font-weight:700;color:#94a3b8;">⚡ مكافأة وتفاعل مباشر:</span>
+              <span id="tm-direct-reward-feedback" style="font-size:0.72rem;color:#86efac;font-weight:700;"></span>
+            </div>
+            <div class="tm-direct-reward-bar" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;">
+              <button type="button" class="tm-direct-reward-btn" data-reaction="tiger" title="نمر (+10)" style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.5);border-radius:8px;padding:4px 8px;cursor:pointer;color:#fff;">
+                <span style="font-size:1.25rem;">🐯</span>
+                <span style="font-size:0.65rem;font-weight:800;color:#fde047;">+10</span>
+              </button>
+              <button type="button" class="tm-direct-reward-btn" data-reaction="airplane" title="طائرة (+7)" style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;background:rgba(14,165,233,0.2);border:1px solid rgba(14,165,233,0.5);border-radius:8px;padding:4px 8px;cursor:pointer;color:#fff;">
+                <span style="font-size:1.25rem;">✈️</span>
+                <span style="font-size:0.65rem;font-weight:800;color:#38bdf8;">+7</span>
+              </button>
+              <button type="button" class="tm-direct-reward-btn" data-reaction="fire" title="نار (+5)" style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.5);border-radius:8px;padding:4px 8px;cursor:pointer;color:#fff;">
+                <span style="font-size:1.25rem;">🔥</span>
+                <span style="font-size:0.65rem;font-weight:800;color:#f87171;">+5</span>
+              </button>
+              <button type="button" class="tm-direct-reward-btn" data-reaction="clap" title="تصفيق (+5)" style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;background:rgba(234,179,8,0.2);border:1px solid rgba(234,179,8,0.5);border-radius:8px;padding:4px 8px;cursor:pointer;color:#fff;">
+                <span style="font-size:1.25rem;">👏</span>
+                <span style="font-size:0.65rem;font-weight:800;color:#fde047;">+5</span>
+              </button>
+              <button type="button" class="tm-direct-reward-btn" data-reaction="love" title="قلب (+3)" style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;background:rgba(244,63,94,0.2);border:1px solid rgba(244,63,94,0.5);border-radius:8px;padding:4px 8px;cursor:pointer;color:#fff;">
+                <span style="font-size:1.25rem;">❤️</span>
+                <span style="font-size:0.65rem;font-weight:800;color:#fb7185;">+3</span>
+              </button>
+              <button type="button" class="tm-direct-reward-btn" data-reaction="like" title="لايك (+2)" style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.5);border-radius:8px;padding:4px 8px;cursor:pointer;color:#fff;">
+                <span style="font-size:1.25rem;">👍</span>
+                <span style="font-size:0.65rem;font-weight:800;color:#60a5fa;">+2</span>
+              </button>
+              <button type="button" class="tm-direct-reward-btn" data-reaction="cry" title="ملاحظة (0)" style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;background:rgba(148,163,184,0.2);border:1px solid rgba(148,163,184,0.5);border-radius:8px;padding:4px 8px;cursor:pointer;color:#fff;">
+                <span style="font-size:1.25rem;">👀</span>
+                <span style="font-size:0.65rem;font-weight:800;color:#cbd5e1;">0</span>
+              </button>
+              <button type="button" class="tm-direct-reward-btn" data-reaction="dislike" title="ديسلايك (-1)" style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;background:rgba(225,29,72,0.2);border:1px solid rgba(225,29,72,0.5);border-radius:8px;padding:4px 8px;cursor:pointer;color:#fff;">
+                <span style="font-size:1.25rem;">👎</span>
+                <span style="font-size:0.65rem;font-weight:800;color:#fda4af;">-1</span>
+              </button>
+            </div>
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
             <div style="padding:12px 10px;background:rgba(30,58,138,0.3);border:1px solid rgba(59,130,246,0.35);border-radius:12px;text-align:center;">
               <span style="display:block;font-size:0.75rem;color:#94a3b8;font-weight:700;margin-bottom:4px;">مشاركات الحصة</span>

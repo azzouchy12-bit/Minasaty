@@ -1577,6 +1577,7 @@ function openTeacherEmojiPopover({ anchor, messageId }) {
 
   const TEACHER_STACKED_REACTIONS = [
     { key: "tiger", emoji: "🐯", label: "نمر التميز والإبداع", points: "+10 نقاط", pointClass: "points-tiger" },
+    { key: "airplane", emoji: "✈️", label: "طائرة التميز والإبداع", points: "+7 نقاط", pointClass: "points-airplane" },
     { key: "fire", emoji: "🔥", label: "نار وتميز", points: "+5 نقاط", pointClass: "points-fire" },
     { key: "clap", emoji: "👏", label: "تصفيق وبرافو", points: "+5 نقاط", pointClass: "points-fire" },
     { key: "love", emoji: "❤️", label: "قلب وتشجيع", points: "+3 نقاط", pointClass: "points-love" },
@@ -1920,7 +1921,7 @@ function triggerTigerTikTokCelebration({ studentName = "", points = 10 } = {}) {
 function sendTeacherChatReaction(messageId, reaction, studentId, studentSocketId) {
   if (!socket || !classActive) return;
   const bubble = document.querySelector(`.chat-message[data-message-id="${messageId}"]`);
-  const emojiMap = { tiger: "🐯", love: "❤️", like: "👍", cry: "👀", dislike: "👎", fire: "🔥", clap: "👏" };
+  const emojiMap = { tiger: "🐯", airplane: "✈️", love: "❤️", like: "👍", cry: "👀", dislike: "👎", fire: "🔥", clap: "👏" };
   if (bubble) {
     showTeacherFloatingReaction(bubble, emojiMap[reaction] || "🔥");
   }
@@ -5234,6 +5235,7 @@ function refreshChatStudentSocketTarget(studentId, socketId) {
 }
 
 let studentStatsModalInitialized = false;
+let currentStatsModalStudent = { studentId: "", socketId: "", studentName: "" };
 
 function initStudentStatsModal() {
   if (studentStatsModalInitialized) return;
@@ -5248,6 +5250,48 @@ function initStudentStatsModal() {
   closeBtn?.addEventListener("click", closeStudentStatsModal);
   closeFooterBtn?.addEventListener("click", closeStudentStatsModal);
   backdrop?.addEventListener("click", closeStudentStatsModal);
+
+  const directRewardBtns = modal.querySelectorAll(".direct-reward-btn");
+  directRewardBtns.forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const reaction = btn.dataset.reaction;
+      if (!reaction || (!currentStatsModalStudent.studentId && !currentStatsModalStudent.socketId)) return;
+
+      const feedbackEl = document.getElementById("student-direct-reward-feedback");
+      btn.style.transform = "scale(0.92)";
+      setTimeout(() => { btn.style.transform = ""; }, 150);
+
+      try {
+        const res = await emitWithAcknowledgement("teacher_direct_student_react", {
+          studentId: currentStatsModalStudent.studentId,
+          socketId: currentStatsModalStudent.socketId,
+          studentName: currentStatsModalStudent.studentName,
+          reaction,
+          level: activeLevel,
+        }, 5000);
+
+        if (res && res.ok) {
+          const sessionPointsEl = document.getElementById("student-stats-session-points");
+          const totalPointsEl = document.getElementById("student-stats-total-points");
+          if (sessionPointsEl) {
+            const curSession = parseInt(sessionPointsEl.textContent, 10) || 0;
+            sessionPointsEl.textContent = Math.max(0, curSession + res.points);
+          }
+          if (totalPointsEl && typeof res.totalPoints === "number") {
+            totalPointsEl.textContent = res.totalPoints;
+          }
+          if (feedbackEl) {
+            feedbackEl.textContent = `تم إرسال ${res.emoji} (${res.points > 0 ? '+' + res.points : res.points})`;
+            feedbackEl.hidden = false;
+            setTimeout(() => { feedbackEl.hidden = true; }, 2600);
+          }
+        }
+      } catch (err) {
+        console.warn("Direct reward error:", err);
+      }
+    });
+  });
 
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !modal.hidden) {
@@ -5265,6 +5309,7 @@ function closeStudentStatsModal() {
 
 async function openStudentStatsModal({ studentId = "", socketId = "", studentName = "تلميذ" } = {}) {
   initStudentStatsModal();
+  currentStatsModalStudent = { studentId, socketId, studentName };
   const modal = document.getElementById("student-stats-modal");
   if (!modal) return;
 

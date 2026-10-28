@@ -1348,9 +1348,70 @@
     return card;
   }
 
+  let currentMobileStatsStudent = { studentId: "", socketId: "", studentName: "" };
+  let mobileStudentStatsInitialized = false;
+
+  function initMobileStudentStatsModal() {
+    if (mobileStudentStatsInitialized) return;
+    const modal = document.getElementById("tm-student-stats-modal");
+    if (!modal) return;
+    mobileStudentStatsInitialized = true;
+
+    const directRewardBtns = modal.querySelectorAll(".tm-direct-reward-btn");
+    directRewardBtns.forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const reaction = btn.dataset.reaction;
+        if (!reaction || (!currentMobileStatsStudent.studentId && !currentMobileStatsStudent.socketId)) return;
+
+        const feedbackEl = document.getElementById("tm-direct-reward-feedback");
+        btn.style.transform = "scale(0.92)";
+        setTimeout(() => { btn.style.transform = ""; }, 150);
+
+        try {
+          const res = await emitWithAcknowledgement("teacher_direct_student_react", {
+            studentId: currentMobileStatsStudent.studentId,
+            socketId: currentMobileStatsStudent.socketId,
+            studentName: currentMobileStatsStudent.studentName,
+            reaction,
+            level: activeLevel || "",
+          }, 5000);
+
+          if (res && res.ok) {
+            const ptsEl = document.getElementById("tm-student-stats-points");
+            const totPtsEl = document.getElementById("tm-student-stats-total-points");
+            if (ptsEl) {
+              const curPts = parseInt(ptsEl.textContent, 10) || 0;
+              ptsEl.textContent = Math.max(0, curPts + res.points);
+            }
+            if (totPtsEl && typeof res.totalPoints === "number") {
+              totPtsEl.textContent = res.totalPoints;
+            }
+            if (feedbackEl) {
+              feedbackEl.textContent = `تم إرسال ${res.emoji} (${res.points > 0 ? '+' + res.points : res.points})`;
+              feedbackEl.style.display = "inline";
+              setTimeout(() => { feedbackEl.textContent = ""; }, 2600);
+            }
+          }
+        } catch (err) {
+          console.warn("Mobile direct reward error:", err);
+        }
+      });
+    });
+  }
+
   async function openMobileStudentStats(student) {
     const modal = document.getElementById("tm-student-stats-modal");
     if (!modal) return;
+    initMobileStudentStatsModal();
+    currentMobileStatsStudent = {
+      studentId: student.studentId || "",
+      socketId: student.socketId || "",
+      studentName: student.studentName || "التلميذ",
+    };
+    const feedbackEl = document.getElementById("tm-direct-reward-feedback");
+    if (feedbackEl) feedbackEl.textContent = "";
+
     const nameEl = document.getElementById("tm-student-stats-name");
     const partEl = document.getElementById("tm-student-stats-participations");
     const ptsEl = document.getElementById("tm-student-stats-points");
@@ -1688,12 +1749,13 @@
 
     const TEACHER_STACKED_REACTIONS = [
       { key: "tiger", emoji: "🐯", label: "نمر التميز والإبداع", points: "+10 نقاط", pointClass: "points-tiger" },
+      { key: "airplane", emoji: "✈️", label: "طائرة التميز والإبداع", points: "+7 نقاط", pointClass: "points-airplane" },
       { key: "fire", emoji: "🔥", label: "نار وتميز", points: "+5 نقاط", pointClass: "points-fire" },
       { key: "clap", emoji: "👏", label: "تصفيق وبرافو", points: "+5 نقاط", pointClass: "points-fire" },
       { key: "love", emoji: "❤️", label: "قلب وتشجيع", points: "+3 نقاط", pointClass: "points-love" },
       { key: "like", emoji: "👍", label: "إعجاب وأحسنت", points: "+2 نقطتان", pointClass: "points-like" },
-      { key: "dislike", emoji: "👎", label: "لايك مقلوبة", points: "-1 نقطة", pointClass: "points-dislike" },
       { key: "cry", emoji: "👀", label: "ملاحظة وانتباه", points: "0 نقاط", pointClass: "points-cry" },
+      { key: "dislike", emoji: "👎", label: "لايك مقلوبة", points: "-1 نقطة", pointClass: "points-dislike" },
     ];
 
     TEACHER_STACKED_REACTIONS.forEach((r) => {
@@ -1995,7 +2057,7 @@
   function sendChatReaction(messageId, reaction, studentId, studentSocketId) {
     if (!socket || !classActive) return;
     const bubble = document.querySelector(`.tm-chat-bubble[data-message-id="${messageId}"]`);
-    const emojiMap = { tiger: "🐯", love: "❤️", like: "👍", cry: "👀", dislike: "👎", fire: "🔥", clap: "👏" };
+    const emojiMap = { tiger: "🐯", airplane: "✈️", love: "❤️", like: "👍", cry: "👀", dislike: "👎", fire: "🔥", clap: "👏" };
     if (bubble) {
       showFloatingReaction(bubble, emojiMap[reaction] || "🔥");
     }

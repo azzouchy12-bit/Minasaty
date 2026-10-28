@@ -1133,6 +1133,13 @@
         box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
       }
 
+      .teacher-emoji-popover-item .popover-points.points-airplane {
+        background: linear-gradient(135deg, rgba(14, 165, 233, 0.45), rgba(37, 99, 235, 0.55));
+        border: 1px solid rgba(56, 189, 248, 0.9);
+        color: #e0f2fe;
+        box-shadow: 0 0 10px rgba(14, 165, 233, 0.5);
+      }
+
       .teacher-emoji-popover-item .popover-points.points-fire {
         background: linear-gradient(135deg, rgba(239, 68, 68, 0.35), rgba(245, 158, 11, 0.35));
         border: 1px solid rgba(245, 158, 11, 0.6);
@@ -2350,6 +2357,48 @@
             </div>
             <div id="student-stats-loader" class="student-stats-loader" hidden title="جارٍ التحديث">
               <span class="student-stats-spinner"></span>
+            </div>
+          </div>
+
+          <!-- شريط التفاعل المباشر ومكافأة التلميذ -->
+          <div class="student-direct-reward-section">
+            <div class="direct-reward-header">
+              <span class="direct-reward-label">⚡ مكافأة وتفاعل مباشر مع التلميذ:</span>
+              <span id="student-direct-reward-feedback" class="direct-reward-feedback" hidden></span>
+            </div>
+            <div class="student-direct-reward-bar" role="toolbar" aria-label="منح تفاعل مباشر للتلميذ">
+              <button type="button" class="direct-reward-btn btn-tiger" data-reaction="tiger" title="نمر التميز والإبداع (+10 نقاط)">
+                <span class="direct-btn-emoji">🐯</span>
+                <span class="direct-btn-points">+10</span>
+              </button>
+              <button type="button" class="direct-reward-btn btn-airplane" data-reaction="airplane" title="طائرة التميز والإبداع (+7 نقاط)">
+                <span class="direct-btn-emoji">✈️</span>
+                <span class="direct-btn-points">+7</span>
+              </button>
+              <button type="button" class="direct-reward-btn btn-fire" data-reaction="fire" title="نار وتميز (+5 نقاط)">
+                <span class="direct-btn-emoji">🔥</span>
+                <span class="direct-btn-points">+5</span>
+              </button>
+              <button type="button" class="direct-reward-btn btn-clap" data-reaction="clap" title="تصفيق وبرافو (+5 نقاط)">
+                <span class="direct-btn-emoji">👏</span>
+                <span class="direct-btn-points">+5</span>
+              </button>
+              <button type="button" class="direct-reward-btn btn-love" data-reaction="love" title="قلب وتشجيع (+3 نقاط)">
+                <span class="direct-btn-emoji">❤️</span>
+                <span class="direct-btn-points">+3</span>
+              </button>
+              <button type="button" class="direct-reward-btn btn-like" data-reaction="like" title="إعجاب وأحسنت (+2 نقطتان)">
+                <span class="direct-btn-emoji">👍</span>
+                <span class="direct-btn-points">+2</span>
+              </button>
+              <button type="button" class="direct-reward-btn btn-cry" data-reaction="cry" title="ملاحظة وانتباه (0 نقاط)">
+                <span class="direct-btn-emoji">👀</span>
+                <span class="direct-btn-points">0</span>
+              </button>
+              <button type="button" class="direct-reward-btn btn-dislike" data-reaction="dislike" title="لايك مقلوبة (-1 نقطة)">
+                <span class="direct-btn-emoji">👎</span>
+                <span class="direct-btn-points">-1</span>
+              </button>
             </div>
           </div>
 
