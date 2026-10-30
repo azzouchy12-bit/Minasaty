@@ -3101,6 +3101,186 @@ function initializeLobbySocket() {
   });
 }
 
+function initializeSendHomeworkModal() {
+  const openBtn = document.getElementById("send-homework-main-btn");
+  const modal = document.getElementById("homework-upload-modal");
+  const closeBtn = document.getElementById("hw-modal-close");
+  const btnCamera = document.getElementById("hw-btn-camera");
+  const btnGallery = document.getElementById("hw-btn-gallery");
+  const inputCamera = document.getElementById("hw-input-camera");
+  const inputGallery = document.getElementById("hw-input-gallery");
+  const stepChoose = document.getElementById("hw-modal-step-choose");
+  const stepPreview = document.getElementById("hw-modal-step-preview");
+  const previewImg = document.getElementById("hw-preview-image");
+  const previewName = document.getElementById("hw-preview-filename");
+  const btnSubmit = document.getElementById("hw-btn-submit");
+  const btnRetake = document.getElementById("hw-btn-retake");
+  const feedback = document.getElementById("hw-modal-feedback");
+
+  if (!openBtn || !modal) return;
+
+  let selectedFile = null;
+
+  function showFeedback(msg, type = "info") {
+    if (!feedback) return;
+    feedback.textContent = msg;
+    feedback.className = `hw-modal-feedback is-${type}`;
+    feedback.hidden = false;
+  }
+
+  function hideFeedback() {
+    if (feedback) feedback.hidden = true;
+  }
+
+  function resetModal() {
+    selectedFile = null;
+    if (inputCamera) inputCamera.value = "";
+    if (inputGallery) inputGallery.value = "";
+    if (previewImg) previewImg.src = "";
+    if (previewName) previewName.textContent = "";
+    if (stepChoose) stepChoose.hidden = false;
+    if (stepPreview) stepPreview.hidden = true;
+    if (btnSubmit) {
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = "<span>إرسال للأستاذ عبر التيليجرام 🚀</span>";
+    }
+    hideFeedback();
+  }
+
+  function openModal() {
+    if (!currentStudent) {
+      try {
+        currentStudent = currentStudents?.[0] || JSON.parse(sessionStorage.getItem("currentStudent") || localStorage.getItem("currentStudent") || "null");
+      } catch (_) {}
+    }
+    if (!currentStudent || !currentStudent.id) {
+      alert("يرجى اختيار التلميذ أولاً لإرسال الواجب.");
+      return;
+    }
+    resetModal();
+    modal.hidden = false;
+  }
+
+  function closeModal() {
+    modal.hidden = true;
+    resetModal();
+  }
+
+  window.closeSendHomeworkModal = closeModal;
+
+  openBtn.addEventListener("click", openModal);
+  if (closeBtn) closeBtn.addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  if (btnCamera && inputCamera) {
+    btnCamera.addEventListener("click", () => {
+      inputCamera.click();
+    });
+  }
+
+  if (btnGallery && inputGallery) {
+    btnGallery.addEventListener("click", () => {
+      inputGallery.click();
+    });
+  }
+
+  function handleFileSelected(file) {
+    if (!file) return;
+    if (!file.type || !file.type.startsWith("image/")) {
+      showFeedback("يرجى اختيار ملف صورة صالح (JPG أو PNG أو WEBP).", "error");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      showFeedback("حجم الصورة كبير جداً (الحد الأقصى 15 ميغابايت).", "error");
+      return;
+    }
+
+    selectedFile = file;
+    hideFeedback();
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (previewImg) previewImg.src = e.target.result;
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+      if (previewName) previewName.textContent = `${file.name || "homework.jpg"} (${sizeMb} MB)`;
+      if (stepChoose) stepChoose.hidden = true;
+      if (stepPreview) stepPreview.hidden = false;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  if (inputCamera) {
+    inputCamera.addEventListener("change", (e) => {
+      if (e.target.files && e.target.files[0]) {
+        handleFileSelected(e.target.files[0]);
+      }
+    });
+  }
+
+  if (inputGallery) {
+    inputGallery.addEventListener("change", (e) => {
+      if (e.target.files && e.target.files[0]) {
+        handleFileSelected(e.target.files[0]);
+      }
+    });
+  }
+
+  if (btnRetake) {
+    btnRetake.addEventListener("click", () => {
+      resetModal();
+    });
+  }
+
+  if (btnSubmit) {
+    btnSubmit.addEventListener("click", async () => {
+      if (!selectedFile || !currentStudent) {
+        showFeedback("يرجى تحديد أو التقاط صورة حل الواجب أولاً.", "error");
+        return;
+      }
+
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = "<span>جارٍ الإرسال إلى تيليجرام الأستاذ... ⏳</span>";
+      showFeedback("جارٍ رفع الصورة وإرسالها لبوت التيليجرام الخاص بالأستاذ...", "info");
+
+      try {
+        const formData = new FormData();
+        formData.append("image", selectedFile, selectedFile.name || "homework-solution.jpg");
+
+        const response = await parentFetch(
+          `/api/academic/students/${encodeURIComponent(currentStudent.id)}/homework-photo`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(payload.error || "تعذر إرسال حل الواجب حالياً.");
+        }
+
+        btnSubmit.innerHTML = "<span>تم الإرسال بنجاح ✓</span>";
+        showFeedback("✅ تم إرسال حل واجبك إلى أستاذك عبر التيليجرام بنجاح!", "success");
+
+        if (typeof loadActivityStats === "function" && currentStudent?.id) {
+          void loadActivityStats(currentStudent.id);
+        }
+
+        setTimeout(() => {
+          closeModal();
+        }, 2200);
+      } catch (err) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = "<span>إعادة المحاولة 🚀</span>";
+        showFeedback(err.message || "حدث خطأ أثناء الإرسال. حاول مرة أخرى.", "error");
+      }
+    });
+  }
+}
+
 if (!getParentToken()) {
   // getParentToken has already initiated the login redirect.
 } else {
@@ -3210,6 +3390,7 @@ if (!getParentToken()) {
   elements.levelScheduleImageModal?.addEventListener("click", (event) => {
     if (event.target === elements.levelScheduleImageModal || event.target.matches("[data-close-level-schedule]")) {
       closeLevelScheduleImageModal();
+      if (typeof window.closeSendHomeworkModal === "function") window.closeSendHomeworkModal();
     }
   });
   window.addEventListener("keydown", (event) => {
@@ -3251,8 +3432,10 @@ if (!getParentToken()) {
       closePaymentAccessModal();
       closeLessonVideo();
       closeLevelScheduleImageModal();
+      if (typeof window.closeSendHomeworkModal === "function") window.closeSendHomeworkModal();
     }
   });
+  initializeSendHomeworkModal();
   if (document.getElementById("dashboard-content")) {
     window.addEventListener("focus", refreshAccessAfterReturningFromCall);
     document.addEventListener("visibilitychange", () => {

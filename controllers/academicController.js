@@ -1,7 +1,9 @@
+const crypto = require("crypto");
+const path = require("path");
 const prisma = require("../lib/prisma");
 const { logAudit } = require("../utils/audit");
 const { getSmsStatus, sendSms } = require("../services/smsService");
-const { getTelegramStatus, notifyTelegram, sendTelegramToParent } = require("../services/telegramService");
+const { getTelegramStatus, notifyTelegram, sendTelegramToParent, sendTelegramPhoto } = require("../services/telegramService");
 const { getMessengerStatus, getMessengerSettings, sendMessengerToParent } = require("../services/messengerService");
 const {
   PAYMENT_FILTERS,
@@ -244,6 +246,91 @@ async function submitAssignment(req, res) {
     body: `أرسل ولي أو تلميذ حلاً جديدًا.\nالتلميذ: ${student.studentName}\nالمستوى: ${student.level}\nالواجب: ${assignment.title}\nالملف: ${file?.originalname || "لا يوجد ملف مرفق"}`,
   });
   return res.status(201).json({ status: "success", data: submission });
+}
+
+async function submitHomeworkPhoto(req, res) {
+  try {
+    const studentId = text(req.params.studentId, 80);
+    const student = await getStudentForUser(req, studentId);
+    if (!student || isTeacher(req)) {
+      return res.status(403).json({ error: "هذه العملية متاحة للطالب أو الولي صاحب الحساب." });
+    }
+
+    const file = req.file || req.files?.image?.[0] || req.files?.file?.[0];
+    if (!file || !file.buffer || file.buffer.length === 0) {
+      return res.status(400).json({ error: "يرجى اختيار أو التقاط صورة حل الواجب." });
+    }
+
+    const allowedMimes = new Set(["image/jpeg", "image/png", "image/webp", "image/jpg"]);
+    const mime = String(file.mimetype || "").toLowerCase();
+    if (!allowedMimes.has(mime)) {
+      return res.status(400).json({ error: "يسمح برفع صور JPG أو PNG أو WEBP فقط." });
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      return res.status(400).json({ error: "حجم الصورة يتجاوز الحد الأقصى (15 ميغابايت)." });
+    }
+
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString("ar-DZ", { timeZone: "Africa/Algiers" });
+    const formattedTime = now.toLocaleTimeString("ar-DZ", { timeZone: "Africa/Algiers" });
+
+    const caption = [
+      "📝 إرسال حل واجب منزلي جديد",
+      `👤 التلميذ: ${student.studentName || "غير معروف"}`,
+      `📚 المستوى: ${student.level || "غير محدد"}`,
+      `📱 هاتف الولي: ${student.parentPhone || "غير متوفر"}`,
+      `⏰ الوقت: ${formattedDate} - ${formattedTime}`,
+    ].join("\n");
+
+    let telegramSent = false;
+    let telegramError = null;
+    try {
+      const tgResult = await sendTelegramPhoto({
+        photoBuffer: file.buffer,
+        filename: file.originalname || "homework-solution.jpg",
+        mimeType: file.mimetype || "image/jpeg",
+        caption,
+      });
+      telegramSent = tgResult?.sent === true;
+      if (!telegramSent && tgResult?.reason) {
+        telegramError = tgResult.reason;
+      }
+    } catch (err) {
+      console.warn("Failed to dispatch homework photo to Telegram:", err.message);
+      telegramError = err.message;
+    }
+
+    // Save image metadata into LiveQuestionImage so it is preserved and counted
+    let imageRecord = null;
+    try {
+      const ext = path.extname(file.originalname || ".jpg").toLowerCase() || ".jpg";
+      const fileName = `hw-${Date.now()}-${crypto.randomUUID()}${ext}`;
+      imageRecord = await prisma.liveQuestionImage.create({
+        data: {
+          studentId: student.id,
+          level: student.level,
+          fileName,
+          mimeType: file.mimetype || "image/jpeg",
+        },
+      });
+    } catch (saveErr) {
+      console.warn("Could not record homework image metadata:", saveErr.message);
+    }
+
+    return res.status(200).json({
+      status: "success",
+      data: {
+        id: imageRecord?.id || null,
+        telegramSent,
+        telegramError,
+      },
+      message: "تم إرسال حل واجبك إلى أستاذك عبر التيليجرام بنجاح ✓",
+    });
+  } catch (error) {
+    console.error("submitHomeworkPhoto failed:", error);
+    return res.status(500).json({ error: "تعذر إرسال حل الواجب حالياً. حاول مرة أخرى." });
+  }
 }
 
 async function listSubmissions(req, res) {
@@ -1531,6 +1618,7 @@ module.exports = {
   streamNativeAlerts,
   checkNativeAlert,
   dismissNativeAlert,
+  submitHomeworkPhoto,
   processScheduledTeacherAnnouncements,
   setSocketNotificationSender,
 };

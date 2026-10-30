@@ -8,6 +8,7 @@ const {
   listTeacherAssignments,
   listAssignments,
   submitAssignment,
+  submitHomeworkPhoto,
   listSubmissions,
   gradeSubmission,
   createQuestion,
@@ -62,6 +63,7 @@ router.get("/students/:studentId/grades", listGrades);
 router.post("/students/:studentId/grades", createGrade);
 router.get("/students/:studentId/assignments", listAssignments);
 router.post("/students/:studentId/assignments/:assignmentId/submissions", upload.single("file"), submitAssignment);
+router.post("/students/:studentId/homework-photo", upload.fields([{ name: "image", maxCount: 1 }, { name: "file", maxCount: 1 }]), submitHomeworkPhoto);
 router.get("/students/:studentId/progress", getProgress);
 router.get("/students/:studentId/payments", listPaymentHistory);
 router.put("/students/:studentId/progress/lessons/:lessonVideoId", updateLessonProgress);

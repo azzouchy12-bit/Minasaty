@@ -1628,6 +1628,302 @@
           pointer-events: none !important;
         }
       }
+      /* Send Homework Solution Button & Modal Styles */
+      .send-homework-section {
+        margin: 0.6rem 0;
+      }
+      .send-homework-hero-btn {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        min-height: 52px;
+        padding: 0.75rem 1.15rem;
+        color: #ffffff;
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%);
+        border: 1.5px solid rgba(147, 197, 253, 0.45);
+        border-radius: 12px;
+        box-shadow: 0 8px 22px rgba(30, 58, 138, 0.28);
+        cursor: pointer;
+        font-family: inherit;
+        text-align: right;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+      }
+      .send-homework-hero-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 28px rgba(37, 99, 235, 0.38);
+        filter: brightness(1.05);
+      }
+      .send-homework-hero-btn:active {
+        transform: scale(0.98);
+      }
+      .send-homework-btn-content {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+      }
+      .send-homework-icon {
+        font-size: 1.45rem;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+      }
+      .send-homework-title-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+      .send-homework-title {
+        font-size: 0.98rem;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+      }
+      .send-homework-subtitle {
+        font-size: 0.76rem;
+        font-weight: 500;
+        color: #bfdbfe;
+      }
+
+      /* Modal Backdrop */
+      .hw-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        background: rgba(15, 23, 42, 0.72);
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
+        animation: hwFadeIn 0.2s ease forwards;
+      }
+      @keyframes hwFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .hw-modal-sheet {
+        position: relative;
+        width: 100%;
+        max-width: 480px;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding: 1.4rem;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        box-shadow: 0 24px 50px rgba(15, 23, 42, 0.35);
+        color: #0f172a;
+        animation: hwSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      @keyframes hwSlideUp {
+        from { transform: translateY(20px) scale(0.97); opacity: 0; }
+        to { transform: translateY(0) scale(1); opacity: 1; }
+      }
+      .hw-modal-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 1.1rem;
+        padding-bottom: 0.85rem;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .hw-modal-kicker {
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #2563eb;
+        margin-bottom: 0.2rem;
+      }
+      .hw-modal-header h3 {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #0f172a;
+      }
+      .hw-modal-close-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: #f1f5f9;
+        color: #64748b;
+        border-radius: 50%;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+      }
+      .hw-modal-close-btn:hover {
+        background: #fee2e2;
+        color: #dc2626;
+      }
+      .hw-modal-subtitle {
+        margin: 0 0 1rem;
+        font-size: 0.88rem;
+        color: #475569;
+        line-height: 1.5;
+      }
+      .hw-choices-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        margin-bottom: 0.85rem;
+      }
+      .hw-choice-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        width: 100%;
+        padding: 1rem 1.1rem;
+        background: #f8fafc;
+        border: 2px solid #e2e8f0;
+        border-radius: 14px;
+        cursor: pointer;
+        font-family: inherit;
+        text-align: right;
+        transition: all 0.2s ease;
+      }
+      .hw-choice-card:hover, .hw-choice-card:focus-visible {
+        border-color: #3b82f6;
+        background: #eff6ff;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(59, 130, 246, 0.18);
+      }
+      .hw-choice-card:active {
+        transform: scale(0.98);
+      }
+      .hw-choice-icon {
+        display: grid;
+        place-items: center;
+        width: 46px;
+        height: 46px;
+        flex-shrink: 0;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        font-size: 1.5rem;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      }
+      .hw-choice-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+      .hw-choice-info strong {
+        font-size: 0.96rem;
+        color: #0f172a;
+      }
+      .hw-choice-info small {
+        font-size: 0.78rem;
+        color: #64748b;
+        line-height: 1.35;
+      }
+      .hw-preview-box {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        max-height: 280px;
+        overflow: hidden;
+        background: #0f172a;
+        border-radius: 12px;
+        margin-bottom: 0.6rem;
+      }
+      .hw-preview-box img {
+        max-width: 100%;
+        max-height: 280px;
+        object-fit: contain;
+      }
+      .hw-preview-name {
+        margin: 0 0 1rem;
+        font-size: 0.8rem;
+        color: #64748b;
+        text-align: center;
+        direction: ltr;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .hw-modal-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+      .hw-btn-confirm {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 46px;
+        padding: 0.75rem 1rem;
+        background: linear-gradient(135deg, #15803d, #16a34a);
+        color: #ffffff;
+        border: none;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        font-weight: 800;
+        font-family: inherit;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3);
+        transition: transform 0.15s, filter 0.15s;
+      }
+      .hw-btn-confirm:hover {
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+      }
+      .hw-btn-confirm:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+      }
+      .hw-btn-cancel {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 40px;
+        padding: 0.5rem 1rem;
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        font-size: 0.88rem;
+        font-weight: 700;
+        font-family: inherit;
+        cursor: pointer;
+      }
+      .hw-btn-cancel:hover {
+        background: #e2e8f0;
+      }
+      .hw-modal-feedback {
+        margin-top: 0.85rem;
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-align: center;
+        animation: hwFadeIn 0.2s ease;
+      }
+      .hw-modal-feedback.is-info {
+        background: #eff6ff;
+        color: #1e40af;
+        border: 1px solid #bfdbfe;
+      }
+      .hw-modal-feedback.is-success {
+        background: #ecfdf5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+      }
+      .hw-modal-feedback.is-error {
+        background: #fef2f2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+      }
+      @media (max-width: 768px) {
+        .hw-modal-sheet {
+          border-radius: 20px 20px 16px 16px;
+          padding: 1.25rem 1.1rem;
+        }
+      }
     </style>
     <script>
       // كشف فوري لتطبيق المنصة الرسمي في رأس الصفحة لمنع أي وميض للزر
@@ -1913,7 +2209,21 @@
           <article class="parent-kpi-card"><span class="parent-kpi-icon">◷</span><div><small>الحصة القادمة</small><strong id="parent-kpi-next-class">—</strong><em>حسب برنامج المستوى</em></div></article>
           <article class="parent-kpi-card"><span class="parent-kpi-icon">★</span><div><small>التقييم العام</small><strong id="parent-kpi-rating">في انتظار التقييم</strong><em>لا يوجد تقييم مسجل بعد</em></div></article>
         </section>
-                <section id="student-homework-card" class="student-homework-card parent-feedback-card" aria-labelledby="student-homework-title">
+                <!-- قسم وزر إرسال حل الواجب المباشر للأستاذ عبر التيليجرام -->
+        <section id="send-homework-solution-section" class="send-homework-section">
+          <button id="send-homework-main-btn" class="send-homework-hero-btn" type="button" aria-label="إرسل حل واجبك هنا ..">
+            <span class="send-homework-btn-content">
+              <span class="send-homework-icon" aria-hidden="true">📝</span>
+              <span class="send-homework-title-wrap">
+                <span class="send-homework-title">إرسل حل واجبك هنا ..</span>
+                <span class="send-homework-subtitle">التقط صورة بالكاميرا أو اختر من الهاتف لإرسالها لأستاذك</span>
+              </span>
+            </span>
+            <span class="mobile-homework-arrow" aria-hidden="true">←</span>
+          </button>
+        </section>
+
+        <section id="student-homework-card" class="student-homework-card parent-feedback-card" aria-labelledby="student-homework-title">
           <button id="student-homework-toggle" class="student-homework-toggle desktop-homework-trigger" type="button" aria-expanded="false" aria-controls="student-homework-content">
             <span class="student-homework-toggle-copy"><span>النشاط الدراسي</span><strong id="student-homework-title">المشاركة - حل التمارين أثناء الحصة</strong><small>اضغط لعرض التمارين والحلول المرسلة للأستاذ أثناء الحصة</small></span>
             <span id="student-homework-toggle-icon" class="student-homework-toggle-icon" aria-hidden="true">⌄</span>
@@ -2239,7 +2549,65 @@
       });
     </script>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <!-- Modal: إرسال حل الواجب إلى الأستاذ عبر التيليجرام -->
+  <div id="homework-upload-modal" class="hw-modal-backdrop" hidden>
+    <div class="hw-modal-sheet" role="dialog" aria-modal="true" aria-labelledby="hw-modal-title">
+      <header class="hw-modal-header">
+        <div class="hw-modal-header-copy">
+          <span class="hw-modal-kicker">📤 إرسال مباشر للأستاذ</span>
+          <h3 id="hw-modal-title">إرسل حل واجبك هنا .. 📝</h3>
+        </div>
+        <button id="hw-modal-close" class="hw-modal-close-btn" type="button" aria-label="إغلاق">✕</button>
+      </header>
+
+      <!-- Step 1: الخياران (فتح الكاميرا أو مدير ملفات الهاتف) -->
+      <div id="hw-modal-step-choose" class="hw-modal-step">
+        <p class="hw-modal-subtitle">اختر طريقة إرفاق صورة الحل ليتم إرسالها فوراً إلى تيليجرام أستاذك:</p>
+        <div class="hw-choices-grid">
+          <button id="hw-btn-camera" class="hw-choice-card hw-camera-card" type="button">
+            <span class="hw-choice-icon" aria-hidden="true">📷</span>
+            <span class="hw-choice-info">
+              <strong>فتح الكاميرا والتقاط صورة</strong>
+              <small>تصوير ورقة حل الواجب مباشرة الآن بكاميرا الهاتف</small>
+            </span>
+          </button>
+
+          <button id="hw-btn-gallery" class="hw-choice-card hw-gallery-card" type="button">
+            <span class="hw-choice-icon" aria-hidden="true">📁</span>
+            <span class="hw-choice-info">
+              <strong>مدير ملفات الهاتف / المعرض</strong>
+              <small>اختيار صورة جاهزة من ملفات الهاتف أو ألبوم الصور</small>
+            </span>
+          </button>
+        </div>
+
+        <input type="file" id="hw-input-camera" accept="image/*" capture="environment" hidden>
+        <input type="file" id="hw-input-gallery" accept="image/*" hidden>
+      </div>
+
+      <!-- Step 2: المعاينة والتأكيد -->
+      <div id="hw-modal-step-preview" class="hw-modal-step" hidden>
+        <div class="hw-preview-box">
+          <img id="hw-preview-image" src="" alt="معاينة حل الواجب">
+        </div>
+        <p id="hw-preview-filename" class="hw-preview-name"></p>
+
+        <div class="hw-modal-actions">
+          <button id="hw-btn-submit" class="hw-btn-confirm" type="button">
+            <span>إرسال للأستاذ عبر التيليجرام 🚀</span>
+          </button>
+          <button id="hw-btn-retake" class="hw-btn-cancel" type="button">
+            <span>إعادة الاختيار 🔄</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- تنبيه الحالة والنتيجة -->
+      <div id="hw-modal-feedback" class="hw-modal-feedback" hidden role="status" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
     <script src="./js/session-storage.js?v=single-session-1"></script>
     <script src="./js/message-notifications.js"></script>
     <script src="./js/parent-referral.js?v=referral-ui-1"></script>
