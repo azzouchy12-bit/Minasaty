@@ -54,7 +54,9 @@ telegramElements.start?.addEventListener("click", async () => {
     const data = await telegramApi("/api/telegram/link/start", { method: "POST", body: "{}" });
     telegramElements.instructions.textContent = `${data.instructions} الرابط صالح حتى ${new Date(data.expiresAt).toLocaleTimeString("ar-DZ")}.`;
     telegramElements.instructions.hidden = false;
-    window.open(data.link, "_blank", "noopener,noreferrer");
+    if (data.link) {
+      window.location.href = data.link;
+    }
   } catch (error) {
     telegramElements.text.textContent = error.message;
   } finally {

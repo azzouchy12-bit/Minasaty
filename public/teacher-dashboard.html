@@ -1,166 +1,1111 @@
 <!DOCTYPE html>
 
 <html dir="rtl" lang="ar">
-<head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<script>
-  (function() {
-    try {
-      var params = new URLSearchParams(window.location.search);
-      if (params.get("mode") === "desktop") return;
-      if (sessionStorage.getItem("teacherDashboardDesktopMode") === "1") return;
-      var isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                     (window.screen && window.screen.width <= 900) ||
-                     (window.innerWidth <= 900);
-      if (isMobile) {
-        window.location.replace("./teacher-dashboard-mobile.html" + window.location.search);
-      }
-    } catch (_) {}
-  })();
-</script>
-<title>لوحة الأستاذ | أكاديمية التفوق</title>
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
-<link href="./css/style.css?v=homework-paste-1" rel="stylesheet"/>
-<link href="./css/app.css?v=messenger-channel-1" rel="stylesheet"/>
-<link rel="stylesheet" href="./css/browser-notifications.css?v=browser-notifications-1" />
-<link href="./css/private-messages.css" rel="stylesheet"/>
-<link href="./css/payment-feedback.css" rel="stylesheet"/>
-</head>
-<body class="dashboard-page teacher-dashboard-page">
-<div class="teacher-dashboard-shell">
-<header class="teacher-topbar">
-<div class="teacher-topbar-start">
-<div class="teacher-page-heading"><span class="teacher-page-kicker">مساحة الإدارة</span><strong id="teacher-page-title">لوحة التحكم</strong></div>
-</div>
-<div class="teacher-topbar-actions">
-<span class="teacher-presence"><i aria-hidden="true"></i>جاهز للإدارة</span><button aria-controls="online-users-modal" aria-expanded="false" class="topbar-online-users" id="online-users-button" type="button">👥 المتصلون الآن <b aria-label="عدد المستخدمين المتصلين" id="online-users-count">0</b></button>
-<a class="topbar-studio-link" href="./teacher-live.html">بدء حصة مباشرة</a>
-<div class="teacher-global-absence-control" role="group" aria-label="الإعلان العام عن غياب الأستاذ">
-<button aria-pressed="false" class="teacher-global-absence-btn" id="teacher-global-absence-btn" type="button">الإعلان عن الغياب</button>
-<span aria-live="polite" class="teacher-global-absence-status is-present" id="teacher-global-absence-status">الأستاذ حاضر</span>
-</div>
-<a aria-label="الرسائل" class="message-bell teacher-dashboard-message-bell" data-message-bell="" href="./teacher-chat.html" rel="noopener" target="_blank"><span aria-hidden="true">✉</span><b data-message-badge="" hidden="">0</b></a>
-<a class="topbar-messages-link" href="./teacher-chat.html" rel="noopener" target="_blank">الرسائل</a>
-<button class="topbar-public-invite" id="public-invite-btn" type="button">حصة عامة</button>
-<button class="topbar-logout" id="logout-btn" type="button">تسجيل الخروج</button>
-</div>
-</header>
-<main class="teacher-workspace">
-<p class="form-error teacher-dashboard-error" hidden="" id="dashboard-error"></p>
-<nav aria-label="اختيار المستوى الدراسي" class="teacher-level-strip" id="teacher-level-strip"><button aria-current="true" aria-label="اختيار السنة الأولى متوسط" class="level-btn is-active" data-level="السنة الأولى" type="button">السنة الأولى متوسط</button><button aria-current="false" aria-label="اختيار السنة الثانية متوسط" class="level-btn" data-level="السنة الثانية" type="button">السنة الثانية متوسط</button><button aria-current="false" aria-label="اختيار السنة الثالثة متوسط" class="level-btn" data-level="السنة الثالثة" type="button">السنة الثالثة متوسط</button><button aria-current="false" aria-label="اختيار السنة الرابعة متوسط" class="level-btn" data-level="السنة الرابعة" type="button">السنة الرابعة متوسط</button><button aria-current="false" aria-label="اختيار طالب جامعي" class="level-btn" data-level="طالب جامعي" type="button">طالب جامعي</button></nav>
-<div class="teacher-main-frame" id="teacher-main-frame">
-<nav aria-label="أقسام لوحة الأستاذ" class="teacher-tabs-nav">
-<button aria-selected="true" class="teacher-tab-button is-active" data-dashboard-tab="overview" type="button">الرئيسية</button>
-<button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="students" type="button">قائمة التلاميذ</button><button aria-selected="false" class="teacher-tab-button teacher-notifications-tab" data-dashboard-tab="notifications" type="button">🔔 التنبيهات</button>
-<button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="schedule" type="button">برمجة الحصص</button>
-<button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="registry" type="button">سجل الحصص</button>
-<button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="assignments" type="button">الواجبات</button>
-<button class="teacher-tab-button" data-dashboard-tab="lessons" type="button">فيديوهات مكملة</button><button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="quiz" type="button">Quiz</button><button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="electronic-payments" type="button">الدفعات الإلكترونية</button><button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="manual-payments" type="button">الدفعات اليدوية</button><button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="referral-withdrawals" type="button">طلبات سحب الأرباح</button><button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="forgot-pin-requests" type="button">من نسي كلمة مروره</button><button aria-selected="false" class="teacher-tab-button teacher-messenger-tab" data-dashboard-tab="facebook-messenger" type="button">Facebook Messenger</button>
-</nav>
-<div class="teacher-tab-content">
-<section aria-label="لوحة مؤشرات المستوى" class="teacher-bento-grid teacher-tab-panel overview-dashboard-grid" data-dashboard-panel="overview">
-<article class="bento-card overview-hero-card"><div class="bento-card-heading"><span class="bento-kicker">نظرة اليوم</span><span class="bento-level-pill" id="bento-current-level">السنة الأولى متوسط</span></div><h2>المستوى بين يديك</h2><p id="overview-hero-copy">تابع التسجيلات، الاشتراكات، والمداخيل المؤكدة لهذا المستوى في نظرة واحدة.</p><a class="bento-primary-action" href="./teacher-live.html">فتح الاستوديو <span aria-hidden="true">←</span></a></article>
-<article class="bento-card overview-kpi-card"><span class="overview-kpi-label">إجمالي التلاميذ</span><strong id="summary-total">0</strong><small id="overview-total-caption">في المستوى المختار</small></article>
-<article class="bento-card overview-kpi-card overview-kpi-green"><span class="overview-kpi-label">تسجيلات هذا الشهر</span><strong id="overview-monthly-registrations">0</strong><small>طلاب جدد منذ بداية الشهر</small></article>
-<article class="bento-card overview-kpi-card overview-kpi-blue"><span class="overview-kpi-label">الدخول المفتوح</span><strong id="bento-live-enabled">0</strong><small>تلاميذ مسموح لهم بالحصة</small></article>
-<article class="bento-card overview-revenue-card"><div class="bento-card-heading"><span class="bento-kicker">المداخيل المؤكدة</span><span class="overview-revenue-mark">دج</span></div><strong id="overview-confirmed-revenue">0 دج</strong><p id="overview-revenue-caption">من الاشتراكات المؤكدة لهذا المستوى</p><div class="overview-revenue-split"><span>مدفوع <b id="summary-paid">0</b></span><span>وعد بالدفع <b id="overview-promised-count">0</b></span></div></article>
-<article class="bento-card overview-attention-card"><div class="bento-card-heading"><span class="bento-kicker">تحتاج انتباهك</span><span class="attention-pulse"></span></div><div class="overview-attention-list"><div><span>وصلات تنتظر التأكيد</span><strong id="overview-pending-receipts">0</strong></div><div><span>محاولات دفع غير مكتملة</span><strong id="overview-payment-attempts">0</strong></div><div><span>طلبات نسيان كلمة المرور</span><strong id="overview-forgot-pin">0</strong></div><div><span>لم يتم الدفع</span><strong id="summary-unpaid">0</strong></div></div></article>
-<article class="bento-card overview-class-card"><div class="bento-card-heading"><span class="bento-kicker">حالة الحصة</span><span class="live-ready-dot"></span></div><h2 id="overview-class-title">الحصة غير مفتوحة</h2><p id="overview-class-copy">يمكنك فتح الاستوديو لبدء حصة هذا المستوى.</p><a class="overview-secondary-action" href="./teacher-live.html">الذهاب إلى الاستوديو</a></article>
-</section>
-<section aria-labelledby="roster-title" class="teacher-roster teacher-tab-panel" data-dashboard-panel="students" id="students-panel">
-<div class="roster-heading"><div><p class="eyebrow">إدارة التلاميذ</p><h2 id="roster-title"><span>قائمة التلاميذ</span></h2><p>اختر المستوى وابحث أو عدّل إعدادات التلميذ دون مغادرة الصفحة.</p></div><a class="roster-studio-link" href="./teacher-live.html">بدء حصة مباشرة</a></div>
 
-<input aria-hidden="true" class="teacher-search-storage" id="student-search" tabindex="-1" type="search"/><section aria-label="بحث وتصفية التلاميذ" class="roster-toolbar"><div aria-label="تصفية حسب الاشتراك" class="roster-filter-buttons" role="group"><button aria-pressed="true" class="roster-filter-button is-active" data-payment-filter="all" type="button">كل التلاميذ</button><button aria-pressed="false" class="roster-filter-button" data-payment-filter="paid" type="button">الحسابات المدفوعة</button><button aria-pressed="false" class="roster-filter-button" data-payment-filter="unpaid" type="button">الحسابات غير المدفوعة</button></div><select aria-hidden="true" class="roster-filter-storage" id="payment-filter" tabindex="-1"><option value="all">كل التلاميذ</option><option value="paid">الحسابات المدفوعة</option><option value="unpaid">الحسابات غير المدفوعة</option></select><button aria-controls="student-search-modal" aria-label="البحث عن تلميذ" class="student-search-trigger roster-search-button" id="student-search-trigger" title="البحث عن تلميذ" type="button"><span aria-hidden="true">⌕</span><span>بحث</span></button><span class="filtered-results-label" id="filtered-results-label">0 نتيجة معروضة</span></section>
-<section class="table-card teacher-table-card"><div class="table-wrap table-scroll-container"><table><thead><tr><th>التلميذ</th><th>رقم الولي</th><th>نوع الاشتراك</th><th id="student-payment-heading">حالة الدفع</th><th>إجراءات</th></tr></thead><tbody id="students-table-body"></tbody></table></div><p class="table-empty-state" hidden="" id="table-empty-state">لا يوجد تلاميذ مسجلون في هذا المستوى حالياً.</p></section>
-</section><section aria-labelledby="teacher-notifications-title" class="teacher-notifications-panel teacher-tab-panel" data-dashboard-panel="notifications" id="teacher-notifications-panel"><div class="teacher-notifications-card"><div class="teacher-notifications-heading"><div><span class="table-kicker">المستوى المختار</span><h2 id="teacher-notifications-title">إرسال وبرمجة التنبيهات</h2><p>اختر الجمهور، اكتب الرسالة، ثم أرسلها الآن أو حدد موعدًا مستقبليًا.</p></div><span class="teacher-notifications-status" id="teacher-notifications-status">جاهز</span></div><div class="teacher-notification-steps"><span class="is-done">1. اختيار المستوى ✓</span><span class="is-current">2. تحديد الجمهور</span><span>3. الإرسال أو البرمجة</span></div><div class="teacher-notification-statistics" aria-live="polite" aria-label="إحصائيات التنبيهات"><div class="teacher-notification-stat"><strong id="teacher-notification-sent-count">0</strong><span>إشعار مرسل</span></div><div class="teacher-notification-stat teacher-notification-stat-read"><strong id="teacher-notification-read-count">0</strong><span>تمت قراءته</span></div><div class="teacher-notification-stat teacher-notification-stat-unread"><strong id="teacher-notification-unread-count">0</strong><span>غير مقروء</span></div></div><form class="teacher-notification-form" id="teacher-notification-form" novalidate><div class="teacher-notification-grid"><fieldset><legend>من سيستلم التنبيه؟</legend><label class="teacher-notification-option"><input checked name="notification-recipient" type="radio" value="PARENTS"><span><strong>أولياء الأمور</strong><small>الأولياء المرتبطون بتلاميذ المستوى المختار.</small></span></label></fieldset><fieldset><legend>تصفية الجمهور</legend><label class="teacher-notification-option"><input checked name="notification-payment" type="radio" value="ALL"><span><strong>كل الحسابات في المستوى</strong><small>بدون تصفية إضافية.</small></span></label><label class="teacher-notification-option"><input name="notification-payment" type="radio" value="FREE"><span><strong>الحسابات المجانية فقط</strong><small>الحسابات غير المدفوعة.</small></span></label><label class="teacher-notification-option"><input name="notification-payment" type="radio" value="PAID"><span><strong>الحسابات المدفوعة فقط</strong><small>الاشتراكات المدفوعة والمفعلة.</small></span></label></fieldset></div><fieldset class="teacher-notification-target-fieldset"><legend>من هم التلاميذ المستهدفون؟</legend><label class="teacher-notification-option"><input checked name="notification-target-mode" type="radio" value="ALL_LEVEL"><span><strong>جميع تلاميذ المستوى</strong><small>يرسل إلى كل التلاميذ المؤهلين في المستوى المختار.</small></span></label><label class="teacher-notification-option"><input name="notification-target-mode" type="radio" value="SELECTED"><span><strong>تلميذ واحد أو مجموعة</strong><small>اختر تلميذًا واحدًا أو عدة تلاميذ من المستوى نفسه.</small></span></label><div class="teacher-notification-student-picker" hidden id="teacher-notification-student-picker"><div class="teacher-notification-picker-heading"><strong>اختر التلاميذ</strong><button id="teacher-notification-select-all" type="button">تحديد الكل</button></div><div aria-live="polite" class="teacher-notification-student-list" id="teacher-notification-student-list"><p>جارٍ تحميل تلاميذ المستوى…</p></div></div></fieldset><div class="teacher-notification-fields"><label>المادة<select id="teacher-notification-subject"><option value="ALL">كل المواد</option><option value="MATH">الرياضيات</option><option value="PHYSICS">الفيزياء</option><option value="BOTH">الرياضيات والفيزياء</option></select></label><label>عنوان التنبيه<input id="teacher-notification-title-input" maxlength="160" required placeholder="اكتب عنوانًا قصيرًا وواضحًا" type="text"></label><label class="teacher-notification-body-label">نص الرسالة<textarea id="teacher-notification-body-input" maxlength="10000" required placeholder="اكتب الرسالة التي ستصل إلى الجمهور المحدد..."></textarea></label></div><div class="teacher-notification-audience"><span><strong>الجمهور المحدد حاليًا</strong><small id="teacher-notification-audience-text">أولياء الأمور · السنة الأولى متوسط · كل الحسابات · كل المواد</small></span><b id="teacher-notification-recipient-count">سيتم حساب العدد</b></div><fieldset class="teacher-notification-delivery"><legend>طريقة الإرسال</legend><label class="teacher-notification-option"><input checked id="teacher-notification-immediate" name="notification-delivery" type="radio" value="IMMEDIATE"><span><strong>إرسال الآن</strong><small>يصل التنبيه فور تأكيد الأستاذ.</small></span></label><label class="teacher-notification-option"><input id="teacher-notification-scheduled" name="notification-delivery" type="radio" value="SCHEDULED"><span><strong>برمجة الإرسال لاحقًا</strong><small>اختر تاريخ ووقت وصول التنبيه.</small></span></label><div class="teacher-notification-schedule-fields" hidden id="teacher-notification-schedule-fields"><label>التاريخ<input id="teacher-notification-scheduled-date" type="date"></label><label>الوقت<input id="teacher-notification-scheduled-time" type="time"></label></div></fieldset><fieldset class="teacher-notification-channel-fieldset"><legend>قناة الإرسال</legend><label class="teacher-notification-option"><input checked name="notification-channel" type="radio" value="BROWSER"><span><strong>تنبيه المتصفح فقط</strong><small>يعمل الآن دون الحاجة إلى إعداد SMS.</small></span></label><label class="teacher-notification-option is-disabled"><input disabled name="notification-channel" type="radio" value="SMS"><span><strong>رسالة SMS فقط</strong><small>ستبقى معطلة حتى إضافة بيانات مزود الرسائل.</small></span></label><label class="teacher-notification-option is-disabled"><input disabled name="notification-channel" type="radio" value="BOTH"><span><strong>المتصفح وSMS معًا</strong><small>يُتاح بعد تهيئة خدمة SMS.</small></span></label><p aria-live="polite" class="teacher-notification-channel-status" id="teacher-notification-channel-status">جارٍ التحقق من قنوات الإرسال…</p></fieldset><div class="teacher-notification-form-actions"><label class="teacher-notification-session"><input checked id="teacher-notification-remember-session" type="checkbox"><span><strong>تذكر جلسة الأستاذ لمدة سنة واحدة</strong><small>الجلسة الحالية للوحة الأستاذ صالحة أصلًا لمدة سنة، ويمكن إلغاؤها من إدارة الجلسات.</small></span></label><button class="cta-button cta-primary" id="teacher-notification-submit" type="submit">إرسال التنبيه الآن</button></div><p aria-live="polite" class="teacher-notification-feedback" hidden id="teacher-notification-feedback"></p></form><div class="teacher-notification-history"><div class="teacher-notification-history-heading"><h3>التنبيهات المبرمجة والمرسلة</h3><button class="teacher-notification-refresh" id="teacher-notification-refresh" type="button">تحديث</button></div><div aria-live="polite" id="teacher-notification-history-list"><p class="teacher-notification-empty">لا توجد تنبيهات بعد.</p></div></div></div></section><section aria-labelledby="quiz-panel-title" class="teacher-quiz-panel teacher-tab-panel" data-dashboard-panel="quiz" id="quiz-panel"><div class="teacher-quiz-card"><span class="table-kicker">المستوى المختار</span><h2 id="quiz-panel-title">Quiz</h2><p>سيظهر هنا نظام الاختبارات القصيرة الخاص بمستوى <strong id="quiz-current-level">السنة الأولى متوسط</strong> عند تفعيله.</p><span class="teacher-quiz-status">قريبًا</span></div></section><section aria-labelledby="electronic-payments-title" class="teacher-payments-panel teacher-tab-panel" data-dashboard-panel="electronic-payments" id="electronic-payments-panel"><div class="teacher-payments-card"><div class="teacher-payments-heading"><div><span class="table-kicker">المستوى المختار</span><h2 id="electronic-payments-title">الدفعات الإلكترونية</h2><p>الدفعات الناجحة ومحاولات الدفع غير المكتملة أو الفاشلة عبر البطاقة الإلكترونية.</p></div><div class="teacher-electronic-summary"><span class="electronic-summary-success" id="electronic-payments-success-count">0 ناجحة</span><span class="electronic-summary-attempts" id="electronic-payments-attempt-count">0 محاولة</span></div><span class="teacher-payments-count" id="electronic-payments-count">0 عملية</span></div><div class="teacher-payments-table-wrap"><table><thead><tr><th>التلميذ</th><th>رقم الولي</th><th>الاشتراك</th><th>المبلغ</th><th>الحالة</th><th>تاريخ العملية</th><th>رقم العملية</th><th>الإجراء</th></tr></thead><tbody id="electronic-payments-table-body"></tbody></table></div><p class="teacher-payments-empty" hidden id="electronic-payments-empty">لا توجد دفعات أو محاولات دفع إلكترونية لهذا المستوى.</p></div></section><section aria-labelledby="manual-payments-title" class="teacher-payments-panel teacher-tab-panel" data-dashboard-panel="manual-payments" id="manual-payments-panel"><div class="teacher-payments-card"><div class="teacher-payments-heading"><div><span class="table-kicker">المستوى المختار</span><h2 id="manual-payments-title">الدفعات اليدوية</h2><p>التلاميذ الذين رفعوا صورة وصل أو إيصال الدفع.</p></div><span class="teacher-payments-count" id="manual-payments-count">0 تلميذ</span></div><div class="teacher-payments-table-wrap"><table><thead><tr><th>التلميذ</th><th>رقم الولي</th><th>حالة الوصل</th><th>تاريخ الرفع</th><th>الإجراء</th></tr></thead><tbody id="manual-payments-table-body"></tbody></table></div><p class="teacher-payments-empty" hidden id="manual-payments-empty">لا توجد وصولات دفع مرفوعة لهذا المستوى.</p></div></section><section aria-labelledby="referral-withdrawals-title" class="teacher-referral-withdrawals-panel teacher-tab-panel" data-dashboard-panel="referral-withdrawals" id="referral-withdrawals-panel"><div class="teacher-payments-card teacher-referral-withdrawals-card"><div class="teacher-payments-heading"><div><span class="table-kicker">الإحالات والأرباح</span><h2 id="referral-withdrawals-title">طلبات سحب الأرباح</h2><p>راجع معلومات BaridiMob، ثم أكد التحويل أو ارفض الطلب مع ذكر السبب.</p></div><div class="teacher-referral-withdrawal-summary"><span id="teacher-referral-pending-count">0 معلقة</span><span id="teacher-referral-pending-total">0 دج</span></div></div><section class="teacher-referral-activity" aria-labelledby="teacher-referral-activity-title"><div class="teacher-referral-activity-heading"><div><h3 id="teacher-referral-activity-title">نشاط أصحاب روابط الإحالة</h3><p>يظهر هنا كل ولي مسجّل عبر رابط إحالة، مع تفاصيل التلاميذ مجمعة حسب المستوى وحالة الدفع والعمولة.</p></div><span id="teacher-referral-activity-count">0 صاحب رابط نشط</span></div><div id="teacher-referral-activity-list" class="teacher-referral-activity-list"><p class="teacher-referral-activity-empty">جارٍ تحميل نشاط الإحالات…</p></div></section><div class="teacher-referral-withdrawal-toolbar"><label>الحالة<select id="teacher-referral-withdrawal-status"><option value="PENDING">المعلقة</option><option value="ALL">كل الطلبات</option><option value="PAID">المدفوعة</option><option value="REJECTED">المرفوضة</option></select></label><button id="teacher-referral-withdrawal-refresh" class="teacher-notification-refresh" type="button">تحديث</button></div><div class="teacher-payments-table-wrap"><table><thead><tr><th>صاحب الإحالة</th><th>المبلغ</th><th>حساب BaridiMob</th><th>اسم صاحب الحساب</th><th>عدد العمولات</th><th>تاريخ الطلب</th><th>الإجراء</th></tr></thead><tbody id="teacher-referral-withdrawals-table-body"></tbody></table></div><p class="teacher-payments-empty" hidden id="teacher-referral-withdrawals-empty">لا توجد طلبات سحب في الحالة المختارة.</p><p id="teacher-referral-withdrawals-feedback" class="teacher-referral-withdrawals-feedback" role="status" aria-live="polite" hidden></p></div></section><section aria-labelledby="forgot-pin-requests-title" class="teacher-forgot-pin-panel teacher-tab-panel" data-dashboard-panel="forgot-pin-requests" id="forgot-pin-requests-panel"><div class="teacher-payments-card"><div class="teacher-payments-heading"><div><span class="table-kicker">المستوى المختار</span><h2 id="forgot-pin-requests-title">من نسي كلمة مروره</h2><p>طلبات الاسترجاع التي أرسلها الأولياء أو أصحاب الحسابات.</p></div><span class="teacher-payments-count" id="forgot-pin-requests-count">0 طلب</span></div><div class="teacher-payments-table-wrap"><table><thead><tr><th>التلميذ</th><th>رقم الهاتف</th><th>وقت الطلب</th><th>الإجراء</th></tr></thead><tbody id="forgot-pin-requests-table-body"></tbody></table></div><p class="teacher-payments-empty" hidden id="forgot-pin-requests-empty">لا توجد طلبات استرجاع لهذا المستوى.</p></div></section><section aria-labelledby="assignment-manager-title" class="assignment-manager teacher-tab-panel" data-dashboard-panel="assignments" id="assignment-manager">
-<button aria-controls="assignment-manager-controls" aria-expanded="false" class="class-registry-toggle" id="assignment-manager-toggle" type="button">
-<span class="class-registry-toggle-copy"><span>الواجبات المدرسية</span><strong id="assignment-manager-title">إدارة الواجبات</strong><small>اضغط لإضافة واجبات جديدة ومتابعة الحلول المرسلة.</small></span>
-<span aria-hidden="true" class="class-registry-toggle-icon" id="assignment-manager-toggle-icon">⌄</span>
-</button>
-<div class="class-registry-controls" hidden="" id="assignment-manager-controls">
-<header class="assignment-manager-head">
-<div><p id="assignment-level-caption">أضف واجبات جديدة للمستوى المختار وتابع حلول التلاميذ.</p></div>
-</header>
-<form class="assignment-form stack-form" id="assignment-form" novalidate="">
-<div class="form-row">
-<label>المادة<select id="assignment-subject" required=""><option value="MATH">الرياضيات</option><option value="PHYSICS">الفيزياء</option></select></label>
-</div>
-<label>وصف التعليمات
-              <div aria-label="وصف تعليمات الواجب" class="assignment-paste-editor" contenteditable="true" data-placeholder="اكتب التعليمات أو ألصق صورة الواجب هنا…" id="assignment-description" role="textbox"></div>
-<small class="assignment-paste-help">يمكنك نسخ صورة الواجب ثم لصقها هنا مباشرةً من الحاسوب أو الهاتف.</small>
-</label>
-<button class="cta-button cta-primary" id="assignment-submit" type="submit">نشر الواجب</button>
-</form>
-<div aria-live="polite" class="teacher-assignments-list" id="teacher-assignments-list"></div>
-</div>
-</section><section aria-labelledby="lesson-repository-title" class="lesson-repository-manager teacher-tab-panel" data-dashboard-panel="lessons" id="lesson-repository-manager">
-<button aria-controls="lesson-repository-controls" aria-expanded="false" class="class-registry-toggle" id="lesson-repository-toggle" type="button">
-<span class="class-registry-toggle-copy"><span>فيديوهات مكملة</span><strong id="lesson-repository-title">إضافة فيديو مكمل</strong><small>اضغط لإضافة روابط YouTube وعرض الفيديوهات المكملة لهذا المستوى.</small></span>
-<span aria-hidden="true" class="class-registry-toggle-icon" id="lesson-repository-toggle-icon">⌄</span>
-</button>
-<button class="lesson-video-modal-open" id="lesson-video-modal-open" type="button">إضافة فيديو مكمل</button>
-<div class="class-registry-controls" hidden="" id="lesson-repository-controls">
-<header class="lesson-repository-head"><div><p id="lesson-repository-caption">أضف رابط YouTube وعنوانًا واضحًا للفيديو المكمل للمستوى المختار.</p></div></header>
-<p class="lesson-repository-note">أدخل رابط YouTube والعنوان يدويًا. يرتبط كل فيديو بمستوى ومادة أو نوع اشتراك، ويظهر فقط للطلاب المؤهلين.</p><div aria-live="polite" class="teacher-lesson-video-list" id="teacher-lesson-video-list"></div>
-</div>
-</section><section aria-labelledby="class-registry-title" class="class-registry-manager teacher-tab-panel" data-dashboard-panel="registry" id="class-registry-manager">
-<button aria-controls="class-registry-controls" aria-expanded="false" class="class-registry-toggle" id="class-registry-toggle" type="button">
-<span class="class-registry-toggle-copy"><span>سجل الحصص</span><strong id="class-registry-title">إدارة سجل الحصص والدروس المسجلة</strong><small>اضغط لعرض الفلاتر وتسجيل إنجاز الحصص وربط فيديو YouTube.</small></span>
-<span aria-hidden="true" class="class-registry-toggle-icon" id="class-registry-toggle-icon">⌄</span>
-</button>
-<div class="class-registry-controls" hidden="" id="class-registry-controls">
-<header class="class-registry-head">
-<div><p>حدّد الفصل الدراسي أولًا، ثم الشهر والمادة، وبعدها سجّل إنجاز الحصة واختر فيديو YouTube أو استخدم رابط Google Drive.</p></div><div class="youtube-connection-actions"><button class="youtube-connect-button" id="youtube-connect-button" type="button">ربط قناة YouTube</button><button class="youtube-upload-button" id="registry-upload-video-btn" type="button"><span aria-hidden="true">📤</span><span>رفع فيديو (.webm) إلى YouTube</span></button><input type="file" id="registry-video-file-input" accept="video/webm,video/mp4,video/*" hidden /><span aria-live="polite" class="youtube-connection-status" id="youtube-connection-status">جارٍ التحقق من الاتصال…</span></div>
-</header>
-<div class="class-registry-filters">
-<label>الفصل الدراسي<select id="class-registry-term"><option value="">اختر الفصل الدراسي</option><option value="TERM_1">الفصل الأول</option><option value="TERM_2">الفصل الثاني</option><option value="TERM_3">الفصل الثالث</option></select></label>
-<label>الشهر<select id="class-registry-month" disabled><option value="">اختر الفصل أولًا</option></select></label>
-<label>المادة<select id="class-registry-subject" disabled><option value="">اختر الشهر أولًا</option></select></label>
-</div>
-<div aria-live="polite" class="class-registry-list" id="class-registry-list"></div>
-</div>
-</section><section aria-labelledby="schedule-manager-title" class="schedule-manager teacher-tab-panel" data-dashboard-panel="schedule" id="schedule-manager">
-<header class="schedule-manager-head">
-<button aria-controls="schedule-manager-content" aria-expanded="false" class="schedule-manager-toggle" id="schedule-manager-toggle" type="button">
-<span class="schedule-manager-toggle-copy"><span class="schedule-kicker">برنامج المستوى</span><strong id="schedule-manager-title">برمجة الحصص</strong><small id="schedule-level-caption">أضف وعدّل واحذف حصص المستوى المختار.</small></span>
-<span aria-hidden="true" class="schedule-manager-toggle-icon" id="schedule-manager-toggle-icon">⌄</span>
-</button>
-</header>
-<div class="schedule-manager-content" hidden="" id="schedule-manager-content">
-<form class="schedule-form" id="schedule-form" novalidate=""><label>نوع الحصة<select id="schedule-subject" required=""></select></label><label>التاريخ والتوقيت<input id="schedule-datetime" required="" type="datetime-local"/></label><div class="schedule-form-actions"><button class="schedule-submit-btn" id="schedule-submit-btn" type="submit">إضافة حصة</button><button class="schedule-cancel-btn" hidden="" id="schedule-cancel-edit-btn" type="button">إلغاء التعديل</button></div></form>
-<div aria-live="polite" class="scheduled-class-list" id="scheduled-class-list"></div>
-</div>
-</section>
-<section aria-labelledby="facebook-messenger-panel-title" class="teacher-messenger-panel teacher-tab-panel" data-dashboard-panel="facebook-messenger" id="facebook-messenger-panel"><div class="teacher-messenger-card"><div class="teacher-messenger-heading"><div><span class="table-kicker">تحكم مستقل وآمن</span><h2 id="facebook-messenger-panel-title">Facebook Messenger</h2><p>تحكم في الرسائل المرسلة إلى الأولياء المرتبطين بصفحة «أستاذ الفيزياء و الرياضيات» وفق قواعد Meta.</p></div><span class="teacher-messenger-status-badge is-loading" id="teacher-messenger-status-badge">جارٍ التحقق</span></div><div class="teacher-messenger-safety-grid" aria-label="حالة أمان Messenger"><article class="teacher-messenger-safety-card is-safe"><span>إعداد آمن</span><strong id="teacher-messenger-safe-status">الرمز والإعدادات</strong><small>يتم حفظ Access Token في الخادم فقط ولا يظهر للأستاذ.</small></article><article class="teacher-messenger-safety-card is-warning"><span>تحذير</span><strong id="teacher-messenger-warning-status">نافذة التفاعل</strong><small>لن تُرسل الرسالة لمن انتهت نافذة Meta لديه.</small></article><article class="teacher-messenger-safety-card is-danger"><span>إيقاف خطير</span><strong id="teacher-messenger-danger-status">لا توجد أخطاء</strong><small>يتوقف الطابور عند خطأ صلاحيات أو تجاوز معدل الإرسال.</small></article></div><div class="teacher-messenger-quota" aria-live="polite"><div><span>محاولات اليوم</span><strong id="teacher-messenger-attempted-count">0</strong></div><div><span>تم الإرسال</span><strong id="teacher-messenger-sent-count">0</strong></div><div><span>تم التجاوز</span><strong id="teacher-messenger-skipped-count">0</strong></div><div><span>المتبقي</span><strong id="teacher-messenger-remaining-count">0</strong></div></div><form class="teacher-messenger-form" id="teacher-messenger-form" novalidate><fieldset><legend>إعدادات الأمان والتحكم</legend><div class="teacher-messenger-settings-grid"><label class="teacher-messenger-checkbox"><input checked id="teacher-messenger-enabled" type="checkbox"><span><strong>تشغيل إرسال Messenger</strong><small>يمكنك إيقاف الإرسال يدويًا دون حذف روابط الأولياء.</small></span></label><label>حد التحذير اليومي<input id="teacher-messenger-daily-warning" type="number" min="1" max="100000" inputmode="numeric"><small>تظهر حالة تحذير قبل الوصول إلى حد الإيقاف.</small></label><label>حد الإيقاف اليومي<input id="teacher-messenger-daily-hard" type="number" min="1" max="100000" inputmode="numeric"><small>حاجز داخلي؛ لا يتجاوز قواعد Meta.</small></label><label>الفاصل بين الرسائل بالميلي ثانية<input id="teacher-messenger-interval" type="number" min="250" max="60000" inputmode="numeric"><small>ابدأ بفاصل 1000ms أو أكثر.</small></label><label>عدد المحاولات<input id="teacher-messenger-retries" type="number" min="0" max="5" inputmode="numeric"><small>إعادة محدودة للأخطاء المؤقتة فقط.</small></label><label>نافذة التفاعل بالساعات<input id="teacher-messenger-window" type="number" min="1" max="24" inputmode="numeric"><small>لا يمكن ضبطها فوق 24 ساعة وفق النافذة القياسية.</small></label></div><label class="teacher-messenger-checkbox"><input checked id="teacher-messenger-append-confirmation" type="checkbox"><span><strong>إضافة طلب التأكيد</strong><small>إلحاق: أرسل «تم» إذا تلقيت هذه الرسالة.</small></span></label><label class="teacher-messenger-checkbox"><input checked id="teacher-messenger-pause-rate-limit" type="checkbox"><span><strong>إيقاف تلقائي عند تجاوز المعدل</strong><small>يوقف الإرسال حتى يراجع الأستاذ الحالة.</small></span></label><button class="teacher-messenger-secondary-button" id="teacher-messenger-save-settings" type="button">حفظ إعدادات الأمان</button></fieldset><fieldset><legend>الجمهور المستهدف</legend><div class="teacher-messenger-fields-grid"><label>المستوى<select id="teacher-messenger-level"><option value="السنة الأولى متوسط">السنة الأولى متوسط</option><option value="السنة الثانية متوسط">السنة الثانية متوسط</option><option value="السنة الثالثة متوسط">السنة الثالثة متوسط</option><option value="السنة الرابعة متوسط">السنة الرابعة متوسط</option><option value="طالب جامعي">طالب جامعي</option></select></label><label>حالة الاشتراك<select id="teacher-messenger-payment"><option value="ALL">جميع الحالات</option><option value="FREE">مجاني</option><option value="UNPAID">لم يتم الدفع</option><option value="PAID">تم الدفع</option><option value="PROMISED">الوعد بالدفع</option></select></label><label>المادة<select id="teacher-messenger-subject"><option value="ALL">كل المواد</option><option value="MATH">الرياضيات</option><option value="PHYSICS">الفيزياء</option><option value="BOTH">الرياضيات والفيزياء</option></select></label></div><label class="teacher-messenger-checkbox"><input checked name="teacher-messenger-target-mode" type="radio" value="ALL_LEVEL"><span><strong>جميع أولياء المستوى</strong><small>يُرسل فقط إلى الحسابات المرتبطة والمؤهلة.</small></span></label><label class="teacher-messenger-checkbox"><input name="teacher-messenger-target-mode" type="radio" value="SELECTED"><span><strong>ولي واحد أو مجموعة تلاميذ</strong><small>اختر من القائمة بعد تحميل المستوى.</small></span></label><div class="teacher-messenger-student-list-toolbar"><span id="teacher-messenger-student-count" role="status" aria-live="polite">اختر الفلاتر لعرض النتائج.</span><button class="teacher-messenger-secondary-button" id="teacher-messenger-refresh-students" type="button">تحديث قائمة التلاميذ</button></div><div class="teacher-messenger-student-list" id="teacher-messenger-student-list" hidden><p>اختر المستوى لتحميل القائمة.</p></div></fieldset><fieldset><legend>محتوى الرسالة</legend><label>عنوان الرسالة<input id="teacher-messenger-title" maxlength="160" required placeholder="مثال: تذكير بحصة الفيزياء"></label><label>نص الرسالة<textarea id="teacher-messenger-body" maxlength="1800" rows="6" required placeholder="اكتب الرسالة التعليمية أو الإدارية..."></textarea></label><p class="teacher-messenger-policy-note">الرسالة تُرسل فقط داخل نافذة التفاعل المسموح بها، ولا يُطلب من الولي PIN أو كلمة مرور Minasaty.</p></fieldset><div class="teacher-messenger-actions"><button class="cta-button cta-primary" id="teacher-messenger-send" type="submit">إرسال عبر Facebook Messenger</button><span class="teacher-messenger-feedback" id="teacher-messenger-feedback" role="status" aria-live="polite"></span></div></form></div></section>
-</div>
-</div>
-<div class="lesson-video-modal" hidden="True" id="lesson-video-modal"><section aria-labelledby="lesson-video-modal-title" aria-modal="true" class="lesson-video-modal-card" id="lesson-video-modal-card" role="dialog"><button aria-label="إغلاق" class="lesson-video-modal-close" id="lesson-video-modal-close" type="button">×</button><h2 id="lesson-video-modal-title">إضافة فيديو مكمل</h2><form class="lesson-video-form" id="lesson-video-form" novalidate=""><label>تصنيف الفيديو المكمل<select aria-describedby="lesson-video-type-help" id="lesson-video-type" required=""></select><small class="lesson-video-type-help" id="lesson-video-type-help">سيظهر الفيديو فقط للطلاب المؤهلين لهذا التصنيف.</small></label><label>عنوان الفيديو المكمل<input id="lesson-video-title" maxlength="160" placeholder="مثال: مجموعة تمارين لاختبارات الفصل الأول" required="" type="text"/></label><label>رابط فيديو YouTube<input id="lesson-video-url" inputmode="url" placeholder="https://www.youtube.com/watch?v=..." required="" type="url"/></label><div class="lesson-video-form-actions"><button class="lesson-video-submit" id="lesson-video-submit" type="submit">نشر الفيديو المكمل</button></div></form></section></div></main>
-</div>
-<dialog aria-labelledby="student-search-modal-title" class="student-search-modal" id="student-search-modal"><form class="student-search-dialog" id="student-search-form" method="dialog"><button aria-label="إغلاق نافذة البحث" class="student-search-modal-close" id="student-search-modal-close" type="button">×</button><p class="eyebrow">قائمة التلاميذ</p><h2 id="student-search-modal-title">البحث عن تلميذ</h2><label for="student-search-modal-input">اسم التلميذ<input autocomplete="off" id="student-search-modal-input" placeholder="اكتب اسم التلميذ..." type="search"/></label><div class="student-search-modal-actions"><button class="student-search-cancel" id="student-search-modal-cancel" type="button">إلغاء</button><button class="student-search-submit" type="submit">OK</button></div></form></dialog>
-<div class="modal student-actions-modal" hidden="" id="student-actions-modal"><div aria-labelledby="student-actions-title" aria-modal="true" class="modal-card student-actions-card" role="dialog"><button aria-label="إغلاق إجراءات التلميذ" class="modal-close" id="student-actions-modal-close" type="button">×</button><p class="eyebrow">إجراءات التلميذ</p><h2 id="student-actions-title">التلميذ</h2><p class="student-actions-level" id="student-actions-level"></p><div class="student-actions-stats-header"><button type="button" class="student-actions-edit-stats-btn" id="student-actions-edit-stats-btn" title="تعديل وتحديد أرقام الحضور والمشاركات والتمارين والنقاط السابقة"><span>✏️ تعديل الإحصائيات والنقاط</span></button></div><div class="student-actions-stats" id="student-actions-stats"><button type="button" class="student-stat-pill student-stat-attendance" id="student-actions-attendance-card" title="انقر لعرض تفاصيل الحضور للحصص المباشرة وموادها"><div class="student-stat-icon">📅</div><div class="student-stat-meta"><span class="student-stat-title">عدد الحضور</span><div class="student-stat-num-row"><strong class="student-stat-num" id="student-actions-attendance-val">0</strong><span class="student-stat-tag">حصة</span></div><span class="student-stat-details-link">عرض التفاصيل ↗</span></div></button><button type="button" class="student-stat-pill student-stat-participation" id="student-actions-participation-card" title="انقر لعرض تفاصيل المشاركات الصوتية وموادها"><div class="student-stat-icon">🎙️</div><div class="student-stat-meta"><span class="student-stat-title">عدد المشاركات</span><div class="student-stat-num-row"><strong class="student-stat-num" id="student-actions-participation-val">0</strong><span class="student-stat-tag">مشاركة</span></div><span class="student-stat-details-link">عرض التفاصيل ↗</span></div></button><button type="button" class="student-stat-pill student-stat-exercises" id="student-actions-exercises-card" title="حل التمارين والصور المرسلة أثناء الحصة المباشرة إلى تيليجرام"><div class="student-stat-icon">📝</div><div class="student-stat-meta"><span class="student-stat-title">حل التمارين أثناء الحصة</span><div class="student-stat-num-row"><strong class="student-stat-num" id="student-actions-exercises-val">0</strong><span class="student-stat-tag">تمرين</span></div><span class="student-stat-details-link">وصلت للتيليجرام ✓</span></div></button><button type="button" class="student-stat-pill student-stat-points" id="student-actions-points-card" title="نقاط التفاعل والتميز من إيموجيات الأستاذ (🔥+5 ❤️+3 👍+2 👎-1 👀0)"><div class="student-stat-icon">⭐</div><div class="student-stat-meta"><span class="student-stat-title">نقاط التفاعل والتميز</span><div class="student-stat-num-row"><strong class="student-stat-num" id="student-actions-points-val">0</strong><span class="student-stat-tag">نقطة</span></div><span class="student-stat-details-link" id="student-actions-points-breakdown">🔥×0 ❤️×0 👍×0</span></div></button></div><div class="student-actions-list" id="student-actions-list"></div></div></div>
-<div class="modal student-stats-edit-modal" hidden="" id="student-stats-edit-modal"><div aria-labelledby="student-stats-edit-title" aria-modal="true" class="modal-card student-stats-edit-card" role="dialog"><button aria-label="إغلاق نافذة تعديل الإحصائيات" class="modal-close" id="student-stats-edit-modal-close" type="button">×</button><p class="eyebrow">إحصائيات ونقاط التلميذ</p><h2 id="student-stats-edit-title">تعديل الإحصائيات والنقاط</h2><p class="student-actions-level" id="student-stats-edit-subtitle"></p><div class="student-stats-edit-notice">💡 <strong>ملاحظة هامة:</strong> أدخل الأرقام الإجمالية التي تريدها للتلميذ (بما فيها السابقة). ستستمر المنصة بحساب أي حضور أو مشاركة أو تفاعل جديد تلقائياً فوق هذه الأرقام.</div><form class="stack-form student-stats-edit-form" id="student-stats-edit-form"><div class="student-stats-edit-grid"><label class="student-stats-edit-field"><span class="field-label">📅 عدد الحضور (حصة)</span><input type="number" id="student-stats-edit-attendance" min="0" step="1" required placeholder="0" /><small class="field-hint">الحصص السابقة والحالية</small></label><label class="student-stats-edit-field"><span class="field-label">🎙️ عدد المشاركات (مشاركة)</span><input type="number" id="student-stats-edit-participation" min="0" step="1" required placeholder="0" /><small class="field-hint">مشاركات المايك أثناء البث</small></label><label class="student-stats-edit-field"><span class="field-label">📝 حل التمارين أثناء الحصة (تمرين)</span><input type="number" id="student-stats-edit-exercises" min="0" step="1" required placeholder="0" /><small class="field-hint">صور التمارين المرسلة للتيليجرام</small></label><label class="student-stats-edit-field"><span class="field-label">⭐ نقاط التفاعل والتميز (نقطة)</span><input type="number" id="student-stats-edit-points" min="0" step="1" required placeholder="0" /><small class="field-hint">مجموع نقاط الإيموجي والتميز</small></label></div><p aria-live="polite" class="form-message" hidden="" id="student-stats-edit-message"></p><div class="student-stats-edit-actions"><button type="submit" class="cta-button cta-primary" id="student-stats-edit-submit-btn">حفظ وتحديث الإحصائيات</button><button type="button" class="cta-button cta-secondary" id="student-stats-edit-cancel-btn">إلغاء</button></div></form></div></div>
-<div class="modal" hidden="" id="student-contact-modal"><div aria-labelledby="student-contact-title" aria-modal="true" class="modal-card" role="dialog"><button aria-label="إغلاق تعديل بيانات التلميذ" class="modal-close" id="student-contact-modal-close" type="button">×</button><p class="eyebrow">بيانات الحساب</p><h2 id="student-contact-title">تعديل الاسم ورقم الهاتف</h2><p class="student-contact-note">إذا تغيّر رقم الهاتف، سيتم نقل التلاميذ المرتبطين بالرقم القديم إلى الرقم الجديد، وستُلغى جلسة الولي لإعادة الدخول.</p><form class="stack-form" id="student-contact-form" novalidate=""><label>اسم التلميذ<input autocomplete="name" id="student-contact-name" maxlength="120" required="" type="text" /></label><label>رقم هاتف الولي<input autocomplete="tel" inputmode="tel" id="student-contact-phone" maxlength="20" placeholder="05 أو 06 أو 07xxxxxxxx" required="" type="tel" /></label><p aria-live="polite" class="form-message" hidden="" id="student-contact-message"></p><button class="cta-button cta-primary" id="student-contact-submit" type="submit">حفظ التعديل</button></form></div></div><div class="modal attendance-dashboard-modal" hidden="" id="attendance-modal"><div aria-labelledby="attendance-modal-title" aria-modal="true" class="modal-card attendance-dashboard-card" role="dialog"><button aria-label="إغلاق سجل الحضور" class="modal-close" id="close-attendance-modal" type="button">×</button><div class="dash-modal-header"><span class="dash-badge">سجل الحضور الذكي</span><h2 id="attendance-modal-title">سجل حضور: <span id="attendance-student-name">التلميذ</span></h2><p class="dash-subtitle">يُحسب الحضور بدخول البث المباشر خلال فترة اليوم وتُجمع المحاولات المتكررة كحضور واحد.</p></div><div class="attendance-kpi-grid"><div class="dash-kpi-card total-kpi"><span class="kpi-label">إجمالي الحصص</span><div class="kpi-number-wrap"><strong class="kpi-number" id="attendance-total-count">0</strong><span class="kpi-unit">حصة</span></div><span class="kpi-sub">حضور فعلي</span></div><div class="dash-kpi-card math-kpi"><span class="kpi-label">حضور الرياضيات</span><div class="kpi-number-wrap"><strong class="kpi-number" id="attendance-math-count">0</strong><span class="kpi-unit">حصة</span></div><span class="kpi-sub">حصة رياضيات</span></div><div class="dash-kpi-card physics-kpi"><span class="kpi-label">حضور الفيزياء</span><div class="kpi-number-wrap"><strong class="kpi-number" id="attendance-physics-count">0</strong><span class="kpi-unit">حصة</span></div><span class="kpi-sub">حصة فيزياء</span></div></div><div class="dash-section-head"><h3>تفاصيل الحصص المحضورة</h3><span class="dash-records-count" id="attendance-records-count">0 حصة</span></div><div class="attendance-list-wrap"><p hidden="" id="attendance-empty" class="dash-empty-state">لا توجد سجلات حضور مسجلة لهذا التلميذ حتى الآن.</p><ul class="attendance-list" id="attendance-list"></ul></div></div></div><div class="modal participation-dashboard-modal" hidden="" id="participation-modal"><div aria-labelledby="participation-modal-title" aria-modal="true" class="modal-card participation-dashboard-card" role="dialog"><button aria-label="إغلاق سجل المشاركات" class="modal-close" id="close-participation-modal" type="button">×</button><div class="dash-modal-header"><span class="dash-badge is-participation">المشاركات الصوتية</span><h2 id="participation-modal-title">سجل مشاركات: <span id="participation-student-name">التلميذ</span></h2><p class="dash-subtitle">تُحتسب المشاركة عند فتح المايك والتحدث لمدة 5 ثوانٍ على الأقل أثناء الحصة المباشرة.</p></div><div class="attendance-kpi-grid"><div class="dash-kpi-card total-kpi is-participation"><span class="kpi-label">إجمالي المشاركات</span><div class="kpi-number-wrap"><strong class="kpi-number" id="participation-total-count">0</strong><span class="kpi-unit">مشاركة</span></div><span class="kpi-sub">مشاركة صوتية</span></div><div class="dash-kpi-card math-kpi"><span class="kpi-label">مشاركات الرياضيات</span><div class="kpi-number-wrap"><strong class="kpi-number" id="participation-math-count">0</strong><span class="kpi-unit">مشاركة</span></div><span class="kpi-sub">في حصص الرياضيات</span></div><div class="dash-kpi-card physics-kpi"><span class="kpi-label">مشاركات الفيزياء</span><div class="kpi-number-wrap"><strong class="kpi-number" id="participation-physics-count">0</strong><span class="kpi-unit">مشاركة</span></div><span class="kpi-sub">في حصص الفيزياء</span></div></div><div class="dash-section-head"><h3>سجل الحصص التي شارك فيها التلميذ</h3><span class="dash-records-count" id="participation-records-count">0 مشاركة</span></div><div class="attendance-list-wrap"><p hidden="" id="participation-empty" class="dash-empty-state">لم يسجل هذا التلميذ أي مشاركة صوتية حتى الآن.</p><ul class="attendance-list participation-list" id="participation-list"></ul></div></div></div>
-<div class="modal subscription-dates-modal" hidden="" id="subscription-dates-modal"><div aria-labelledby="subscription-dates-title" aria-modal="true" class="modal-card subscription-dates-card" role="dialog"><button aria-label="إغلاق نافذة فترة الاشتراك" class="modal-close" id="subscription-dates-modal-close" type="button">×</button><p class="eyebrow">فترة الاشتراك</p><h2 id="subscription-dates-title">تحديد فترة الاشتراك</h2><p class="student-actions-level" id="subscription-dates-student-info"></p><div class="subscription-dates-status-box" id="subscription-dates-status-box"><span class="subscription-dates-status-icon" id="subscription-dates-status-icon">📅</span><div class="subscription-dates-status-info"><strong id="subscription-dates-status-title">حالة فترة الاشتراك</strong><p id="subscription-dates-status-desc">لم يتم تحديد فترة الاشتراك بعد</p></div></div><form class="stack-form subscription-dates-form" id="subscription-dates-form" novalidate=""><div class="subscription-dates-inputs-grid"><label><span>تاريخ بدء الاشتراك</span><input id="subscription-start-date" type="date"/></label><label><span>تاريخ انتهاء الاشتراك</span><input id="subscription-end-date" type="date"/></label></div><div class="subscription-dates-presets"><span class="presets-label">فترات جاهزة سريعة:</span><div class="presets-buttons"><button class="preset-btn" id="preset-1-month" type="button">+ شهر (30 يوماً)</button><button class="preset-btn" id="preset-3-months" type="button">+ 3 أشهر</button><button class="preset-btn" id="preset-school-year" type="button">سنة دراسية</button><button class="preset-btn is-clear" id="subscription-dates-clear-btn" type="button">مسح التواريخ</button></div></div><p aria-live="polite" class="form-message" hidden="" id="subscription-dates-message"></p><div class="subscription-dates-actions"><button class="cta-button cta-primary" id="subscription-dates-submit" type="submit">حفظ فترة الاشتراك</button></div></form></div></div>
-<div class="modal" hidden="" id="subscription-modal"><div class="modal-card"><button class="modal-close" id="close-subscription-modal" type="button">×</button><p class="eyebrow">إعدادات الاشتراك</p><h2 id="subscription-student-name">التلميذ</h2><form class="stack-form" id="subscription-form"><label id="subscription-type-label">نوع الاشتراك<select id="subscription-payment-stage" required=""><option value="PAID">اشتراك مدفوع</option><option value="UNPAID">اشتراك مجاني</option></select></label><div class="subscription-dates-inputs-grid"><label><span>تاريخ بدء الاشتراك (اختياري)</span><input id="subscription-modal-start-date" type="date"/></label><label><span>تاريخ انتهاء الاشتراك (اختياري)</span><input id="subscription-modal-end-date" type="date"/></label></div><label><input id="subscription-live-access" type="checkbox"/> السماح بدخول الحصة المباشرة</label><button class="cta-button cta-primary" type="submit">حفظ الاشتراك</button></form></div></div>
-<div class="modal" hidden="" id="payment-status-modal"><div class="modal-card"><button class="modal-close" id="close-payment-status-modal" type="button">×</button><p class="eyebrow">قرار حالة الدفع</p><h2 id="payment-status-student-name">التلميذ</h2><form class="stack-form" id="payment-status-form"><label>حالة الدفع<select id="payment-status-stage" required=""><option value="PAID">تم تأكيد الدفع</option><option value="PROMISED">الوعد بالدفع</option><option value="UNPAID">لم يتم الدفع</option></select></label><label id="payment-amount-field">القيمة بالدينار الجزائري<input id="payment-status-amount" inputmode="numeric" min="0" placeholder="مثال: 2000" step="1" type="number"/></label><button class="cta-button cta-primary" type="submit">حفظ حالة الدفع</button></form></div></div>
-<div aria-labelledby="student-card-preview-title" aria-modal="true" class="modal student-card-preview-modal" hidden="" id="student-card-preview-modal" role="dialog"><div class="modal-card student-card-preview-card"><button aria-label="إغلاق معاينة البطاقة" class="modal-close" id="close-student-card-preview" type="button">×</button><p class="eyebrow">وثيقة هوية الطالب الجامعي</p><h2 id="student-card-preview-title">معاينة بطاقة الطالب</h2><p aria-live="polite" class="student-card-preview-status" id="student-card-preview-status">جارٍ تحميل صورة البطاقة…</p><div class="student-card-preview-frame"><img alt="صورة بطاقة الطالب الجامعي" decoding="async" hidden="" id="student-card-preview-image"/></div><div class="student-card-preview-actions"><button class="student-document-drive-btn" disabled="" id="save-student-card-to-drive" type="button">حفظ البطاقة في Google Drive</button></div></div></div>
-<div aria-labelledby="payment-receipt-preview-title" aria-modal="true" class="modal payment-receipt-preview-modal" hidden="" id="payment-receipt-preview-modal" role="dialog"><div class="modal-card payment-receipt-preview-card"><button aria-label="إغلاق معاينة وصل الدفع" class="modal-close" id="close-payment-receipt-preview" type="button">×</button><p class="eyebrow">وثيقة الدفع</p><h2 id="payment-receipt-preview-title">معاينة وصل الدفع</h2><p aria-live="polite" class="payment-receipt-preview-status" id="payment-receipt-preview-status">جارٍ تحميل الوصل…</p><div class="payment-receipt-preview-frame"><img alt="صورة وصل الدفع" decoding="async" hidden="" id="payment-receipt-preview-image" /><iframe title="ملف PDF لوصل الدفع" hidden="" id="payment-receipt-preview-pdf"></iframe></div><div class="student-card-preview-actions"><button class="payment-receipt-open-btn" hidden="" id="open-payment-receipt-pdf" type="button">فتح ملف PDF في نافذة جديدة</button><button class="student-document-drive-btn" disabled="" id="save-payment-receipt-to-drive" type="button">حفظ الوصل في Google Drive</button></div></div></div><div class="modal" hidden="" id="student-certificates-modal"><div aria-labelledby="student-certificates-modal-title" aria-modal="true" class="modal-card teacher-certificates-modal-card" role="dialog"><button aria-label="إغلاق" class="modal-close" id="student-certificates-modal-close" type="button">×</button><p class="eyebrow">عامل تحفيزي</p><h2 id="student-certificates-modal-title">إضافة شهادة للتلميذ</h2><p class="teacher-certificates-student-name" id="student-certificates-student-name"></p><form class="stack-form" id="student-certificate-form" novalidate=""><label>عنوان الشهادة<input id="student-certificate-title" maxlength="180" placeholder="مثال: شهادة تفوق في الرياضيات" required="" type="text"/></label><label>تاريخ الحصول على الشهادة<input id="student-certificate-awarded-at" required="" type="date"/></label><label>وصف مختصر اختياري<textarea id="student-certificate-description" maxlength="1000" placeholder="مثال: تقديرًا لاجتهاده ومشاركته المتميزة" rows="3"></textarea></label><label>صورة الشهادة<input accept="image/png,image/jpeg,image/webp" id="student-certificate-image" required="" type="file"/><small>PNG أو JPG أو WebP — الحد الأقصى 10 ميغابايت.</small></label><button class="cta-button cta-primary" id="student-certificate-submit" type="submit">رفع ونشر الشهادة</button></form><div aria-live="polite" class="teacher-student-certificates-list" id="teacher-student-certificates-list"></div></div></div>
-<div class="modal confirm-delete-modal" hidden="" id="confirm-delete-modal"><div aria-labelledby="confirm-delete-title" aria-modal="true" class="modal-card confirm-delete-card" role="dialog"><button aria-label="إغلاق" class="modal-close" id="close-confirm-delete" type="button">×</button><span aria-hidden="true" class="confirm-delete-icon">!</span><p class="eyebrow">إجراء نهائي</p><h2 id="confirm-delete-title">هل أنت متأكد من حذف هذا التلميذ؟</h2><p id="confirm-delete-message">سيتم حذف بيانات الحساب وسجل الحضور نهائيًا ولا يمكن التراجع عن هذا الإجراء.</p><div class="confirm-delete-actions"><button class="confirm-delete-cancel" id="cancel-confirm-delete" type="button">إلغاء</button><button class="confirm-delete-approve" id="approve-confirm-delete" type="button">نعم، احذف التلميذ</button></div></div></div>
-<div class="modal class-registry-action-modal" hidden="" id="class-registry-action-modal"><div aria-labelledby="class-registry-action-title" aria-modal="true" class="modal-card class-registry-modal-card" role="dialog"><button aria-label="إغلاق" class="modal-close" id="class-registry-action-close" type="button">×</button><p class="eyebrow">تحديث سجل الحصة</p><h2 id="class-registry-action-title">تحديث الحصة</h2><form class="stack-form" id="class-registry-action-form"><div class="class-registry-youtube-field" id="class-registry-youtube-field"><div class="class-registry-youtube-actions"><button class="youtube-picker-button" id="class-registry-youtube-picker" type="button">اختيار فيديو من قناتي على YouTube</button><button class="youtube-upload-button is-secondary" id="class-registry-direct-upload-btn" type="button"><span aria-hidden="true">📤</span><span>رفع فيديو من جهازي (.webm)</span></button></div><span aria-live="polite" class="youtube-selected-video" id="class-registry-youtube-selected">لم يتم اختيار فيديو YouTube</span><input id="class-registry-youtube-video-id" type="hidden"/></div><label id="class-registry-drive-field">رابط تسجيل Google Drive<input id="class-registry-drive-link" inputmode="url" placeholder="https://drive.google.com/file/d/.../view" type="url"/></label><label id="class-registry-notes-field">ملاحظة أو سبب الغياب<textarea id="class-registry-notes" maxlength="2000" placeholder="اكتب ملاحظة قصيرة…" rows="4"></textarea></label><button class="cta-button cta-primary" type="submit">حفظ التحديث</button></form></div></div><div class="modal" hidden="" id="youtube-video-picker-modal"><div aria-labelledby="youtube-video-picker-title" aria-modal="true" class="modal-card youtube-video-picker-card" role="dialog"><button aria-label="إغلاق" class="modal-close" id="youtube-video-picker-close" type="button">×</button><p class="eyebrow">قناة الأستاذ</p><h2 id="youtube-video-picker-title">اختر فيديو الحصة</h2><p class="youtube-picker-note">ستُحفظ الحصة كرابط غير مدرج ويشاهدها التلاميذ المؤهلون داخل الأكاديمية.</p><div aria-live="polite" class="youtube-video-picker-list" id="youtube-video-picker-list"></div></div></div><div class="modal registry-youtube-upload-modal" hidden="" id="registry-youtube-upload-modal" role="dialog" aria-modal="true" aria-labelledby="registry-upload-modal-title"><div class="modal-card registry-upload-modal-card"><button aria-label="إغلاق نافذة الرفع" class="modal-close" id="registry-upload-modal-close" type="button">×</button><div class="registry-upload-head"><div class="registry-upload-icon-pulse"><svg viewBox="0 0 24 24" width="34" height="34" fill="#ff0000" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></div><div class="registry-upload-head-copy"><p class="eyebrow">قناة الأستاذ على YouTube</p><h2 id="registry-upload-modal-title">رفع فيديو من الجهاز إلى YouTube</h2><p class="registry-upload-subtitle" id="registry-upload-modal-subtitle">سيتم رفع الفيديو مباشرة بحالة «غير مدرج (Unlisted)» إلى قناتك.</p></div></div><div class="registry-upload-file-info" id="registry-upload-file-info"><div class="registry-upload-info-row"><span class="info-label">ملف الفيديو:</span><strong id="registry-upload-file-name" class="info-value text-truncate">لم يتم تحديد ملف</strong></div><div class="registry-upload-info-row"><span class="info-label">الحجم:</span><strong id="registry-upload-file-size" class="info-value" dir="ltr">0 MB</strong></div><label class="registry-upload-field"><span>عنوان الفيديو على YouTube</span><input type="text" id="registry-upload-video-title" maxlength="100" placeholder="اكتب عنوان الحصة أو موضوع الدرس..." /></label><div class="registry-upload-field" id="registry-upload-class-select-row" hidden><label><span>ربط الفيديو بحصة من السجل (اختياري)</span><select id="registry-upload-target-class"><option value="">رفع إلى القناة فقط (دون ربط بحصة محددة)</option></select></label></div><div class="registry-upload-start-actions"><button class="cta-button cta-primary registry-upload-start-btn" id="registry-upload-start-btn" type="button">🚀 بدء الرفع المباشر إلى YouTube</button></div></div><div class="registry-upload-progress-box" id="registry-upload-progress-box" hidden><div class="registry-upload-progress-track"><div class="registry-upload-progress-fill" id="registry-upload-progressbar" style="width: 0%;"></div></div><div class="registry-upload-metrics"><span class="registry-upload-percent" id="registry-upload-percent">0%</span><span class="registry-upload-bytes" id="registry-upload-bytes" dir="ltr">0 MB / 0 MB</span></div><div class="registry-upload-stats-grid" id="registry-upload-stats-grid"><div class="registry-stat-card"><span class="stat-label">سرعة الرفع الحية</span><strong id="registry-upload-speed" dir="ltr">0 KB/s</strong></div><div class="registry-stat-card"><span class="stat-label">الوقت المتبقي التقديري</span><strong id="registry-upload-eta">جارٍ الحساب…</strong></div></div><p class="registry-upload-status-text" id="registry-upload-status-text" aria-live="polite">جارٍ تجهيز ملف الفيديو…</p></div><div class="registry-upload-success-card" id="registry-upload-success-card" hidden><div class="registry-success-badge">✓</div><h3>تم رفع الفيديو بنجاح إلى قناتك على YouTube!</h3><p>الفيديو محفوظ بحالة <strong class="text-success">غير مدرج (Unlisted)</strong> ومتاح للمشاهدة.</p><div class="registry-success-links"><a class="cta-button cta-primary" id="registry-upload-watch-btn" href="#" target="_blank" rel="noopener">مشاهدة الفيديو على YouTube ↗</a><button class="cta-button cta-secondary" id="registry-upload-copy-btn" type="button">نسخ رابط الفيديو</button></div><button class="registry-success-close-btn" id="registry-upload-done-btn" type="button">تم، إغلاق</button></div></div></div>
-<div aria-labelledby="document-feedback-title" aria-modal="true" class="document-feedback-modal" hidden="" id="document-feedback-modal" role="dialog"><section class="document-feedback-dialog"><div class="document-feedback-head"><span aria-hidden="true" class="document-feedback-icon">!</span><div><h2 id="document-feedback-title">تعذر إتمام العملية</h2><p>راجع وثيقة الدفع وحاول مرة أخرى.</p></div></div><div class="document-feedback-body" id="document-feedback-message"></div><button class="document-feedback-close" id="document-feedback-close" type="button">إغلاق</button></section></div>
-<div aria-labelledby="teacher-submissions-title" aria-modal="true" class="modal teacher-submissions-modal" hidden="" id="teacher-submissions-modal" role="dialog"><div class="modal-card teacher-submissions-card"><button aria-label="إغلاق" class="modal-close" id="teacher-submissions-modal-close" type="button">×</button><p class="eyebrow">حلول التلاميذ</p><h2 id="teacher-submissions-title">أرى الحلول</h2><p class="teacher-submissions-assignment-title" id="teacher-submissions-assignment-title"></p><div aria-live="polite" class="teacher-submissions-list" id="teacher-submissions-list"></div></div></div>
-<div class="toast" hidden="" id="toast"></div>
-<div aria-labelledby="online-users-title" aria-modal="true" class="modal online-users-modal" hidden="" id="online-users-modal" role="dialog"><div class="modal-card online-users-card"><button aria-label="إغلاق" class="modal-close" id="online-users-modal-close" type="button">×</button><p class="eyebrow">الحضور اللحظي</p><h2 id="online-users-title">المتصلون الآن</h2><p class="online-users-summary" id="online-users-summary" aria-live="polite">جارٍ تحميل القائمة…</p><div aria-live="polite" class="online-users-list" id="online-users-list"></div></div></div>
-<script defer="" id="google-identity-services" src="https://accounts.google.com/gsi/client"></script>
-<script defer="" id="google-picker-api" src="https://apis.google.com/js/api.js"></script>
-<script src="/socket.io/socket.io.js"></script>
-<script src="./js/session-storage.js?v=single-session-1"></script>
-<script src="./js/message-notifications.js"></script>
-<script src="./js/teacher-dashboard.js?v=messenger-channel-1"></script><script src="./js/browser-notifications.js?v=session-takeover-1"></script><script src="./js/teacher-messenger.js?v=independent-panel-2"></script><script src="./js/teacher-referral-withdrawals.js?v=teacher-referral-withdrawals-1"></script>
-<script defer="" src="./js/class-registry-teacher.js?v=registry-upload-2"></script>
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <script>
+    (function () {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get("mode") === "desktop") return;
+        if (sessionStorage.getItem("teacherDashboardDesktopMode") === "1") return;
+        var isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+          (window.screen && window.screen.width <= 900) ||
+          (window.innerWidth <= 900);
+        if (isMobile) {
+          window.location.replace("./teacher-dashboard-mobile.html" + window.location.search);
+        }
+      } catch (_) { }
+    })();
+  </script>
+  <title>لوحة الأستاذ | أكاديمية التفوق</title>
+  <link href="https://fonts.googleapis.com" rel="preconnect" />
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&amp;display=swap"
+    rel="stylesheet" />
+  <link href="./css/style.css?v=homework-paste-1" rel="stylesheet" />
+  <link href="./css/app.css?v=messenger-channel-1" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/browser-notifications.css?v=browser-notifications-1" />
+  <link href="./css/private-messages.css" rel="stylesheet" />
+  <link href="./css/payment-feedback.css" rel="stylesheet" />
+</head>
+
+<body class="dashboard-page teacher-dashboard-page">
+  <div class="teacher-dashboard-shell">
+    <header class="teacher-topbar">
+      <div class="teacher-topbar-start">
+        <div class="teacher-page-heading"><span class="teacher-page-kicker">مساحة الإدارة</span><strong
+            id="teacher-page-title">لوحة التحكم</strong></div>
+      </div>
+      <div class="teacher-topbar-actions">
+        <span class="teacher-presence"><i aria-hidden="true"></i>جاهز للإدارة</span><button
+          aria-controls="online-users-modal" aria-expanded="false" class="topbar-online-users" id="online-users-button"
+          type="button">👥 المتصلون الآن <b aria-label="عدد المستخدمين المتصلين" id="online-users-count">0</b></button>
+        <a class="topbar-studio-link" href="./teacher-live.html">بدء حصة مباشرة</a>
+        <div class="teacher-global-absence-control" role="group" aria-label="الإعلان العام عن غياب الأستاذ">
+          <button aria-pressed="false" class="teacher-global-absence-btn" id="teacher-global-absence-btn"
+            type="button">الإعلان عن الغياب</button>
+          <span aria-live="polite" class="teacher-global-absence-status is-present"
+            id="teacher-global-absence-status">الأستاذ حاضر</span>
+        </div>
+        <a aria-label="الرسائل" class="message-bell teacher-dashboard-message-bell" data-message-bell=""
+          href="./teacher-chat.html" rel="noopener" target="_blank"><span aria-hidden="true">✉</span><b
+            data-message-badge="" hidden="">0</b></a>
+        <a class="topbar-messages-link" href="./teacher-chat.html" rel="noopener" target="_blank">الرسائل</a>
+        <a class="topbar-messages-link" href="https://t.me/Minassaty_bot" target="_blank" rel="noopener"
+          style="background:#229ED9;color:#fff;border-color:#229ED9;">بوت Telegram ✈️</a>
+        <button class="topbar-public-invite" id="public-invite-btn" type="button">حصة عامة</button>
+        <button class="topbar-logout" id="logout-btn" type="button">تسجيل الخروج</button>
+      </div>
+    </header>
+    <main class="teacher-workspace">
+      <p class="form-error teacher-dashboard-error" hidden="" id="dashboard-error"></p>
+      <nav aria-label="اختيار المستوى الدراسي" class="teacher-level-strip" id="teacher-level-strip"><button
+          aria-current="true" aria-label="اختيار السنة الأولى متوسط" class="level-btn is-active"
+          data-level="السنة الأولى" type="button">السنة الأولى متوسط</button><button aria-current="false"
+          aria-label="اختيار السنة الثانية متوسط" class="level-btn" data-level="السنة الثانية" type="button">السنة
+          الثانية متوسط</button><button aria-current="false" aria-label="اختيار السنة الثالثة متوسط" class="level-btn"
+          data-level="السنة الثالثة" type="button">السنة الثالثة متوسط</button><button aria-current="false"
+          aria-label="اختيار السنة الرابعة متوسط" class="level-btn" data-level="السنة الرابعة" type="button">السنة
+          الرابعة متوسط</button><button aria-current="false" aria-label="اختيار طالب جامعي" class="level-btn"
+          data-level="طالب جامعي" type="button">طالب جامعي</button></nav>
+      <div class="teacher-main-frame" id="teacher-main-frame">
+        <nav aria-label="أقسام لوحة الأستاذ" class="teacher-tabs-nav">
+          <button aria-selected="true" class="teacher-tab-button is-active" data-dashboard-tab="overview"
+            type="button">الرئيسية</button>
+          <button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="students" type="button">قائمة
+            التلاميذ</button><button aria-selected="false" class="teacher-tab-button teacher-notifications-tab"
+            data-dashboard-tab="notifications" type="button">🔔 التنبيهات</button>
+          <button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="schedule" type="button">برمجة
+            الحصص</button>
+          <button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="registry" type="button">سجل
+            الحصص</button>
+          <button aria-selected="false" class="teacher-tab-button" data-dashboard-tab="assignments"
+            type="button">الواجبات</button>
+          <button class="teacher-tab-button" data-dashboard-tab="lessons" type="button">فيديوهات مكملة</button><button
+            aria-selected="false" class="teacher-tab-button" data-dashboard-tab="quiz"
+            type="button">Quiz</button><button aria-selected="false" class="teacher-tab-button"
+            data-dashboard-tab="electronic-payments" type="button">الدفعات الإلكترونية</button><button
+            aria-selected="false" class="teacher-tab-button" data-dashboard-tab="manual-payments" type="button">الدفعات
+            اليدوية</button><button aria-selected="false" class="teacher-tab-button"
+            data-dashboard-tab="referral-withdrawals" type="button">طلبات سحب الأرباح</button><button
+            aria-selected="false" class="teacher-tab-button" data-dashboard-tab="forgot-pin-requests" type="button">من
+            نسي كلمة مروره</button><button aria-selected="false" class="teacher-tab-button teacher-messenger-tab"
+            data-dashboard-tab="facebook-messenger" type="button">Facebook Messenger</button>
+        </nav>
+        <div class="teacher-tab-content">
+          <section aria-label="لوحة مؤشرات المستوى" class="teacher-bento-grid teacher-tab-panel overview-dashboard-grid"
+            data-dashboard-panel="overview">
+            <article class="bento-card overview-hero-card">
+              <div class="bento-card-heading"><span class="bento-kicker">نظرة اليوم</span><span class="bento-level-pill"
+                  id="bento-current-level">السنة الأولى متوسط</span></div>
+              <h2>المستوى بين يديك</h2>
+              <p id="overview-hero-copy">تابع التسجيلات، الاشتراكات، والمداخيل المؤكدة لهذا المستوى في نظرة واحدة.</p><a
+                class="bento-primary-action" href="./teacher-live.html">فتح الاستوديو <span
+                  aria-hidden="true">←</span></a>
+            </article>
+            <article class="bento-card overview-kpi-card"><span class="overview-kpi-label">إجمالي التلاميذ</span><strong
+                id="summary-total">0</strong><small id="overview-total-caption">في المستوى المختار</small></article>
+            <article class="bento-card overview-kpi-card overview-kpi-green"><span class="overview-kpi-label">تسجيلات
+                هذا الشهر</span><strong id="overview-monthly-registrations">0</strong><small>طلاب جدد منذ بداية
+                الشهر</small></article>
+            <article class="bento-card overview-kpi-card overview-kpi-blue"><span class="overview-kpi-label">الدخول
+                المفتوح</span><strong id="bento-live-enabled">0</strong><small>تلاميذ مسموح لهم بالحصة</small></article>
+            <article class="bento-card overview-revenue-card">
+              <div class="bento-card-heading"><span class="bento-kicker">المداخيل المؤكدة</span><span
+                  class="overview-revenue-mark">دج</span></div><strong id="overview-confirmed-revenue">0 دج</strong>
+              <p id="overview-revenue-caption">من الاشتراكات المؤكدة لهذا المستوى</p>
+              <div class="overview-revenue-split"><span>مدفوع <b id="summary-paid">0</b></span><span>وعد بالدفع <b
+                    id="overview-promised-count">0</b></span></div>
+            </article>
+            <article class="bento-card overview-attention-card">
+              <div class="bento-card-heading"><span class="bento-kicker">تحتاج انتباهك</span><span
+                  class="attention-pulse"></span></div>
+              <div class="overview-attention-list">
+                <div><span>وصلات تنتظر التأكيد</span><strong id="overview-pending-receipts">0</strong></div>
+                <div><span>محاولات دفع غير مكتملة</span><strong id="overview-payment-attempts">0</strong></div>
+                <div><span>طلبات نسيان كلمة المرور</span><strong id="overview-forgot-pin">0</strong></div>
+                <div><span>لم يتم الدفع</span><strong id="summary-unpaid">0</strong></div>
+              </div>
+            </article>
+            <article class="bento-card overview-class-card">
+              <div class="bento-card-heading"><span class="bento-kicker">حالة الحصة</span><span
+                  class="live-ready-dot"></span></div>
+              <h2 id="overview-class-title">الحصة غير مفتوحة</h2>
+              <p id="overview-class-copy">يمكنك فتح الاستوديو لبدء حصة هذا المستوى.</p><a
+                class="overview-secondary-action" href="./teacher-live.html">الذهاب إلى الاستوديو</a>
+            </article>
+          </section>
+          <section aria-labelledby="roster-title" class="teacher-roster teacher-tab-panel"
+            data-dashboard-panel="students" id="students-panel">
+            <div class="roster-heading">
+              <div>
+                <p class="eyebrow">إدارة التلاميذ</p>
+                <h2 id="roster-title"><span>قائمة التلاميذ</span></h2>
+                <p>اختر المستوى وابحث أو عدّل إعدادات التلميذ دون مغادرة الصفحة.</p>
+              </div><a class="roster-studio-link" href="./teacher-live.html">بدء حصة مباشرة</a>
+            </div>
+
+            <input aria-hidden="true" class="teacher-search-storage" id="student-search" tabindex="-1" type="search" />
+            <section aria-label="بحث وتصفية التلاميذ" class="roster-toolbar">
+              <div aria-label="تصفية حسب الاشتراك" class="roster-filter-buttons" role="group"><button
+                  aria-pressed="true" class="roster-filter-button is-active" data-payment-filter="all" type="button">كل
+                  التلاميذ</button><button aria-pressed="false" class="roster-filter-button" data-payment-filter="paid"
+                  type="button">الحسابات المدفوعة</button><button aria-pressed="false" class="roster-filter-button"
+                  data-payment-filter="unpaid" type="button">الحسابات غير المدفوعة</button></div><select
+                aria-hidden="true" class="roster-filter-storage" id="payment-filter" tabindex="-1">
+                <option value="all">كل التلاميذ</option>
+                <option value="paid">الحسابات المدفوعة</option>
+                <option value="unpaid">الحسابات غير المدفوعة</option>
+              </select><button aria-controls="student-search-modal" aria-label="البحث عن تلميذ"
+                class="student-search-trigger roster-search-button" id="student-search-trigger" title="البحث عن تلميذ"
+                type="button"><span aria-hidden="true">⌕</span><span>بحث</span></button><span
+                class="filtered-results-label" id="filtered-results-label">0 نتيجة معروضة</span>
+            </section>
+            <section class="table-card teacher-table-card">
+              <div class="table-wrap table-scroll-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>التلميذ</th>
+                      <th>رقم الولي</th>
+                      <th>نوع الاشتراك</th>
+                      <th id="student-payment-heading">حالة الدفع</th>
+                      <th>إجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody id="students-table-body"></tbody>
+                </table>
+              </div>
+              <p class="table-empty-state" hidden="" id="table-empty-state">لا يوجد تلاميذ مسجلون في هذا المستوى حالياً.
+              </p>
+            </section>
+          </section>
+          <section aria-labelledby="teacher-notifications-title" class="teacher-notifications-panel teacher-tab-panel"
+            data-dashboard-panel="notifications" id="teacher-notifications-panel">
+            <div class="teacher-notifications-card">
+              <div class="teacher-notifications-heading">
+                <div><span class="table-kicker">المستوى المختار</span>
+                  <h2 id="teacher-notifications-title">إرسال وبرمجة التنبيهات</h2>
+                  <p>اختر الجمهور، اكتب الرسالة، ثم أرسلها الآن أو حدد موعدًا مستقبليًا.</p>
+                </div><span class="teacher-notifications-status" id="teacher-notifications-status">جاهز</span>
+              </div>
+              <div class="teacher-notification-steps"><span class="is-done">1. اختيار المستوى ✓</span><span
+                  class="is-current">2. تحديد الجمهور</span><span>3. الإرسال أو البرمجة</span></div>
+              <div class="teacher-notification-statistics" aria-live="polite" aria-label="إحصائيات التنبيهات">
+                <div class="teacher-notification-stat"><strong
+                    id="teacher-notification-sent-count">0</strong><span>إشعار مرسل</span></div>
+                <div class="teacher-notification-stat teacher-notification-stat-read"><strong
+                    id="teacher-notification-read-count">0</strong><span>تمت قراءته</span></div>
+                <div class="teacher-notification-stat teacher-notification-stat-unread"><strong
+                    id="teacher-notification-unread-count">0</strong><span>غير مقروء</span></div>
+              </div>
+              <form class="teacher-notification-form" id="teacher-notification-form" novalidate>
+                <div class="teacher-notification-grid">
+                  <fieldset>
+                    <legend>من سيستلم التنبيه؟</legend><label class="teacher-notification-option"><input checked
+                        name="notification-recipient" type="radio" value="PARENTS"><span><strong>أولياء
+                          الأمور</strong><small>الأولياء المرتبطون بتلاميذ المستوى المختار.</small></span></label>
+                  </fieldset>
+                  <fieldset>
+                    <legend>تصفية الجمهور</legend><label class="teacher-notification-option"><input checked
+                        name="notification-payment" type="radio" value="ALL"><span><strong>كل الحسابات في
+                          المستوى</strong><small>بدون تصفية إضافية.</small></span></label><label
+                      class="teacher-notification-option"><input name="notification-payment" type="radio"
+                        value="FREE"><span><strong>الحسابات المجانية فقط</strong><small>الحسابات غير
+                          المدفوعة.</small></span></label><label class="teacher-notification-option"><input
+                        name="notification-payment" type="radio" value="PAID"><span><strong>الحسابات المدفوعة
+                          فقط</strong><small>الاشتراكات المدفوعة والمفعلة.</small></span></label>
+                  </fieldset>
+                </div>
+                <fieldset class="teacher-notification-target-fieldset">
+                  <legend>من هم التلاميذ المستهدفون؟</legend><label class="teacher-notification-option"><input checked
+                      name="notification-target-mode" type="radio" value="ALL_LEVEL"><span><strong>جميع تلاميذ
+                        المستوى</strong><small>يرسل إلى كل التلاميذ المؤهلين في المستوى
+                        المختار.</small></span></label><label class="teacher-notification-option"><input
+                      name="notification-target-mode" type="radio" value="SELECTED"><span><strong>تلميذ واحد أو
+                        مجموعة</strong><small>اختر تلميذًا واحدًا أو عدة تلاميذ من المستوى نفسه.</small></span></label>
+                  <div class="teacher-notification-student-picker" hidden id="teacher-notification-student-picker">
+                    <div class="teacher-notification-picker-heading"><strong>اختر التلاميذ</strong><button
+                        id="teacher-notification-select-all" type="button">تحديد الكل</button></div>
+                    <div aria-live="polite" class="teacher-notification-student-list"
+                      id="teacher-notification-student-list">
+                      <p>جارٍ تحميل تلاميذ المستوى…</p>
+                    </div>
+                  </div>
+                </fieldset>
+                <div class="teacher-notification-fields"><label>المادة<select id="teacher-notification-subject">
+                      <option value="ALL">كل المواد</option>
+                      <option value="MATH">الرياضيات</option>
+                      <option value="PHYSICS">الفيزياء</option>
+                      <option value="BOTH">الرياضيات والفيزياء</option>
+                    </select></label><label>عنوان التنبيه<input id="teacher-notification-title-input" maxlength="160"
+                      required placeholder="اكتب عنوانًا قصيرًا وواضحًا" type="text"></label><label
+                    class="teacher-notification-body-label">نص الرسالة<textarea id="teacher-notification-body-input"
+                      maxlength="10000" required
+                      placeholder="اكتب الرسالة التي ستصل إلى الجمهور المحدد..."></textarea></label></div>
+                <div class="teacher-notification-audience"><span><strong>الجمهور المحدد حاليًا</strong><small
+                      id="teacher-notification-audience-text">أولياء الأمور · السنة الأولى متوسط · كل الحسابات · كل
+                      المواد</small></span><b id="teacher-notification-recipient-count">سيتم حساب العدد</b></div>
+                <fieldset class="teacher-notification-delivery">
+                  <legend>طريقة الإرسال</legend><label class="teacher-notification-option"><input checked
+                      id="teacher-notification-immediate" name="notification-delivery" type="radio"
+                      value="IMMEDIATE"><span><strong>إرسال الآن</strong><small>يصل التنبيه فور تأكيد
+                        الأستاذ.</small></span></label><label class="teacher-notification-option"><input
+                      id="teacher-notification-scheduled" name="notification-delivery" type="radio"
+                      value="SCHEDULED"><span><strong>برمجة الإرسال لاحقًا</strong><small>اختر تاريخ ووقت وصول
+                        التنبيه.</small></span></label>
+                  <div class="teacher-notification-schedule-fields" hidden id="teacher-notification-schedule-fields">
+                    <label>التاريخ<input id="teacher-notification-scheduled-date" type="date"></label><label>الوقت<input
+                        id="teacher-notification-scheduled-time" type="time"></label></div>
+                </fieldset>
+                <fieldset class="teacher-notification-channel-fieldset">
+                  <legend>قناة الإرسال</legend><label class="teacher-notification-option"><input checked
+                      name="notification-channel" type="radio" value="BROWSER"><span><strong>تنبيه المتصفح
+                        فقط</strong><small>يعمل الآن دون الحاجة إلى إعداد SMS.</small></span></label><label
+                    class="teacher-notification-option is-disabled"><input disabled name="notification-channel"
+                      type="radio" value="SMS"><span><strong>رسالة SMS فقط</strong><small>ستبقى معطلة حتى إضافة بيانات
+                        مزود الرسائل.</small></span></label><label
+                    class="teacher-notification-option is-disabled"><input disabled name="notification-channel"
+                      type="radio" value="BOTH"><span><strong>المتصفح وSMS معًا</strong><small>يُتاح بعد تهيئة خدمة
+                        SMS.</small></span></label>
+                  <p aria-live="polite" class="teacher-notification-channel-status"
+                    id="teacher-notification-channel-status">جارٍ التحقق من قنوات الإرسال…</p>
+                </fieldset>
+                <div class="teacher-notification-form-actions"><label class="teacher-notification-session"><input
+                      checked id="teacher-notification-remember-session" type="checkbox"><span><strong>تذكر جلسة الأستاذ
+                        لمدة سنة واحدة</strong><small>الجلسة الحالية للوحة الأستاذ صالحة أصلًا لمدة سنة، ويمكن إلغاؤها
+                        من إدارة الجلسات.</small></span></label><button class="cta-button cta-primary"
+                    id="teacher-notification-submit" type="submit">إرسال التنبيه الآن</button></div>
+                <p aria-live="polite" class="teacher-notification-feedback" hidden id="teacher-notification-feedback">
+                </p>
+              </form>
+              <div class="teacher-notification-history">
+                <div class="teacher-notification-history-heading">
+                  <h3>التنبيهات المبرمجة والمرسلة</h3><button class="teacher-notification-refresh"
+                    id="teacher-notification-refresh" type="button">تحديث</button>
+                </div>
+                <div aria-live="polite" id="teacher-notification-history-list">
+                  <p class="teacher-notification-empty">لا توجد تنبيهات بعد.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section aria-labelledby="quiz-panel-title" class="teacher-quiz-panel teacher-tab-panel"
+            data-dashboard-panel="quiz" id="quiz-panel">
+            <div class="teacher-quiz-card"><span class="table-kicker">المستوى المختار</span>
+              <h2 id="quiz-panel-title">Quiz</h2>
+              <p>سيظهر هنا نظام الاختبارات القصيرة الخاص بمستوى <strong id="quiz-current-level">السنة الأولى
+                  متوسط</strong> عند تفعيله.</p><span class="teacher-quiz-status">قريبًا</span>
+            </div>
+          </section>
+          <section aria-labelledby="electronic-payments-title" class="teacher-payments-panel teacher-tab-panel"
+            data-dashboard-panel="electronic-payments" id="electronic-payments-panel">
+            <div class="teacher-payments-card">
+              <div class="teacher-payments-heading">
+                <div><span class="table-kicker">المستوى المختار</span>
+                  <h2 id="electronic-payments-title">الدفعات الإلكترونية</h2>
+                  <p>الدفعات الناجحة ومحاولات الدفع غير المكتملة أو الفاشلة عبر البطاقة الإلكترونية.</p>
+                </div>
+                <div class="teacher-electronic-summary"><span class="electronic-summary-success"
+                    id="electronic-payments-success-count">0 ناجحة</span><span class="electronic-summary-attempts"
+                    id="electronic-payments-attempt-count">0 محاولة</span></div><span class="teacher-payments-count"
+                  id="electronic-payments-count">0 عملية</span>
+              </div>
+              <div class="teacher-payments-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>التلميذ</th>
+                      <th>رقم الولي</th>
+                      <th>الاشتراك</th>
+                      <th>المبلغ</th>
+                      <th>الحالة</th>
+                      <th>تاريخ العملية</th>
+                      <th>رقم العملية</th>
+                      <th>الإجراء</th>
+                    </tr>
+                  </thead>
+                  <tbody id="electronic-payments-table-body"></tbody>
+                </table>
+              </div>
+              <p class="teacher-payments-empty" hidden id="electronic-payments-empty">لا توجد دفعات أو محاولات دفع
+                إلكترونية لهذا المستوى.</p>
+            </div>
+          </section>
+          <section aria-labelledby="manual-payments-title" class="teacher-payments-panel teacher-tab-panel"
+            data-dashboard-panel="manual-payments" id="manual-payments-panel">
+            <div class="teacher-payments-card">
+              <div class="teacher-payments-heading">
+                <div><span class="table-kicker">المستوى المختار</span>
+                  <h2 id="manual-payments-title">الدفعات اليدوية</h2>
+                  <p>التلاميذ الذين رفعوا صورة وصل أو إيصال الدفع.</p>
+                </div><span class="teacher-payments-count" id="manual-payments-count">0 تلميذ</span>
+              </div>
+              <div class="teacher-payments-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>التلميذ</th>
+                      <th>رقم الولي</th>
+                      <th>حالة الوصل</th>
+                      <th>تاريخ الرفع</th>
+                      <th>الإجراء</th>
+                    </tr>
+                  </thead>
+                  <tbody id="manual-payments-table-body"></tbody>
+                </table>
+              </div>
+              <p class="teacher-payments-empty" hidden id="manual-payments-empty">لا توجد وصولات دفع مرفوعة لهذا
+                المستوى.</p>
+            </div>
+          </section>
+          <section aria-labelledby="referral-withdrawals-title"
+            class="teacher-referral-withdrawals-panel teacher-tab-panel" data-dashboard-panel="referral-withdrawals"
+            id="referral-withdrawals-panel">
+            <div class="teacher-payments-card teacher-referral-withdrawals-card">
+              <div class="teacher-payments-heading">
+                <div><span class="table-kicker">الإحالات والأرباح</span>
+                  <h2 id="referral-withdrawals-title">طلبات سحب الأرباح</h2>
+                  <p>راجع معلومات BaridiMob، ثم أكد التحويل أو ارفض الطلب مع ذكر السبب.</p>
+                </div>
+                <div class="teacher-referral-withdrawal-summary"><span id="teacher-referral-pending-count">0
+                    معلقة</span><span id="teacher-referral-pending-total">0 دج</span></div>
+              </div>
+              <section class="teacher-referral-activity" aria-labelledby="teacher-referral-activity-title">
+                <div class="teacher-referral-activity-heading">
+                  <div>
+                    <h3 id="teacher-referral-activity-title">نشاط أصحاب روابط الإحالة</h3>
+                    <p>يظهر هنا كل ولي مسجّل عبر رابط إحالة، مع تفاصيل التلاميذ مجمعة حسب المستوى وحالة الدفع والعمولة.
+                    </p>
+                  </div><span id="teacher-referral-activity-count">0 صاحب رابط نشط</span>
+                </div>
+                <div id="teacher-referral-activity-list" class="teacher-referral-activity-list">
+                  <p class="teacher-referral-activity-empty">جارٍ تحميل نشاط الإحالات…</p>
+                </div>
+              </section>
+              <div class="teacher-referral-withdrawal-toolbar"><label>الحالة<select
+                    id="teacher-referral-withdrawal-status">
+                    <option value="PENDING">المعلقة</option>
+                    <option value="ALL">كل الطلبات</option>
+                    <option value="PAID">المدفوعة</option>
+                    <option value="REJECTED">المرفوضة</option>
+                  </select></label><button id="teacher-referral-withdrawal-refresh" class="teacher-notification-refresh"
+                  type="button">تحديث</button></div>
+              <div class="teacher-payments-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>صاحب الإحالة</th>
+                      <th>المبلغ</th>
+                      <th>حساب BaridiMob</th>
+                      <th>اسم صاحب الحساب</th>
+                      <th>عدد العمولات</th>
+                      <th>تاريخ الطلب</th>
+                      <th>الإجراء</th>
+                    </tr>
+                  </thead>
+                  <tbody id="teacher-referral-withdrawals-table-body"></tbody>
+                </table>
+              </div>
+              <p class="teacher-payments-empty" hidden id="teacher-referral-withdrawals-empty">لا توجد طلبات سحب في
+                الحالة المختارة.</p>
+              <p id="teacher-referral-withdrawals-feedback" class="teacher-referral-withdrawals-feedback" role="status"
+                aria-live="polite" hidden></p>
+            </div>
+          </section>
+          <section aria-labelledby="forgot-pin-requests-title" class="teacher-forgot-pin-panel teacher-tab-panel"
+            data-dashboard-panel="forgot-pin-requests" id="forgot-pin-requests-panel">
+            <div class="teacher-payments-card">
+              <div class="teacher-payments-heading">
+                <div><span class="table-kicker">المستوى المختار</span>
+                  <h2 id="forgot-pin-requests-title">من نسي كلمة مروره</h2>
+                  <p>طلبات الاسترجاع التي أرسلها الأولياء أو أصحاب الحسابات.</p>
+                </div><span class="teacher-payments-count" id="forgot-pin-requests-count">0 طلب</span>
+              </div>
+              <div class="teacher-payments-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>التلميذ</th>
+                      <th>رقم الهاتف</th>
+                      <th>وقت الطلب</th>
+                      <th>الإجراء</th>
+                    </tr>
+                  </thead>
+                  <tbody id="forgot-pin-requests-table-body"></tbody>
+                </table>
+              </div>
+              <p class="teacher-payments-empty" hidden id="forgot-pin-requests-empty">لا توجد طلبات استرجاع لهذا
+                المستوى.</p>
+            </div>
+          </section>
+          <section aria-labelledby="assignment-manager-title" class="assignment-manager teacher-tab-panel"
+            data-dashboard-panel="assignments" id="assignment-manager">
+            <button aria-controls="assignment-manager-controls" aria-expanded="false" class="class-registry-toggle"
+              id="assignment-manager-toggle" type="button">
+              <span class="class-registry-toggle-copy"><span>الواجبات المدرسية</span><strong
+                  id="assignment-manager-title">إدارة الواجبات</strong><small>اضغط لإضافة واجبات جديدة ومتابعة الحلول
+                  المرسلة.</small></span>
+              <span aria-hidden="true" class="class-registry-toggle-icon" id="assignment-manager-toggle-icon">⌄</span>
+            </button>
+            <div class="class-registry-controls" hidden="" id="assignment-manager-controls">
+              <header class="assignment-manager-head">
+                <div>
+                  <p id="assignment-level-caption">أضف واجبات جديدة للمستوى المختار وتابع حلول التلاميذ.</p>
+                </div>
+              </header>
+              <form class="assignment-form stack-form" id="assignment-form" novalidate="">
+                <div class="form-row">
+                  <label>المادة<select id="assignment-subject" required="">
+                      <option value="MATH">الرياضيات</option>
+                      <option value="PHYSICS">الفيزياء</option>
+                    </select></label>
+                </div>
+                <label>وصف التعليمات
+                  <div aria-label="وصف تعليمات الواجب" class="assignment-paste-editor" contenteditable="true"
+                    data-placeholder="اكتب التعليمات أو ألصق صورة الواجب هنا…" id="assignment-description"
+                    role="textbox"></div>
+                  <small class="assignment-paste-help">يمكنك نسخ صورة الواجب ثم لصقها هنا مباشرةً من الحاسوب أو
+                    الهاتف.</small>
+                </label>
+                <button class="cta-button cta-primary" id="assignment-submit" type="submit">نشر الواجب</button>
+              </form>
+              <div aria-live="polite" class="teacher-assignments-list" id="teacher-assignments-list"></div>
+            </div>
+          </section>
+          <section aria-labelledby="lesson-repository-title" class="lesson-repository-manager teacher-tab-panel"
+            data-dashboard-panel="lessons" id="lesson-repository-manager">
+            <button aria-controls="lesson-repository-controls" aria-expanded="false" class="class-registry-toggle"
+              id="lesson-repository-toggle" type="button">
+              <span class="class-registry-toggle-copy"><span>فيديوهات مكملة</span><strong
+                  id="lesson-repository-title">إضافة فيديو مكمل</strong><small>اضغط لإضافة روابط YouTube وعرض الفيديوهات
+                  المكملة لهذا المستوى.</small></span>
+              <span aria-hidden="true" class="class-registry-toggle-icon" id="lesson-repository-toggle-icon">⌄</span>
+            </button>
+            <button class="lesson-video-modal-open" id="lesson-video-modal-open" type="button">إضافة فيديو مكمل</button>
+            <div class="class-registry-controls" hidden="" id="lesson-repository-controls">
+              <header class="lesson-repository-head">
+                <div>
+                  <p id="lesson-repository-caption">أضف رابط YouTube وعنوانًا واضحًا للفيديو المكمل للمستوى المختار.</p>
+                </div>
+              </header>
+              <p class="lesson-repository-note">أدخل رابط YouTube والعنوان يدويًا. يرتبط كل فيديو بمستوى ومادة أو نوع
+                اشتراك، ويظهر فقط للطلاب المؤهلين.</p>
+              <div aria-live="polite" class="teacher-lesson-video-list" id="teacher-lesson-video-list"></div>
+            </div>
+          </section>
+          <section aria-labelledby="class-registry-title" class="class-registry-manager teacher-tab-panel"
+            data-dashboard-panel="registry" id="class-registry-manager">
+            <button aria-controls="class-registry-controls" aria-expanded="false" class="class-registry-toggle"
+              id="class-registry-toggle" type="button">
+              <span class="class-registry-toggle-copy"><span>سجل الحصص</span><strong id="class-registry-title">إدارة سجل
+                  الحصص والدروس المسجلة</strong><small>اضغط لعرض الفلاتر وتسجيل إنجاز الحصص وربط فيديو
+                  YouTube.</small></span>
+              <span aria-hidden="true" class="class-registry-toggle-icon" id="class-registry-toggle-icon">⌄</span>
+            </button>
+            <div class="class-registry-controls" hidden="" id="class-registry-controls">
+              <header class="class-registry-head">
+                <div>
+                  <p>حدّد الفصل الدراسي أولًا، ثم الشهر والمادة، وبعدها سجّل إنجاز الحصة واختر فيديو YouTube أو استخدم
+                    رابط Google Drive.</p>
+                </div>
+                <div class="youtube-connection-actions"><button class="youtube-connect-button"
+                    id="youtube-connect-button" type="button">ربط قناة YouTube</button><button
+                    class="youtube-upload-button" id="registry-upload-video-btn" type="button"><span
+                      aria-hidden="true">📤</span><span>رفع فيديو (.webm) إلى YouTube</span></button><input type="file"
+                    id="registry-video-file-input" accept="video/webm,video/mp4,video/*" hidden /><span
+                    aria-live="polite" class="youtube-connection-status" id="youtube-connection-status">جارٍ التحقق من
+                    الاتصال…</span></div>
+              </header>
+              <div class="class-registry-filters">
+                <label>الفصل الدراسي<select id="class-registry-term">
+                    <option value="">اختر الفصل الدراسي</option>
+                    <option value="TERM_1">الفصل الأول</option>
+                    <option value="TERM_2">الفصل الثاني</option>
+                    <option value="TERM_3">الفصل الثالث</option>
+                  </select></label>
+                <label>الشهر<select id="class-registry-month" disabled>
+                    <option value="">اختر الفصل أولًا</option>
+                  </select></label>
+                <label>المادة<select id="class-registry-subject" disabled>
+                    <option value="">اختر الشهر أولًا</option>
+                  </select></label>
+              </div>
+              <div aria-live="polite" class="class-registry-list" id="class-registry-list"></div>
+            </div>
+          </section>
+          <section aria-labelledby="schedule-manager-title" class="schedule-manager teacher-tab-panel"
+            data-dashboard-panel="schedule" id="schedule-manager">
+            <header class="schedule-manager-head">
+              <button aria-controls="schedule-manager-content" aria-expanded="false" class="schedule-manager-toggle"
+                id="schedule-manager-toggle" type="button">
+                <span class="schedule-manager-toggle-copy"><span class="schedule-kicker">برنامج المستوى</span><strong
+                    id="schedule-manager-title">برمجة الحصص</strong><small id="schedule-level-caption">أضف وعدّل واحذف
+                    حصص المستوى المختار.</small></span>
+                <span aria-hidden="true" class="schedule-manager-toggle-icon" id="schedule-manager-toggle-icon">⌄</span>
+              </button>
+            </header>
+            <div class="schedule-manager-content" hidden="" id="schedule-manager-content">
+              <form class="schedule-form" id="schedule-form" novalidate=""><label>نوع الحصة<select id="schedule-subject"
+                    required=""></select></label><label>التاريخ والتوقيت<input id="schedule-datetime" required=""
+                    type="datetime-local" /></label>
+                <div class="schedule-form-actions"><button class="schedule-submit-btn" id="schedule-submit-btn"
+                    type="submit">إضافة حصة</button><button class="schedule-cancel-btn" hidden=""
+                    id="schedule-cancel-edit-btn" type="button">إلغاء التعديل</button></div>
+              </form>
+              <div aria-live="polite" class="scheduled-class-list" id="scheduled-class-list"></div>
+            </div>
+          </section>
+          <section aria-labelledby="facebook-messenger-panel-title" class="teacher-messenger-panel teacher-tab-panel"
+            data-dashboard-panel="facebook-messenger" id="facebook-messenger-panel">
+            <div class="teacher-messenger-card">
+              <div class="teacher-messenger-heading">
+                <div><span class="table-kicker">تحكم مستقل وآمن</span>
+                  <h2 id="facebook-messenger-panel-title">Facebook Messenger</h2>
+                  <p>تحكم في الرسائل المرسلة إلى الأولياء المرتبطين بصفحة «أستاذ الفيزياء و الرياضيات» وفق قواعد Meta.
+                  </p>
+                </div><span class="teacher-messenger-status-badge is-loading" id="teacher-messenger-status-badge">جارٍ
+                  التحقق</span>
+              </div>
+              <div class="teacher-messenger-safety-grid" aria-label="حالة أمان Messenger">
+                <article class="teacher-messenger-safety-card is-safe"><span>إعداد آمن</span><strong
+                    id="teacher-messenger-safe-status">الرمز والإعدادات</strong><small>يتم حفظ Access Token في الخادم
+                    فقط ولا يظهر للأستاذ.</small></article>
+                <article class="teacher-messenger-safety-card is-warning"><span>تحذير</span><strong
+                    id="teacher-messenger-warning-status">نافذة التفاعل</strong><small>لن تُرسل الرسالة لمن انتهت نافذة
+                    Meta لديه.</small></article>
+                <article class="teacher-messenger-safety-card is-danger"><span>إيقاف خطير</span><strong
+                    id="teacher-messenger-danger-status">لا توجد أخطاء</strong><small>يتوقف الطابور عند خطأ صلاحيات أو
+                    تجاوز معدل الإرسال.</small></article>
+              </div>
+              <div class="teacher-messenger-quota" aria-live="polite">
+                <div><span>محاولات اليوم</span><strong id="teacher-messenger-attempted-count">0</strong></div>
+                <div><span>تم الإرسال</span><strong id="teacher-messenger-sent-count">0</strong></div>
+                <div><span>تم التجاوز</span><strong id="teacher-messenger-skipped-count">0</strong></div>
+                <div><span>المتبقي</span><strong id="teacher-messenger-remaining-count">0</strong></div>
+              </div>
+              <form class="teacher-messenger-form" id="teacher-messenger-form" novalidate>
+                <fieldset>
+                  <legend>إعدادات الأمان والتحكم</legend>
+                  <div class="teacher-messenger-settings-grid"><label class="teacher-messenger-checkbox"><input checked
+                        id="teacher-messenger-enabled" type="checkbox"><span><strong>تشغيل إرسال
+                          Messenger</strong><small>يمكنك إيقاف الإرسال يدويًا دون حذف روابط
+                          الأولياء.</small></span></label><label>حد التحذير اليومي<input
+                        id="teacher-messenger-daily-warning" type="number" min="1" max="100000"
+                        inputmode="numeric"><small>تظهر حالة تحذير قبل الوصول إلى حد الإيقاف.</small></label><label>حد
+                      الإيقاف اليومي<input id="teacher-messenger-daily-hard" type="number" min="1" max="100000"
+                        inputmode="numeric"><small>حاجز داخلي؛ لا يتجاوز قواعد Meta.</small></label><label>الفاصل بين
+                      الرسائل بالميلي ثانية<input id="teacher-messenger-interval" type="number" min="250" max="60000"
+                        inputmode="numeric"><small>ابدأ بفاصل 1000ms أو أكثر.</small></label><label>عدد المحاولات<input
+                        id="teacher-messenger-retries" type="number" min="0" max="5" inputmode="numeric"><small>إعادة
+                        محدودة للأخطاء المؤقتة فقط.</small></label><label>نافذة التفاعل بالساعات<input
+                        id="teacher-messenger-window" type="number" min="1" max="24" inputmode="numeric"><small>لا يمكن
+                        ضبطها فوق 24 ساعة وفق النافذة القياسية.</small></label></div><label
+                    class="teacher-messenger-checkbox"><input checked id="teacher-messenger-append-confirmation"
+                      type="checkbox"><span><strong>إضافة طلب التأكيد</strong><small>إلحاق: أرسل «تم» إذا تلقيت هذه
+                        الرسالة.</small></span></label><label class="teacher-messenger-checkbox"><input checked
+                      id="teacher-messenger-pause-rate-limit" type="checkbox"><span><strong>إيقاف تلقائي عند تجاوز
+                        المعدل</strong><small>يوقف الإرسال حتى يراجع الأستاذ الحالة.</small></span></label><button
+                    class="teacher-messenger-secondary-button" id="teacher-messenger-save-settings" type="button">حفظ
+                    إعدادات الأمان</button>
+                </fieldset>
+                <fieldset>
+                  <legend>الجمهور المستهدف</legend>
+                  <div class="teacher-messenger-fields-grid"><label>المستوى<select id="teacher-messenger-level">
+                        <option value="السنة الأولى متوسط">السنة الأولى متوسط</option>
+                        <option value="السنة الثانية متوسط">السنة الثانية متوسط</option>
+                        <option value="السنة الثالثة متوسط">السنة الثالثة متوسط</option>
+                        <option value="السنة الرابعة متوسط">السنة الرابعة متوسط</option>
+                        <option value="طالب جامعي">طالب جامعي</option>
+                      </select></label><label>حالة الاشتراك<select id="teacher-messenger-payment">
+                        <option value="ALL">جميع الحالات</option>
+                        <option value="FREE">مجاني</option>
+                        <option value="UNPAID">لم يتم الدفع</option>
+                        <option value="PAID">تم الدفع</option>
+                        <option value="PROMISED">الوعد بالدفع</option>
+                      </select></label><label>المادة<select id="teacher-messenger-subject">
+                        <option value="ALL">كل المواد</option>
+                        <option value="MATH">الرياضيات</option>
+                        <option value="PHYSICS">الفيزياء</option>
+                        <option value="BOTH">الرياضيات والفيزياء</option>
+                      </select></label></div><label class="teacher-messenger-checkbox"><input checked
+                      name="teacher-messenger-target-mode" type="radio" value="ALL_LEVEL"><span><strong>جميع أولياء
+                        المستوى</strong><small>يُرسل فقط إلى الحسابات المرتبطة والمؤهلة.</small></span></label><label
+                    class="teacher-messenger-checkbox"><input name="teacher-messenger-target-mode" type="radio"
+                      value="SELECTED"><span><strong>ولي واحد أو مجموعة تلاميذ</strong><small>اختر من القائمة بعد تحميل
+                        المستوى.</small></span></label>
+                  <div class="teacher-messenger-student-list-toolbar"><span id="teacher-messenger-student-count"
+                      role="status" aria-live="polite">اختر الفلاتر لعرض النتائج.</span><button
+                      class="teacher-messenger-secondary-button" id="teacher-messenger-refresh-students"
+                      type="button">تحديث قائمة التلاميذ</button></div>
+                  <div class="teacher-messenger-student-list" id="teacher-messenger-student-list" hidden>
+                    <p>اختر المستوى لتحميل القائمة.</p>
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend>محتوى الرسالة</legend><label>عنوان الرسالة<input id="teacher-messenger-title" maxlength="160"
+                      required placeholder="مثال: تذكير بحصة الفيزياء"></label><label>نص الرسالة<textarea
+                      id="teacher-messenger-body" maxlength="1800" rows="6" required
+                      placeholder="اكتب الرسالة التعليمية أو الإدارية..."></textarea></label>
+                  <p class="teacher-messenger-policy-note">الرسالة تُرسل فقط داخل نافذة التفاعل المسموح بها، ولا يُطلب
+                    من الولي PIN أو كلمة مرور Minasaty.</p>
+                </fieldset>
+                <div class="teacher-messenger-actions"><button class="cta-button cta-primary"
+                    id="teacher-messenger-send" type="submit">إرسال عبر Facebook Messenger</button><span
+                    class="teacher-messenger-feedback" id="teacher-messenger-feedback" role="status"
+                    aria-live="polite"></span></div>
+              </form>
+            </div>
+          </section>
+        </div>
+      </div>
+      <div class="lesson-video-modal" hidden="True" id="lesson-video-modal">
+        <section aria-labelledby="lesson-video-modal-title" aria-modal="true" class="lesson-video-modal-card"
+          id="lesson-video-modal-card" role="dialog"><button aria-label="إغلاق" class="lesson-video-modal-close"
+            id="lesson-video-modal-close" type="button">×</button>
+          <h2 id="lesson-video-modal-title">إضافة فيديو مكمل</h2>
+          <form class="lesson-video-form" id="lesson-video-form" novalidate=""><label>تصنيف الفيديو المكمل<select
+                aria-describedby="lesson-video-type-help" id="lesson-video-type" required=""></select><small
+                class="lesson-video-type-help" id="lesson-video-type-help">سيظهر الفيديو فقط للطلاب المؤهلين لهذا
+                التصنيف.</small></label><label>عنوان الفيديو المكمل<input id="lesson-video-title" maxlength="160"
+                placeholder="مثال: مجموعة تمارين لاختبارات الفصل الأول" required="" type="text" /></label><label>رابط
+              فيديو YouTube<input id="lesson-video-url" inputmode="url"
+                placeholder="https://www.youtube.com/watch?v=..." required="" type="url" /></label>
+            <div class="lesson-video-form-actions"><button class="lesson-video-submit" id="lesson-video-submit"
+                type="submit">نشر الفيديو المكمل</button></div>
+          </form>
+        </section>
+      </div>
+    </main>
+  </div>
+  <dialog aria-labelledby="student-search-modal-title" class="student-search-modal" id="student-search-modal">
+    <form class="student-search-dialog" id="student-search-form" method="dialog"><button aria-label="إغلاق نافذة البحث"
+        class="student-search-modal-close" id="student-search-modal-close" type="button">×</button>
+      <p class="eyebrow">قائمة التلاميذ</p>
+      <h2 id="student-search-modal-title">البحث عن تلميذ</h2><label for="student-search-modal-input">اسم التلميذ<input
+          autocomplete="off" id="student-search-modal-input" placeholder="اكتب اسم التلميذ..." type="search" /></label>
+      <div class="student-search-modal-actions"><button class="student-search-cancel" id="student-search-modal-cancel"
+          type="button">إلغاء</button><button class="student-search-submit" type="submit">OK</button></div>
+    </form>
+  </dialog>
+  <div class="modal student-actions-modal" hidden="" id="student-actions-modal">
+    <div aria-labelledby="student-actions-title" aria-modal="true" class="modal-card student-actions-card"
+      role="dialog"><button aria-label="إغلاق إجراءات التلميذ" class="modal-close" id="student-actions-modal-close"
+        type="button">×</button>
+      <p class="eyebrow">إجراءات التلميذ</p>
+      <h2 id="student-actions-title">التلميذ</h2>
+      <p class="student-actions-level" id="student-actions-level"></p>
+      <div class="student-actions-stats-header"><button type="button" class="student-actions-edit-stats-btn"
+          id="student-actions-edit-stats-btn"
+          title="تعديل وتحديد أرقام الحضور والمشاركات والتمارين والنقاط السابقة"><span>✏️ تعديل الإحصائيات
+            والنقاط</span></button></div>
+      <div class="student-actions-stats" id="student-actions-stats"><button type="button"
+          class="student-stat-pill student-stat-attendance" id="student-actions-attendance-card"
+          title="انقر لعرض تفاصيل الحضور للحصص المباشرة وموادها">
+          <div class="student-stat-icon">📅</div>
+          <div class="student-stat-meta"><span class="student-stat-title">عدد الحضور</span>
+            <div class="student-stat-num-row"><strong class="student-stat-num"
+                id="student-actions-attendance-val">0</strong><span class="student-stat-tag">حصة</span></div><span
+              class="student-stat-details-link">عرض التفاصيل ↗</span>
+          </div>
+        </button><button type="button" class="student-stat-pill student-stat-participation"
+          id="student-actions-participation-card" title="انقر لعرض تفاصيل المشاركات الصوتية وموادها">
+          <div class="student-stat-icon">🎙️</div>
+          <div class="student-stat-meta"><span class="student-stat-title">عدد المشاركات</span>
+            <div class="student-stat-num-row"><strong class="student-stat-num"
+                id="student-actions-participation-val">0</strong><span class="student-stat-tag">مشاركة</span></div><span
+              class="student-stat-details-link">عرض التفاصيل ↗</span>
+          </div>
+        </button><button type="button" class="student-stat-pill student-stat-exercises"
+          id="student-actions-exercises-card" title="حل التمارين والصور المرسلة أثناء الحصة المباشرة إلى تيليجرام">
+          <div class="student-stat-icon">📝</div>
+          <div class="student-stat-meta"><span class="student-stat-title">حل التمارين أثناء الحصة</span>
+            <div class="student-stat-num-row"><strong class="student-stat-num"
+                id="student-actions-exercises-val">0</strong><span class="student-stat-tag">تمرين</span></div><span
+              class="student-stat-details-link">وصلت للتيليجرام ✓</span>
+          </div>
+        </button><button type="button" class="student-stat-pill student-stat-points" id="student-actions-points-card"
+          title="نقاط التفاعل والتميز من إيموجيات الأستاذ (🔥+5 ❤️+3 👍+2 👎-1 👀0)">
+          <div class="student-stat-icon">⭐</div>
+          <div class="student-stat-meta"><span class="student-stat-title">نقاط التفاعل والتميز</span>
+            <div class="student-stat-num-row"><strong class="student-stat-num"
+                id="student-actions-points-val">0</strong><span class="student-stat-tag">نقطة</span></div><span
+              class="student-stat-details-link" id="student-actions-points-breakdown">🔥×0 ❤️×0 👍×0</span>
+          </div>
+        </button></div>
+      <div class="student-actions-list" id="student-actions-list"></div>
+    </div>
+  </div>
+  <div class="modal student-stats-edit-modal" hidden="" id="student-stats-edit-modal">
+    <div aria-labelledby="student-stats-edit-title" aria-modal="true" class="modal-card student-stats-edit-card"
+      role="dialog"><button aria-label="إغلاق نافذة تعديل الإحصائيات" class="modal-close"
+        id="student-stats-edit-modal-close" type="button">×</button>
+      <p class="eyebrow">إحصائيات ونقاط التلميذ</p>
+      <h2 id="student-stats-edit-title">تعديل الإحصائيات والنقاط</h2>
+      <p class="student-actions-level" id="student-stats-edit-subtitle"></p>
+      <div class="student-stats-edit-notice">💡 <strong>ملاحظة هامة:</strong> أدخل الأرقام الإجمالية التي تريدها للتلميذ
+        (بما فيها السابقة). ستستمر المنصة بحساب أي حضور أو مشاركة أو تفاعل جديد تلقائياً فوق هذه الأرقام.</div>
+      <form class="stack-form student-stats-edit-form" id="student-stats-edit-form">
+        <div class="student-stats-edit-grid"><label class="student-stats-edit-field"><span class="field-label">📅 عدد
+              الحضور (حصة)</span><input type="number" id="student-stats-edit-attendance" min="0" step="1" required
+              placeholder="0" /><small class="field-hint">الحصص السابقة والحالية</small></label><label
+            class="student-stats-edit-field"><span class="field-label">🎙️ عدد المشاركات (مشاركة)</span><input
+              type="number" id="student-stats-edit-participation" min="0" step="1" required placeholder="0" /><small
+              class="field-hint">مشاركات المايك أثناء البث</small></label><label class="student-stats-edit-field"><span
+              class="field-label">📝 حل التمارين أثناء الحصة (تمرين)</span><input type="number"
+              id="student-stats-edit-exercises" min="0" step="1" required placeholder="0" /><small
+              class="field-hint">صور التمارين المرسلة للتيليجرام</small></label><label
+            class="student-stats-edit-field"><span class="field-label">⭐ نقاط التفاعل والتميز (نقطة)</span><input
+              type="number" id="student-stats-edit-points" min="0" step="1" required placeholder="0" /><small
+              class="field-hint">مجموع نقاط الإيموجي والتميز</small></label></div>
+        <p aria-live="polite" class="form-message" hidden="" id="student-stats-edit-message"></p>
+        <div class="student-stats-edit-actions"><button type="submit" class="cta-button cta-primary"
+            id="student-stats-edit-submit-btn">حفظ وتحديث الإحصائيات</button><button type="button"
+            class="cta-button cta-secondary" id="student-stats-edit-cancel-btn">إلغاء</button></div>
+      </form>
+    </div>
+  </div>
+  <div class="modal" hidden="" id="student-contact-modal">
+    <div aria-labelledby="student-contact-title" aria-modal="true" class="modal-card" role="dialog"><button
+        aria-label="إغلاق تعديل بيانات التلميذ" class="modal-close" id="student-contact-modal-close"
+        type="button">×</button>
+      <p class="eyebrow">بيانات الحساب</p>
+      <h2 id="student-contact-title">تعديل الاسم ورقم الهاتف</h2>
+      <p class="student-contact-note">إذا تغيّر رقم الهاتف، سيتم نقل التلاميذ المرتبطين بالرقم القديم إلى الرقم الجديد،
+        وستُلغى جلسة الولي لإعادة الدخول.</p>
+      <form class="stack-form" id="student-contact-form" novalidate=""><label>اسم التلميذ<input autocomplete="name"
+            id="student-contact-name" maxlength="120" required="" type="text" /></label><label>رقم هاتف الولي<input
+            autocomplete="tel" inputmode="tel" id="student-contact-phone" maxlength="20"
+            placeholder="05 أو 06 أو 07xxxxxxxx" required="" type="tel" /></label>
+        <p aria-live="polite" class="form-message" hidden="" id="student-contact-message"></p><button
+          class="cta-button cta-primary" id="student-contact-submit" type="submit">حفظ التعديل</button>
+      </form>
+    </div>
+  </div>
+  <div class="modal attendance-dashboard-modal" hidden="" id="attendance-modal">
+    <div aria-labelledby="attendance-modal-title" aria-modal="true" class="modal-card attendance-dashboard-card"
+      role="dialog"><button aria-label="إغلاق سجل الحضور" class="modal-close" id="close-attendance-modal"
+        type="button">×</button>
+      <div class="dash-modal-header"><span class="dash-badge">سجل الحضور الذكي</span>
+        <h2 id="attendance-modal-title">سجل حضور: <span id="attendance-student-name">التلميذ</span></h2>
+        <p class="dash-subtitle">يُحسب الحضور بدخول البث المباشر خلال فترة اليوم وتُجمع المحاولات المتكررة كحضور واحد.
+        </p>
+      </div>
+      <div class="attendance-kpi-grid">
+        <div class="dash-kpi-card total-kpi"><span class="kpi-label">إجمالي الحصص</span>
+          <div class="kpi-number-wrap"><strong class="kpi-number" id="attendance-total-count">0</strong><span
+              class="kpi-unit">حصة</span></div><span class="kpi-sub">حضور فعلي</span>
+        </div>
+        <div class="dash-kpi-card math-kpi"><span class="kpi-label">حضور الرياضيات</span>
+          <div class="kpi-number-wrap"><strong class="kpi-number" id="attendance-math-count">0</strong><span
+              class="kpi-unit">حصة</span></div><span class="kpi-sub">حصة رياضيات</span>
+        </div>
+        <div class="dash-kpi-card physics-kpi"><span class="kpi-label">حضور الفيزياء</span>
+          <div class="kpi-number-wrap"><strong class="kpi-number" id="attendance-physics-count">0</strong><span
+              class="kpi-unit">حصة</span></div><span class="kpi-sub">حصة فيزياء</span>
+        </div>
+      </div>
+      <div class="dash-section-head">
+        <h3>تفاصيل الحصص المحضورة</h3><span class="dash-records-count" id="attendance-records-count">0 حصة</span>
+      </div>
+      <div class="attendance-list-wrap">
+        <p hidden="" id="attendance-empty" class="dash-empty-state">لا توجد سجلات حضور مسجلة لهذا التلميذ حتى الآن.</p>
+        <ul class="attendance-list" id="attendance-list"></ul>
+      </div>
+    </div>
+  </div>
+  <div class="modal participation-dashboard-modal" hidden="" id="participation-modal">
+    <div aria-labelledby="participation-modal-title" aria-modal="true" class="modal-card participation-dashboard-card"
+      role="dialog"><button aria-label="إغلاق سجل المشاركات" class="modal-close" id="close-participation-modal"
+        type="button">×</button>
+      <div class="dash-modal-header"><span class="dash-badge is-participation">المشاركات الصوتية</span>
+        <h2 id="participation-modal-title">سجل مشاركات: <span id="participation-student-name">التلميذ</span></h2>
+        <p class="dash-subtitle">تُحتسب المشاركة عند فتح المايك والتحدث لمدة 5 ثوانٍ على الأقل أثناء الحصة المباشرة.</p>
+      </div>
+      <div class="attendance-kpi-grid">
+        <div class="dash-kpi-card total-kpi is-participation"><span class="kpi-label">إجمالي المشاركات</span>
+          <div class="kpi-number-wrap"><strong class="kpi-number" id="participation-total-count">0</strong><span
+              class="kpi-unit">مشاركة</span></div><span class="kpi-sub">مشاركة صوتية</span>
+        </div>
+        <div class="dash-kpi-card math-kpi"><span class="kpi-label">مشاركات الرياضيات</span>
+          <div class="kpi-number-wrap"><strong class="kpi-number" id="participation-math-count">0</strong><span
+              class="kpi-unit">مشاركة</span></div><span class="kpi-sub">في حصص الرياضيات</span>
+        </div>
+        <div class="dash-kpi-card physics-kpi"><span class="kpi-label">مشاركات الفيزياء</span>
+          <div class="kpi-number-wrap"><strong class="kpi-number" id="participation-physics-count">0</strong><span
+              class="kpi-unit">مشاركة</span></div><span class="kpi-sub">في حصص الفيزياء</span>
+        </div>
+      </div>
+      <div class="dash-section-head">
+        <h3>سجل الحصص التي شارك فيها التلميذ</h3><span class="dash-records-count" id="participation-records-count">0
+          مشاركة</span>
+      </div>
+      <div class="attendance-list-wrap">
+        <p hidden="" id="participation-empty" class="dash-empty-state">لم يسجل هذا التلميذ أي مشاركة صوتية حتى الآن.</p>
+        <ul class="attendance-list participation-list" id="participation-list"></ul>
+      </div>
+    </div>
+  </div>
+  <div class="modal subscription-dates-modal" hidden="" id="subscription-dates-modal">
+    <div aria-labelledby="subscription-dates-title" aria-modal="true" class="modal-card subscription-dates-card"
+      role="dialog"><button aria-label="إغلاق نافذة فترة الاشتراك" class="modal-close"
+        id="subscription-dates-modal-close" type="button">×</button>
+      <p class="eyebrow">فترة الاشتراك</p>
+      <h2 id="subscription-dates-title">تحديد فترة الاشتراك</h2>
+      <p class="student-actions-level" id="subscription-dates-student-info"></p>
+      <div class="subscription-dates-status-box" id="subscription-dates-status-box"><span
+          class="subscription-dates-status-icon" id="subscription-dates-status-icon">📅</span>
+        <div class="subscription-dates-status-info"><strong id="subscription-dates-status-title">حالة فترة
+            الاشتراك</strong>
+          <p id="subscription-dates-status-desc">لم يتم تحديد فترة الاشتراك بعد</p>
+        </div>
+      </div>
+      <form class="stack-form subscription-dates-form" id="subscription-dates-form" novalidate="">
+        <div class="subscription-dates-inputs-grid"><label><span>تاريخ بدء الاشتراك</span><input
+              id="subscription-start-date" type="date" /></label><label><span>تاريخ انتهاء الاشتراك</span><input
+              id="subscription-end-date" type="date" /></label></div>
+        <div class="subscription-dates-presets"><span class="presets-label">فترات جاهزة سريعة:</span>
+          <div class="presets-buttons"><button class="preset-btn" id="preset-1-month" type="button">+ شهر (30
+              يوماً)</button><button class="preset-btn" id="preset-3-months" type="button">+ 3 أشهر</button><button
+              class="preset-btn" id="preset-school-year" type="button">سنة دراسية</button><button
+              class="preset-btn is-clear" id="subscription-dates-clear-btn" type="button">مسح التواريخ</button></div>
+        </div>
+        <p aria-live="polite" class="form-message" hidden="" id="subscription-dates-message"></p>
+        <div class="subscription-dates-actions"><button class="cta-button cta-primary" id="subscription-dates-submit"
+            type="submit">حفظ فترة الاشتراك</button></div>
+      </form>
+    </div>
+  </div>
+  <div class="modal" hidden="" id="subscription-modal">
+    <div class="modal-card"><button class="modal-close" id="close-subscription-modal" type="button">×</button>
+      <p class="eyebrow">إعدادات الاشتراك</p>
+      <h2 id="subscription-student-name">التلميذ</h2>
+      <form class="stack-form" id="subscription-form"><label id="subscription-type-label">نوع الاشتراك<select
+            id="subscription-payment-stage" required="">
+            <option value="PAID">اشتراك مدفوع</option>
+            <option value="UNPAID">اشتراك مجاني</option>
+          </select></label>
+        <div class="subscription-dates-inputs-grid"><label><span>تاريخ بدء الاشتراك (اختياري)</span><input
+              id="subscription-modal-start-date" type="date" /></label><label><span>تاريخ انتهاء الاشتراك
+              (اختياري)</span><input id="subscription-modal-end-date" type="date" /></label></div><label><input
+            id="subscription-live-access" type="checkbox" /> السماح بدخول الحصة المباشرة</label><button
+          class="cta-button cta-primary" type="submit">حفظ الاشتراك</button>
+      </form>
+    </div>
+  </div>
+  <div class="modal" hidden="" id="payment-status-modal">
+    <div class="modal-card"><button class="modal-close" id="close-payment-status-modal" type="button">×</button>
+      <p class="eyebrow">قرار حالة الدفع</p>
+      <h2 id="payment-status-student-name">التلميذ</h2>
+      <form class="stack-form" id="payment-status-form"><label>حالة الدفع<select id="payment-status-stage" required="">
+            <option value="PAID">تم تأكيد الدفع</option>
+            <option value="PROMISED">الوعد بالدفع</option>
+            <option value="UNPAID">لم يتم الدفع</option>
+          </select></label><label id="payment-amount-field">القيمة بالدينار الجزائري<input id="payment-status-amount"
+            inputmode="numeric" min="0" placeholder="مثال: 2000" step="1" type="number" /></label><button
+          class="cta-button cta-primary" type="submit">حفظ حالة الدفع</button></form>
+    </div>
+  </div>
+  <div aria-labelledby="student-card-preview-title" aria-modal="true" class="modal student-card-preview-modal" hidden=""
+    id="student-card-preview-modal" role="dialog">
+    <div class="modal-card student-card-preview-card"><button aria-label="إغلاق معاينة البطاقة" class="modal-close"
+        id="close-student-card-preview" type="button">×</button>
+      <p class="eyebrow">وثيقة هوية الطالب الجامعي</p>
+      <h2 id="student-card-preview-title">معاينة بطاقة الطالب</h2>
+      <p aria-live="polite" class="student-card-preview-status" id="student-card-preview-status">جارٍ تحميل صورة
+        البطاقة…</p>
+      <div class="student-card-preview-frame"><img alt="صورة بطاقة الطالب الجامعي" decoding="async" hidden=""
+          id="student-card-preview-image" /></div>
+      <div class="student-card-preview-actions"><button class="student-document-drive-btn" disabled=""
+          id="save-student-card-to-drive" type="button">حفظ البطاقة في Google Drive</button></div>
+    </div>
+  </div>
+  <div aria-labelledby="payment-receipt-preview-title" aria-modal="true" class="modal payment-receipt-preview-modal"
+    hidden="" id="payment-receipt-preview-modal" role="dialog">
+    <div class="modal-card payment-receipt-preview-card"><button aria-label="إغلاق معاينة وصل الدفع" class="modal-close"
+        id="close-payment-receipt-preview" type="button">×</button>
+      <p class="eyebrow">وثيقة الدفع</p>
+      <h2 id="payment-receipt-preview-title">معاينة وصل الدفع</h2>
+      <p aria-live="polite" class="payment-receipt-preview-status" id="payment-receipt-preview-status">جارٍ تحميل الوصل…
+      </p>
+      <div class="payment-receipt-preview-frame"><img alt="صورة وصل الدفع" decoding="async" hidden=""
+          id="payment-receipt-preview-image" /><iframe title="ملف PDF لوصل الدفع" hidden=""
+          id="payment-receipt-preview-pdf"></iframe></div>
+      <div class="student-card-preview-actions"><button class="payment-receipt-open-btn" hidden=""
+          id="open-payment-receipt-pdf" type="button">فتح ملف PDF في نافذة جديدة</button><button
+          class="student-document-drive-btn" disabled="" id="save-payment-receipt-to-drive" type="button">حفظ الوصل في
+          Google Drive</button></div>
+    </div>
+  </div>
+  <div class="modal" hidden="" id="student-certificates-modal">
+    <div aria-labelledby="student-certificates-modal-title" aria-modal="true"
+      class="modal-card teacher-certificates-modal-card" role="dialog"><button aria-label="إغلاق" class="modal-close"
+        id="student-certificates-modal-close" type="button">×</button>
+      <p class="eyebrow">عامل تحفيزي</p>
+      <h2 id="student-certificates-modal-title">إضافة شهادة للتلميذ</h2>
+      <p class="teacher-certificates-student-name" id="student-certificates-student-name"></p>
+      <form class="stack-form" id="student-certificate-form" novalidate=""><label>عنوان الشهادة<input
+            id="student-certificate-title" maxlength="180" placeholder="مثال: شهادة تفوق في الرياضيات" required=""
+            type="text" /></label><label>تاريخ الحصول على الشهادة<input id="student-certificate-awarded-at" required=""
+            type="date" /></label><label>وصف مختصر اختياري<textarea id="student-certificate-description"
+            maxlength="1000" placeholder="مثال: تقديرًا لاجتهاده ومشاركته المتميزة"
+            rows="3"></textarea></label><label>صورة الشهادة<input accept="image/png,image/jpeg,image/webp"
+            id="student-certificate-image" required="" type="file" /><small>PNG أو JPG أو WebP — الحد الأقصى 10
+            ميغابايت.</small></label><button class="cta-button cta-primary" id="student-certificate-submit"
+          type="submit">رفع ونشر الشهادة</button></form>
+      <div aria-live="polite" class="teacher-student-certificates-list" id="teacher-student-certificates-list"></div>
+    </div>
+  </div>
+  <div class="modal confirm-delete-modal" hidden="" id="confirm-delete-modal">
+    <div aria-labelledby="confirm-delete-title" aria-modal="true" class="modal-card confirm-delete-card" role="dialog">
+      <button aria-label="إغلاق" class="modal-close" id="close-confirm-delete" type="button">×</button><span
+        aria-hidden="true" class="confirm-delete-icon">!</span>
+      <p class="eyebrow">إجراء نهائي</p>
+      <h2 id="confirm-delete-title">هل أنت متأكد من حذف هذا التلميذ؟</h2>
+      <p id="confirm-delete-message">سيتم حذف بيانات الحساب وسجل الحضور نهائيًا ولا يمكن التراجع عن هذا الإجراء.</p>
+      <div class="confirm-delete-actions"><button class="confirm-delete-cancel" id="cancel-confirm-delete"
+          type="button">إلغاء</button><button class="confirm-delete-approve" id="approve-confirm-delete"
+          type="button">نعم، احذف التلميذ</button></div>
+    </div>
+  </div>
+  <div class="modal class-registry-action-modal" hidden="" id="class-registry-action-modal">
+    <div aria-labelledby="class-registry-action-title" aria-modal="true" class="modal-card class-registry-modal-card"
+      role="dialog"><button aria-label="إغلاق" class="modal-close" id="class-registry-action-close"
+        type="button">×</button>
+      <p class="eyebrow">تحديث سجل الحصة</p>
+      <h2 id="class-registry-action-title">تحديث الحصة</h2>
+      <form class="stack-form" id="class-registry-action-form">
+        <div class="class-registry-youtube-field" id="class-registry-youtube-field">
+          <div class="class-registry-youtube-actions"><button class="youtube-picker-button"
+              id="class-registry-youtube-picker" type="button">اختيار فيديو من قناتي على YouTube</button><button
+              class="youtube-upload-button is-secondary" id="class-registry-direct-upload-btn" type="button"><span
+                aria-hidden="true">📤</span><span>رفع فيديو من جهازي (.webm)</span></button></div><span
+            aria-live="polite" class="youtube-selected-video" id="class-registry-youtube-selected">لم يتم اختيار فيديو
+            YouTube</span><input id="class-registry-youtube-video-id" type="hidden" />
+        </div><label id="class-registry-drive-field">رابط تسجيل Google Drive<input id="class-registry-drive-link"
+            inputmode="url" placeholder="https://drive.google.com/file/d/.../view" type="url" /></label><label
+          id="class-registry-notes-field">ملاحظة أو سبب الغياب<textarea id="class-registry-notes" maxlength="2000"
+            placeholder="اكتب ملاحظة قصيرة…" rows="4"></textarea></label><button class="cta-button cta-primary"
+          type="submit">حفظ التحديث</button>
+      </form>
+    </div>
+  </div>
+  <div class="modal" hidden="" id="youtube-video-picker-modal">
+    <div aria-labelledby="youtube-video-picker-title" aria-modal="true" class="modal-card youtube-video-picker-card"
+      role="dialog"><button aria-label="إغلاق" class="modal-close" id="youtube-video-picker-close"
+        type="button">×</button>
+      <p class="eyebrow">قناة الأستاذ</p>
+      <h2 id="youtube-video-picker-title">اختر فيديو الحصة</h2>
+      <p class="youtube-picker-note">ستُحفظ الحصة كرابط غير مدرج ويشاهدها التلاميذ المؤهلون داخل الأكاديمية.</p>
+      <div aria-live="polite" class="youtube-video-picker-list" id="youtube-video-picker-list"></div>
+    </div>
+  </div>
+  <div class="modal registry-youtube-upload-modal" hidden="" id="registry-youtube-upload-modal" role="dialog"
+    aria-modal="true" aria-labelledby="registry-upload-modal-title">
+    <div class="modal-card registry-upload-modal-card"><button aria-label="إغلاق نافذة الرفع" class="modal-close"
+        id="registry-upload-modal-close" type="button">×</button>
+      <div class="registry-upload-head">
+        <div class="registry-upload-icon-pulse"><svg viewBox="0 0 24 24" width="34" height="34" fill="#ff0000"
+            aria-hidden="true">
+            <path
+              d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+          </svg></div>
+        <div class="registry-upload-head-copy">
+          <p class="eyebrow">قناة الأستاذ على YouTube</p>
+          <h2 id="registry-upload-modal-title">رفع فيديو من الجهاز إلى YouTube</h2>
+          <p class="registry-upload-subtitle" id="registry-upload-modal-subtitle">سيتم رفع الفيديو مباشرة بحالة «غير
+            مدرج (Unlisted)» إلى قناتك.</p>
+        </div>
+      </div>
+      <div class="registry-upload-file-info" id="registry-upload-file-info">
+        <div class="registry-upload-info-row"><span class="info-label">ملف الفيديو:</span><strong
+            id="registry-upload-file-name" class="info-value text-truncate">لم يتم تحديد ملف</strong></div>
+        <div class="registry-upload-info-row"><span class="info-label">الحجم:</span><strong
+            id="registry-upload-file-size" class="info-value" dir="ltr">0 MB</strong></div><label
+          class="registry-upload-field"><span>عنوان الفيديو على YouTube</span><input type="text"
+            id="registry-upload-video-title" maxlength="100" placeholder="اكتب عنوان الحصة أو موضوع الدرس..." /></label>
+        <div class="registry-upload-field" id="registry-upload-class-select-row" hidden><label><span>ربط الفيديو بحصة من
+              السجل (اختياري)</span><select id="registry-upload-target-class">
+              <option value="">رفع إلى القناة فقط (دون ربط بحصة محددة)</option>
+            </select></label></div>
+        <div class="registry-upload-start-actions"><button class="cta-button cta-primary registry-upload-start-btn"
+            id="registry-upload-start-btn" type="button">🚀 بدء الرفع المباشر إلى YouTube</button></div>
+      </div>
+      <div class="registry-upload-progress-box" id="registry-upload-progress-box" hidden>
+        <div class="registry-upload-progress-track">
+          <div class="registry-upload-progress-fill" id="registry-upload-progressbar" style="width: 0%;"></div>
+        </div>
+        <div class="registry-upload-metrics"><span class="registry-upload-percent"
+            id="registry-upload-percent">0%</span><span class="registry-upload-bytes" id="registry-upload-bytes"
+            dir="ltr">0 MB / 0 MB</span></div>
+        <div class="registry-upload-stats-grid" id="registry-upload-stats-grid">
+          <div class="registry-stat-card"><span class="stat-label">سرعة الرفع الحية</span><strong
+              id="registry-upload-speed" dir="ltr">0 KB/s</strong></div>
+          <div class="registry-stat-card"><span class="stat-label">الوقت المتبقي التقديري</span><strong
+              id="registry-upload-eta">جارٍ الحساب…</strong></div>
+        </div>
+        <p class="registry-upload-status-text" id="registry-upload-status-text" aria-live="polite">جارٍ تجهيز ملف
+          الفيديو…</p>
+      </div>
+      <div class="registry-upload-success-card" id="registry-upload-success-card" hidden>
+        <div class="registry-success-badge">✓</div>
+        <h3>تم رفع الفيديو بنجاح إلى قناتك على YouTube!</h3>
+        <p>الفيديو محفوظ بحالة <strong class="text-success">غير مدرج (Unlisted)</strong> ومتاح للمشاهدة.</p>
+        <div class="registry-success-links"><a class="cta-button cta-primary" id="registry-upload-watch-btn" href="#"
+            target="_blank" rel="noopener">مشاهدة الفيديو على YouTube ↗</a><button class="cta-button cta-secondary"
+            id="registry-upload-copy-btn" type="button">نسخ رابط الفيديو</button></div><button
+          class="registry-success-close-btn" id="registry-upload-done-btn" type="button">تم، إغلاق</button>
+      </div>
+    </div>
+  </div>
+  <div aria-labelledby="document-feedback-title" aria-modal="true" class="document-feedback-modal" hidden=""
+    id="document-feedback-modal" role="dialog">
+    <section class="document-feedback-dialog">
+      <div class="document-feedback-head"><span aria-hidden="true" class="document-feedback-icon">!</span>
+        <div>
+          <h2 id="document-feedback-title">تعذر إتمام العملية</h2>
+          <p>راجع وثيقة الدفع وحاول مرة أخرى.</p>
+        </div>
+      </div>
+      <div class="document-feedback-body" id="document-feedback-message"></div><button class="document-feedback-close"
+        id="document-feedback-close" type="button">إغلاق</button>
+    </section>
+  </div>
+  <div aria-labelledby="teacher-submissions-title" aria-modal="true" class="modal teacher-submissions-modal" hidden=""
+    id="teacher-submissions-modal" role="dialog">
+    <div class="modal-card teacher-submissions-card"><button aria-label="إغلاق" class="modal-close"
+        id="teacher-submissions-modal-close" type="button">×</button>
+      <p class="eyebrow">حلول التلاميذ</p>
+      <h2 id="teacher-submissions-title">أرى الحلول</h2>
+      <p class="teacher-submissions-assignment-title" id="teacher-submissions-assignment-title"></p>
+      <div aria-live="polite" class="teacher-submissions-list" id="teacher-submissions-list"></div>
+    </div>
+  </div>
+  <div class="toast" hidden="" id="toast"></div>
+  <div aria-labelledby="online-users-title" aria-modal="true" class="modal online-users-modal" hidden=""
+    id="online-users-modal" role="dialog">
+    <div class="modal-card online-users-card"><button aria-label="إغلاق" class="modal-close"
+        id="online-users-modal-close" type="button">×</button>
+      <p class="eyebrow">الحضور اللحظي</p>
+      <h2 id="online-users-title">المتصلون الآن</h2>
+      <p class="online-users-summary" id="online-users-summary" aria-live="polite">جارٍ تحميل القائمة…</p>
+      <div aria-live="polite" class="online-users-list" id="online-users-list"></div>
+    </div>
+  </div>
+  <script defer="" id="google-identity-services" src="https://accounts.google.com/gsi/client"></script>
+  <script defer="" id="google-picker-api" src="https://apis.google.com/js/api.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="./js/session-storage.js?v=single-session-1"></script>
+  <script src="./js/message-notifications.js"></script>
+  <script src="./js/teacher-dashboard.js?v=messenger-channel-1"></script>
+  <script src="./js/browser-notifications.js?v=session-takeover-1"></script>
+  <script src="./js/teacher-messenger.js?v=independent-panel-2"></script>
+  <script src="./js/teacher-referral-withdrawals.js?v=teacher-referral-withdrawals-1"></script>
+  <script defer="" src="./js/class-registry-teacher.js?v=registry-upload-2"></script>
   <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
 </body>
+
 </html>
