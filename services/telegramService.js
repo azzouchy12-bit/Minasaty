@@ -1,16 +1,143 @@
 "use strict";
 
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const prisma = require("../lib/prisma");
 
 const TELEGRAM_REQUEST_TIMEOUT_MS = 8_000;
 const TELEGRAM_MAX_TEXT_LENGTH = 4_000;
 const TELEGRAM_LINK_TOKEN_TTL_MS = 10 * 60 * 1000;
+const TEACHER_TELEGRAM_FILE = path.join(__dirname, "../data/teacher-telegram.json");
+
 let cachedTelegramBotUsername = "";
+let cachedTeacherChatId = "";
+let cachedTeacherUsername = "";
+const pendingTeacherTokens = new Map();
+
+function getTeacherChatId() {
+  if (cachedTeacherChatId) return cachedTeacherChatId;
+  try {
+    if (fs.existsSync(TEACHER_TELEGRAM_FILE)) {
+      const data = JSON.parse(fs.readFileSync(TEACHER_TELEGRAM_FILE, "utf8"));
+      if (data?.chatId) {
+        cachedTeacherChatId = String(data.chatId).trim();
+        cachedTeacherUsername = String(data.username || "").trim();
+        return cachedTeacherChatId;
+      }
+    }
+  } catch (_) {}
+  cachedTeacherChatId = String(process.env.TELEGRAM_ADMIN_CHAT_ID || "").trim();
+  return cachedTeacherChatId;
+}
+
+function getTeacherUsername() {
+  getTeacherChatId();
+  return cachedTeacherUsername;
+}
+
+function saveTeacherTelegramChatId({ chatId, username = "" }) {
+  cachedTeacherChatId = String(chatId || "").trim();
+  cachedTeacherUsername = String(username || "").trim();
+  process.env.TELEGRAM_ADMIN_CHAT_ID = cachedTeacherChatId;
+  try {
+    fs.mkdirSync(path.dirname(TEACHER_TELEGRAM_FILE), { recursive: true });
+    fs.writeFileSync(
+      TEACHER_TELEGRAM_FILE,
+      JSON.stringify(
+        {
+          chatId: cachedTeacherChatId,
+          username: cachedTeacherUsername,
+          linkedAt: new Date().toISOString(),
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+  } catch (err) {
+    console.warn("Failed to persist teacher-telegram.json:", err.message);
+  }
+  try {
+    const envPath = path.join(__dirname, "../.env");
+    if (fs.existsSync(envPath)) {
+      let content = fs.readFileSync(envPath, "utf8");
+      if (/TELEGRAM_ADMIN_CHAT_ID=.*/.test(content)) {
+        content = content.replace(/TELEGRAM_ADMIN_CHAT_ID=.*/, `TELEGRAM_ADMIN_CHAT_ID="${cachedTeacherChatId}"`);
+      } else {
+        content += `\nTELEGRAM_ADMIN_CHAT_ID="${cachedTeacherChatId}"\n`;
+      }
+      fs.writeFileSync(envPath, content, "utf8");
+    }
+  } catch (_) {}
+  return { chatId: cachedTeacherChatId, username: cachedTeacherUsername };
+}
+
+function deleteTeacherTelegramChatId() {
+  cachedTeacherChatId = "";
+  cachedTeacherUsername = "";
+  process.env.TELEGRAM_ADMIN_CHAT_ID = "";
+  try {
+    if (fs.existsSync(TEACHER_TELEGRAM_FILE)) {
+      fs.unlinkSync(TEACHER_TELEGRAM_FILE);
+    }
+  } catch (_) {}
+  try {
+    const envPath = path.join(__dirname, "../.env");
+    if (fs.existsSync(envPath)) {
+      let content = fs.readFileSync(envPath, "utf8");
+      content = content.replace(/TELEGRAM_ADMIN_CHAT_ID=.*/, `TELEGRAM_ADMIN_CHAT_ID=""`);
+      fs.writeFileSync(envPath, content, "utf8");
+    }
+  } catch (_) {}
+  return { unlinked: true };
+}
+
+async function createTeacherTelegramLink() {
+  const botUsername = await ensureTelegramBotUsername();
+  if (!botUsername) throw new Error("TELEGRAM_BOT_USERNAME_UNAVAILABLE");
+
+  const rawToken = "teacher_" + crypto.randomBytes(16).toString("base64url");
+  const expiresAt = new Date(Date.now() + TELEGRAM_LINK_TOKEN_TTL_MS);
+  pendingTeacherTokens.set(rawToken, { expiresAt });
+
+  return {
+    link: `https://t.me/${encodeURIComponent(botUsername)}?start=${encodeURIComponent(rawToken)}`,
+    expiresAt,
+    token: rawToken,
+  };
+}
+
+async function checkTelegramBotUpdatesForTeacher(token) {
+  try {
+    const updates = await telegramApi("getUpdates", { limit: 20, timeout: 0 });
+    if (!updates?.result || !Array.isArray(updates.result)) return null;
+    for (const update of updates.result) {
+      const msg = update?.message;
+      if (!msg?.chat?.id) continue;
+      const text = String(msg.text || "").trim();
+      const isTokenMatch = token && text.includes(token);
+      const isTeacherCmd = /^\/start(?:@[^\s]+)?\s+teacher$/i.test(text) || /^\/teacher(?:@[^\s]+)?$/i.test(text);
+      if (isTokenMatch || isTeacherCmd) {
+        const chatId = String(msg.chat.id);
+        const username = msg.from?.username ? String(msg.from.username).slice(0, 120) : "";
+        saveTeacherTelegramChatId({ chatId, username });
+        await sendTelegramMessage({
+          chatId,
+          text: `✅ مرحباً بك يا أستاذ!\nتم ربط حسابك في Telegram بنجاح.\nستصلك هنا فقط صور الأسئلة التي يرفعها التلاميذ أثناء الحصص المباشرة.`,
+        }).catch(() => {});
+        return { linked: true, chatId, username };
+      }
+    }
+  } catch (err) {
+    console.warn("Unable to check Telegram getUpdates:", err.message);
+  }
+  return null;
+}
 
 function getTelegramConfig() {
   const botToken = String(process.env.TELEGRAM_BOT_TOKEN || "").trim();
-  const chatId = String(process.env.TELEGRAM_ADMIN_CHAT_ID || "").trim();
+  const chatId = getTeacherChatId();
   return {
     botToken,
     chatId,
@@ -183,6 +310,34 @@ async function handleTelegramUpdate(update = {}) {
   if (!message || !chatId || message.chat?.type !== "private") return { handled: false, reason: "TELEGRAM_PRIVATE_CHAT_ONLY" };
 
   const text = String(message.text || "").trim();
+  const teacherMatch = text.match(/^\/start(?:@[^\s]+)?\s+(teacher_[^\s]+)$/i);
+  if (teacherMatch) {
+    const token = teacherMatch[1];
+    const pending = pendingTeacherTokens.get(token);
+    if (!pending || pending.expiresAt.getTime() < Date.now()) {
+      await sendTelegramMessage({ chatId, text: "رابط ربط الأستاذ غير صالح أو انتهت صلاحيته. يرجى طلب رابط جديد من لوحة تحكم الأستاذ." });
+      return { handled: true, linked: false, reason: "TEACHER_LINK_TOKEN_INVALID" };
+    }
+    pendingTeacherTokens.delete(token);
+    const username = message.from?.username ? String(message.from.username).slice(0, 120) : "";
+    saveTeacherTelegramChatId({ chatId, username });
+    await sendTelegramMessage({
+      chatId,
+      text: "✅ مرحباً بك يا أستاذ!\nتم ربط حسابك في Telegram بنجاح.\nستصلك هنا فقط صور الأسئلة التي يرفعها التلاميذ أثناء الحصص المباشرة.",
+    }).catch((e) => console.warn("Teacher confirmation message failed:", e.message));
+    return { handled: true, linked: true, isTeacher: true, chatId };
+  }
+
+  if (/^\/start(?:@[^\s]+)?\s+teacher$/i.test(text) || /^\/teacher(?:@[^\s]+)?$/i.test(text)) {
+    const username = message.from?.username ? String(message.from.username).slice(0, 120) : "";
+    saveTeacherTelegramChatId({ chatId, username });
+    await sendTelegramMessage({
+      chatId,
+      text: "✅ تم ربط حساب الأستاذ بنجاح!\nستصلك هنا فقط صور الأسئلة التي يرفعها التلاميذ أثناء الحصص المباشرة.",
+    }).catch((e) => console.warn("Teacher confirmation message failed:", e.message));
+    return { handled: true, linked: true, isTeacher: true, chatId };
+  }
+
   const startMatch = text.match(/^\/start(?:@[^\s]+)?\s+([^\s]+)$/i);
   if (startMatch) {
     const tokenHash = crypto.createHash("sha256").update(startMatch[1]).digest("hex");
@@ -267,4 +422,10 @@ module.exports = {
   handleTelegramUpdate,
   configureTelegramWebhook,
   notifyTelegram,
+  getTeacherChatId,
+  getTeacherUsername,
+  saveTeacherTelegramChatId,
+  deleteTeacherTelegramChatId,
+  createTeacherTelegramLink,
+  checkTelegramBotUpdatesForTeacher,
 };

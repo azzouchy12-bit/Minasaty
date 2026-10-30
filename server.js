@@ -2883,11 +2883,7 @@ io.on("connection", (socket) => {
       for (const compId of companionsRaise) {
         io.to(compId).emit("hand_raised", handRaisedPayload);
       }
-    }
-    void sendTelegramNotification({
-      title: "طلب رفع اليد",
-      body: `طلب التلميذ التحدث في الحصة.\nالتلميذ: ${socket.data.studentName || "غير معروف"}\nالمستوى: ${level}`,
-    }).catch((error) => console.warn("Optional Telegram hand-raise notification failed:", error.message));
+    } /* Telegram hand-raise muted: only live question photos are sent to teacher Telegram */
     acknowledge(acknowledgement, { ok: true });
   });
 
@@ -2917,11 +2913,7 @@ io.on("connection", (socket) => {
       for (const compId of companionsLower) {
         io.to(compId).emit("hand_lowered", { socketId: socket.id });
       }
-    }
-    void sendTelegramNotification({
-      title: "إنزال اليد",
-      body: `ألغى التلميذ طلب التحدث.\nالتلميذ: ${socket.data.studentName || "غير معروف"}\nالمستوى: ${level}`,
-    }).catch((error) => console.warn("Optional Telegram hand-lower notification failed:", error.message));
+    } /* Telegram hand-lower muted: only live question photos are sent to teacher Telegram */
     acknowledge(acknowledgement, { ok: true });
   });
 
@@ -3573,13 +3565,7 @@ io.on("connection", (socket) => {
         for (const compId of companionsChat) {
           io.to(compId).emit("student_message_received", chatEntry);
         }
-      }
-      if (!data?.isPhotoNotice && !message.includes("عبر التيليجرام")) {
-        void sendTelegramNotification({
-          title: "رسالة جديدة في الحصة",
-          body: `أرسل التلميذ رسالة إلى الأستاذ.\nالتلميذ: ${socket.data.studentName || "غير معروف"}\nالمستوى: ${level}\nالنص: ${message.slice(0, 500)}${approvedImageId ? "\nمرفق: صورة" : ""}`,
-        }).catch((error) => console.warn("Optional Telegram live-message notification failed:", error.message));
-      }
+      } /* Telegram chat notification muted: only question photos are sent to teacher Telegram */
       acknowledge(acknowledgement, { ok: true, imageId: approvedImageId, messageId });
     } catch (error) {
       console.error("student_send_message failed:", error);

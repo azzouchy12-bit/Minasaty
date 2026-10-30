@@ -227,19 +227,7 @@ async function uploadQuestionImage(req, res) {
     let telegramSent = false;
     try {
       if (photoBuffer && photoBuffer.length > 0) {
-        const dateStr = new Intl.DateTimeFormat("ar-DZ", {
-          dateStyle: "medium",
-          timeStyle: "short",
-          timeZone: "Africa/Algiers",
-        }).format(new Date());
-
-        const caption = [
-          "📸 صورة سؤال جديدة من الحصة المباشرة",
-          `👤 التلميذ: ${student.studentName || "غير معروف"}`,
-          `📚 المستوى: ${student.level || level}`,
-          `📞 هاتف الولي: ${student.parentPhone || "غير مسجل"}`,
-          `⏰ الوقت: ${dateStr}`,
-        ].join("\n");
+        const caption = student.studentName || "غير معروف";
 
         const tgResult = await sendTelegramPhoto({
           photoBuffer,

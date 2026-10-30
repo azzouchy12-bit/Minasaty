@@ -4859,10 +4859,124 @@ if (!getTeacherToken()) {
   initializeDashboardTabs();
   initializeOnlineUsers();
   initializeTeacherNotifications();
+  initializeTeacherTelegramLink();
   updateDashboardDate();
   renderGlobalTeacherAbsence();
   void loadGlobalTeacherAbsence();
   fetchStudents(currentLevel);
   startForgotPinPolling();
   void loadForgotPinRequests(currentLevel, { silent: true });
+}
+
+
+function initializeTeacherTelegramLink() {
+  const btn = document.getElementById("teacher-telegram-link-btn");
+  if (!btn) return;
+
+  let isLinked = false;
+  let linkedUsername = "";
+  let linkedChatId = "";
+  let botUsername = "Minassaty_bot";
+  let pollInterval = null;
+
+  async function checkStatus() {
+    try {
+      const res = await teacherFetch("/api/telegram/teacher/status");
+      const data = await res.json().catch(() => ({}));
+      if (data.botUsername) botUsername = data.botUsername;
+      isLinked = Boolean(data.linked && data.chatId);
+      linkedChatId = data.chatId || "";
+      linkedUsername = data.username || "";
+
+      if (isLinked) {
+        btn.textContent = "✅ Telegram مرتبط (" + (linkedUsername ? "@" + linkedUsername : linkedChatId) + ")";
+        btn.style.background = "#27ae60";
+        btn.style.borderColor = "#27ae60";
+        btn.title = "حساب الأستاذ مرتبط بالبوت لاستقبال صور أسئلة التلاميذ. اضغط للخيارات.";
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+      } else {
+        btn.textContent = "ربط Telegram ✈️";
+        btn.style.background = "#229ED9";
+        btn.style.borderColor = "#229ED9";
+        btn.title = "اضغط لربط حساب الأستاذ ببوت Telegram لاستقبال صور الأسئلة الحية.";
+      }
+    } catch (_) {}
+  }
+
+  btn.addEventListener("click", async () => {
+    if (isLinked) {
+      const choice = window.confirm(
+        "حسابك كأستاذ مرتبط حالياً بـ Telegram.\n(معرف المحادثة: " + linkedChatId + (linkedUsername ? " - @" + linkedUsername : "") + ")\n\n" +
+        "• اضغط \"موافق (OK)\" لفتح المحادثة مع البوت في Telegram.\n" +
+        "• اضغط \"إلغاء (Cancel)\" إذا كنت تريد فصل الربط."
+      );
+      if (choice) {
+        window.open("https://t.me/" + botUsername, "_blank", "noopener,noreferrer");
+      } else {
+        const confirmUnlink = window.confirm("هل أنت متأكد من رغبتك في إلغاء ربط حساب Telegram؟");
+        if (confirmUnlink) {
+          try {
+            await teacherFetch("/api/telegram/teacher/link", { method: "DELETE" });
+            showToast("تم فصل حساب Telegram بنجاح.");
+            await checkStatus();
+          } catch (err) {
+            showToast(err.message || "تعذر فصل الربط.");
+          }
+        }
+      }
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "جارٍ تجهيز الرابط... ⏳";
+    try {
+      const res = await teacherFetch("/api/telegram/teacher/link/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.link) throw new Error(data.error || "تعذر إنشاء رابط الربط.");
+
+      window.open(data.link, "_blank", "noopener,noreferrer");
+      btn.textContent = "اضغط Start في Telegram ⏳";
+      showToast("تم فتح Telegram! اضغط على زر Start داخل المحادثة لتأكيد الربط.");
+
+      const token = data.token;
+      let attempts = 0;
+      if (pollInterval) clearInterval(pollInterval);
+      pollInterval = setInterval(async () => {
+        attempts++;
+        try {
+          const vRes = await teacherFetch("/api/telegram/teacher/link/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token }),
+          });
+          const vData = await vRes.json().catch(() => ({}));
+          if (vData?.linked) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+            showToast("✅ تم ربط حساب الأستاذ بـ Telegram بنجاح! ستصلك الآن صور أسئلة التلاميذ أثناء الدرس.");
+            await checkStatus();
+          }
+        } catch (_) {}
+        if (attempts >= 45) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+          await checkStatus();
+        }
+      }, 2000);
+    } catch (err) {
+      showToast(err.message || "تعذر بدء عملية الربط.");
+      await checkStatus();
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  void checkStatus();
 }
