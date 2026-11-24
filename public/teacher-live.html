@@ -17,6 +17,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./css/style.css?v=auto-registry-1080-1" />
+    <link rel="stylesheet" href="./css/chat-voice-dictation.css" />
 
     <style>
       :root {
@@ -1983,7 +1984,7 @@
           <div id="subject-select-field" class="topbar-select-field"><label id="subject-select-label" for="subject-select">نوع الحصة</label><select id="subject-select" aria-label="اختر نوع الحصة"><option value="MATH">الرياضيات</option><option value="PHYSICS">الفيزياء</option><option value="FREE">حصة مجانية</option></select><small id="free-class-hint" class="free-class-hint" hidden>الحصة المجانية بلا مادة، وتظهر لجميع الحسابات المسجلة.</small></div>
         </div>
         <div class="studio-header-actions">
-          <button class="studio-settings-button" type="button" title="إعدادات الاستوديو" aria-label="إعدادات الاستوديو"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z"/><path d="m19.2 13.5 1.1.85-1.8 3.12-1.3-.55a7.6 7.6 0 0 1-1.9 1.1l-.2 1.4h-3.6l-.2-1.4a7.6 7.6 0 0 1-1.9-1.1l-1.3.55-1.8-3.12 1.1-.85a7 7 0 0 1 0-2.2l-1.1-.85 1.8-3.12 1.3.55a7.6 7.6 0 0 1 1.9-1.1l.2-1.4h3.6l.2 1.4a7.6 7.6 0 0 1 1.9 1.1l1.3-.55 1.8 3.12-1.1.85a7 7 0 0 1 0 2.2Z"/></svg></button>
+          <button id="studio-settings-btn" class="studio-settings-button" type="button" title="إعدادات الاستوديو ومفتاح Gemini" aria-label="إعدادات الاستوديو ومفتاح Gemini"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z"/><path d="m19.2 13.5 1.1.85-1.8 3.12-1.3-.55a7.6 7.6 0 0 1-1.9 1.1l-.2 1.4h-3.6l-.2-1.4a7.6 7.6 0 0 1-1.9-1.1l-1.3.55-1.8-3.12 1.1-.85a7 7 0 0 1 0-2.2l-1.1-.85 1.8-3.12 1.3.55a7.6 7.6 0 0 1 1.9-1.1l.2-1.4h3.6l.2 1.4a7.6 7.6 0 0 1 1.9 1.1l1.3-.55 1.8 3.12-1.1.85a7 7 0 0 1 0 2.2Z"/></svg></button>
           <a class="message-bell" data-message-bell href="./teacher-chat.html" target="_blank" rel="noopener" aria-label="الرسائل"><span aria-hidden="true">✉</span><b data-message-badge hidden>0</b></a>
         </div>
       </header>
@@ -2140,6 +2141,17 @@
             </div>
             <form id="chat-form" class="chat-form" novalidate>
               <textarea id="chat-input" maxlength="800" rows="1" placeholder="اكتب رسالة للجميع... أو الصق صورة" autocomplete="off" aria-label="رسالة الأستاذ"></textarea>
+              <div class="chat-voice-controls">
+                <button id="chat-lang-btn" class="chat-lang-btn" type="button" title="لغة الإملاء: العربية (اضغط للتبديل إلى FR)">عربي</button>
+                <button id="chat-mic-btn" class="chat-mic-btn" type="button" title="بدء الإملاء الصوتي" aria-label="بدء الإملاء الصوتي" aria-pressed="false">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                </button>
+              </div>
               <button id="chat-send-btn" class="chat-send-button" type="submit" disabled>إرسال</button>
             </form>
           </section>
@@ -2556,6 +2568,83 @@
       </div>
     </div>
 
+    <!-- نافذة إعدادات الاستوديو ومفتاح Gemini API للصوت -->
+    <div id="studio-settings-modal" class="audio-settings-modal" role="dialog" aria-modal="true" aria-labelledby="studio-settings-modal-title" hidden>
+      <div class="audio-settings-modal-backdrop" id="studio-settings-modal-backdrop"></div>
+      <div class="audio-settings-modal-card">
+        <header class="audio-settings-modal-header">
+          <div class="audio-settings-modal-title-row">
+            <span class="audio-settings-modal-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </span>
+            <div class="audio-settings-modal-titles">
+              <h2 id="studio-settings-modal-title">إعدادات الاستوديو والذكاء الاصطناعي</h2>
+              <p class="audio-settings-modal-subtitle">إدارة مفتاح Gemini API المجاني لتحويل الصوت إلى نص للأستاذ والتلاميذ</p>
+            </div>
+          </div>
+          <button id="close-studio-settings-modal" class="audio-settings-close-btn" type="button" aria-label="إغلاق النافذة">×</button>
+        </header>
+
+        <div class="audio-settings-modal-body">
+          <div class="audio-protection-card" style="border-color: rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.08);">
+            <div class="protection-badge-icon">🎙️</div>
+            <div class="protection-badge-text">
+              <strong>الإملاء الصوتي الذكي (تحويل الصوت إلى نص):</strong>
+              <p>يستخدم المتصفح التعرف المباشر أولاً (Chrome)، وفي حال استخدام التلميذ أو الأستاذ لهاتف أو تطبيق المنصة (WebView)، يتم استخدام نموذج <code>gemini-2.5-flash</code> المجاني تلقائياً لتفريغ الصوت بدقة فائقة.</p>
+            </div>
+          </div>
+
+          <div class="audio-setting-block">
+            <div class="audio-setting-header-line">
+              <label for="gemini-api-key-input" class="audio-setting-label">مفتاح Gemini API للصوت:</label>
+              <span id="gemini-key-status-badge" class="mic-gain-badge" style="color: #93c5fd; background: rgba(59, 130, 246, 0.15);">جاهز للتحديث</span>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center;">
+              <input
+                id="gemini-api-key-input"
+                type="password"
+                autocomplete="off"
+                placeholder="ألصق مفتاح Gemini هنا (AIzaSy...)"
+                style="flex: 1; min-height: 44px; padding: 0 14px; border: 1px solid var(--border-dark); border-radius: 8px; background: var(--bg-hover); color: var(--text-primary); font-family: monospace; font-size: 0.88rem; direction: ltr;"
+              />
+              <button
+                id="toggle-gemini-key-visibility-btn"
+                type="button"
+                class="studio-button"
+                style="width: 44px; height: 44px; min-width: 44px; border-radius: 8px;"
+                title="إظهار / إخفاء المفتاح"
+                aria-label="إظهار أو إخفاء المفتاح"
+              >
+                👁️
+              </button>
+            </div>
+            <p class="audio-setting-note" style="margin-top: 10px;">
+              يتم حفظ المفتاح في قاعدة البيانات والجلسة الحالية للحصة تلقائياً، ويصل لصفحة التلميذ في الخلفية دون أن يظهر في واجهتهم. يمكنك تحديثه قبل أي حصة في ثوانٍ.
+            </p>
+            <div style="margin-top: 8px; font-size: 0.75rem;">
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color: #60a5fa; text-decoration: underline;">
+                🔗 اضغط هنا للحصول على مفتاح Gemini API مجاني من Google AI Studio
+              </a>
+            </div>
+          </div>
+
+          <div id="gemini-settings-feedback" class="audio-setting-note" style="display: none; padding: 10px 14px; border-radius: 8px; font-weight: 700;"></div>
+        </div>
+
+        <footer class="audio-settings-modal-footer">
+          <button id="save-gemini-key-btn" class="studio-button primary" type="button" style="width: auto; padding: 0 24px; border-radius: 8px; font-weight: 800;">
+            <span>حفظ</span>
+          </button>
+          <button id="dismiss-studio-settings-btn" class="studio-button" type="button" style="width: auto; padding: 0 20px; border-radius: 8px;">
+            <span>إغلاق</span>
+          </button>
+        </footer>
+      </div>
+    </div>
+
     <link rel="stylesheet" href="./css/private-messages.css" />
     <script src="./js/sentry-client.js" defer></script>
     <script src="/socket.io/socket.io.js"></script>
@@ -2566,6 +2655,7 @@
     <script id="google-identity-services" src="https://accounts.google.com/gsi/client" defer></script>
     <script src="./js/audio-enhancer.js?v=audio-enhancer-1"></script>
     <script src="./js/live-diagnostics.js?v=live-doctor-23" defer></script>
+    <script src="./js/chat-voice-dictation.js"></script>
     <script src="./js/teacher-live-v2.js?v=preserve-mic-refresh-25" defer></script>
     <script src="./js/in-app-browser-gate.js?v=telegram-gate-2" defer></script>
   </body>

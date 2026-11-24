@@ -6,6 +6,7 @@ const path = require("path");
 const { Prisma } = require("@prisma/client");
 const prisma = require("../lib/prisma");
 const { sendTelegramPhoto } = require("../services/telegramService");
+const { loadGeminiApiKey, saveGeminiApiKey, transcribeAudioWithGemini } = require("../services/geminiAudioService");
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const imageUploadDirectory = path.join(
@@ -295,6 +296,61 @@ async function getQuestionImage(req, res) {
   }
 }
 
+let onGeminiKeyUpdatedCallback = null;
+function setOnGeminiKeyUpdatedCallback(fn) {
+  onGeminiKeyUpdatedCallback = fn;
+}
+
+async function getGeminiConfig(req, res) {
+  try {
+    if (req.user?.role !== "teacher") {
+      return res.status(403).json({ error: "هذه الصلاحية مخصصة للأستاذ فقط." });
+    }
+    const apiKey = loadGeminiApiKey();
+    return res.json({ ok: true, apiKey });
+  } catch (error) {
+    console.error("Failed to get Gemini config:", error);
+    return res.status(500).json({ error: "تعذر قراءة إعدادات Gemini API." });
+  }
+}
+
+async function updateGeminiConfig(req, res) {
+  try {
+    if (req.user?.role !== "teacher") {
+      return res.status(403).json({ error: "هذه الصلاحية مخصصة للأستاذ فقط." });
+    }
+    const apiKey = typeof req.body?.apiKey === "string" ? req.body.apiKey.trim() : "";
+    saveGeminiApiKey(apiKey);
+
+    if (typeof onGeminiKeyUpdatedCallback === "function") {
+      try {
+        onGeminiKeyUpdatedCallback(apiKey);
+      } catch (cbErr) {
+        console.warn("Gemini key updated callback error:", cbErr);
+      }
+    }
+
+    return res.json({ ok: true, message: "تم حفظ وتحديث مفتاح Gemini API بنجاح.", apiKey });
+  } catch (error) {
+    console.error("Failed to update Gemini config:", error);
+    return res.status(500).json({ error: "تعذر حفظ مفتاح Gemini API." });
+  }
+}
+
+async function transcribeAudio(req, res) {
+  try {
+    const { audioBase64, mimeType, lang } = req.body || {};
+    if (!audioBase64) {
+      return res.status(400).json({ error: "التسجيل الصوتي مطلوب." });
+    }
+    const text = await transcribeAudioWithGemini({ audioBase64, mimeType, lang });
+    return res.json({ ok: true, text });
+  } catch (error) {
+    console.warn("Transcribe audio error:", error.message);
+    return res.status(400).json({ error: error.message || "تعذر تفريغ الصوت." });
+  }
+}
+
 module.exports = {
   imageUploadDirectory,
   teacherChatImageDirectory,
@@ -304,4 +360,8 @@ module.exports = {
   getTeacherChatImage,
   uploadQuestionImage,
   getQuestionImage,
+  getGeminiConfig,
+  updateGeminiConfig,
+  transcribeAudio,
+  setOnGeminiKeyUpdatedCallback,
 };

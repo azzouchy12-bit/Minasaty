@@ -1060,6 +1060,18 @@ const elements = {
   chatForm: document.getElementById("chat-form"),
   chatInput: document.getElementById("chat-input"),
   chatSendButton: document.getElementById("chat-send-btn"),
+  chatMicButton: document.getElementById("chat-mic-btn"),
+  chatLangButton: document.getElementById("chat-lang-btn"),
+  studioSettingsButton: document.getElementById("studio-settings-btn"),
+  studioSettingsModal: document.getElementById("studio-settings-modal"),
+  closeStudioSettingsModal: document.getElementById("close-studio-settings-modal"),
+  dismissStudioSettingsBtn: document.getElementById("dismiss-studio-settings-btn"),
+  studioSettingsBackdrop: document.getElementById("studio-settings-modal-backdrop"),
+  geminiApiKeyInput: document.getElementById("gemini-api-key-input"),
+  toggleGeminiKeyVisibilityBtn: document.getElementById("toggle-gemini-key-visibility-btn"),
+  saveGeminiKeyBtn: document.getElementById("save-gemini-key-btn"),
+  geminiKeyStatusBadge: document.getElementById("gemini-key-status-badge"),
+  geminiSettingsFeedback: document.getElementById("gemini-settings-feedback"),
   chatImagePreview: document.getElementById("chat-image-preview"),
   chatImagePreviewImage: document.getElementById("chat-image-preview-img"),
   chatImageRemoveButton: document.getElementById("chat-image-remove-btn"),
@@ -8636,6 +8648,140 @@ elements.chatImageRemoveButton?.addEventListener("click", clearTeacherChatImage)
 elements.closeQuestionImageModalButton?.addEventListener("click", closeQuestionImageModal);
 elements.questionImageModalViewport?.addEventListener("wheel", handleQuestionImageWheel, { passive: false });
 
+// ── Studio Settings & Gemini API Key Management ──
+async function openStudioSettingsModal() {
+  if (!elements.studioSettingsModal) return;
+  elements.studioSettingsModal.hidden = false;
+  if (elements.geminiSettingsFeedback) {
+    elements.geminiSettingsFeedback.style.display = "none";
+  }
+  try {
+    const token = sessionStorage.getItem("teacherToken") || localStorage.getItem("teacherToken") || "";
+    const res = await fetch("/api/live-chat/gemini-config", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (elements.geminiApiKeyInput) {
+        elements.geminiApiKeyInput.value = data.apiKey || "";
+      }
+      if (elements.geminiKeyStatusBadge) {
+        elements.geminiKeyStatusBadge.textContent = data.apiKey ? "المفتاح مفعل ✓" : "لم يُضبط بعد";
+        elements.geminiKeyStatusBadge.style.color = data.apiKey ? "#4ade80" : "#facc15";
+      }
+      if (data.apiKey && window.ChatVoiceDictation) {
+        window.ChatVoiceDictation.setGeminiApiKey(data.apiKey);
+      }
+    }
+  } catch (err) {
+    console.warn("Could not fetch Gemini config:", err);
+  }
+  if (elements.geminiApiKeyInput) {
+    elements.geminiApiKeyInput.focus();
+  }
+}
+
+function closeStudioSettingsModal() {
+  if (elements.studioSettingsModal) {
+    elements.studioSettingsModal.hidden = true;
+  }
+}
+
+async function saveStudioGeminiKey() {
+  if (!elements.geminiApiKeyInput) return;
+  const newKey = elements.geminiApiKeyInput.value.trim();
+  const feedback = elements.geminiSettingsFeedback;
+  const saveBtn = elements.saveGeminiKeyBtn;
+  if (saveBtn) saveBtn.disabled = true;
+
+  try {
+    const token = sessionStorage.getItem("teacherToken") || localStorage.getItem("teacherToken") || "";
+    const res = await fetch("/api/live-chat/gemini-config", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ apiKey: newKey }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "تعذر حفظ المفتاح.");
+    }
+
+    if (window.ChatVoiceDictation) {
+      window.ChatVoiceDictation.setGeminiApiKey(newKey);
+    }
+    if (socket && socket.connected) {
+      socket.emit("teacher_update_gemini_key", { apiKey: newKey });
+    }
+
+    if (elements.geminiKeyStatusBadge) {
+      elements.geminiKeyStatusBadge.textContent = newKey ? "تم الحفظ والتفعيل ✓" : "تم مسح المفتاح";
+      elements.geminiKeyStatusBadge.style.color = newKey ? "#4ade80" : "#94a3b8";
+    }
+
+    if (feedback) {
+      feedback.style.display = "block";
+      feedback.style.background = "rgba(34, 197, 94, 0.15)";
+      feedback.style.color = "#4ade80";
+      feedback.style.border = "1px solid rgba(34, 197, 94, 0.35)";
+      feedback.textContent = newKey
+        ? "✅ تم حفظ مفتاح Gemini وتفعيله بنجاح! تم تعميمه فوراً على صفحة التلميذ في الخلفية."
+        : "تم مسح المفتاح بنجاح.";
+    }
+
+    setTimeout(() => {
+      closeStudioSettingsModal();
+    }, 1200);
+  } catch (err) {
+    if (feedback) {
+      feedback.style.display = "block";
+      feedback.style.background = "rgba(239, 68, 68, 0.15)";
+      feedback.style.color = "#f87171";
+      feedback.style.border = "1px solid rgba(239, 68, 68, 0.35)";
+      feedback.textContent = `⚠️ خطأ: ${err.message}`;
+    }
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+elements.studioSettingsButton?.addEventListener("click", openStudioSettingsModal);
+elements.closeStudioSettingsModal?.addEventListener("click", closeStudioSettingsModal);
+elements.dismissStudioSettingsBtn?.addEventListener("click", closeStudioSettingsModal);
+elements.studioSettingsBackdrop?.addEventListener("click", closeStudioSettingsModal);
+elements.saveGeminiKeyBtn?.addEventListener("click", () => { void saveStudioGeminiKey(); });
+elements.toggleGeminiKeyVisibilityBtn?.addEventListener("click", () => {
+  if (elements.geminiApiKeyInput) {
+    const isPass = elements.geminiApiKeyInput.type === "password";
+    elements.geminiApiKeyInput.type = isPass ? "text" : "password";
+    elements.toggleGeminiKeyVisibilityBtn.textContent = isPass ? "🙈" : "👁️";
+  }
+});
+elements.geminiApiKeyInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    void saveStudioGeminiKey();
+  }
+});
+
+// Initialize Voice Dictation for Teacher Chat
+if (window.ChatVoiceDictation && elements.chatInput && elements.chatMicButton) {
+  window.ChatVoiceDictation.setup({
+    inputEl: elements.chatInput,
+    micBtn: elements.chatMicButton,
+    langBtn: elements.chatLangButton,
+    onStatus: (msg, type) => {
+      if (typeof setStudioStatus === "function") {
+        setStudioStatus(msg, type === "error" ? "error" : "neutral");
+      }
+    },
+  });
+  window.ChatVoiceDictation.attachSocketListener(socket);
+}
+
 // ── Teacher Live Alert Listeners ──
 elements.sendLiveAlertButton?.addEventListener("click", openTeacherAlertModal);
 elements.closeTeacherAlertModalButton?.addEventListener("click", closeTeacherAlertModal);
@@ -8729,6 +8875,7 @@ window.addEventListener("keydown", (event) => {
     closeQuestionImageModal();
     closeRecordingReadyModal();
     closeAbsenteesModal();
+    closeStudioSettingsModal();
   }
 });
 

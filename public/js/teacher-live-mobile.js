@@ -172,6 +172,18 @@
     imageModalImg: document.getElementById("tm-image-viewer-img"),
     imageModalClose: document.getElementById("tm-image-viewer-close"),
     toast: document.getElementById("tm-toast"),
+
+    // Studio Settings & Voice Dictation
+    settingsBtn: document.getElementById("tm-settings-btn"),
+    chatMicBtn: document.getElementById("tm-chat-mic-btn"),
+    chatLangBtn: document.getElementById("tm-chat-lang-btn"),
+    settingsModal: document.getElementById("tm-settings-modal"),
+    settingsModalClose: document.getElementById("tm-settings-modal-close"),
+    settingsModalCancel: document.getElementById("tm-settings-modal-cancel"),
+    geminiApiKeyInput: document.getElementById("tm-gemini-api-key-input"),
+    geminiKeyToggleBtn: document.getElementById("tm-gemini-key-toggle-btn"),
+    geminiKeySaveBtn: document.getElementById("tm-gemini-key-save-btn"),
+    geminiKeyStatus: document.getElementById("tm-gemini-key-status"),
   };
 
   // ---------------------------------------------------------------------------
@@ -2432,6 +2444,135 @@
   document.getElementById("tm-desktop-switch-btn")?.addEventListener("click", () => {
     try { sessionStorage.setItem("teacherDesktopMode", "1"); } catch (_) { }
   });
+
+  // ---------------------------------------------------------------------------
+  // Studio Settings Modal (Gemini API Key)
+  // ---------------------------------------------------------------------------
+  async function openMobileSettingsModal() {
+    if (!el.settingsModal) return;
+    el.settingsModal.hidden = false;
+    if (el.geminiKeyStatus) {
+      el.geminiKeyStatus.style.display = "none";
+    }
+    try {
+      const res = await fetch("/api/live-chat/gemini-config", {
+        headers: { Authorization: `Bearer ${teacherToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (el.geminiApiKeyInput) {
+          el.geminiApiKeyInput.value = data.apiKey || "";
+        }
+        if (data.apiKey && window.ChatVoiceDictation) {
+          window.ChatVoiceDictation.setGeminiApiKey(data.apiKey);
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch Gemini config:", err);
+    }
+    if (el.geminiApiKeyInput) {
+      el.geminiApiKeyInput.focus();
+    }
+  }
+
+  function closeMobileSettingsModal() {
+    if (el.settingsModal) {
+      el.settingsModal.hidden = true;
+    }
+  }
+
+  async function saveMobileGeminiKey() {
+    if (!el.geminiApiKeyInput) return;
+    const newKey = el.geminiApiKeyInput.value.trim();
+    const feedback = el.geminiKeyStatus;
+    const saveBtn = el.geminiKeySaveBtn;
+    if (saveBtn) saveBtn.disabled = true;
+
+    try {
+      const res = await fetch("/api/live-chat/gemini-config", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${teacherToken}`,
+        },
+        body: JSON.stringify({ apiKey: newKey }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "تعذر حفظ المفتاح.");
+      }
+
+      if (window.ChatVoiceDictation) {
+        window.ChatVoiceDictation.setGeminiApiKey(newKey);
+      }
+      if (socket && socket.connected) {
+        socket.emit("teacher_update_gemini_key", { apiKey: newKey });
+      }
+
+      if (feedback) {
+        feedback.style.display = "block";
+        feedback.style.background = "rgba(34, 197, 94, 0.15)";
+        feedback.style.color = "#4ade80";
+        feedback.style.border = "1px solid rgba(34, 197, 94, 0.35)";
+        feedback.textContent = newKey
+          ? "✅ تم حفظ مفتاح Gemini بنجاح! تم تعميمه فوراً على صفحة التلميذ في الخلفية."
+          : "تم مسح المفتاح بنجاح.";
+      }
+
+      showToast(newKey ? "تم تفعيل مفتاح Gemini للصوت" : "تم مسح المفتاح");
+
+      setTimeout(() => {
+        closeMobileSettingsModal();
+      }, 1200);
+    } catch (err) {
+      if (feedback) {
+        feedback.style.display = "block";
+        feedback.style.background = "rgba(239, 68, 68, 0.15)";
+        feedback.style.color = "#f87171";
+        feedback.style.border = "1px solid rgba(239, 68, 68, 0.35)";
+        feedback.textContent = `⚠️ خطأ: ${err.message}`;
+      }
+    } finally {
+      if (saveBtn) saveBtn.disabled = false;
+    }
+  }
+
+  el.settingsBtn?.addEventListener("click", openMobileSettingsModal);
+  el.settingsModalClose?.addEventListener("click", closeMobileSettingsModal);
+  el.settingsModalCancel?.addEventListener("click", closeMobileSettingsModal);
+  el.settingsModal?.addEventListener("click", (e) => {
+    if (e.target === el.settingsModal) closeMobileSettingsModal();
+  });
+  el.geminiKeySaveBtn?.addEventListener("click", () => { void saveMobileGeminiKey(); });
+  el.geminiKeyToggleBtn?.addEventListener("click", () => {
+    if (el.geminiApiKeyInput) {
+      const isPass = el.geminiApiKeyInput.type === "password";
+      el.geminiApiKeyInput.type = isPass ? "text" : "password";
+      el.geminiKeyToggleBtn.textContent = isPass ? "🙈" : "👁️";
+    }
+  });
+  el.geminiApiKeyInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void saveMobileGeminiKey();
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Voice Dictation (Speech-to-Text) Initialization
+  // ---------------------------------------------------------------------------
+  if (window.ChatVoiceDictation && el.chatInput && el.chatMicBtn) {
+    window.ChatVoiceDictation.setup({
+      inputEl: el.chatInput,
+      micBtn: el.chatMicBtn,
+      langBtn: el.chatLangBtn,
+      onStatus: (msg) => {
+        showToast(msg);
+      },
+    });
+    window.ChatVoiceDictation.attachSocketListener(socket);
+  }
 
   // ---------------------------------------------------------------------------
   // 16. Initialization on Load

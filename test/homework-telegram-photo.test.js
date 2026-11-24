@@ -41,3 +41,4 @@ test("Homework Telegram Photo: parent-dashboard.js initializes send homework mod
   assert.match(js, /hw-input-camera/, "parent-dashboard.js must handle camera input");
   assert.match(js, /hw-input-gallery/, "parent-dashboard.js must handle gallery input");
 });
+

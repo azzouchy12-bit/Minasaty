@@ -29,7 +29,8 @@ const { createRateLimiter } = require("./middleware/rateLimit");
 const { startBackgroundJobs } = require("./utils/backgroundJobs");
 const { ensurePublicArchive, recordPublicAttendance, finishPublicArchive, appendPublicChat } = require("./utils/publicArchive");
 const { verifySessionToken, setSessionTakeoverNotifier } = require("./utils/sessionAuth");
-const { readTeacherChatImageMetadata } = require("./controllers/liveChatController");
+const { readTeacherChatImageMetadata, setOnGeminiKeyUpdatedCallback } = require("./controllers/liveChatController");
+const { saveGeminiApiKey, loadGeminiApiKey } = require("./services/geminiAudioService");
 const { sendPushToSession } = require("./utils/push");
 const { sendTelegramNotification, configureTelegramWebhook } = require("./services/telegramService");
 const { sendVerifiedParentEmail } = require("./services/parentEmailEvents");
@@ -1235,9 +1236,32 @@ async function closeClassroom(level, reason) {
   return participants.length;
 }
 
+setOnGeminiKeyUpdatedCallback((apiKey) => {
+  classroomSessions.updateAllGeminiApiKeys(apiKey);
+  io.emit("gemini_key_updated", { apiKey });
+});
+
 io.on("connection", (socket) => {
   socketConnected();
   liveDiagnostics.attachClientDiagnostics(socket);
+
+  socket.on("teacher_update_gemini_key", async (data = {}, acknowledgement) => {
+    try {
+      const authenticatedTeacher = await requireTeacherSocketSession(socket, "teacher_update_gemini_key", acknowledgement);
+      if (!authenticatedTeacher) return;
+      const apiKey = typeof data.apiKey === "string" ? data.apiKey.trim() : "";
+      saveGeminiApiKey(apiKey);
+      classroomSessions.updateAllGeminiApiKeys(apiKey);
+      io.emit("gemini_key_updated", { apiKey });
+      if (typeof acknowledgement === "function") {
+        acknowledgement({ ok: true, apiKey });
+      }
+    } catch (err) {
+      if (typeof acknowledgement === "function") {
+        acknowledgement({ ok: false, error: err.message });
+      }
+    }
+  });
   socket.on("classroom_roster_request", (_data, acknowledgeRoster) => {
     if (typeof acknowledgeRoster !== "function") return;
     const level = socket.data.roomLevel;

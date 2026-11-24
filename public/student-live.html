@@ -6907,7 +6907,20 @@
           <button id="remove-question-image-btn" type="button" aria-label="إلغاء الصورة">×</button>
         </div>
         <form id="desktop-chat-direct-form" class="desktop-chat-direct-form" novalidate>
-          <label for="desktop-chat-input">رسالتك للأستاذ</label>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+            <label for="desktop-chat-input" style="margin-bottom: 0;">رسالتك للأستاذ</label>
+            <div class="chat-voice-controls">
+              <button id="desktop-chat-lang-btn" class="chat-lang-btn" type="button" title="لغة الإملاء: العربية (اضغط للتبديل إلى FR)">عربي</button>
+              <button id="desktop-chat-mic-btn" class="chat-mic-btn" type="button" title="بدء الإملاء الصوتي" aria-label="بدء الإملاء الصوتي" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="23"/>
+                  <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+              </button>
+            </div>
+          </div>
           <textarea id="desktop-chat-input" rows="2" maxlength="800" placeholder="اكتب رسالتك مباشرة..."
             autocomplete="off" aria-label="رسالتك المباشرة للأستاذ" disabled></textarea>
         </form>
@@ -6942,7 +6955,20 @@
                 aria-label="إغلاق نافذة الرسالة">×</button>
             </header>
             <form id="chat-form" class="student-chat-form" novalidate>
-              <label class="chat-compose-label" for="chat-input">رسالتك</label>
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                <label class="chat-compose-label" for="chat-input" style="margin-bottom: 0;">رسالتك</label>
+                <div class="chat-voice-controls">
+                  <button id="student-chat-lang-btn" class="chat-lang-btn" type="button" title="لغة الإملاء: العربية (اضغط للتبديل إلى FR)">عربي</button>
+                  <button id="student-chat-mic-btn" class="chat-mic-btn" type="button" title="بدء الإملاء الصوتي" aria-label="بدء الإملاء الصوتي" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                      <line x1="12" y1="19" x2="12" y2="23"/>
+                      <line x1="8" y1="23" x2="16" y2="23"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
               <textarea id="chat-input" rows="5" maxlength="800" placeholder="اكتب رسالتك هنا..." autocomplete="off"
                 aria-label="رسالتك للأستاذ" disabled></textarea>
               <button id="chat-send-btn" class="student-chat-send btn-plane-interactive" type="submit" disabled>
@@ -7381,6 +7407,7 @@
   <link rel="stylesheet" href="./css/student-desktop.css?v=desktop-direct-message-1" />
   <link rel="stylesheet" href="./css/student-portrait.css?v=portrait-clean-5" />
   <link rel="stylesheet" href="./css/student-landscape2.css?v=landscape-clean-4b-2" />
+  <link rel="stylesheet" href="./css/chat-voice-dictation.css" />
   <script src="./js/sentry-client.js" defer></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="./js/session-storage.js?v=single-session-1"></script>
@@ -7393,6 +7420,7 @@
   <script src="./js/audio-enhancer.js?v=audio-enhancer-1"></script>
   <script src="./js/live-diagnostics.js?v=live-doctor-23"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
+  <script src="./js/chat-voice-dictation.js"></script>
   <script src="./js/student-live.js?v=mic-publish-result-24"></script>
   <script src="./js/browser-notifications.js?v=session-takeover-1"></script>
   <script src="./js/alert-sound-player.js?v=alert-disabled-1" defer></script>

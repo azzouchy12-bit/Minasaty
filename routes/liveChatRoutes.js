@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const multer = require("multer");
-const { verifyToken } = require("../middleware/authMiddleware");
+const { verifyToken, isTeacher } = require("../middleware/authMiddleware");
 const {
   imageUploadDirectory,
   teacherChatImageDirectory,
@@ -13,6 +13,9 @@ const {
   getQuestionImage,
   uploadTeacherChatImage,
   getTeacherChatImage,
+  getGeminiConfig,
+  updateGeminiConfig,
+  transcribeAudio,
 } = require("../controllers/liveChatController");
 
 const router = express.Router();
@@ -63,6 +66,11 @@ router.post("/question-image", verifyToken, imageUpload.single("image"), uploadQ
 router.get("/question-image/:id", verifyToken, getQuestionImage);
 router.post("/teacher-image", verifyToken, teacherImageUpload.single("image"), uploadTeacherChatImage);
 router.get("/teacher-image/:id", verifyToken, getTeacherChatImage);
+
+// Gemini API key management & voice dictation
+router.get("/gemini-config", verifyToken, isTeacher, getGeminiConfig);
+router.post("/gemini-config", verifyToken, isTeacher, express.json({ limit: "1mb" }), updateGeminiConfig);
+router.post("/transcribe-audio", verifyToken, express.json({ limit: "25mb" }), transcribeAudio);
 
 router.use((error, _req, res, next) => {
   if (!error) return next();

@@ -1682,8 +1682,12 @@ const elements = {
   chatEmpty: document.getElementById("chat-empty"),
   chatForm: document.getElementById("chat-form"),
   chatInput: document.getElementById("chat-input"),
+  studentChatMicButton: document.getElementById("student-chat-mic-btn"),
+  studentChatLangButton: document.getElementById("student-chat-lang-btn"),
   desktopChatDirectForm: document.getElementById("desktop-chat-direct-form"),
   desktopChatInput: document.getElementById("desktop-chat-input"),
+  desktopChatMicButton: document.getElementById("desktop-chat-mic-btn"),
+  desktopChatLangButton: document.getElementById("desktop-chat-lang-btn"),
   chatSendButton: document.getElementById("chat-send-btn"),
   openChatComposeButton: document.getElementById("open-chat-compose-btn"),
   closeChatComposeButton: document.getElementById("close-chat-compose-btn"),
@@ -8472,6 +8476,39 @@ elements.lowerHandButton?.addEventListener("click", () => {
 });
 elements.chatForm.addEventListener("submit", sendStudentChatMessage);
 elements.desktopChatDirectForm?.addEventListener("submit", sendStudentChatMessage);
+
+// Initialize Voice Dictation for Student Chat (Mobile Composer & Desktop Direct)
+if (window.ChatVoiceDictation) {
+  if (elements.chatInput && elements.studentChatMicButton) {
+    window.ChatVoiceDictation.setup({
+      inputEl: elements.chatInput,
+      micBtn: elements.studentChatMicButton,
+      langBtn: elements.studentChatLangButton,
+      onStatus: (msg, type) => {
+        if (typeof showMobileControlToast === "function") {
+          showMobileControlToast(msg);
+        } else if (typeof setViewerStatus === "function") {
+          setViewerStatus(msg, type === "error" ? "error" : "info");
+        }
+      },
+    });
+  }
+  if (elements.desktopChatInput && elements.desktopChatMicButton) {
+    window.ChatVoiceDictation.setup({
+      inputEl: elements.desktopChatInput,
+      micBtn: elements.desktopChatMicButton,
+      langBtn: elements.desktopChatLangButton,
+      onStatus: (msg, type) => {
+        if (typeof setViewerStatus === "function") {
+          setViewerStatus(msg, type === "error" ? "error" : "info");
+        }
+      },
+    });
+  }
+  if (socket) {
+    window.ChatVoiceDictation.attachSocketListener(socket);
+  }
+}
 elements.desktopChatInput?.addEventListener("input", updateChatControls);
 elements.openChatComposeButton?.addEventListener("click", handleChatMessageButtonClick);
 elements.closeChatComposeButton?.addEventListener("click", closeStudentChatComposer);
